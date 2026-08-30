@@ -1,0 +1,324 @@
+/**
+ * Lens OS imaging core.
+ * Runs entirely in the browser: decode, analyse, score, edit, export.
+ */
+
+export const RAW_EXTENSIONS = [
+  "nef",
+  "cr2",
+  "cr3",
+  "arw",
+  "dng",
+  "raf",
+  "orf",
+  "rw2",
+  "pef",
+  "srw",
+  "raw",
+];
+
+export type Verdict = "keep" | "reject" | "undecided";
+
+export type Flag = "soft" | "blur" | "underexposed" | "overexposed" | "duplicate";
+
+export interface Edits {
+  exposure: number; // -100..100
+  contrast: number; // -100..100
+  temp: number; // -100..100
+  saturation: number; // -100..100
+  highlights: number; // -100..100
+  shadows: number; // -100..100
+  crop: "orig" | "1:1" | "4:5" | "3:2" | "16:9";
+}
+
+export const DEFAULT_EDITS: Edits = {
+  exposure: 0,
+  contrast: 0,
+  temp: 0,
+  saturation: 0,
+  highlights: 0,
+  shadows: 0,
+  crop: "orig",
+};
+
+export interface Shot {
+  id: string;
+  file: File;
+  name: string;
+  isRaw: boolean;
+  previewUrl: string | null;
+  width: number;
+  height: number;
+  sizeMb: number;
+  sharpness: number;
+  brightness: number;
+  clippedHighlights: number;
+  clippedShadows: number;
+  hash: string;
+  score: number;
+  flags: Flag[];
+  verdict: Verdict;
+  edits: Edits;
+  error?: string;
+}
+
+export function extension(name: string) {
+  const parts = name.split(".");
+  return parts.length > 1 ? parts[parts.length - 1]!.toLowerCase() : "";
+}
+
+export function isRawFile(file: File) {
+  return RAW_EXTENSIONS.includes(extension(file.name));
+}
+
+/** RAW files embed a full-size JPEG preview. Pull out the largest one. */
+async function extractEmbeddedJpeg(file: File): Promise<Blob | null> {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let best: { start: number; end: number } | null = null;
+  for (let i = 0; i < buf.length - 3; i++) {
+    if (buf[i] === 0xff && buf[i + 1] === 0xd8 && buf[i + 2] === 0xff) {
+      for (let j = i + 2; j < buf.length - 1; j++) {
+        if (buf[j] === 0xff && buf[j + 1] === 0xd9) {
+          const len = j + 2 - i;
+          if (!best || len > best.end - best.start) best = { start: i, end: j + 2 };
+          i = j + 1;
+          break;
+        }
+      }
+    }
+  }
+  if (!best || best.end - best.start < 4096) return null;
+  return new Blob([buf.slice(best.start, best.end)], { type: "image/jpeg" });
+}
+
+export async function decodeFile(file: File): Promise<ImageBitmap> {
+  if (isRawFile(file)) {
+    const jpeg = await extractEmbeddedJpeg(file);
+    if (!jpeg) throw new Error("No embedded preview found in this RAW file");
+    return createImageBitmap(jpeg);
+  }
+  return createImageBitmap(file);
+}
+
+function scratchCanvas(w: number, h: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  return { canvas, ctx };
+}
+
+export interface Analysis {
+  sharpness: number;
+  brightness: number;
+  clippedHighlights: number;
+  clippedShadows: number;
+  hash: string;
+}
+
+/** Laplacian variance for focus, histogram stats for exposure, aHash for dupes. */
+export function analyseBitmap(bitmap: ImageBitmap): Analysis {
+  const side = 256;
+  const scale = Math.min(side / bitmap.width, side / bitmap.height);
+  const w = Math.max(8, Math.round(bitmap.width * scale));
+  const h = Math.max(8, Math.round(bitmap.height * scale));
+  const { ctx } = scratchCanvas(w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+
+  const gray = new Float32Array(w * h);
+  let sum = 0;
+  let clipHi = 0;
+  let clipLo = 0;
+  for (let i = 0; i < w * h; i++) {
+    const g = 0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!;
+    gray[i] = g;
+    sum += g;
+    if (g > 250) clipHi++;
+    if (g < 5) clipLo++;
+  }
+  const brightness = sum / (w * h);
+
+  let lapSum = 0;
+  let lapSq = 0;
+  let count = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const v =
+        4 * gray[i]! - gray[i - 1]! - gray[i + 1]! - gray[i - w]! - gray[i + w]!;
+      lapSum += v;
+      lapSq += v * v;
+      count++;
+    }
+  }
+  const mean = lapSum / count;
+  const sharpness = lapSq / count - mean * mean;
+
+  // 8x8 average hash
+  const { ctx: hctx } = scratchCanvas(8, 8);
+  hctx.drawImage(bitmap, 0, 0, 8, 8);
+  const hd = hctx.getImageData(0, 0, 8, 8).data;
+  const vals: number[] = [];
+  for (let i = 0; i < 64; i++) {
+    vals.push(0.299 * hd[i * 4]! + 0.587 * hd[i * 4 + 1]! + 0.114 * hd[i * 4 + 2]!);
+  }
+  const avg = vals.reduce((a, b) => a + b, 0) / 64;
+  const hash = vals.map((v) => (v >= avg ? "1" : "0")).join("");
+
+  return {
+    sharpness,
+    brightness,
+    clippedHighlights: (clipHi / (w * h)) * 100,
+    clippedShadows: (clipLo / (w * h)) * 100,
+    hash,
+  };
+}
+
+export function hamming(a: string, b: string) {
+  let d = 0;
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) d++;
+  return d;
+}
+
+export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
+  const flags: Flag[] = [];
+  // Sharpness typically 0 (mush) .. 900+ (crisp)
+  const focus = Math.max(0, Math.min(1, Math.log10(1 + a.sharpness) / 2.9));
+  if (a.sharpness < 40) flags.push("blur");
+  else if (a.sharpness < 130) flags.push("soft");
+
+  let exposure = 1;
+  if (a.brightness < 55) {
+    exposure = Math.max(0.2, a.brightness / 55);
+    flags.push("underexposed");
+  } else if (a.brightness > 200 || a.clippedHighlights > 12) {
+    exposure = 0.55;
+    flags.push("overexposed");
+  }
+  if (a.clippedShadows > 25) exposure *= 0.8;
+
+  const score = Math.round(Math.max(1, Math.min(99, (focus * 0.72 + exposure * 0.28) * 100)));
+  return { score, flags };
+}
+
+/* ---------------- editing ---------------- */
+
+const CROPS: Record<Edits["crop"], number | null> = {
+  orig: null,
+  "1:1": 1,
+  "4:5": 4 / 5,
+  "3:2": 3 / 2,
+  "16:9": 16 / 9,
+};
+
+export function cropRect(w: number, h: number, crop: Edits["crop"]) {
+  const target = CROPS[crop];
+  if (!target) return { sx: 0, sy: 0, sw: w, sh: h };
+  const current = w / h;
+  if (current > target) {
+    const sw = Math.round(h * target);
+    return { sx: Math.round((w - sw) / 2), sy: 0, sw, sh: h };
+  }
+  const sh = Math.round(w / target);
+  return { sx: 0, sy: Math.round((h - sh) / 2), sw: w, sh };
+}
+
+function applyPixels(data: Uint8ClampedArray, e: Edits) {
+  const exposure = 1 + e.exposure / 100;
+  const contrast = 1 + e.contrast / 100;
+  const sat = 1 + e.saturation / 100;
+  const warm = e.temp / 100;
+  const hi = e.highlights / 100;
+  const sh = e.shadows / 100;
+
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i]! * exposure;
+    let g = data[i + 1]! * exposure;
+    let b = data[i + 2]! * exposure;
+
+    // white balance
+    r += warm * 26;
+    b -= warm * 26;
+
+    // contrast around mid grey
+    r = (r - 128) * contrast + 128;
+    g = (g - 128) * contrast + 128;
+    b = (b - 128) * contrast + 128;
+
+    // tone regions
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (hi !== 0) {
+      const wgt = Math.max(0, (lum - 128) / 127);
+      const amt = hi * 70 * wgt;
+      r += amt;
+      g += amt;
+      b += amt;
+    }
+    if (sh !== 0) {
+      const wgt = Math.max(0, (128 - lum) / 128);
+      const amt = sh * 70 * wgt;
+      r += amt;
+      g += amt;
+      b += amt;
+    }
+
+    // saturation
+    const l2 = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = l2 + (r - l2) * sat;
+    g = l2 + (g - l2) * sat;
+    b = l2 + (b - l2) * sat;
+
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+  }
+}
+
+export function renderToCanvas(
+  canvas: HTMLCanvasElement,
+  bitmap: ImageBitmap,
+  edits: Edits,
+  maxSide = 1400,
+) {
+  const { sx, sy, sw, sh } = cropRect(bitmap.width, bitmap.height, edits.crop);
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale));
+  const h = Math.max(1, Math.round(sh * scale));
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h);
+  applyPixels(img.data, edits);
+  ctx.putImageData(img, 0, 0);
+}
+
+export async function exportShot(bitmap: ImageBitmap, edits: Edits, name: string) {
+  const canvas = document.createElement("canvas");
+  renderToCanvas(canvas, bitmap, edits, 4000);
+  const blob: Blob | null = await new Promise((res) =>
+    canvas.toBlob((b) => res(b), "image/jpeg", 0.92),
+  );
+  if (!blob) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${name.replace(/\.[^.]+$/, "")}_lensos.jpg`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+export function histogram(canvas: HTMLCanvasElement): number[] {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx || !canvas.width) return new Array(32).fill(0);
+  const step = Math.max(1, Math.floor(canvas.width / 200));
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const bins = new Array(32).fill(0);
+  for (let i = 0; i < data.length; i += 4 * step) {
+    const l = 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
+    bins[Math.min(31, Math.floor((l / 256) * 32))]++;
+  }
+  const max = Math.max(...bins, 1);
+  return bins.map((b) => b / max);
+}
