@@ -3,3 +3,123 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+
+/*
+ * Lens OS — minimal. Pantone-style warm stone paper, graphite ink, one quiet accent.
+ * No neon. No gradients as decoration.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-paper2: var(--paper2);
+  --color-ink: var(--ink);
+  --color-rust: var(--rust);
+  --color-moss: var(--moss);
+  --color-sun: var(--sun);
+  --color-mist: var(--mist);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Pantone-style warm stone */
+  --paper: oklch(0.93 0.006 90);
+  --paper2: oklch(0.96 0.004 90);
+  --ink: oklch(0.24 0.008 90);
+  /* quiet accent: graphite ink, used sparingly */
+  --rust: oklch(0.3 0.01 90);
+  --moss: oklch(0.55 0.008 90);
+  --sun: oklch(0.42 0.01 90);
+  --mist: oklch(0.89 0.006 90);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper2);
+  --card-foreground: var(--ink);
+  --popover: var(--paper2);
+  --popover-foreground: var(--ink);
+  --primary: var(--rust);
+  --primary-foreground: oklch(0.97 0.004 90);
+  --secondary: var(--mist);
+  --secondary-foreground: var(--ink);
+  --muted: var(--mist);
+  --muted-foreground: var(--moss);
+  --accent: var(--mist);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.5 0.1 25);
+  --destructive-foreground: oklch(0.97 0.004 90);
+  --border: oklch(0.24 0.008 90 / 12%);
+  --input: oklch(0.24 0.008 90 / 18%);
+  --ring: var(--ink);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@utility paper-tex {
+  background-color: var(--paper);
+}
+
+@utility torn {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+}
+
+@utility wig-a {
+  transform: none;
+}
+
+@utility wig-b {
+  transform: none;
+}
+
+@utility tape {
+  display: none;
+}
+
+@utility glow-lime {
+  box-shadow: none;
+}
+
+@utility panel {
+  background: var(--paper2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
