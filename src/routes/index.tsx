@@ -133,7 +133,7 @@ function Index() {
           </span>
         </div>
 
-        <div className="torn bg-paper2 p-4 shadow-2xl md:p-6">
+        <div className="torn bg-paper2 px-4 py-10 shadow-2xl md:px-6 md:py-12">
           <div className="grid gap-5 lg:grid-cols-12">
             <div className="lg:col-span-7">
               <img
