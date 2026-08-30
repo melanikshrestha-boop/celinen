@@ -336,7 +336,7 @@ function Studio() {
 
       {progress && (
         <div className="mx-auto max-w-[1600px] px-6 pb-4">
-          <div className="torn bg-paper2 p-4 shadow">
+          <div className="rounded-sm bg-paper2 p-4 shadow ring-1 ring-border">
             <div className="flex justify-between font-mono text-[11px]">
               <span>Ingesting shoot…</span>
               <span className="text-rust">
@@ -380,7 +380,7 @@ function Studio() {
             <p className="mt-4 font-mono text-[11px] text-moss">or drag the folder contents here</p>
           </div>
         ) : (
-          <div className="torn bg-paper2 p-4 shadow-2xl md:p-6">
+          <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
             {/* toolbar */}
             <div className="flex flex-wrap items-center gap-2 border-b border-border pb-5">
               <span className="font-mono text-[10px] uppercase tracking-wider text-moss">Filter</span>
