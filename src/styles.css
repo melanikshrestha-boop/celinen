@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Lens OS design system — handmade paper collage.
- * Palette: aged paper, ink, rust, moss, sun, mist. All colors are oklch tokens.
+ * Lens OS design system — midnight observatory.
+ * Deep indigo night sky, electric lime and ice-cyan signals, no warm/orange tones.
  */
 
 @theme inline {
@@ -16,9 +16,9 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
 
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
-  --font-mono: "Space Mono", ui-monospace, monospace;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -49,15 +49,22 @@
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  --paper: oklch(0.927 0.0271 85.67);
-  --paper2: oklch(0.9585 0.018 89.36);
-  --ink: oklch(0.2375 0.0127 78.01);
-  --rust: oklch(0.5599 0.1632 33.94);
-  --moss: oklch(0.5198 0.0432 107.81);
-  --sun: oklch(0.7784 0.133 74.11);
-  --mist: oklch(0.8068 0.0166 148.36);
+  /* night sky */
+  --paper: oklch(0.16 0.075 285);
+  /* raised panel */
+  --paper2: oklch(0.225 0.068 284);
+  /* light foreground (inverted from the old warm theme) */
+  --ink: oklch(0.96 0.012 280);
+  /* primary signal — electric lime */
+  --rust: oklch(0.88 0.19 128);
+  /* muted lavender text */
+  --moss: oklch(0.74 0.055 285);
+  /* secondary signal — ice cyan */
+  --sun: oklch(0.85 0.13 205);
+  /* deep surface */
+  --mist: oklch(0.28 0.075 285);
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -66,17 +73,17 @@
   --popover: var(--paper2);
   --popover-foreground: var(--ink);
   --primary: var(--rust);
-  --primary-foreground: var(--paper2);
+  --primary-foreground: oklch(0.18 0.07 285);
   --secondary: var(--mist);
   --secondary-foreground: var(--ink);
-  --muted: oklch(0.9 0.02 88);
+  --muted: oklch(0.26 0.06 285);
   --muted-foreground: var(--moss);
   --accent: var(--sun);
-  --accent-foreground: var(--ink);
-  --destructive: oklch(0.52 0.19 27);
-  --destructive-foreground: var(--paper2);
-  --border: oklch(0.2375 0.0127 78.01 / 15%);
-  --input: oklch(0.2375 0.0127 78.01 / 20%);
+  --accent-foreground: oklch(0.18 0.07 285);
+  --destructive: oklch(0.62 0.2 15);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.96 0.012 280 / 14%);
+  --input: oklch(0.96 0.012 280 / 22%);
   --ring: var(--rust);
 }
 
@@ -92,35 +99,50 @@
   }
 }
 
+/* Star-field + faint grid night sky */
 @utility paper-tex {
   background-color: var(--paper);
   background-image:
-    radial-gradient(circle at 20% 30%, oklch(0.5599 0.1632 33.94 / 0.05) 0, transparent 40%),
-    radial-gradient(circle at 80% 70%, oklch(0.5198 0.0432 107.81 / 0.07) 0, transparent 45%),
-    repeating-linear-gradient(48deg, oklch(0.2375 0.0127 78.01 / 0.03) 0 2px, transparent 2px 7px);
+    radial-gradient(1px 1px at 12% 18%, oklch(0.96 0.012 280 / 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 68% 8%, oklch(0.96 0.012 280 / 0.35) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 84% 42%, oklch(0.85 0.13 205 / 0.55) 50%, transparent 51%),
+    radial-gradient(1px 1px at 33% 62%, oklch(0.96 0.012 280 / 0.28) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 52% 88%, oklch(0.88 0.19 128 / 0.4) 50%, transparent 51%),
+    radial-gradient(circle at 78% -10%, oklch(0.45 0.16 300 / 0.35) 0, transparent 55%),
+    radial-gradient(circle at 5% 105%, oklch(0.4 0.12 205 / 0.3) 0, transparent 50%),
+    linear-gradient(oklch(0.96 0.012 280 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.96 0.012 280 / 0.035) 1px, transparent 1px);
+  background-size:
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 72px 72px, 72px 72px;
 }
 
+/* Legacy names kept so the studio keeps its layout — now clean panels, no torn paper */
 @utility torn {
-  clip-path: polygon(
-    0 3%, 12% 0, 30% 4%, 48% 1%, 66% 5%, 84% 2%, 100% 4%,
-    98% 30%, 100% 55%, 97% 78%, 100% 97%,
-    80% 100%, 58% 96%, 40% 100%, 20% 97%, 2% 100%,
-    0 82%, 1% 55%
-  );
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
 }
 
 @utility wig-a {
-  transform: rotate(-1.4deg);
+  transform: none;
 }
 
 @utility wig-b {
-  transform: rotate(1.1deg);
+  transform: none;
 }
 
 @utility tape {
-  position: absolute;
-  width: 92px;
-  height: 26px;
-  background: oklch(0.7784 0.133 74.11 / 0.55);
-  box-shadow: 0 1px 3px oklch(0.2375 0.0127 78.01 / 0.15);
+  display: none;
+}
+
+@utility glow-lime {
+  box-shadow:
+    0 0 0 1px oklch(0.88 0.19 128 / 0.35),
+    0 18px 60px -24px oklch(0.88 0.19 128 / 0.55);
+}
+
+@utility panel {
+  background: color-mix(in oklab, var(--paper2) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(6px);
 }

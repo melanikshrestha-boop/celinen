@@ -13,7 +13,7 @@ export const Route = createFileRoute("/pricing")({
       { property: "og:title", content: "Lens OS Pricing — Plans for Working Photographers" },
       {
         property: "og:description",
-        content: "Starter, Pro and Studio plans for AI photo culling. From $19/mo.",
+        content: "Starter, Pro and Studio plans for local AI photo culling. From $19/mo.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -26,6 +26,7 @@ const tiers = [
   {
     name: "Starter",
     price: "$19",
+    blurb: "Solo shooters, a few sessions a month.",
     features: [
       "5 shoots / month",
       "Auto-cull up to 200 shots",
@@ -34,10 +35,12 @@ const tiers = [
       "5 GB cloud backup",
     ],
     cta: "Start free 14 days",
+    featured: false,
   },
   {
     name: "Pro",
     price: "$49",
+    blurb: "Weddings, events, weekly volume.",
     features: [
       "Unlimited shoots",
       "Auto-cull up to 2,000 shots",
@@ -47,10 +50,12 @@ const tiers = [
       "RAW / TIFF export",
     ],
     cta: "Choose Pro",
+    featured: true,
   },
   {
     name: "Studio",
     price: "$129",
+    blurb: "Teams handing off to clients.",
     features: [
       "Everything in Pro",
       "5 seats + client review links",
@@ -60,102 +65,86 @@ const tiers = [
       "Priority support",
     ],
     cta: "Talk to us",
+    featured: false,
   },
+];
+
+const faqs = [
+  ["What counts as a shoot?", "One import batch. A 300-frame wedding day is one shoot, not 300 credits."],
+  ["Do my RAWs get uploaded?", "No. Lens OS reads the embedded full-size preview locally while you cull."],
+  ["Can I cancel?", "Any time. Culled verdicts and edits stay exportable on the free tier."],
 ];
 
 function PricingPage() {
   return (
     <div className="paper-tex min-h-screen w-full text-ink">
       <Nav />
-      <section className="mx-auto max-w-[1240px] px-6 pb-24 pt-16">
-        <div className="mb-12 text-center">
-          <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-rust">
-            Pricing · billed monthly
-          </span>
-          <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight md:text-5xl">
-            Pick your darkroom
-          </h1>
-        </div>
-        <div className="grid items-start gap-6 md:grid-cols-3">
-          <PlanCard tier={tiers[0]!} tone="paper" />
-          <div className="relative -mt-4 md:-mt-8">
-            <span className="tape left-1/2 top-2 -translate-x-1/2 rotate-3" />
-            <div className="torn wig-b bg-ink p-8 text-paper2 shadow-2xl">
+      <section className="mx-auto max-w-[1240px] px-6 pb-24 pt-20">
+        <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-sun">
+          Pricing · billed monthly
+        </span>
+        <h1 className="mt-3 font-display text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[0.95] tracking-tight">
+          Priced by shoot,
+          <br />
+          <span className="text-rust">not by photo.</span>
+        </h1>
+
+        <div className="mt-14 grid items-stretch gap-4 md:grid-cols-3">
+          {tiers.map((t) => (
+            <div
+              key={t.name}
+              className={`panel flex flex-col p-8 ${t.featured ? "glow-lime border-rust/40" : ""}`}
+            >
               <div className="flex items-center justify-between">
-                <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-sun">Pro</span>
-                <span className="rounded-full bg-sun px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink">
-                  most picked
+                <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-moss">
+                  {t.name}
                 </span>
+                {t.featured && (
+                  <span className="rounded-full bg-rust px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-paper">
+                    most picked
+                  </span>
+                )}
               </div>
-              <div className="mt-3 font-display text-5xl font-semibold">
-                $49<small className="font-mono text-base text-sun">/mo</small>
+              <div className="mt-4 font-display text-5xl font-bold">
+                {t.price}
+                <small className="font-mono text-base text-moss">/mo</small>
               </div>
-              <ul className="mt-6 space-y-3 font-mono text-[12px] text-paper2/85">
-                {tiers[1]!.features.map((f) => (
-                  <li key={f}>· {f}</li>
+              <p className="mt-2 text-sm text-moss">{t.blurb}</p>
+              <ul className="mt-6 flex-1 space-y-3 font-mono text-[12px] text-ink/85">
+                {t.features.map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <span className="text-rust">·</span>
+                    {f}
+                  </li>
                 ))}
               </ul>
               <Link
                 to="/studio"
-                className="mt-7 block rounded-full bg-rust py-3 text-center font-mono text-xs uppercase tracking-[0.12em] text-paper2 transition-colors hover:bg-paper2 hover:text-ink"
+                className={`mt-8 block rounded-full py-3 text-center font-mono text-xs uppercase tracking-[0.12em] transition-transform hover:-translate-y-0.5 ${
+                  t.featured
+                    ? "bg-rust text-paper"
+                    : "border border-input text-ink hover:border-rust hover:text-rust"
+                }`}
               >
-                Choose Pro
+                {t.cta}
               </Link>
             </div>
-          </div>
-          <PlanCard tier={tiers[2]!} tone="mist" />
+          ))}
         </div>
 
         <div className="mt-16">
-          <h2 className="mb-5 font-display text-2xl font-semibold tracking-tight">
-            What counts as a shoot?
-          </h2>
-          <div className="grid gap-4 font-mono text-[12px] text-ink/80 md:grid-cols-3">
-            <p className="torn bg-paper2 p-5 shadow">
-              · A shoot is one import batch. A 300-frame wedding day is one shoot, not 300 credits.
-            </p>
-            <p className="torn bg-paper2 p-5 shadow">
-              · RAW files are read locally — Lens OS pulls the embedded full-size preview, so nothing
-              is uploaded while you cull.
-            </p>
-            <p className="torn bg-paper2 p-5 shadow">
-              · Cancel any time. Culled verdicts and edits stay exportable on the free tier.
-            </p>
+          <h2 className="mb-5 font-display text-2xl font-bold tracking-tight">Common questions</h2>
+          <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-3">
+            {faqs.map(([q, a]) => (
+              <div key={q} className="bg-paper2/70 p-6">
+                <div className="font-display text-base font-bold text-sun">{q}</div>
+                <p className="mt-2 text-sm leading-relaxed text-moss">{a}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
       <Footer />
-    </div>
-  );
-}
-
-function PlanCard({
-  tier,
-  tone,
-}: {
-  tier: (typeof tiers)[number];
-  tone: "paper" | "mist";
-}) {
-  return (
-    <div
-      className={`torn wig-a p-7 shadow-lg ${tone === "paper" ? "bg-paper2" : "bg-mist/50"}`}
-    >
-      <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-moss">{tier.name}</div>
-      <div className="mt-3 font-display text-5xl font-semibold">
-        {tier.price}
-        <small className="font-mono text-base text-moss">/mo</small>
-      </div>
-      <ul className="mt-6 space-y-3 font-mono text-[12px] text-ink/80">
-        {tier.features.map((f) => (
-          <li key={f}>· {f}</li>
-        ))}
-      </ul>
-      <Link
-        to="/studio"
-        className="mt-7 block rounded-full border border-input py-3 text-center font-mono text-xs uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
-      >
-        {tier.cta}
-      </Link>
     </div>
   );
 }
