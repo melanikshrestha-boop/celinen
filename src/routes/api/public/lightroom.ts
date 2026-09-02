@@ -62,7 +62,7 @@ export const Route = createFileRoute("/api/public/lightroom")({
         const db = await admin();
         const { data, error } = await db
           .from("lightroom_sync")
-          .select("kind, frames: frames as unknown as never, updated_at")
+          .select("kind, frames, updated_at")
           .eq("workspace", workspace)
           .eq("direction", direction)
           .maybeSingle();
