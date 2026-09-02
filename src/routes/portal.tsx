@@ -38,11 +38,37 @@ type Data = Awaited<ReturnType<typeof getClientPortal>>;
 const money = (n: number, c = "usd") =>
   n.toLocaleString(undefined, { style: "currency", currency: c.toUpperCase() });
 
+type Booking = Awaited<ReturnType<typeof listBookingRequests>>[number];
+type Upload = Awaited<ReturnType<typeof listClientUploads>>[number];
+
+const SHOOT_TYPES = ["Portrait", "Wedding", "Event", "Brand / product", "Family", "Editorial"];
+
 function Portal() {
   const navigate = useNavigate();
   const [email, setEmail] = useState<string | null>(null);
   const [data, setData] = useState<Data | null>(null);
   const [state, setState] = useState<"loading" | "anon" | "ready" | "error">("loading");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [uploads, setUploads] = useState<Upload[]>([]);
+
+  /* booking form */
+  const [shootType, setShootType] = useState(SHOOT_TYPES[0]!);
+  const [date, setDate] = useState("");
+  const [place, setPlace] = useState("");
+  const [budget, setBudget] = useState("");
+  const [brief, setBrief] = useState("");
+  const [booking, setBooking] = useState<"idle" | "sending" | "sent">("idle");
+  const [bookErr, setBookErr] = useState<string | null>(null);
+
+  /* uploads */
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const [b, u] = await Promise.all([listBookingRequests(), listClientUploads()]);
+    setBookings(b);
+    setUploads(u);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -56,6 +82,7 @@ function Portal() {
         if (!alive) return;
         setData(res);
         setState("ready");
+        await refresh();
       } catch {
         if (alive) setState("error");
       }
@@ -63,7 +90,49 @@ function Portal() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refresh]);
+
+  const submitBooking = async () => {
+    setBookErr(null);
+    if (!date) return setBookErr("Pick a date for your shoot.");
+    setBooking("sending");
+    const res = await createBookingRequest({
+      data: {
+        shoot_type: shootType,
+        preferred_date: date,
+        location: place,
+        budget: budget ? Number(budget) : null,
+        message: brief,
+      },
+    });
+    if ("error" in res && res.error) {
+      setBooking("idle");
+      return setBookErr(res.error);
+    }
+    setBooking("sent");
+    setBrief("");
+    setBudget("");
+    setPlace("");
+    setDate("");
+    await refresh();
+  };
+
+  const onFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    for (const file of Array.from(files)) {
+      setUploading(file.name);
+      const slot = await createClientUploadUrl({ data: { filename: file.name } });
+      if ("error" in slot && slot.error) break;
+      if (!("signedUrl" in slot)) break;
+      const put = await fetch(slot.signedUrl, { method: "PUT", body: file });
+      if (!put.ok) break;
+      await recordClientUpload({ data: { storage_path: slot.path, filename: file.name } });
+    }
+    setUploading(null);
+    if (fileRef.current) fileRef.current.value = "";
+    await refresh();
+  };
+
 
   const signOut = async () => {
     await supabase.auth.signOut();
