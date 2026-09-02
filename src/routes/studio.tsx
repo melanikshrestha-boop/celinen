@@ -613,26 +613,16 @@ function Studio() {
           <div
             onDrop={onDrop}
             onDragOver={(e) => e.preventDefault()}
-            className="torn bg-paper2 px-6 py-20 text-center shadow-2xl"
+            onClick={() => inputRef.current?.click()}
+            className="mt-24 cursor-pointer rounded-xl border border-dashed border-border px-6 py-24 text-center transition-colors hover:border-ink/30"
           >
-            <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-rust">
-              Step 01 · Ingest
-            </span>
-            <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight">
-              Drop your shoot on the bench
-            </h1>
-            <p className="mx-auto mt-4 max-w-xl text-moss">
-              Select all 300 files at once — JPEG, PNG, HEIC-exported or RAW (NEF, CR2, CR3, ARW,
-              DNG, RAF, ORF, RW2). Nothing leaves your machine: LensLabs reads the embedded preview
-              from RAW files and scores everything locally.
+            <h1 className="font-display text-3xl font-semibold tracking-tight">Drop the shoot.</h1>
+            <p className="mt-2 font-mono text-[11px] text-moss">
+              RAW or JPEG · stays on your machine · ⌘ nothing else to set up
             </p>
-            <button
-              onClick={() => inputRef.current?.click()}
-              className="mt-8 rounded-full bg-rust px-8 py-3 font-mono text-sm uppercase tracking-[0.12em] text-paper2 transition-colors hover:bg-ink"
-            >
-              Choose files
-            </button>
-            <p className="mt-4 font-mono text-[11px] text-moss">or drag the folder contents here</p>
+            <p className="mt-10 font-mono text-[11px] text-moss">
+              K keep · X reject · ← → move
+            </p>
           </div>
         ) : (
           <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
