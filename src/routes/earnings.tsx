@@ -1,7 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
 import { useLens } from "@/lib/lensos-store";
+import { InvoicePanel } from "@/components/lensos/InvoicePanel";
+import {
+  addTransaction,
+  deleteTransaction,
+  disconnectStripe,
+  getProfile,
+  listTransactions,
+  startStripeConnect,
+  syncStripe,
+} from "@/lib/finance.functions";
 
 export const Route = createFileRoute("/earnings")({
   head: () => ({
@@ -54,16 +64,27 @@ const EXPENSE_CATEGORIES = [
 
 const INCOME_CATEGORIES = ["Event coverage", "Licensing", "Print sales", "Retainer", "Other income"];
 
-const SEED: Entry[] = [
-  { id: "i1", date: "2026-08-22", label: "Halden Track Invitational — wire set", kind: "income", category: "Event coverage", amount: 1450, eventId: "e-invitational", source: "delivery" },
-  { id: "i2", date: "2026-08-04", label: "Metro Wire licensing — 6 frames", kind: "income", category: "Licensing", amount: 380, eventId: null, source: "manual" },
-  { id: "i3", date: "2026-07-19", label: "Northgate Prep retainer", kind: "income", category: "Retainer", amount: 900, eventId: "e-northgate", source: "manual" },
-  { id: "e1", date: "2026-08-22", label: "Fuel + tolls to Halden Oval", kind: "expense", category: "Car & mileage", amount: 64, eventId: "e-invitational", source: "manual" },
-  { id: "e2", date: "2026-08-01", label: "Adobe Photography Plan", kind: "expense", category: "Software & subscriptions", amount: 19.99, eventId: null, source: "imported" },
-  { id: "e3", date: "2026-07-11", label: "70-200 f/2.8 service", kind: "expense", category: "Equipment & depreciation", amount: 310, eventId: null, source: "manual" },
-  { id: "e4", date: "2026-07-02", label: "Second shooter — Kai", kind: "expense", category: "Contract labor (second shooter)", amount: 250, eventId: "e-invitational", source: "manual" },
-  { id: "e5", date: "2026-06-15", label: "Gear insurance (quarterly)", kind: "expense", category: "Insurance", amount: 148, eventId: null, source: "manual" },
-];
+type TxRow = {
+  id: string;
+  occurred_on: string;
+  description: string;
+  kind: Kind;
+  category: string;
+  amount: number | string;
+  shoot_id: string | null;
+  source: string;
+};
+
+const toEntry = (t: TxRow): Entry => ({
+  id: t.id,
+  date: t.occurred_on,
+  label: t.description,
+  kind: t.kind,
+  category: t.category,
+  amount: Number(t.amount),
+  eventId: t.shoot_id,
+  source: (t.source === "manual" ? "manual" : "imported") as Entry["source"],
+});
 
 /** Ledger categories mapped to the Schedule C line they belong on. */
 const SCHEDULE_C_LINE: Record<string, { line: string; label: string }> = {
@@ -87,7 +108,48 @@ const money = (n: number) =>
 function Earnings() {
   const { events, clients } = useLens();
 
-  const [entries, setEntries] = useState<Entry[]>(SEED);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [stripeAccount, setStripeAccount] = useState<string | null>(null);
+  const [stripeBusy, setStripeBusy] = useState<string | null>(null);
+  const [stripeNote, setStripeNote] = useState<string | null>(null);
+
+  const reload = async () => {
+    const rows = (await listTransactions()) as unknown as TxRow[];
+    setEntries(rows.map(toEntry));
+  };
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [profile] = await Promise.all([getProfile() as any, reload()]);
+        setStripeAccount(profile?.stripe_account_id ?? null);
+      } catch {
+        setDataError("Sign in to load your live ledger.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const connectStripe = async () => {
+    setStripeBusy("connect");
+    const res = (await startStripeConnect()) as any;
+    setStripeBusy(null);
+    if (res?.error) return setStripeNote(res.error);
+    window.location.href = res.url;
+  };
+
+  const runSync = async () => {
+    setStripeBusy("sync");
+    const res = (await syncStripe()) as any;
+    setStripeBusy(null);
+    if (res?.error) return setStripeNote(res.error);
+    setStripeNote(`Imported ${res.imported} Stripe payments.`);
+    await reload();
+  };
+
   const [kind, setKind] = useState<Kind>("expense");
   const [form, setForm] = useState({
     date: "",
@@ -219,24 +281,32 @@ function Earnings() {
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
 
 
-  const add = () => {
+  const isUuid = (v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+  const add = async () => {
     const amount = Number(form.amount);
     if (!form.label.trim() || Number.isNaN(amount) || amount <= 0) return;
-    setEntries((prev) => [
-      {
-        id: `x-${Math.random().toString(36).slice(2, 7)}`,
-        date: form.date || new Date().toISOString().slice(0, 10),
-        label: form.label.trim(),
+    const res = (await addTransaction({
+      data: {
         kind,
         category: form.category,
+        description: form.label.trim(),
         amount,
-        eventId: form.eventId || null,
-        source: "manual",
+        occurred_on: form.date || new Date().toISOString().slice(0, 10),
+        shoot_id: form.eventId && isUuid(form.eventId) ? form.eventId : null,
       },
-      ...prev,
-    ]);
+    })) as any;
+    if (res?.error) return setDataError(res.error);
+    setEntries((prev) => [toEntry(res.transaction), ...prev]);
     setForm({ ...form, label: "", amount: "" });
   };
+
+  const removeEntry = async (id: string) => {
+    setEntries((prev) => prev.filter((x) => x.id !== id));
+    await deleteTransaction({ data: { id } });
+  };
+
 
   const exportCsv = () => {
     const rows = [
@@ -297,6 +367,62 @@ function Earnings() {
         title="Every dollar in, every dollar out — tax-ready."
         sub="Grouped into Schedule C categories. Nothing is estimated for you unless it is labelled an estimate."
       />
+
+      {dataError && (
+        <Card className="mb-4 border-destructive/40">
+          <p className="text-sm text-destructive">{dataError}</p>
+        </Card>
+      )}
+
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+              Stripe · your own account
+            </p>
+            <p className="mt-1 text-[13px] text-moss">
+              {stripeAccount
+                ? `Connected — ${stripeAccount}. Charges and paid invoices land in this ledger automatically.`
+                : "Connect your existing Stripe account to import charges and send invoices."}
+            </p>
+          </div>
+          <div className="ml-auto flex gap-2">
+            {stripeAccount ? (
+              <>
+                <Btn
+                  className="px-3 py-1.5 text-[13px]"
+                  disabled={stripeBusy === "sync"}
+                  onClick={() => void runSync()}
+                >
+                  {stripeBusy === "sync" ? "Syncing…" : "Sync payments"}
+                </Btn>
+                <Btn
+                  className="px-3 py-1.5 text-[13px]"
+                  onClick={() =>
+                    void disconnectStripe().then(() => setStripeAccount(null))
+                  }
+                >
+                  Disconnect
+                </Btn>
+              </>
+            ) : (
+              <Btn
+                variant="primary"
+                className="px-3 py-1.5 text-[13px]"
+                disabled={stripeBusy === "connect"}
+                onClick={() => void connectStripe()}
+              >
+                {stripeBusy === "connect" ? "Opening Stripe…" : "Connect Stripe"}
+              </Btn>
+            )}
+          </div>
+        </div>
+        {stripeNote && <p className="mt-2 font-mono text-[12px] text-moss">{stripeNote}</p>}
+        {loading && <p className="mt-2 font-mono text-[12px] text-moss">loading ledger…</p>}
+      </Card>
+
+      <InvoicePanel />
+
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
@@ -435,7 +561,7 @@ function Earnings() {
               placeholder="0.00"
               className="w-24 rounded-lg border border-input bg-card px-3 py-1.5 text-right font-mono text-[13px] outline-none"
             />
-            <Btn variant="primary" className="px-3 py-1.5 text-[13px]" onClick={add}>
+            <Btn variant="primary" className="px-3 py-1.5 text-[13px]" onClick={() => void add()}>
               Add
             </Btn>
           </div>
@@ -458,7 +584,7 @@ function Earnings() {
                   {money(e.amount)}
                 </span>
                 <button
-                  onClick={() => setEntries((prev) => prev.filter((x) => x.id !== e.id))}
+                  onClick={() => void removeEntry(e.id)}
                   className="text-[12px] text-moss hover:text-ink"
                 >
                   ✕
