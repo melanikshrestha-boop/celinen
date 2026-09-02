@@ -3,9 +3,11 @@ type LogoProps = {
   className?: string;
 };
 
+const BLADES = [0, 60, 120, 180, 240, 300];
+
 /**
- * LensLabs mark — an aperture ring whose inner cut forms an "L".
- * Monochrome: inherits `currentColor` for the ring, punches the glyph out.
+ * LensLabs mark — a six-blade aperture iris.
+ * Monochrome: inherits `currentColor`, blades alternate opacity for depth.
  */
 export function LogoMark({ size = 26, className = "" }: LogoProps) {
   return (
@@ -17,28 +19,20 @@ export function LogoMark({ size = 26, className = "" }: LogoProps) {
       aria-hidden="true"
       className={className}
     >
-      <defs>
-        <mask id="lensos-mark-mask">
-          <rect width="32" height="32" fill="black" />
-          <circle cx="16" cy="16" r="14" fill="white" />
-          {/* L glyph punched out */}
-          <path d="M12.4 9h3.2v11.4h6.2v3.2h-9.4z" fill="black" />
-          {/* aperture blade: a diagonal slice through the top-left rim */}
-          <path d="M2.6 11.5 11.5 2.6 13.6 3.7 3.7 13.6z" fill="black" />
-        </mask>
-      </defs>
-      <circle cx="16" cy="16" r="14" fill="currentColor" mask="url(#lensos-mark-mask)" />
+      <g>
+        {BLADES.map((deg, i) => (
+          <path
+            key={deg}
+            d="M16 4.6 L25.9 10.3 L16 16 Z"
+            fill="currentColor"
+            fillOpacity={i % 2 === 0 ? 0.92 : 0.45}
+            transform={`rotate(${deg} 16 16)`}
+          />
+        ))}
+      </g>
 
-      <circle
-        cx="16"
-        cy="16"
-        r="14"
-        stroke="currentColor"
-        strokeOpacity="0.18"
-        strokeWidth="1"
-        fill="none"
-      />
-
+      <circle cx="16" cy="16" r="11.4" stroke="currentColor" strokeOpacity="0.9" strokeWidth="1.6" />
+      <circle cx="16" cy="16" r="14.2" stroke="currentColor" strokeOpacity="0.16" strokeWidth="1" />
     </svg>
   );
 }
@@ -48,7 +42,7 @@ export function Logo({ className = "" }: { className?: string }) {
     <span className={`flex items-center gap-2 ${className}`}>
       <LogoMark className="text-ink" />
       <span className="font-display text-[15px] font-semibold tracking-tight">
-        Lens<span className="text-moss"> OS</span>
+        Lens<span className="text-moss">Labs</span>
       </span>
     </span>
   );
