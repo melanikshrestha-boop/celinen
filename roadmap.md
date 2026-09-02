@@ -11,5 +11,5 @@
 - [ ] Light/dark mode toggle in top nav
 - [ ] Sci-fi / integrative motion polish on marketing pages
 - [ ] Business: full earnings & losses dashboard with tax-ready export (Schedule C style categories, CSV/summary)
-- [ ] Rebuild pricing tiers to monid.ai layout with real per-tier features
+- [x] Marketing pricing page: Hobby/Individual/Teams/Enterprise, monthly-yearly toggle, FAQ
 - [ ] Studio: face/eye detection scoring, Lightroom folder import
