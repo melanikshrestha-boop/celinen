@@ -3,17 +3,17 @@ import { useEffect, useState } from "react";
 type Mode = "light" | "dark";
 
 export function ThemeToggle({ className }: { className?: string | undefined }) {
-  const [mode, setMode] = useState<Mode>("light");
+  const [mode, setMode] = useState<Mode>("dark");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("lensos-theme") as Mode | null;
-    const initial: Mode =
-      stored ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const stored = localStorage.getItem("lenslabs-theme") as Mode | null;
+    const initial: Mode = stored ?? "dark";
     setMode(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
     setReady(true);
   }, []);
+
 
   const flip = () => {
     const next: Mode = mode === "dark" ? "light" : "dark";
