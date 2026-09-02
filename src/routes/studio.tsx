@@ -10,6 +10,7 @@ import {
   type Verdict,
   analyseBitmap,
   analyseFaces,
+  autoRefine,
   baseName,
   buildXmpSidecar,
   decodeFile,
@@ -135,6 +136,7 @@ function Studio() {
           clippedHighlights: analysis.clippedHighlights,
           clippedShadows: analysis.clippedShadows,
           hash: analysis.hash,
+          tone: analysis.tone,
           score,
           flags,
           verdict:
@@ -404,6 +406,32 @@ function Studio() {
     );
   };
 
+  /** Lightroom-style Auto: derive develop settings from the frame's own histogram. */
+  const autoRefineOne = (id?: string) => {
+    const target = id ?? selectedId;
+    if (!target) return;
+    setShots((prev) =>
+      prev.map((s) =>
+        s.id === target && !s.error && s.tone
+          ? { ...s, edits: autoRefine(s.tone, s.edits) }
+          : s,
+      ),
+    );
+  };
+
+  const autoRefineMany = (scope: "keepers" | "all") => {
+    let n = 0;
+    setShots((prev) =>
+      prev.map((s) => {
+        if (s.error || !s.tone) return s;
+        if (scope === "keepers" && s.verdict !== "keep") return s;
+        n++;
+        return { ...s, edits: autoRefine(s.tone, s.edits) };
+      }),
+    );
+    return n;
+  };
+
   const autoCull = () => {
     setShots((prev) =>
       prev.map((s) => {
@@ -551,6 +579,20 @@ function Studio() {
           );
           return `applied ${Object.keys(patch).join(", ")} to ${n} frame${n === 1 ? "" : "s"}`;
         }
+        case "auto_refine": {
+          const scope = args['target'] === "selected" ? "selected" : (args['target'] === "all" ? "all" : "keepers");
+          if (scope === "selected") {
+            if (!selectedId) return "no frame open";
+            autoRefineOne(selectedId);
+            return "auto-refined the open frame";
+          }
+          const pool = shots.filter(
+            (s) => !s.error && s.tone && (scope === "all" || s.verdict === "keep"),
+          ).length;
+          if (!pool) return "nothing to refine";
+          autoRefineMany(scope);
+          return `auto-refined ${pool} frame${pool === 1 ? "" : "s"}`;
+        }
         case "export_keepers": {
           const n = shots.filter((s) => s.verdict === "keep" && !s.error).length;
           if (!n) return "no keepers to export";
@@ -602,6 +644,7 @@ function Studio() {
       else if (k === "x") setVerdict(selectedId, "reject");
       else if (k === "u") setVerdict(selectedId, "undecided", false);
       else if (k === "r") updateEdits({ ...DEFAULT_EDITS });
+      else if (k === "a") autoRefineOne();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1035,6 +1078,25 @@ function Studio() {
                               </button>
                             ))}
                           </div>
+                        </div>
+                        <div className="col-span-full flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                          <button
+                            onClick={() => autoRefineOne()}
+                            disabled={!selected.tone}
+                            className="rounded-full bg-ink px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
+                          >
+                            Auto refine · A
+                          </button>
+                          <button
+                            onClick={() => autoRefineMany("keepers")}
+                            disabled={!counts.keepers}
+                            className="rounded-full border border-input px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider hover:bg-ink hover:text-paper2 disabled:opacity-40"
+                          >
+                            Auto refine all keepers
+                          </button>
+                          <span className="font-mono text-[10px] text-moss">
+                            tone, white balance and recovery from this frame's histogram
+                          </span>
                         </div>
                         <button
                           onClick={() => updateEdits({ ...DEFAULT_EDITS })}
