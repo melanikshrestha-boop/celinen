@@ -64,6 +64,13 @@
       "when": 1788390158510,
       "tag": "0008_guest_shoot_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788392205877,
+      "tag": "0009_vibe_sessions_and_community",
+      "breakpoints": true
     }
   ]
 }

@@ -170,6 +170,80 @@ export type Database = {
         }
         Relationships: []
       }
+      community_posts: {
+        Row: {
+          author_id: string
+          body: string
+          channel: string
+          created_at: string
+          id: string
+          parent_id: string | null
+        }
+        Insert: {
+          author_id: string
+          body: string
+          channel?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_posts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_profiles: {
+        Row: {
+          avatar_seed: string
+          bio: string | null
+          city: string | null
+          created_at: string
+          display_name: string
+          handle: string
+          id: string
+          specialty: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          avatar_seed?: string
+          bio?: string | null
+          city?: string | null
+          created_at?: string
+          display_name: string
+          handle: string
+          id: string
+          specialty?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          avatar_seed?: string
+          bio?: string | null
+          city?: string | null
+          created_at?: string
+          display_name?: string
+          handle?: string
+          id?: string
+          specialty?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       galleries: {
         Row: {
           client_id: string | null
@@ -620,6 +694,69 @@ export type Database = {
             columns: ["shoot_id"]
             isOneToOne: false
             referencedRelation: "shoots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vibe_sessions: {
+        Row: {
+          booking_id: string | null
+          client_id: string | null
+          consent: boolean
+          consent_at: string | null
+          created_at: string
+          id: string
+          messages: Json
+          owner_auth_id: string
+          status: string
+          summary: string | null
+          updated_at: string
+          user_id: string | null
+          vibe_tags: string[]
+        }
+        Insert: {
+          booking_id?: string | null
+          client_id?: string | null
+          consent?: boolean
+          consent_at?: string | null
+          created_at?: string
+          id?: string
+          messages?: Json
+          owner_auth_id: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+          user_id?: string | null
+          vibe_tags?: string[]
+        }
+        Update: {
+          booking_id?: string | null
+          client_id?: string | null
+          consent?: boolean
+          consent_at?: string | null
+          created_at?: string
+          id?: string
+          messages?: Json
+          owner_auth_id?: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+          user_id?: string | null
+          vibe_tags?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vibe_sessions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "booking_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vibe_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
