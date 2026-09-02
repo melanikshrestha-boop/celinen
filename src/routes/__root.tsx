@@ -78,13 +78,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lens OS — AI Photo Culling for RAW Shoots" },
+      { title: "LensLabs — AI Photo Culling for RAW Shoots" },
       {
         name: "description",
         content:
-          "Lens OS scores, flags and culls a full RAW shoot in your browser, then develops the keepers.",
+          "LensLabs scores, flags and culls a full RAW shoot in your browser, then develops the keepers.",
       },
-      { property: "og:title", content: "Lens OS — AI Photo Culling for RAW Shoots" },
+      { property: "og:title", content: "LensLabs — AI Photo Culling for RAW Shoots" },
       {
         property: "og:description",
         content: "Cull 300 shots in minutes. Local RAW culling, ranking and basic develop tools.",
@@ -112,7 +112,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>

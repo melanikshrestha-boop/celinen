@@ -1,5 +1,5 @@
 /**
- * Lens OS imaging core.
+ * LensLabs imaging core.
  * Runs entirely in the browser: decode, analyse, score, edit, export.
  */
 
@@ -599,7 +599,7 @@ function num(xml: string, key: string): number | null {
   return raw === undefined ? null : Number(raw);
 }
 
-/** Parse a Lightroom .xmp sidecar into Lens OS edit values. */
+/** Parse a Lightroom .xmp sidecar into LensLabs edit values. */
 export function parseXmpSidecar(xml: string): SidecarSettings {
   const edits: Partial<Edits> = {};
   const exposure = num(xml, "Exposure2012");
@@ -614,7 +614,7 @@ export function parseXmpSidecar(xml: string): SidecarSettings {
   if (sat !== null) edits.saturation = sat;
   const temp = num(xml, "Temperature");
   if (temp !== null) {
-    // Lightroom stores kelvin; 5500K is neutral for Lens OS.
+    // Lightroom stores kelvin; 5500K is neutral for LensLabs.
     edits.temp = Math.max(-100, Math.min(100, ((temp - 5500) / 4500) * 100));
   }
 
@@ -628,7 +628,7 @@ export function parseXmpSidecar(xml: string): SidecarSettings {
   };
 }
 
-/** Write a Lightroom-readable .xmp sidecar from Lens OS edits. */
+/** Write a Lightroom-readable .xmp sidecar from LensLabs edits. */
 export function buildXmpSidecar(edits: Edits, verdict: Verdict, rating: number) {
   const kelvin = Math.round(5500 + (edits.temp / 100) * 4500);
   return `<x:xmpmeta xmlns:x="adobe:ns:meta/">

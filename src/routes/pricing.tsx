@@ -7,13 +7,13 @@ import { LogoMark } from "@/components/lensos/Logo";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     meta: [
-      { title: "LensOS Pricing — Same-Night Turnaround Plans" },
+      { title: "LensLabs Pricing — Same-Night Turnaround Plans" },
       {
         name: "description",
         content:
-          "LensOS pricing for working photographers: Hobby $16/mo, Individual from $16/mo yearly, Teams per user, Enterprise custom. Import, Pick, Adobe, Send.",
+          "LensLabs pricing for working photographers: Hobby $16/mo, Individual from $16/mo yearly, Teams per user, Enterprise custom. Import, Pick, Adobe, Send.",
       },
-      { property: "og:title", content: "LensOS Pricing — Same-Night Turnaround Plans" },
+      { property: "og:title", content: "LensLabs Pricing — Same-Night Turnaround Plans" },
       {
         property: "og:description",
         content:
@@ -110,7 +110,7 @@ function PricingPage() {
         <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
           <Link to="/" className="flex items-center gap-2">
             <LogoMark className="text-ink" />
-            <span className="font-display text-[15px] font-semibold tracking-tight">LensOS</span>
+            <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
           </Link>
 
           <nav className="hidden items-center gap-1 text-sm text-moss sm:flex">
@@ -147,7 +147,7 @@ function PricingPage() {
             Same-night turnaround. Pick, hand off to Adobe, send.
           </h1>
           <p className="mx-auto mt-4 max-w-[560px] text-[15px] text-moss">
-            You shoot and edit. LensOS owns the volume decisions and the client send.
+            You shoot and edit. LensLabs owns the volume decisions and the client send.
           </p>
 
           {/* billing toggle */}
@@ -294,7 +294,7 @@ function PricingPage() {
             ],
             [
               "Where Adobe sits",
-              "Keepers hand off to Lightroom and Photoshop. LensOS does not replace them — it decides volume and runs the send.",
+              "Keepers hand off to Lightroom and Photoshop. LensLabs does not replace them — it decides volume and runs the send.",
             ],
             [
               "What upgrading actually adds",

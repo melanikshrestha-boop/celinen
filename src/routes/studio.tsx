@@ -30,16 +30,16 @@ import {
 export const Route = createFileRoute("/studio")({
   head: () => ({
     meta: [
-      { title: "Lens OS Studio — Cull & Develop Your Shoot" },
+      { title: "LensLabs Studio — Cull & Develop Your Shoot" },
       {
         name: "description",
         content:
           "Import a RAW or JPEG shoot, get every frame scored and flagged, keep or reject with one key, then develop and export your picks.",
       },
-      { property: "og:title", content: "Lens OS Studio — Cull & Develop Your Shoot" },
+      { property: "og:title", content: "LensLabs Studio — Cull & Develop Your Shoot" },
       {
         property: "og:description",
-        content: "The Lens OS culling bench: score, flag, keep, develop, export.",
+        content: "The LensLabs culling bench: score, flag, keep, develop, export.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -260,7 +260,7 @@ function Studio() {
         const n = mergeBridge(state);
         if (n) setSyncNote(`Lightroom pushed ${n} frame${n === 1 ? "" : "s"} · develop settings, rating and IPTC applied.`);
       } catch {
-        if (!quiet) setSyncNote("Lens OS bridge unreachable — is the studio server running?");
+        if (!quiet) setSyncNote("LensLabs bridge unreachable — is the studio server running?");
       }
     },
     [mergeBridge],
@@ -273,7 +273,7 @@ function Studio() {
     return () => clearInterval(t);
   }, [linked, pullFromLightroom]);
 
-  /** Publish Lens OS verdicts so the plugin's "Pull" writes them into the catalog. */
+  /** Publish LensLabs verdicts so the plugin's "Pull" writes them into the catalog. */
   const pushToLightroom = useCallback(async () => {
     const frames = shots
       .filter((s) => !s.error)
@@ -304,9 +304,9 @@ function Studio() {
           s.error ? s : { ...s, develop: { ...(s.develop ?? { origin: "lens os" as const }), origin: "lens os" as const, at: Date.now() } },
         ),
       );
-      setSyncNote(`${frames.length} frames queued for Lightroom — run Plug-in Extras → “Pull Lens OS verdicts”.`);
+      setSyncNote(`${frames.length} frames queued for Lightroom — run Plug-in Extras → “Pull LensLabs verdicts”.`);
     } catch {
-      setSyncNote("Could not reach the Lens OS bridge to publish verdicts.");
+      setSyncNote("Could not reach the LensLabs bridge to publish verdicts.");
     }
   }, [shots]);
 
@@ -485,7 +485,7 @@ function Studio() {
           <span className="grid size-9 place-items-center rounded-full bg-rust font-display text-lg font-bold text-paper2">
             L
           </span>
-          <span className="font-display text-xl font-semibold tracking-tight">Lens OS</span>
+          <span className="font-display text-xl font-semibold tracking-tight">LensLabs</span>
           <span className="mt-1 rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
             studio
           </span>
@@ -614,7 +614,7 @@ function Studio() {
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-moss">
               Select all 300 files at once — JPEG, PNG, HEIC-exported or RAW (NEF, CR2, CR3, ARW,
-              DNG, RAF, ORF, RW2). Nothing leaves your machine: Lens OS reads the embedded preview
+              DNG, RAF, ORF, RW2). Nothing leaves your machine: LensLabs reads the embedded preview
               from RAW files and scores everything locally.
             </p>
             <button
@@ -782,7 +782,7 @@ function Studio() {
                               ? "from Lightroom (live)"
                               : selected.develop.origin === "sidecar"
                                 ? "from XMP sidecar"
-                                : "Lens OS, published"
+                                : "LensLabs, published"
                             : "untouched"}
                         </span>
                         {selected.develop?.rating !== undefined && selected.develop.rating !== null && (

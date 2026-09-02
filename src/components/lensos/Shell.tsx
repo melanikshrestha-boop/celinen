@@ -234,7 +234,7 @@ export function Shell({
         <div className="mx-auto flex w-full max-w-[1240px] items-center gap-3 px-6 py-3">
           <Link to="/" className="flex shrink-0 items-center gap-2">
             <LogoMark className="text-ink" />
-            <span className="font-display text-[15px] font-semibold tracking-tight">Lens OS</span>
+            <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
           </Link>
 
           <nav className="flex flex-1 flex-wrap items-center gap-0.5 text-[13px] text-moss">

@@ -6,13 +6,13 @@ import { useLens } from "@/lib/lensos-store";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings — Lens OS" },
+      { title: "Settings — LensLabs" },
       {
         name: "description",
         content:
           "Default metadata templates, export destinations, local-first privacy, Lightroom plugin status and the full keyboard reference.",
       },
-      { property: "og:title", content: "Settings — Lens OS" },
+      { property: "og:title", content: "Settings — LensLabs" },
       { property: "og:description", content: "Templates, destinations, privacy, plugin status, shortcuts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

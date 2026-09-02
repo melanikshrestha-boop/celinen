@@ -5,13 +5,13 @@ import { Fade } from "@/components/Fade";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Lens OS — Cull a Shoot in Minutes" },
+      { title: "LensLabs — Cull a Shoot in Minutes" },
       {
         name: "description",
         content:
-          "Lens OS scores, flags and culls a full RAW or JPEG shoot locally in your browser, then hands you the basic develop tools.",
+          "LensLabs scores, flags and culls a full RAW or JPEG shoot locally in your browser, then hands you the basic develop tools.",
       },
-      { property: "og:title", content: "Lens OS — Cull a Shoot in Minutes" },
+      { property: "og:title", content: "LensLabs — Cull a Shoot in Minutes" },
       {
         property: "og:description",
         content: "Score, cull and develop a full shoot locally. No uploads.",

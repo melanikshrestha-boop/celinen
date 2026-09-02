@@ -4,7 +4,7 @@ type LogoProps = {
 };
 
 /**
- * Lens OS mark — an aperture ring whose inner cut forms an "L".
+ * LensLabs mark — an aperture ring whose inner cut forms an "L".
  * Monochrome: inherits `currentColor` for the ring, punches the glyph out.
  */
 export function LogoMark({ size = 26, className = "" }: LogoProps) {

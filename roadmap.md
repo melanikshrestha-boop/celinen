@@ -1,4 +1,4 @@
-# Lens OS roadmap
+# LensLabs roadmap
 
 ## Done
 - Pick studio (existing cull workspace)
