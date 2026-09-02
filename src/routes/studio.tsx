@@ -8,7 +8,12 @@ import {
   type Shot,
   type Verdict,
   analyseBitmap,
+  analyseFaces,
+  baseName,
+  buildXmpSidecar,
   decodeFile,
+  faceDetectionAvailable,
+  parseXmpSidecar,
   exportShot,
   hamming,
   histogram,
@@ -53,9 +58,28 @@ function Studio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bitmapCache = useRef(new Map<string, ImageBitmap>());
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
+  const [faceEngine, setFaceEngine] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+
+  useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
   /* ---------------- import ---------------- */
   const importFiles = useCallback(async (files: File[]) => {
+    // Lightroom folders carry .xmp sidecars next to the negatives.
+    const sidecars = new Map<string, string>();
+    const sidecarFiles = files.filter((f) => f.name.toLowerCase().endsWith(".xmp"));
+    for (const f of sidecarFiles) {
+      try {
+        sidecars.set(baseName(f.name).toLowerCase(), await f.text());
+      } catch {
+        /* unreadable sidecar is simply skipped */
+      }
+    }
+    files = files.filter((f) => !f.name.toLowerCase().endsWith(".xmp"));
+    if (sidecars.size) {
+      setSyncNote(`${sidecars.size} Lightroom sidecar${sidecars.size === 1 ? "" : "s"} read — develop settings and picks applied.`);
+    }
     if (!files.length) return;
     setProgress({ done: 0, total: files.length });
     const added: Shot[] = [];
@@ -67,7 +91,11 @@ function Studio() {
       try {
         const bitmap = await decodeFile(file);
         const analysis = analyseBitmap(bitmap);
-        const { score, flags } = scoreOf(analysis);
+        const faces = await analyseFaces(bitmap);
+        const { score, flags } = scoreOf({ ...analysis, faces });
+
+        const sidecar = sidecars.get(baseName(file.name).toLowerCase());
+        const parsed = sidecar ? parseXmpSidecar(sidecar) : null;
 
         const thumb = document.createElement("canvas");
         const s = Math.min(1, 480 / Math.max(bitmap.width, bitmap.height));
@@ -92,8 +120,14 @@ function Studio() {
           hash: analysis.hash,
           score,
           flags,
-          verdict: "undecided",
-          edits: { ...DEFAULT_EDITS },
+          verdict:
+            parsed?.pick === 1 || (parsed?.rating ?? 0) >= 3
+              ? "keep"
+              : parsed?.pick === -1
+                ? "reject"
+                : "undecided",
+          edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
+          faces: faces ?? undefined,
         });
         bitmap.close?.();
       } catch (err) {
