@@ -217,9 +217,13 @@ function PricingPage() {
                 "\u201cNeeds you\u201d queue for story frames the AI would kill",
               ]}
             />
-            <a href="#download" className={`${ctaBase} bg-ink text-paper2`}>
+            <Link
+              to="/signup"
+              search={{ plan: indTier.id, billing: cycle }}
+              className={`${ctaBase} bg-ink text-paper2`}
+            >
               {indTier.cta}
-            </a>
+            </Link>
           </div>
 
           {/* Teams */}
