@@ -87,7 +87,7 @@ function Index() {
         </div>
 
         <p className="rise-in mt-4 text-lg text-moss [animation-delay:300ms]">
-          and let it take it from there.
+          and let it take it from there. Go create more.
         </p>
 
         <div className="rise-in mt-10 flex flex-wrap items-center justify-center gap-3 [animation-delay:380ms]">
