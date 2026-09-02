@@ -198,6 +198,119 @@ function Studio() {
     setSelectedId((cur) => cur ?? added[0]?.id ?? null);
   }, []);
 
+  /* ---------------- Lightroom live bridge ---------------- */
+  const lastBridgeAt = useRef(0);
+
+  const mergeBridge = useCallback((state: BridgeState) => {
+    if (!state?.frames?.length) return 0;
+    let touched = 0;
+    setShots((prev) =>
+      prev.map((s) => {
+        const frame = state.frames.find(
+          (f) => baseName(f.file ?? "").toLowerCase() === baseName(s.name).toLowerCase(),
+        );
+        if (!frame) return s;
+        touched++;
+        const d = frame.develop ?? {};
+        const next: Shot = {
+          ...s,
+          edits: {
+            ...s.edits,
+            ...(d.exposure !== undefined
+              ? { exposure: Math.max(-100, Math.min(100, d.exposure * 20)) }
+              : {}),
+            ...(d.contrast !== undefined ? { contrast: d.contrast } : {}),
+            ...(d.highlights !== undefined ? { highlights: d.highlights } : {}),
+            ...(d.shadows !== undefined ? { shadows: d.shadows } : {}),
+            ...(d.saturation !== undefined ? { saturation: d.saturation } : {}),
+            ...(d.temperature !== undefined
+              ? { temp: Math.max(-100, Math.min(100, ((d.temperature - 5500) / 4500) * 100)) }
+              : {}),
+          },
+          verdict:
+            frame.pick === 1 || (frame.rating ?? 0) >= 3
+              ? "keep"
+              : frame.pick === -1
+                ? "reject"
+                : s.verdict,
+          develop: {
+            origin: "lightroom",
+            at: Date.now(),
+            rating: frame.rating,
+            label: frame.label ?? null,
+            caption: frame.iptc?.caption,
+            cropped: d.cropped,
+            processVersion: d.processVersion,
+          },
+        };
+        return next;
+      }),
+    );
+    return touched;
+  }, []);
+
+  const pullFromLightroom = useCallback(
+    async (quiet = false) => {
+      try {
+        const res = await fetch(`${BRIDGE_PATH}?side=studio`, { cache: "no-store" });
+        const state = (await res.json()) as BridgeState;
+        if (!state.at || state.at === lastBridgeAt.current) return;
+        lastBridgeAt.current = state.at;
+        const n = mergeBridge(state);
+        if (n) setSyncNote(`Lightroom pushed ${n} frame${n === 1 ? "" : "s"} · develop settings, rating and IPTC applied.`);
+      } catch {
+        if (!quiet) setSyncNote("Lens OS bridge unreachable — is the studio server running?");
+      }
+    },
+    [mergeBridge],
+  );
+
+  useEffect(() => {
+    if (!linked) return;
+    void pullFromLightroom(true);
+    const t = setInterval(() => void pullFromLightroom(true), 4000);
+    return () => clearInterval(t);
+  }, [linked, pullFromLightroom]);
+
+  /** Publish Lens OS verdicts so the plugin's "Pull" writes them into the catalog. */
+  const pushToLightroom = useCallback(async () => {
+    const frames = shots
+      .filter((s) => !s.error)
+      .map((s) => ({
+        file: s.name,
+        verdict: s.verdict,
+        score: s.score,
+        rating: s.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(s.score / 20))),
+        label: s.verdict === "keep" ? "Green" : s.verdict === "reject" ? "Red" : null,
+        develop: {
+          exposure: s.edits.exposure / 20,
+          contrast: s.edits.contrast,
+          highlights: s.edits.highlights,
+          shadows: s.edits.shadows,
+          saturation: s.edits.saturation,
+          temperature: Math.round(5500 + (s.edits.temp / 100) * 4500),
+        },
+      }));
+    try {
+      const res = await fetch(BRIDGE_PATH, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "verdicts", direction: "to-lightroom", frames }),
+      });
+      if (!res.ok) throw new Error();
+      setShots((prev) =>
+        prev.map((s) =>
+          s.error ? s : { ...s, develop: { ...(s.develop ?? { origin: "lens os" as const }), origin: "lens os" as const, at: Date.now() } },
+        ),
+      );
+      setSyncNote(`${frames.length} frames queued for Lightroom — run Plug-in Extras → “Pull Lens OS verdicts”.`);
+    } catch {
+      setSyncNote("Could not reach the Lens OS bridge to publish verdicts.");
+    }
+  }, [shots]);
+
+
+
   /* ---------------- derived ---------------- */
   const visible = useMemo(() => {
     switch (filter) {
