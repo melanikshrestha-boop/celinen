@@ -118,9 +118,9 @@ function PricingPage() {
               Product
             </Link>
             <span className="rounded-lg bg-muted px-3 py-1.5 text-ink">Pricing</span>
-            <a href="#download" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
-              Sign in
-            </a>
+            <Link to="/studio" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
+              Open studio
+            </Link>
             <a href="#volume" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
               Contact sales
             </a>
@@ -128,12 +128,13 @@ function PricingPage() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <a
-              href="#download"
+            <Link
+              to="/signup"
+              search={{ plan: "starter", billing: cycle }}
               className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
             >
-              Download
-            </a>
+              Get started
+            </Link>
           </div>
         </header>
       </div>
@@ -344,12 +345,13 @@ function PricingPage() {
             <p className="text-[13px] text-moss">Import, pick, hand off, send.</p>
           </div>
           <div className="ml-auto flex gap-2">
-            <a
-              href="#download"
+            <Link
+              to="/signup"
+              search={{ plan: "starter", billing: cycle }}
               className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 hover:opacity-85"
             >
-              Download
-            </a>
+              Get started
+            </Link>
             <a
               href="mailto:hello@tryiris.ai"
               className="rounded-xl border border-input px-4 py-2 text-sm font-medium hover:opacity-85"
