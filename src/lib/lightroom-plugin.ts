@@ -1,35 +1,35 @@
 /**
- * Lens OS Lightroom Classic plugin (Lua source, generated in the browser).
+ * LensLabs Lightroom Classic plugin (Lua source, generated in the browser).
  *
  * The plugin does two real things:
  *  1. Push: reads rating, colour label, pick flag, IPTC and develop settings for the
  *     selected photos, writes XMP to disk (photo:saveMetadata) and POSTs the same
- *     payload to the Lens OS bridge so the studio updates without a re-import.
- *  2. Pull: fetches Lens OS verdicts/ratings/labels/captions back and writes them into
+ *     payload to the LensLabs bridge so the studio updates without a re-import.
+ *  2. Pull: fetches LensLabs verdicts/ratings/labels/captions back and writes them into
  *     the catalog, then writes XMP again so the two sides agree.
  */
 import { makeZip } from "@/lib/zip";
 
 export const BRIDGE_PATH = "/api/public/lightroom";
 
-const INFO_LUA = (endpoint: string) => `--[[ Lens OS — Lightroom Classic plugin ]]
+const INFO_LUA = (endpoint: string) => `--[[ LensLabs — Lightroom Classic plugin ]]
 return {
   LrSdkVersion = 13.0,
   LrSdkMinimumVersion = 10.0,
   LrToolkitIdentifier = 'photo.lens.os.bridge',
-  LrPluginName = 'Lens OS',
+  LrPluginName = 'LensLabs',
   LrPluginInfoUrl = '${endpoint}',
   LrLibraryMenuItems = {
-    { title = 'Push selection to Lens OS', file = 'LensOSPush.lua' },
-    { title = 'Pull Lens OS verdicts into catalog', file = 'LensOSPull.lua' },
-    { title = 'Start live sync (every 5s)', file = 'LensOSWatch.lua' },
+    { title = 'Push selection to LensLabs', file = 'LensLabsPush.lua' },
+    { title = 'Pull LensLabs verdicts into catalog', file = 'LensLabsPull.lua' },
+    { title = 'Start live sync (every 5s)', file = 'LensLabsWatch.lua' },
   },
-  LrMetadataProvider = 'LensOSMetadata.lua',
+  LrMetadataProvider = 'LensLabsMetadata.lua',
   VERSION = { major = 1, minor = 2, revision = 0 },
 }
 `;
 
-const CONFIG_LUA = (endpoint: string) => `-- Edit this if your Lens OS runs on another host.
+const CONFIG_LUA = (endpoint: string) => `-- Edit this if your LensLabs runs on another host.
 return {
   endpoint = '${endpoint}',
 }
@@ -37,9 +37,9 @@ return {
 
 const METADATA_LUA = `return {
   metadataFieldsForPhotos = {
-    { id = 'lensosScore', title = 'Lens OS score', dataType = 'string', searchable = true, browsable = true },
-    { id = 'lensosVerdict', title = 'Lens OS verdict', dataType = 'string', searchable = true, browsable = true },
-    { id = 'lensosPackage', title = 'Lens OS package', dataType = 'string', searchable = true, browsable = true },
+    { id = 'lensosScore', title = 'LensLabs score', dataType = 'string', searchable = true, browsable = true },
+    { id = 'lensosVerdict', title = 'LensLabs verdict', dataType = 'string', searchable = true, browsable = true },
+    { id = 'lensosPackage', title = 'LensLabs package', dataType = 'string', searchable = true, browsable = true },
   },
   schemaVersion = 3,
 }
@@ -49,7 +49,7 @@ const COMMON_LUA = `local LrHttp = import 'LrHttp'
 local LrPathUtils = import 'LrPathUtils'
 local LrFileUtils = import 'LrFileUtils'
 local JSON = require 'JSON'
-local config = require 'LensOSConfig'
+local config = require 'LensLabsConfig'
 
 local M = {}
 
@@ -57,7 +57,7 @@ function M.endpoint()
   return config.endpoint
 end
 
--- Collect everything Lens OS cares about for one photo.
+-- Collect everything LensLabs cares about for one photo.
 function M.readPhoto(photo)
   local dev = photo:getDevelopSettings() or {}
   return {
@@ -101,7 +101,7 @@ function M.get()
   return nil
 end
 
--- XMP on disk keeps Lightroom and Lens OS honest with each other.
+-- XMP on disk keeps Lightroom and LensLabs honest with each other.
 function M.writeSidecar(photo)
   photo:saveMetadata()
 end
@@ -112,13 +112,13 @@ return M
 const PUSH_LUA = `local LrApplication = import 'LrApplication'
 local LrTasks = import 'LrTasks'
 local LrDialogs = import 'LrDialogs'
-local Bridge = require 'LensOSBridge'
+local Bridge = require 'LensLabsBridge'
 
 LrTasks.startAsyncTask(function()
   local catalog = LrApplication.activeCatalog()
   local photos = catalog:getTargetPhotos()
   if #photos == 0 then
-    LrDialogs.message('Lens OS', 'Select photos in Lightroom first.')
+    LrDialogs.message('LensLabs', 'Select photos in Lightroom first.')
     return
   end
 
@@ -128,16 +128,16 @@ LrTasks.startAsyncTask(function()
   end
 
   -- Write XMP sidecars so the files on disk carry the same truth.
-  catalog:withWriteAccessDo('Lens OS — write XMP', function()
+  catalog:withWriteAccessDo('LensLabs — write XMP', function()
     for _, photo in ipairs(photos) do
       Bridge.writeSidecar(photo)
     end
   end)
 
   local ok = Bridge.post({ kind = 'push', at = os.time(), frames = frames })
-  LrDialogs.showBezel('Lens OS · pushed ' .. #frames .. ' frames')
+  LrDialogs.showBezel('LensLabs · pushed ' .. #frames .. ' frames')
   if not ok then
-    LrDialogs.message('Lens OS', 'XMP written, but the Lens OS bridge did not answer at ' .. Bridge.endpoint())
+    LrDialogs.message('LensLabs', 'XMP written, but the LensLabs bridge did not answer at ' .. Bridge.endpoint())
   end
 end)
 `;
@@ -145,12 +145,12 @@ end)
 const PULL_LUA = `local LrApplication = import 'LrApplication'
 local LrTasks = import 'LrTasks'
 local LrDialogs = import 'LrDialogs'
-local Bridge = require 'LensOSBridge'
+local Bridge = require 'LensLabsBridge'
 
 LrTasks.startAsyncTask(function()
   local state = Bridge.get()
   if not state or not state.frames then
-    LrDialogs.message('Lens OS', 'No Lens OS verdicts waiting at ' .. Bridge.endpoint())
+    LrDialogs.message('LensLabs', 'No LensLabs verdicts waiting at ' .. Bridge.endpoint())
     return
   end
 
@@ -161,7 +161,7 @@ LrTasks.startAsyncTask(function()
 
   local catalog = LrApplication.activeCatalog()
   local applied = 0
-  catalog:withWriteAccessDo('Lens OS — apply verdicts', function()
+  catalog:withWriteAccessDo('LensLabs — apply verdicts', function()
     for _, photo in ipairs(catalog:getAllPhotos()) do
       local name = string.lower(photo:getFormattedMetadata('fileName') or '')
       local frame = byName[name]
@@ -180,18 +180,18 @@ LrTasks.startAsyncTask(function()
     end
   end)
 
-  LrDialogs.showBezel('Lens OS · applied ' .. applied .. ' frames')
+  LrDialogs.showBezel('LensLabs · applied ' .. applied .. ' frames')
 end)
 `;
 
 const WATCH_LUA = `local LrApplication = import 'LrApplication'
 local LrTasks = import 'LrTasks'
 local LrDialogs = import 'LrDialogs'
-local Bridge = require 'LensOSBridge'
+local Bridge = require 'LensLabsBridge'
 
--- Live sync: every 5 seconds push the current selection's develop state to Lens OS.
+-- Live sync: every 5 seconds push the current selection's develop state to LensLabs.
 LrTasks.startAsyncTask(function()
-  LrDialogs.showBezel('Lens OS · live sync on')
+  LrDialogs.showBezel('LensLabs · live sync on')
   local running = true
   while running do
     local catalog = LrApplication.activeCatalog()
@@ -208,7 +208,7 @@ LrTasks.startAsyncTask(function()
 end)
 `;
 
-const JSON_LUA = `-- Tiny JSON encoder/decoder used by the Lens OS bridge.
+const JSON_LUA = `-- Tiny JSON encoder/decoder used by the LensLabs bridge.
 local JSON = {}
 
 local function esc(s)
@@ -239,7 +239,7 @@ end
 
 function JSON:encode(v) return encode(v) end
 
--- Decoder: minimal recursive descent, enough for the Lens OS payload.
+-- Decoder: minimal recursive descent, enough for the LensLabs payload.
 function JSON:decode(str)
   local pos = 1
   local function skip() while pos <= #str and str:sub(pos, pos):match('%s') do pos = pos + 1 end end
@@ -311,43 +311,43 @@ end
 return JSON
 `;
 
-const README = (endpoint: string) => `Lens OS — Lightroom Classic plugin
+const README = (endpoint: string) => `LensLabs — Lightroom Classic plugin
 ==================================
 
 Install
 -------
-1. Unzip. You get a folder named LensOS.lrplugin.
-2. Lightroom Classic → File → Plug-in Manager → Add → choose LensOS.lrplugin → Done.
-3. If Lens OS is not running on this machine, open LensOSConfig.lua and change
+1. Unzip. You get a folder named LensLabs.lrplugin.
+2. Lightroom Classic → File → Plug-in Manager → Add → choose LensLabs.lrplugin → Done.
+3. If LensLabs is not running on this machine, open LensLabsConfig.lua and change
    the endpoint. Current endpoint: ${endpoint}
 
 Use
 ---
-Library → Plug-in Extras → "Push selection to Lens OS"
+Library → Plug-in Extras → "Push selection to LensLabs"
   Writes XMP sidecars (rating, colour label, pick flag, IPTC caption/headline/
-  keywords/creator/copyright) and sends develop settings to the Lens OS studio.
+  keywords/creator/copyright) and sends develop settings to the LensLabs studio.
 
-Library → Plug-in Extras → "Pull Lens OS verdicts into catalog"
-  Reads keeps/rejects/ratings/labels/captions back from Lens OS, writes them
+Library → Plug-in Extras → "Pull LensLabs verdicts into catalog"
+  Reads keeps/rejects/ratings/labels/captions back from LensLabs, writes them
   into the catalog and re-saves XMP so both sides agree.
 
 Library → Plug-in Extras → "Start live sync (every 5s)"
   Keeps pushing the current selection while you edit, so the studio's develop
   state updates as you work.
 
-Lens OS never touches your .lrcat. All sync goes through XMP + this plugin.
+LensLabs never touches your .lrcat. All sync goes through XMP + this plugin.
 `;
 
 export function pluginFiles(endpoint: string) {
   return [
-    { path: "LensOS.lrplugin/Info.lua", text: INFO_LUA(endpoint) },
-    { path: "LensOS.lrplugin/LensOSConfig.lua", text: CONFIG_LUA(endpoint) },
-    { path: "LensOS.lrplugin/LensOSBridge.lua", text: COMMON_LUA },
-    { path: "LensOS.lrplugin/LensOSMetadata.lua", text: METADATA_LUA },
-    { path: "LensOS.lrplugin/LensOSPush.lua", text: PUSH_LUA },
-    { path: "LensOS.lrplugin/LensOSPull.lua", text: PULL_LUA },
-    { path: "LensOS.lrplugin/LensOSWatch.lua", text: WATCH_LUA },
-    { path: "LensOS.lrplugin/JSON.lua", text: JSON_LUA },
+    { path: "LensLabs.lrplugin/Info.lua", text: INFO_LUA(endpoint) },
+    { path: "LensLabs.lrplugin/LensLabsConfig.lua", text: CONFIG_LUA(endpoint) },
+    { path: "LensLabs.lrplugin/LensLabsBridge.lua", text: COMMON_LUA },
+    { path: "LensLabs.lrplugin/LensLabsMetadata.lua", text: METADATA_LUA },
+    { path: "LensLabs.lrplugin/LensLabsPush.lua", text: PUSH_LUA },
+    { path: "LensLabs.lrplugin/LensLabsPull.lua", text: PULL_LUA },
+    { path: "LensLabs.lrplugin/LensLabsWatch.lua", text: WATCH_LUA },
+    { path: "LensLabs.lrplugin/JSON.lua", text: JSON_LUA },
     { path: "README.txt", text: README(endpoint) },
   ];
 }
@@ -358,7 +358,7 @@ export function downloadLightroomPlugin() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "LensOS.lrplugin.zip";
+  a.download = "LensLabs.lrplugin.zip";
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return endpoint;

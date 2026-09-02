@@ -11,7 +11,7 @@ export function Nav() {
         <Link to="/" className="flex items-center gap-2">
           <LogoMark className="text-ink" />
 
-          <span className="font-display text-[15px] font-semibold tracking-tight">Lens OS</span>
+          <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
         </Link>
 
         <nav className="hidden items-center gap-1 text-sm text-moss sm:flex">

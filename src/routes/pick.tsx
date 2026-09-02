@@ -5,12 +5,12 @@ import { useLens } from "@/lib/lensos-store";
 export const Route = createFileRoute("/pick")({
   head: () => ({
     meta: [
-      { title: "Pick — Lens OS Cull Queue" },
+      { title: "Pick — LensLabs Cull Queue" },
       {
         name: "description",
-        content: "Open the existing Lens OS Pick studio and see the current cull queue counts.",
+        content: "Open the existing LensLabs Pick studio and see the current cull queue counts.",
       },
-      { property: "og:title", content: "Pick — Lens OS Cull Queue" },
+      { property: "og:title", content: "Pick — LensLabs Cull Queue" },
       { property: "og:description", content: "The existing cull studio, with queue counts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -67,7 +67,7 @@ function PickScreen() {
       </Card>
 
       <p className="mt-4 text-[13px] text-moss">
-        Reject is a soft reject. Originals are never modified or deleted by Lens OS.
+        Reject is a soft reject. Originals are never modified or deleted by LensLabs.
       </p>
     </Shell>
   );
