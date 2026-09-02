@@ -22,6 +22,7 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 
@@ -90,6 +91,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
 }
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
 }
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
 }
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/signup'
     | '/studio'
     | '/api/public/lightroom'
   fileRoutesByTo: FileRoutesByTo
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/signup'
     | '/studio'
     | '/api/public/lightroom'
   id:
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/signup'
     | '/studio'
     | '/api/public/lightroom'
   fileRoutesById: FileRoutesById
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
 }
@@ -318,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/studio': {
       id: '/studio'
       path: '/studio'
@@ -349,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
 }
