@@ -257,7 +257,14 @@ function AuthPage() {
           {note && <p className="mt-4 text-center text-[13px] text-moss">{note}</p>}
           {error && <p className="mt-4 text-center text-[13px] text-rust">{error}</p>}
 
-          <p className="mt-6 text-center text-[12px] leading-relaxed text-moss">
+          <p className="mt-5 text-center text-[12px] text-moss">
+            Not a photographer?{" "}
+            <Link to="/portal" className="text-rust hover:underline">
+              Client login
+            </Link>
+          </p>
+
+          <p className="mt-4 text-center text-[12px] leading-relaxed text-moss">
             By continuing you agree to the beta terms. Your photos never leave your machine.
           </p>
         </div>
