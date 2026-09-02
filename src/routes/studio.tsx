@@ -480,75 +480,89 @@ function Studio() {
 
   return (
     <div className="paper-tex min-h-screen text-ink">
-      <header className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-6 py-5">
-        <Link to="/" className="flex items-center gap-3">
-          <span className="grid size-9 place-items-center rounded-full bg-rust font-display text-lg font-bold text-paper2">
-            L
-          </span>
-          <span className="font-display text-xl font-semibold tracking-tight">LensLabs</span>
-          <span className="mt-1 rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
-            studio
-          </span>
-        </Link>
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
-          <button
-            onClick={() => inputRef.current?.click()}
-            className="rounded-full bg-ink px-4 py-2 uppercase tracking-[0.12em] text-paper2 transition-colors hover:bg-rust"
-          >
-            Import shoot
-          </button>
-          <button
-            onClick={() => folderRef.current?.click()}
-            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
-          >
-            Lightroom folder
-          </button>
-          <button
-            onClick={exportSidecars}
-            disabled={!shots.some((s) => s.verdict !== "undecided")}
-            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
-          >
-            Sync XMP back
-          </button>
-          <button
-            onClick={() => {
-              const endpoint = downloadLightroomPlugin();
-              setSyncNote(`Plugin downloaded · endpoint ${endpoint} — add it in Lightroom's Plug-in Manager.`);
-            }}
-            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
-          >
-            Lightroom plugin
-          </button>
-          <button
-            onClick={() => setLinked((v) => !v)}
-            className={`rounded-full px-4 py-2 uppercase tracking-[0.12em] transition-colors ${
-              linked ? "bg-rust text-paper2" : "border border-input hover:bg-ink hover:text-paper2"
-            }`}
-          >
-            {linked ? "Live sync · on" : "Live sync · off"}
-          </button>
-          <button
-            onClick={() => void pushToLightroom()}
-            disabled={!shots.length}
-            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
-          >
-            Publish verdicts
-          </button>
-          <button
-            onClick={autoCull}
-            disabled={!shots.length}
-            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
-          >
-            Auto-cull
-          </button>
-          <button
-            onClick={() => void exportKeepers()}
-            disabled={!counts.keepers}
-            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
-          >
-            Export keepers ({counts.keepers})
-          </button>
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-paper/85 backdrop-blur">
+        <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link to="/" className="flex shrink-0 items-center gap-2">
+              <span className="grid size-6 place-items-center rounded-full bg-ink font-display text-[11px] font-bold text-paper2">
+                L
+              </span>
+              <span className="font-display text-sm font-semibold tracking-tight">LensLabs</span>
+            </Link>
+            <span className="truncate font-mono text-[11px] text-moss">
+              {shots.length
+                ? `${counts.all} frames · ${counts.todo} to review · ${counts.keepers} keepers`
+                : "no shoot loaded"}
+            </span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px]">
+            {!!counts.keepers && (
+              <button
+                onClick={() => void exportKeepers()}
+                className="rounded-md px-2.5 py-1.5 text-moss transition-colors hover:bg-ink/5 hover:text-ink"
+              >
+                Export {counts.keepers}
+              </button>
+            )}
+            <button
+              onClick={() => (shots.length ? autoCull() : inputRef.current?.click())}
+              className="rounded-md bg-ink px-3 py-1.5 text-paper2 transition-colors hover:bg-rust"
+            >
+              {shots.length ? "Auto-cull" : "Import"}
+            </button>
+            <details className="relative">
+              <summary className="grid size-7 cursor-pointer list-none place-items-center rounded-md text-moss transition-colors hover:bg-ink/5 hover:text-ink [&::-webkit-details-marker]:hidden">
+                ···
+              </summary>
+              <div className="absolute right-0 z-40 mt-1.5 w-60 rounded-lg border border-border bg-paper2 p-1 shadow-xl">
+                {(
+                  [
+                    ["Import files", () => inputRef.current?.click(), false],
+                    ["Import Lightroom folder", () => folderRef.current?.click(), false],
+                    [
+                      "Write XMP sidecars",
+                      exportSidecars,
+                      !shots.some((s) => s.verdict !== "undecided"),
+                    ],
+                    ["Publish verdicts to Lightroom", () => void pushToLightroom(), !shots.length],
+                    [
+                      "Download Lightroom plugin",
+                      () => {
+                        const endpoint = downloadLightroomPlugin();
+                        setSyncNote(`Plugin downloaded · endpoint ${endpoint}`);
+                      },
+                      false,
+                    ],
+                    [
+                      linked ? "Live sync · on" : "Live sync · off",
+                      () => setLinked((v) => !v),
+                      false,
+                    ],
+                  ] as [string, () => void, boolean][]
+                ).map(([label, run, disabled]) => (
+                  <button
+                    key={label}
+                    disabled={disabled}
+                    onClick={(e) => {
+                      run();
+                      (e.currentTarget.closest("details") as HTMLDetailsElement).open = false;
+                    }}
+                    className="block w-full rounded-md px-2.5 py-2 text-left transition-colors hover:bg-ink/5 disabled:opacity-35 disabled:hover:bg-transparent"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </details>
+          </div>
         </div>
+
+        {syncNote && (
+          <div className="mx-auto max-w-[1600px] px-5 pb-2 font-mono text-[11px] text-rust">
+            {syncNote}
+          </div>
+        )}
         <input
           ref={folderRef}
           type="file"
@@ -574,11 +588,6 @@ function Studio() {
           }}
         />
       </header>
-
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-6 pb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
-        <span>{faceEngine ? "Face + eye engine · on" : "Face + eye engine · unavailable in this browser"}</span>
-        {syncNote && <span className="text-rust normal-case tracking-normal">{syncNote}</span>}
-      </div>
 
       {progress && (
         <div className="mx-auto max-w-[1600px] px-6 pb-4">
