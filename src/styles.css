@@ -255,3 +255,29 @@
 
 html { color-scheme: light; }
 html.dark { color-scheme: dark; }
+
+/* ---- LensLabs motion kit ---- */
+@keyframes iris-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+@keyframes iris-breathe {
+  0%, 100% { transform: scale(1); opacity: .9 }
+  50% { transform: scale(1.06); opacity: 1 }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0) }
+  50% { transform: translateY(-6px) }
+}
+@keyframes sweep { 0% { transform: translateX(-120%) } 100% { transform: translateX(220%) } }
+@keyframes bar-fill { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+
+@utility iris-spin { animation: iris-spin 22s linear infinite; transform-origin: 50% 50%; }
+@utility iris-breathe { animation: iris-breathe 4.5s ease-in-out infinite; transform-origin: 50% 50%; }
+@utility float-y { animation: float-y 6s ease-in-out infinite; }
+@utility sweep { animation: sweep 2.8s ease-in-out infinite; }
+@utility bar-fill { transform-origin: left; animation: bar-fill 1.6s cubic-bezier(.22,1,.36,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .iris-spin, .iris-breathe, .float-y, .sweep, .bar-fill {
+    animation: none !important;
+    transform: none !important;
+  }
+}
