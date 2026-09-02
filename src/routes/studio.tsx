@@ -100,14 +100,18 @@ function Studio() {
     }
     if (!files.length) return;
     setProgress({ done: 0, total: files.length });
-    const added: Shot[] = [];
+    const started = performance.now();
+    const stamp = Date.now();
+    const added: Shot[] = new Array(files.length);
+    let doneCount = 0;
 
-    for (let i = 0; i < files.length; i++) {
+    const one = async (i: number) => {
       const file = files[i]!;
-      const id = `${file.name}-${file.size}-${i}-${Date.now()}`;
+      const id = `${file.name}-${file.size}-${i}-${stamp}`;
       const raw = isRawFile(file);
       try {
-        const bitmap = await decodeFile(file);
+        // Cull-resolution decode: analysis never needs the full 45MP frame.
+        const bitmap = await decodeFile(file, 1280);
         const analysis = analyseBitmap(bitmap);
         const faces = await analyseFaces(bitmap);
         const { score, flags } = scoreOf({ ...analysis, faces });
@@ -120,9 +124,12 @@ function Studio() {
         thumb.width = Math.round(bitmap.width * s);
         thumb.height = Math.round(bitmap.height * s);
         thumb.getContext("2d")!.drawImage(bitmap, 0, 0, thumb.width, thumb.height);
-        const url = thumb.toDataURL("image/jpeg", 0.7);
+        const blob = await new Promise<Blob | null>((res) =>
+          thumb.toBlob(res, "image/jpeg", 0.72),
+        );
+        const url = blob ? URL.createObjectURL(blob) : null;
 
-        added.push({
+        added[i] = ({
           id,
           file,
           name: file.name,
@@ -157,7 +164,7 @@ function Studio() {
         });
         bitmap.close?.();
       } catch (err) {
-        added.push({
+        added[i] = ({
           id,
           file,
           name: file.name,
@@ -178,13 +185,23 @@ function Studio() {
           error: err instanceof Error ? err.message : "Could not read this file",
         });
       }
-      setProgress({ done: i + 1, total: files.length });
-      // let the UI breathe between frames
-      await new Promise((r) => setTimeout(r, 0));
-    }
+      doneCount++;
+      setProgress({ done: doneCount, total: files.length });
+    };
+
+    // Parallel decode lanes — one per core, capped at 8.
+    const lanes = Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4));
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(lanes, files.length) }, async () => {
+        while (cursor < files.length) await one(cursor++);
+      }),
+    );
+
+    const batch = added.filter(Boolean);
 
     setShots((prev) => {
-      const next = [...prev, ...added];
+      const next = [...prev, ...batch];
       // duplicate detection across the whole set
       for (let i = 0; i < next.length; i++) {
         if (!next[i]!.hash) continue;
@@ -199,7 +216,11 @@ function Studio() {
       return next;
     });
     setProgress(null);
-    setSelectedId((cur) => cur ?? added[0]?.id ?? null);
+    setSelectedId((cur) => cur ?? batch[0]?.id ?? null);
+    const secs = (performance.now() - started) / 1000;
+    setSyncNote(
+      `${batch.length} frame${batch.length === 1 ? "" : "s"} read in ${secs.toFixed(1)}s · ${Math.round(batch.length / Math.max(secs, 0.001))}/sec`,
+    );
   }, []);
 
   /* ---------------- Lightroom live bridge ---------------- */
