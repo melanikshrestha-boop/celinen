@@ -46,6 +46,9 @@ function AuthPage() {
   const [busy, setBusy] = useState<"google" | "email" | "password" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Guard against a pre-hydration native form submit wiping the form.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   useEffect(() => {
     let alive = true;
@@ -97,7 +100,7 @@ function AuthPage() {
     setNote(null);
     setBusy("password");
     if (signup) {
-      const { error: err } = await supabase.auth.signUp({
+      const { data: res, error: err } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -106,8 +109,19 @@ function AuthPage() {
         },
       });
       setBusy(null);
-      if (err) setError(err.message);
-      else setNote(`Account created for ${email.trim()}. Confirm the email we just sent.`);
+      if (err) {
+        setError(
+          err.message.toLowerCase().includes("weak")
+            ? "That password shows up in known breach lists. Pick something less guessable."
+            : err.message,
+        );
+        return;
+      }
+      if (res.session) {
+        void navigate({ to: safePath(next), replace: true });
+        return;
+      }
+      setNote(`Account created for ${email.trim()}. Confirm the email we just sent.`);
       return;
     }
     const { error: err } = await supabase.auth.signInWithPassword({
@@ -115,7 +129,12 @@ function AuthPage() {
       password,
     });
     setBusy(null);
-    if (err) setError(err.message);
+    if (err)
+      setError(
+        err.message.toLowerCase().includes("invalid login")
+          ? "That email and password don't match an account. Create one on the Sign up tab."
+          : err.message,
+      );
   };
 
   return (
@@ -217,7 +236,7 @@ function AuthPage() {
 
             <button
               type="submit"
-              disabled={busy !== null}
+              disabled={busy !== null || !ready}
               className="w-full rounded-lg bg-rust px-4 py-2.5 text-[14px] font-semibold text-paper2 transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {busy === "password"
@@ -241,7 +260,14 @@ function AuthPage() {
           {note && <p className="mt-4 text-center text-[13px] text-moss">{note}</p>}
           {error && <p className="mt-4 text-center text-[13px] text-rust">{error}</p>}
 
-          <p className="mt-6 text-center text-[12px] leading-relaxed text-moss">
+          <p className="mt-5 text-center text-[12px] text-moss">
+            Not a photographer?{" "}
+            <Link to="/portal" className="text-rust hover:underline">
+              Client login
+            </Link>
+          </p>
+
+          <p className="mt-4 text-center text-[12px] leading-relaxed text-moss">
             By continuing you agree to the beta terms. Your photos never leave your machine.
           </p>
         </div>
