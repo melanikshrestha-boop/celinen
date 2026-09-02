@@ -1,8 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
 import { supabase } from "@/integrations/supabase/client";
-import { getClientPortal } from "@/lib/client-portal.functions";
+import {
+  getClientPortal,
+  createBookingRequest,
+  listBookingRequests,
+  createClientUploadUrl,
+  recordClientUpload,
+  listClientUploads,
+} from "@/lib/client-portal.functions";
 
 export const Route = createFileRoute("/portal")({
   ssr: false,
@@ -31,11 +38,37 @@ type Data = Awaited<ReturnType<typeof getClientPortal>>;
 const money = (n: number, c = "usd") =>
   n.toLocaleString(undefined, { style: "currency", currency: c.toUpperCase() });
 
+type Booking = Awaited<ReturnType<typeof listBookingRequests>>[number];
+type Upload = Awaited<ReturnType<typeof listClientUploads>>[number];
+
+const SHOOT_TYPES = ["Portrait", "Wedding", "Event", "Brand / product", "Family", "Editorial"];
+
 function Portal() {
   const navigate = useNavigate();
   const [email, setEmail] = useState<string | null>(null);
   const [data, setData] = useState<Data | null>(null);
   const [state, setState] = useState<"loading" | "anon" | "ready" | "error">("loading");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [uploads, setUploads] = useState<Upload[]>([]);
+
+  /* booking form */
+  const [shootType, setShootType] = useState(SHOOT_TYPES[0]!);
+  const [date, setDate] = useState("");
+  const [place, setPlace] = useState("");
+  const [budget, setBudget] = useState("");
+  const [brief, setBrief] = useState("");
+  const [booking, setBooking] = useState<"idle" | "sending" | "sent">("idle");
+  const [bookErr, setBookErr] = useState<string | null>(null);
+
+  /* uploads */
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const [b, u] = await Promise.all([listBookingRequests(), listClientUploads()]);
+    setBookings(b);
+    setUploads(u);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -49,6 +82,7 @@ function Portal() {
         if (!alive) return;
         setData(res);
         setState("ready");
+        await refresh();
       } catch {
         if (alive) setState("error");
       }
@@ -56,7 +90,48 @@ function Portal() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refresh]);
+
+  const submitBooking = async () => {
+    setBookErr(null);
+    if (!date) return setBookErr("Pick a date for your shoot.");
+    setBooking("sending");
+    const res = await createBookingRequest({
+      data: {
+        shoot_type: shootType,
+        preferred_date: date,
+        location: place,
+        budget: budget ? Number(budget) : null,
+        message: brief,
+      },
+    });
+    if ("error" in res && res.error) {
+      setBooking("idle");
+      return setBookErr(res.error);
+    }
+    setBooking("sent");
+    setBrief("");
+    setBudget("");
+    setPlace("");
+    setDate("");
+    await refresh();
+  };
+
+  const onFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    for (const file of Array.from(files)) {
+      setUploading(file.name);
+      const slot = await createClientUploadUrl({ data: { filename: file.name } });
+      if (!("signedUrl" in slot) || !slot.signedUrl || !slot.path) break;
+      const put = await fetch(slot.signedUrl, { method: "PUT", body: file });
+      if (!put.ok) break;
+      await recordClientUpload({ data: { storage_path: slot.path, filename: file.name } });
+    }
+    setUploading(null);
+    if (fileRef.current) fileRef.current.value = "";
+    await refresh();
+  };
+
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -153,6 +228,166 @@ function Portal() {
           </p>
         </div>
       )}
+
+      {/* ---- book a shoot ---- */}
+      <section className="mt-10">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+          Book a shoot
+        </h2>
+        <div className="mt-3 rounded-2xl border border-border bg-card p-6">
+          {booking === "sent" ? (
+            <div>
+              <p className="text-[15px] font-medium text-rust">Request sent.</p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-moss">
+                Your photographer has it — you&apos;ll see the status update below the moment they
+                confirm.
+              </p>
+              <button
+                onClick={() => setBooking("idle")}
+                className="mt-4 rounded-lg border border-input px-3 py-1.5 text-[13px] hover:bg-muted"
+              >
+                Book another
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-[12px] text-moss">
+                Shoot type
+                <select
+                  value={shootType}
+                  onChange={(e) => setShootType(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                >
+                  {SHOOT_TYPES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[12px] text-moss">
+                Preferred date
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                />
+              </label>
+              <label className="text-[12px] text-moss">
+                Location
+                <input
+                  value={place}
+                  onChange={(e) => setPlace(e.target.value)}
+                  placeholder="Studio, city or venue"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                />
+              </label>
+              <label className="text-[12px] text-moss">
+                Budget (optional)
+                <input
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ""))}
+                  inputMode="decimal"
+                  placeholder="1200"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                />
+              </label>
+              <label className="text-[12px] text-moss sm:col-span-2">
+                What are we shooting?
+                <textarea
+                  value={brief}
+                  onChange={(e) => setBrief(e.target.value)}
+                  rows={3}
+                  placeholder="Two looks, golden hour, need 20 edited frames for a launch."
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                />
+              </label>
+              {bookErr && (
+                <p className="text-[13px] text-destructive sm:col-span-2">{bookErr}</p>
+              )}
+              <div className="sm:col-span-2">
+                <button
+                  onClick={() => void submitBooking()}
+                  disabled={booking === "sending"}
+                  className="rounded-lg bg-rust px-4 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+                >
+                  {booking === "sending" ? "Sending…" : "Request this date"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {bookings.length > 0 && (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
+            {bookings.map((b) => (
+              <div
+                key={b.id}
+                className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4 last:border-0"
+              >
+                <span className="text-[15px] font-medium">{b.shoot_type}</span>
+                {b.location && <span className="text-[13px] text-moss">{b.location}</span>}
+                <span
+                  className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
+                    b.status === "confirmed" ? "bg-rust text-paper2" : "bg-muted text-moss"
+                  }`}
+                >
+                  {b.status}
+                </span>
+                <span className="ml-auto font-mono text-[12px] text-moss">
+                  {b.preferred_date ?? "date tbd"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ---- client uploads ---- */}
+      <section className="mt-10">
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+          Your uploads
+        </h2>
+        <div className="mt-3 rounded-2xl border border-dashed border-input bg-card p-6">
+          <p className="text-[13px] leading-relaxed text-moss">
+            Send reference shots, moodboards or your own photos straight to your photographer.
+            Private — only the two of you can open them.
+          </p>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={(e) => void onFiles(e.target.files)}
+            className="mt-4 block w-full text-[13px] text-moss file:mr-3 file:rounded-lg file:border-0 file:bg-rust file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-paper2"
+          />
+          {uploading && (
+            <p className="mt-3 font-mono text-[12px] text-moss">uploading {uploading}…</p>
+          )}
+        </div>
+
+        {uploads.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {uploads.map((u) => (
+              <a
+                key={u.id}
+                href={u.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="overflow-hidden rounded-xl border border-border bg-card"
+              >
+                {u.url ? (
+                  <img src={u.url} alt={u.filename} className="h-28 w-full object-cover" />
+                ) : (
+                  <div className="h-28 w-full bg-muted" />
+                )}
+                <p className="truncate px-3 py-2 font-mono text-[11px] text-moss">{u.filename}</p>
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
+
+
 
       {linked && (
         <div className="mt-10 space-y-10">

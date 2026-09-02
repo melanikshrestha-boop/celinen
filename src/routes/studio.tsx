@@ -17,7 +17,7 @@ import {
   faceDetectionAvailable,
   parseXmpSidecar,
   exportShot,
-  hamming,
+  isDuplicatePair,
   histogram,
   isRawFile,
   renderToCanvas,
@@ -207,7 +207,7 @@ function Studio() {
         if (!next[i]!.hash) continue;
         for (let j = i + 1; j < next.length; j++) {
           if (!next[j]!.hash) continue;
-          if (hamming(next[i]!.hash, next[j]!.hash) <= 5) {
+          if (isDuplicatePair(next[i]!, next[j]!)) {
             const weaker = next[i]!.score >= next[j]!.score ? next[j]! : next[i]!;
             if (!weaker.flags.includes("duplicate")) weaker.flags = [...weaker.flags, "duplicate"];
           }

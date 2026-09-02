@@ -426,6 +426,32 @@ export function hamming(a: string, b: string) {
   return d;
 }
 
+type DupeCandidate = {
+  hash: string;
+  faces?: FaceReading | null | undefined;
+};
+
+/**
+ * Two frames only count as duplicates when the pixels AND the subject match.
+ * Near-identical frames where one has closed eyes (or a clearly softer face)
+ * are different moments, not dupes — that is exactly the pair you must keep.
+ */
+export function isDuplicatePair(a: DupeCandidate, b: DupeCandidate, tolerance = 5): boolean {
+  if (!a.hash || !b.hash) return false;
+  if (hamming(a.hash, b.hash) > tolerance) return false;
+
+  const fa = a.faces;
+  const fb = b.faces;
+  if (fa && fb && fa.count > 0 && fb.count > 0) {
+    // eyes open in one, closed in the other -> keep both
+    if (fa.eyesOpen !== null && fb.eyesOpen !== null && fa.eyesOpen !== fb.eyesOpen) return false;
+    // one frame's face is meaningfully sharper -> keep both, they aren't interchangeable
+    const top = Math.max(fa.faceSharpness, fb.faceSharpness);
+    if (top > 0 && Math.abs(fa.faceSharpness - fb.faceSharpness) / top > 0.35) return false;
+  }
+  return true;
+}
+
 /* ---------------- faces + eyes ---------------- */
 
 type DetectedFace = {
