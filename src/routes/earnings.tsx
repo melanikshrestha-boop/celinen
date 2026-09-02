@@ -527,7 +527,7 @@ function Earnings() {
                   {money(e.amount)}
                 </span>
                 <button
-                  onClick={() => setEntries((prev) => prev.filter((x) => x.id !== e.id))}
+                  onClick={() => void removeEntry(e.id)}
                   className="text-[12px] text-moss hover:text-ink"
                 >
                   ✕
