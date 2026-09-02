@@ -14,6 +14,7 @@ const NAV = [
   { to: "/packages", label: "Packages" },
   { to: "/adobe", label: "Adobe" },
   { to: "/send", label: "Send" },
+  { to: "/deliver", label: "Deliver" },
   { to: "/clients", label: "Clients" },
   { to: "/business", label: "Business" },
   { to: "/earnings", label: "Earnings" },

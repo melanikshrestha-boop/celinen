@@ -14,6 +14,7 @@ import { Route as AdobeRouteImport } from './routes/adobe'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as MetadataRouteImport } from './routes/metadata'
@@ -27,7 +28,10 @@ import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
+import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
+import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +56,11 @@ const BusinessRoute = BusinessRouteImport.update({
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeliverRoute = DeliverRouteImport.update({
+  id: '/deliver',
+  path: '/deliver',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeskRoute = DeskRouteImport.update({
@@ -119,11 +128,28 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GSlugRoute = GSlugRouteImport.update({
+  id: '/g/$slug',
+  path: '/g/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicStripeConnectCallbackRoute =
+  ApiPublicStripeConnectCallbackRouteImport.update({
+    id: '/api/public/stripe/connect-callback',
+    path: '/api/public/stripe/connect-callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicStripeConnectWebhookRoute =
+  ApiPublicStripeConnectWebhookRouteImport.update({
+    id: '/api/public/stripe/connect-webhook',
+    path: '/api/public/stripe/connect-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -131,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
   '/metadata': typeof MetadataRoute
@@ -144,7 +171,10 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
+  '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -152,6 +182,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
   '/metadata': typeof MetadataRoute
@@ -165,7 +196,10 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
+  '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -174,6 +208,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
   '/metadata': typeof MetadataRoute
@@ -187,7 +222,10 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
+  '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -197,6 +235,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/business'
     | '/clients'
+    | '/deliver'
     | '/desk'
     | '/earnings'
     | '/metadata'
@@ -210,7 +249,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/api/chat'
+    | '/g/$slug'
     | '/api/public/lightroom'
+    | '/api/public/stripe/connect-callback'
+    | '/api/public/stripe/connect-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -218,6 +260,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/business'
     | '/clients'
+    | '/deliver'
     | '/desk'
     | '/earnings'
     | '/metadata'
@@ -231,7 +274,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/api/chat'
+    | '/g/$slug'
     | '/api/public/lightroom'
+    | '/api/public/stripe/connect-callback'
+    | '/api/public/stripe/connect-webhook'
   id:
     | '__root__'
     | '/'
@@ -239,6 +285,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/business'
     | '/clients'
+    | '/deliver'
     | '/desk'
     | '/earnings'
     | '/metadata'
@@ -252,7 +299,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/api/chat'
+    | '/g/$slug'
     | '/api/public/lightroom'
+    | '/api/public/stripe/connect-callback'
+    | '/api/public/stripe/connect-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -261,6 +311,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BusinessRoute: typeof BusinessRoute
   ClientsRoute: typeof ClientsRoute
+  DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
   EarningsRoute: typeof EarningsRoute
   MetadataRoute: typeof MetadataRoute
@@ -274,7 +325,10 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   ApiChatRoute: typeof ApiChatRoute
+  GSlugRoute: typeof GSlugRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
+  ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
+  ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -312,6 +366,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deliver': {
+      id: '/deliver'
+      path: '/deliver'
+      fullPath: '/deliver'
+      preLoaderRoute: typeof DeliverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/desk': {
@@ -405,11 +466,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$slug': {
+      id: '/g/$slug'
+      path: '/g/$slug'
+      fullPath: '/g/$slug'
+      preLoaderRoute: typeof GSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
       fullPath: '/api/public/lightroom'
       preLoaderRoute: typeof ApiPublicLightroomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/stripe/connect-callback': {
+      id: '/api/public/stripe/connect-callback'
+      path: '/api/public/stripe/connect-callback'
+      fullPath: '/api/public/stripe/connect-callback'
+      preLoaderRoute: typeof ApiPublicStripeConnectCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/stripe/connect-webhook': {
+      id: '/api/public/stripe/connect-webhook'
+      path: '/api/public/stripe/connect-webhook'
+      fullPath: '/api/public/stripe/connect-webhook'
+      preLoaderRoute: typeof ApiPublicStripeConnectWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -421,6 +503,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BusinessRoute: BusinessRoute,
   ClientsRoute: ClientsRoute,
+  DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
   EarningsRoute: EarningsRoute,
   MetadataRoute: MetadataRoute,
@@ -434,7 +517,10 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   ApiChatRoute: ApiChatRoute,
+  GSlugRoute: GSlugRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
+  ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
+  ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
