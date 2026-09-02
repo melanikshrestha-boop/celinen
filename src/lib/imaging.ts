@@ -453,16 +453,29 @@ const CROPS: Record<Edits["crop"], number | null> = {
   "16:9": 16 / 9,
 };
 
-export function cropRect(w: number, h: number, crop: Edits["crop"]) {
+/**
+ * Aspect-ratio crop. When `focus` (normalised 0-1 subject point, usually the
+ * detected face) is supplied the window slides toward the subject instead of
+ * cutting dead centre.
+ */
+export function cropRect(
+  w: number,
+  h: number,
+  crop: Edits["crop"],
+  focus?: { x: number; y: number } | null,
+) {
   const target = CROPS[crop];
   if (!target) return { sx: 0, sy: 0, sw: w, sh: h };
   const current = w / h;
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max, Math.round(v)));
   if (current > target) {
     const sw = Math.round(h * target);
-    return { sx: Math.round((w - sw) / 2), sy: 0, sw, sh: h };
+    const want = focus ? focus.x * w - sw / 2 : (w - sw) / 2;
+    return { sx: clamp(want, w - sw), sy: 0, sw, sh: h };
   }
   const sh = Math.round(w / target);
-  return { sx: 0, sy: Math.round((h - sh) / 2), sw: w, sh };
+  const want = focus ? focus.y * h - sh / 2 : (h - sh) / 2;
+  return { sx: 0, sy: clamp(want, h - sh), sw: w, sh };
 }
 
 function applyPixels(data: Uint8ClampedArray, e: Edits) {
