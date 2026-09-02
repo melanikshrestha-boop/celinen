@@ -209,7 +209,7 @@ export const syncStripe = createServerFn({ method: "POST" })
     if (!account) return { error: "Connect your Stripe account first." };
 
     try {
-      const { platformStripe, stripeMessage } = await import("@/lib/stripe-connect.server");
+      const { platformStripe } = await import("@/lib/stripe-connect.server");
       const stripe = platformStripe();
 
       const charges = await stripe.charges.list({ limit: 100 }, { stripeAccount: account });
