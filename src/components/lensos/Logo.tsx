@@ -23,14 +23,12 @@ export function LogoMark({ size = 26, className = "" }: LogoProps) {
           <circle cx="16" cy="16" r="14" fill="white" />
           {/* L glyph punched out */}
           <path d="M12.4 9h3.2v11.4h6.2v3.2h-9.4z" fill="black" />
+          {/* aperture blade: a diagonal slice through the top-left rim */}
+          <path d="M2.6 11.5 11.5 2.6 13.6 3.7 3.7 13.6z" fill="black" />
         </mask>
       </defs>
       <circle cx="16" cy="16" r="14" fill="currentColor" mask="url(#lensos-mark-mask)" />
-      {/* aperture notch: a single blade slice out of the ring */}
-      <path
-        d="M16 2a14 14 0 0 0-9.9 4.1L16 16z"
-        fill="var(--color-paper2, #fff)"
-      />
+
       <circle
         cx="16"
         cy="16"
