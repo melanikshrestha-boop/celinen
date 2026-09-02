@@ -185,9 +185,13 @@ function PricingPage() {
                 "Basic keeper recommendations",
               ]}
             />
-            <a href="#download" className={`${ctaBase} border border-input text-ink`}>
+            <Link
+              to="/signup"
+              search={{ plan: "hobby", billing: cycle }}
+              className={`${ctaBase} border border-input text-ink`}
+            >
               Start Hobby
-            </a>
+            </Link>
           </div>
 
           {/* Individual */}
