@@ -66,6 +66,7 @@ export interface Shot {
   flags: Flag[];
   verdict: Verdict;
   edits: Edits;
+  faces?: FaceReading | undefined;
   error?: string;
 }
 
