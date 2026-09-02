@@ -5,6 +5,7 @@ import { clientOf } from "@/lib/lensos";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { Footer } from "@/components/lensos/Footer";
+import { LogoMark } from "@/components/lensos/Logo";
 
 const NAV = [
   { to: "/desk", label: "Event Desk" },
@@ -232,9 +233,7 @@ export function Shell({
       <div className="sticky top-0 z-50 border-b border-border bg-card/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[1240px] items-center gap-3 px-6 py-3">
           <Link to="/" className="flex shrink-0 items-center gap-2">
-            <span className="grid size-6 place-items-center rounded-md bg-ink font-display text-[13px] font-bold text-paper2">
-              L
-            </span>
+            <LogoMark className="text-ink" />
             <span className="font-display text-[15px] font-semibold tracking-tight">Lens OS</span>
           </Link>
 

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { Footer } from "@/components/lensos/Footer";
+import { LogoMark } from "@/components/lensos/Logo";
 
 export const Route = createFileRoute("/pricing")({
   head: () => ({
@@ -108,9 +109,7 @@ function PricingPage() {
       <div className="sticky top-4 z-50 px-4">
         <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
           <Link to="/" className="flex items-center gap-2">
-            <span className="grid size-6 place-items-center rounded-md bg-ink font-display text-[13px] font-bold text-paper2">
-              L
-            </span>
+            <LogoMark className="text-ink" />
             <span className="font-display text-[15px] font-semibold tracking-tight">LensOS</span>
           </Link>
 
