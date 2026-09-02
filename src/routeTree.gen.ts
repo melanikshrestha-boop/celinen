@@ -17,6 +17,7 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as MetadataRouteImport } from './routes/metadata'
 import { Route as PackagesRouteImport } from './routes/packages'
 import { Route as PickRouteImport } from './routes/pick'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -62,6 +63,11 @@ const PickRoute = PickRouteImport.update({
   path: '/pick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/metadata': typeof MetadataRoute
   '/packages': typeof PackagesRoute
   '/pick': typeof PickRoute
+  '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/metadata': typeof MetadataRoute
   '/packages': typeof PackagesRoute
   '/pick': typeof PickRoute
+  '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/metadata': typeof MetadataRoute
   '/packages': typeof PackagesRoute
   '/pick': typeof PickRoute
+  '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/metadata'
     | '/packages'
     | '/pick'
+    | '/portfolio'
     | '/pricing'
     | '/send'
     | '/settings'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/metadata'
     | '/packages'
     | '/pick'
+    | '/portfolio'
     | '/pricing'
     | '/send'
     | '/settings'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/metadata'
     | '/packages'
     | '/pick'
+    | '/portfolio'
     | '/pricing'
     | '/send'
     | '/settings'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   MetadataRoute: typeof MetadataRoute
   PackagesRoute: typeof PackagesRoute
   PickRoute: typeof PickRoute
+  PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   MetadataRoute: MetadataRoute,
   PackagesRoute: PackagesRoute,
   PickRoute: PickRoute,
+  PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
