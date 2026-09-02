@@ -28,6 +28,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
+import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -124,6 +125,12 @@ const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   path: '/api/public/lightroom',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicStripeConnectCallbackRoute =
+  ApiPublicStripeConnectCallbackRouteImport.update({
+    id: '/api/public/stripe/connect-callback',
+    path: '/api/public/stripe/connect-callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -166,6 +174,7 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -188,6 +197,7 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/api/chat'
     | '/api/public/lightroom'
+    | '/api/public/stripe/connect-callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/api/chat'
     | '/api/public/lightroom'
+    | '/api/public/stripe/connect-callback'
   id:
     | '__root__'
     | '/'
@@ -253,6 +265,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/api/chat'
     | '/api/public/lightroom'
+    | '/api/public/stripe/connect-callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -275,6 +288,7 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
+  ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -412,6 +426,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLightroomRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stripe/connect-callback': {
+      id: '/api/public/stripe/connect-callback'
+      path: '/api/public/stripe/connect-callback'
+      fullPath: '/api/public/stripe/connect-callback'
+      preLoaderRoute: typeof ApiPublicStripeConnectCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -435,6 +456,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   ApiChatRoute: ApiChatRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
+  ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
