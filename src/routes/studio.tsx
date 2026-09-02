@@ -511,6 +511,30 @@ function Studio() {
             Sync XMP back
           </button>
           <button
+            onClick={() => {
+              const endpoint = downloadLightroomPlugin();
+              setSyncNote(`Plugin downloaded · endpoint ${endpoint} — add it in Lightroom's Plug-in Manager.`);
+            }}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
+          >
+            Lightroom plugin
+          </button>
+          <button
+            onClick={() => setLinked((v) => !v)}
+            className={`rounded-full px-4 py-2 uppercase tracking-[0.12em] transition-colors ${
+              linked ? "bg-rust text-paper2" : "border border-input hover:bg-ink hover:text-paper2"
+            }`}
+          >
+            {linked ? "Live sync · on" : "Live sync · off"}
+          </button>
+          <button
+            onClick={() => void pushToLightroom()}
+            disabled={!shots.length}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
+          >
+            Publish verdicts
+          </button>
+          <button
             onClick={autoCull}
             disabled={!shots.length}
             className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
