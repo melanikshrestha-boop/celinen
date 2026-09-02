@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { ThemeToggle } from "@/components/lensos/Theme";
+import { Footer as SiteFooter } from "@/components/lensos/Footer";
 
 export function Nav() {
   return (
@@ -28,6 +30,20 @@ export function Nav() {
             Studio
           </Link>
           <Link
+            to="/desk"
+            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
+            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
+          >
+            Event Desk
+          </Link>
+          <Link
+            to="/earnings"
+            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
+            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
+          >
+            Earnings
+          </Link>
+          <Link
             to="/pricing"
             className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
             activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
@@ -36,21 +52,18 @@ export function Nav() {
           </Link>
         </nav>
 
+        <div className="flex items-center gap-2">
+        <ThemeToggle />
         <Link
           to="/studio"
           className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
         >
           Get started →
         </Link>
+        </div>
       </header>
     </div>
   );
 }
 
-export function Footer() {
-  return (
-    <footer className="mx-auto w-full max-w-[1240px] px-6 py-10">
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Lens OS · 2026</p>
-    </footer>
-  );
-}
+export const Footer = SiteFooter;
