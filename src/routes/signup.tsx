@@ -48,7 +48,9 @@ function SignupPage() {
   const [plan, setPlan] = useState(
     PLANS.some((p) => p.id === search.plan) ? search.plan : "starter",
   );
-  const [billing, setBilling] = useState<"monthly" | "yearly">(search.billing);
+  const [billing, setBilling] = useState<"monthly" | "yearly">(
+    search.billing === "monthly" ? "monthly" : "yearly",
+  );
   const [email, setEmail] = useState("");
   const [studio, setStudio] = useState("");
   const [seats, setSeats] = useState(1);
