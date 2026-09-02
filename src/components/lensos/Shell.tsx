@@ -249,6 +249,8 @@ export function Shell({
             ))}
           </nav>
 
+          <ThemeToggle />
+
           <button
             onClick={() => setPalette(true)}
             className="hidden shrink-0 items-center gap-2 rounded-lg border border-input px-2.5 py-1.5 font-mono text-[11px] text-moss transition-colors hover:text-ink md:flex"
@@ -261,6 +263,7 @@ export function Shell({
       {!hideEventHeader && <EventHeader onAddSource={onAddSource} />}
 
       <main className="mx-auto w-full max-w-[1240px] px-6 py-10">{children}</main>
+      <Footer />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
     </div>
   );
