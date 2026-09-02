@@ -687,6 +687,14 @@ function Studio() {
                       <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
                         {s.score || "—"}
                       </span>
+                      {s.develop && (
+                        <span
+                          className="absolute bottom-0 right-0 bg-paper2/85 px-1 font-mono text-[8px] uppercase text-ink"
+                          title={`develop · ${s.develop.origin}`}
+                        >
+                          {s.develop.origin === "lens os" ? "OS" : "LR"}
+                        </span>
+                      )}
                       {s.verdict === "keep" && (
                         <span className="absolute right-1 top-1 size-2 rounded-full bg-moss" />
                       )}
