@@ -22,6 +22,32 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const ADOBE = [
+  {
+    k: "Lightroom Classic",
+    mark: "Lr",
+    bg: "oklch(0.28 0.09 265)",
+    fg: "oklch(0.82 0.16 240)",
+    v: "Keepers + develop settings",
+  },
+  {
+    k: "Photoshop",
+    mark: "Ps",
+    bg: "oklch(0.26 0.08 250)",
+    fg: "oklch(0.80 0.14 235)",
+    v: "Open flagged frame, full res",
+  },
+  {
+    k: "Adobe Bridge",
+    mark: "Br",
+    bg: "oklch(0.27 0.07 285)",
+    fg: "oklch(0.82 0.12 290)",
+    v: "Verdicts as star ratings",
+  },
+];
+
+const REPLACED = ["Pixieset", "SmugMug", "Photo Mechanic", "Squarespace", "Pic-Time"];
+
 const TICKER = [
   "laplacian focus variance",
   "histogram clipping",
@@ -45,7 +71,7 @@ function Index() {
         <h1 className="rise-in mt-8 font-display text-[clamp(2.6rem,7.5vw,5.5rem)] font-bold leading-[0.98] tracking-[-0.04em] [animation-delay:90ms]">
           Cull your shoot
           <br />
-          in <span className="text-rust">minutes</span>, not hours.
+          in <span className="text-rust">seconds</span>, not minutes.
         </h1>
 
         <p className="rise-in mt-8 text-lg text-moss [animation-delay:180ms]">Drop the folder in</p>
@@ -96,30 +122,58 @@ function Index() {
       <section className="mx-auto w-full max-w-[1000px] px-6 py-24">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Integrations</p>
         <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
-          Keeps your <span className="text-rust">Adobe</span> workflow. Kills the rest.
+          Plugs into <span className="text-rust">Adobe</span>. Replaces the rest.
         </h2>
-        <p className="mt-4 max-w-[560px] text-moss">
-          Send keepers straight to Lightroom or Photoshop with edits intact. Everything else —
-          the jargon-heavy gallery tools like Pixieset — you can stop paying for.
-        </p>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
-          {[
-            { k: "Lightroom Classic", v: "Keepers + develop settings, one click" },
-            { k: "Photoshop", v: "Open the frame you flagged, full res" },
-            { k: "Adobe Bridge", v: "Verdicts written as star ratings" },
-          ].map((i, n) => (
+          {ADOBE.map((i, n) => (
             <div
               key={i.k}
-              className="rise-in rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
+              className="rise-in group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
               style={{ animationDelay: `${n * 90}ms` }}
             >
-              <p className="font-display text-[15px] font-semibold tracking-tight">{i.k}</p>
-              <p className="mt-2 text-sm text-moss">{i.v}</p>
+              <span
+                className="grid size-12 shrink-0 place-items-center rounded-xl font-display text-[17px] font-bold transition-transform duration-200 group-hover:scale-105"
+                style={{ background: i.bg, color: i.fg, border: `1px solid ${i.fg}33` }}
+              >
+                {i.mark}
+              </span>
+              <span>
+                <span className="block font-display text-[15px] font-semibold tracking-tight">
+                  {i.k}
+                </span>
+                <span className="mt-0.5 block text-sm text-moss">{i.v}</span>
+              </span>
             </div>
           ))}
         </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">Replaces</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {REPLACED.map((r) => (
+                <span
+                  key={r}
+                  className="rounded-lg bg-muted px-2.5 py-1 text-[13px] text-moss line-through decoration-rust/60"
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-ink p-5 text-paper2">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-paper2/60">
+              One tool
+            </p>
+            <p className="mt-3 font-display text-[19px] font-semibold tracking-tight">
+              Cull → develop → gallery → site.
+            </p>
+            <p className="mt-1 text-sm text-paper2/70">No jargon, no five subscriptions.</p>
+          </div>
+        </div>
       </section>
+
 
       <section className="mx-auto w-full max-w-[1000px] px-6 pb-24">
         <div className="rounded-3xl border border-border bg-card p-8 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-12">
