@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
 import { useLens } from "@/lib/lensos-store";
+import {
+  addTransaction,
+  deleteTransaction,
+  disconnectStripe,
+  getProfile,
+  listTransactions,
+  startStripeConnect,
+  syncStripe,
+} from "@/lib/finance.functions";
 
 export const Route = createFileRoute("/earnings")({
   head: () => ({
