@@ -12,6 +12,15 @@ import { makeZip } from "@/lib/zip";
 
 export const BRIDGE_PATH = "/api/public/lightroom";
 
+/** The live LensLabs bridge. Lightroom runs outside the browser, so the plugin can
+ *  never use a preview/localhost origin — it always talks to the published domain. */
+export const LIVE_ORIGIN = "https://lenslab.dev";
+
+/** Endpoint baked into the downloaded plugin. */
+export function bridgeEndpoint() {
+  return `${LIVE_ORIGIN}${BRIDGE_PATH}`;
+}
+
 const INFO_LUA = (endpoint: string) => `--[[ LensLabs — Lightroom Classic plugin ]]
 return {
   LrSdkVersion = 13.0,
