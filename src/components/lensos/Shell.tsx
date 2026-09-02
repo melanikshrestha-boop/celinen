@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLens } from "@/lib/lensos-store";
 import { clientOf } from "@/lib/lensos";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/lensos/Theme";
+import { Footer } from "@/components/lensos/Footer";
 
 const NAV = [
   { to: "/desk", label: "Event Desk" },
@@ -13,6 +15,7 @@ const NAV = [
   { to: "/send", label: "Send" },
   { to: "/clients", label: "Clients" },
   { to: "/business", label: "Business" },
+  { to: "/earnings", label: "Earnings" },
   { to: "/settings", label: "Settings" },
 ] as const;
 
@@ -104,6 +107,7 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
     const extra = [
       { label: "Open Pick studio queue", run: () => navigate({ to: "/studio" }) },
       { label: "Open portfolio", run: () => navigate({ to: "/portfolio" }) },
+      { label: "Export tax summary", run: () => navigate({ to: "/earnings" }) },
     ];
     return [...go, ...swap, ...extra].filter((c) =>
       c.label.toLowerCase().includes(q.toLowerCase()),
