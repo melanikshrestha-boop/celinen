@@ -107,7 +107,48 @@ const money = (n: number) =>
 function Earnings() {
   const { events, clients } = useLens();
 
-  const [entries, setEntries] = useState<Entry[]>(SEED);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [stripeAccount, setStripeAccount] = useState<string | null>(null);
+  const [stripeBusy, setStripeBusy] = useState<string | null>(null);
+  const [stripeNote, setStripeNote] = useState<string | null>(null);
+
+  const reload = async () => {
+    const rows = (await listTransactions()) as unknown as TxRow[];
+    setEntries(rows.map(toEntry));
+  };
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [profile] = await Promise.all([getProfile() as any, reload()]);
+        setStripeAccount(profile?.stripe_account_id ?? null);
+      } catch {
+        setDataError("Sign in to load your live ledger.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const connectStripe = async () => {
+    setStripeBusy("connect");
+    const res = (await startStripeConnect()) as any;
+    setStripeBusy(null);
+    if (res?.error) return setStripeNote(res.error);
+    window.location.href = res.url;
+  };
+
+  const runSync = async () => {
+    setStripeBusy("sync");
+    const res = (await syncStripe()) as any;
+    setStripeBusy(null);
+    if (res?.error) return setStripeNote(res.error);
+    setStripeNote(`Imported ${res.imported} Stripe payments.`);
+    await reload();
+  };
+
   const [kind, setKind] = useState<Kind>("expense");
   const [form, setForm] = useState({
     date: "",
