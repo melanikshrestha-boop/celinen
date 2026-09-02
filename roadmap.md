@@ -17,3 +17,9 @@
 ## Next
 - [ ] Persist shoot sessions per signed-in user
 - [ ] Team seats / shared packages
+
+## 2026-09-02
+- [x] Lightroom plugin points at live lenslab.dev bridge (+workspace)
+- [x] Portfolio: paste existing Pixieset/Squarespace URL -> replicate + edit
+- [x] Auth: LegionEdge-style sign in / sign up pages for "Get started"
+- [x] Light mode accent = blue (not red); tagline "Go create more."

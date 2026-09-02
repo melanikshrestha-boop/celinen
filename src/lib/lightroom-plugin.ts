@@ -12,6 +12,15 @@ import { makeZip } from "@/lib/zip";
 
 export const BRIDGE_PATH = "/api/public/lightroom";
 
+/** The live LensLabs bridge. Lightroom runs outside the browser, so the plugin can
+ *  never use a preview/localhost origin — it always talks to the published domain. */
+export const LIVE_ORIGIN = "https://lenslab.dev";
+
+/** Endpoint baked into the downloaded plugin. */
+export function bridgeEndpoint() {
+  return `${LIVE_ORIGIN}${BRIDGE_PATH}`;
+}
+
 const INFO_LUA = (endpoint: string) => `--[[ LensLabs — Lightroom Classic plugin ]]
 return {
   LrSdkVersion = 13.0,
@@ -29,9 +38,12 @@ return {
 }
 `;
 
-const CONFIG_LUA = (endpoint: string) => `-- Edit this if your LensLabs runs on another host.
+const CONFIG_LUA = (endpoint: string, workspace: string) => `-- LensLabs bridge settings.
+-- endpoint  : the live LensLabs sync URL (only change this if you self-host).
+-- workspace : the studio this catalog syncs into (see Adobe tab in LensLabs).
 return {
   endpoint = '${endpoint}',
+  workspace = '${workspace}',
 }
 `;
 
@@ -55,6 +67,15 @@ local M = {}
 
 function M.endpoint()
   return config.endpoint
+end
+
+function M.workspace()
+  return config.workspace or 'default'
+end
+
+local function withQuery(url, query)
+  local sep = string.find(url, '?') and '&' or '?'
+  return url .. sep .. query
 end
 
 -- Collect everything LensLabs cares about for one photo.
@@ -88,13 +109,15 @@ function M.readPhoto(photo)
 end
 
 function M.post(body)
+  body.workspace = M.workspace()
+  body.direction = 'to-studio'
   local payload = JSON:encode(body)
   local headers = { { field = 'Content-Type', value = 'application/json' } }
   return LrHttp.post(M.endpoint(), payload, headers)
 end
 
 function M.get()
-  local body = LrHttp.get(M.endpoint())
+  local body = LrHttp.get(withQuery(M.endpoint(), 'workspace=' .. M.workspace()))
   if not body then return nil end
   local ok, parsed = pcall(function() return JSON:decode(body) end)
   if ok then return parsed end
@@ -311,7 +334,7 @@ end
 return JSON
 `;
 
-const README = (endpoint: string) => `LensLabs — Lightroom Classic plugin
+const README = (endpoint: string, workspace = "default") => `LensLabs — Lightroom Classic plugin
 ==================================
 
 Install
@@ -320,6 +343,7 @@ Install
 2. Lightroom Classic → File → Plug-in Manager → Add → choose LensLabs.lrplugin → Done.
 3. If LensLabs is not running on this machine, open LensLabsConfig.lua and change
    the endpoint. Current endpoint: ${endpoint}
+   Workspace: ${workspace}  (must match the workspace shown in LensLabs → Adobe)
 
 Use
 ---
@@ -338,23 +362,25 @@ Library → Plug-in Extras → "Start live sync (every 5s)"
 LensLabs never touches your .lrcat. All sync goes through XMP + this plugin.
 `;
 
-export function pluginFiles(endpoint: string) {
+export function pluginFiles(endpoint: string, workspace = "default") {
   return [
     { path: "LensLabs.lrplugin/Info.lua", text: INFO_LUA(endpoint) },
-    { path: "LensLabs.lrplugin/LensLabsConfig.lua", text: CONFIG_LUA(endpoint) },
+    { path: "LensLabs.lrplugin/LensLabsConfig.lua", text: CONFIG_LUA(endpoint, workspace) },
     { path: "LensLabs.lrplugin/LensLabsBridge.lua", text: COMMON_LUA },
     { path: "LensLabs.lrplugin/LensLabsMetadata.lua", text: METADATA_LUA },
     { path: "LensLabs.lrplugin/LensLabsPush.lua", text: PUSH_LUA },
     { path: "LensLabs.lrplugin/LensLabsPull.lua", text: PULL_LUA },
     { path: "LensLabs.lrplugin/LensLabsWatch.lua", text: WATCH_LUA },
     { path: "LensLabs.lrplugin/JSON.lua", text: JSON_LUA },
-    { path: "README.txt", text: README(endpoint) },
+    { path: "README.txt", text: README(endpoint, workspace) },
   ];
 }
 
-export function downloadLightroomPlugin() {
-  const endpoint = `${window.location.origin}${BRIDGE_PATH}`;
-  const blob = makeZip(pluginFiles(endpoint));
+export function downloadLightroomPlugin(workspace = "default") {
+  // Always the live domain: Lightroom runs outside the browser and cannot reach
+  // a preview or localhost origin.
+  const endpoint = bridgeEndpoint();
+  const blob = makeZip(pluginFiles(endpoint, workspace));
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
