@@ -392,7 +392,7 @@ function ShootPage() {
           setFilter((a['filter'] as Filter) ?? "all");
           return `showing ${a['filter']}`;
         case "write_xmp":
-          return `${writeXmp()} sidecars written for Lightroom`;
+          return `${await writeXmp()} frames sent to Lightroom`;
         case "export_keepers":
           return `${await exportKeepers()} keepers exported`;
         default:
