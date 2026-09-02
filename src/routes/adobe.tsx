@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
 import { useLens } from "@/lib/lensos-store";
 import { downloadLightroomPlugin } from "@/lib/lightroom-plugin";
+import { bridgeCredentials } from "@/lib/bridge-client";
 
 export const Route = createFileRoute("/adobe")({
   head: () => ({
@@ -92,8 +93,10 @@ function Adobe() {
             </Btn>
             <Btn
               onClick={() => {
-                const endpoint = downloadLightroomPlugin();
-                push(`LensLabs.lrplugin downloaded · bridge endpoint ${endpoint}`);
+                void bridgeCredentials().then((creds) => {
+                  const endpoint = downloadLightroomPlugin(creds);
+                  push(`LensLabs.lrplugin downloaded · bridge endpoint ${endpoint}`);
+                });
               }}
             >
               Download Lightroom plugin
