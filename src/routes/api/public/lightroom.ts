@@ -100,7 +100,7 @@ export const Route = createFileRoute("/api/public/lightroom")({
             workspace,
             direction,
             kind: body.kind ?? "push",
-            frames,
+            frames: frames as unknown as never,
             updated_at: at,
           },
           { onConflict: "workspace,direction" },
