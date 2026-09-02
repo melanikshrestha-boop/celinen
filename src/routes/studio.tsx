@@ -743,8 +743,8 @@ function Studio() {
         </div>
       )}
 
-      <main className="mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0">
+      <main className="mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <div className="min-w-0 xl:order-2">
         {!shots.length && !progress ? (
           <div
             onDrop={onDrop}
