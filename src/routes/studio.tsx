@@ -216,7 +216,11 @@ function Studio() {
       return next;
     });
     setProgress(null);
-    setSelectedId((cur) => cur ?? added[0]?.id ?? null);
+    setSelectedId((cur) => cur ?? batch[0]?.id ?? null);
+    const secs = (performance.now() - started) / 1000;
+    setSyncNote(
+      `${batch.length} frame${batch.length === 1 ? "" : "s"} read in ${secs.toFixed(1)}s · ${Math.round(batch.length / Math.max(secs, 0.001))}/sec`,
+    );
   }, []);
 
   /* ---------------- Lightroom live bridge ---------------- */
