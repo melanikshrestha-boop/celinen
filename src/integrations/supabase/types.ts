@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       clients: {
         Row: {
+          auth_user_id: string | null
           created_at: string
           email: string | null
           id: string
@@ -26,6 +27,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auth_user_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -36,6 +38,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auth_user_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -482,7 +485,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_client_records: { Args: never; Returns: number }
+      my_client_ids: { Args: never; Returns: string[] }
     }
     Enums: {
       [_ in never]: never

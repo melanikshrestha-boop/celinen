@@ -29,6 +29,13 @@
       "when": 1788338677009,
       "tag": "0003_deliveries_storage_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788339122032,
+      "tag": "0004_client_portal_access",
+      "breakpoints": true
     }
   ]
 }
