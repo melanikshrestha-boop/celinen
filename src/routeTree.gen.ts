@@ -14,6 +14,7 @@ import { Route as AdobeRouteImport } from './routes/adobe'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as MetadataRouteImport } from './routes/metadata'
@@ -54,6 +55,11 @@ const BusinessRoute = BusinessRouteImport.update({
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeliverRoute = DeliverRouteImport.update({
+  id: '/deliver',
+  path: '/deliver',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeskRoute = DeskRouteImport.update({
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
   '/metadata': typeof MetadataRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
   '/metadata': typeof MetadataRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
   '/metadata': typeof MetadataRoute
@@ -217,6 +226,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/business'
     | '/clients'
+    | '/deliver'
     | '/desk'
     | '/earnings'
     | '/metadata'
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/business'
     | '/clients'
+    | '/deliver'
     | '/desk'
     | '/earnings'
     | '/metadata'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/business'
     | '/clients'
+    | '/deliver'
     | '/desk'
     | '/earnings'
     | '/metadata'
@@ -287,6 +299,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BusinessRoute: typeof BusinessRoute
   ClientsRoute: typeof ClientsRoute
+  DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
   EarningsRoute: typeof EarningsRoute
   MetadataRoute: typeof MetadataRoute
@@ -340,6 +353,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deliver': {
+      id: '/deliver'
+      path: '/deliver'
+      fullPath: '/deliver'
+      preLoaderRoute: typeof DeliverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/desk': {
@@ -463,6 +483,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BusinessRoute: BusinessRoute,
   ClientsRoute: ClientsRoute,
+  DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
   EarningsRoute: EarningsRoute,
   MetadataRoute: MetadataRoute,
