@@ -65,11 +65,28 @@ const SEED: Entry[] = [
   { id: "e5", date: "2026-06-15", label: "Gear insurance (quarterly)", kind: "expense", category: "Insurance", amount: 148, eventId: null, source: "manual" },
 ];
 
+/** Ledger categories mapped to the Schedule C line they belong on. */
+const SCHEDULE_C_LINE: Record<string, { line: string; label: string }> = {
+  Advertising: { line: "8", label: "Advertising" },
+  "Car & mileage": { line: "9", label: "Car and truck expenses" },
+  "Contract labor (second shooter)": { line: "11", label: "Contract labor" },
+  "Equipment & depreciation": { line: "13", label: "Depreciation and section 179" },
+  Insurance: { line: "15", label: "Insurance (other than health)" },
+  "Legal & professional": { line: "17", label: "Legal and professional services" },
+  "Office & supplies": { line: "18", label: "Office expense" },
+  "Rent (studio)": { line: "20.2", label: "Rent — other business property (20b)" },
+  Travel: { line: "24.1", label: "Travel (24a)" },
+  "Meals (50%)": { line: "24.2", label: "Deductible meals — 50% (24b)" },
+  "Software & subscriptions": { line: "27.1", label: "Other expenses (27a) — software" },
+  Other: { line: "27.2", label: "Other expenses (27a)" },
+};
+
 const money = (n: number) =>
   n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
 function Earnings() {
-  const { events } = useLens();
+  const { events, clients } = useLens();
+
   const [entries, setEntries] = useState<Entry[]>(SEED);
   const [kind, setKind] = useState<Kind>("expense");
   const [form, setForm] = useState({
