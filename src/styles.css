@@ -175,3 +175,36 @@
     width: auto !important;
   }
 }
+
+/* ---- dark mode ---- */
+.dark {
+  --paper: oklch(0.16 0.004 260);
+  --paper2: oklch(0.19 0.005 260);
+  --ink: oklch(0.97 0.002 100);
+  --rust: oklch(0.68 0.17 265);
+  --moss: oklch(0.68 0.008 260);
+  --sun: oklch(0.72 0.14 265);
+  --mist: oklch(0.24 0.006 260);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper2);
+  --card-foreground: var(--ink);
+  --popover: var(--paper2);
+  --popover-foreground: var(--ink);
+  --primary: var(--rust);
+  --primary-foreground: oklch(0.14 0.004 260);
+  --secondary: var(--mist);
+  --secondary-foreground: var(--ink);
+  --muted: var(--mist);
+  --muted-foreground: var(--moss);
+  --accent: var(--mist);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.62 0.19 25);
+  --border: oklch(0.97 0.002 100 / 12%);
+  --input: oklch(0.97 0.002 100 / 18%);
+  --ring: var(--rust);
+}
+
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
