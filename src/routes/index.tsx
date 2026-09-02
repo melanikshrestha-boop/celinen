@@ -93,7 +93,67 @@ function Index() {
         </div>
       </div>
 
+      <section className="mx-auto w-full max-w-[1000px] px-6 py-24">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Integrations</p>
+        <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
+          Keeps your <span className="text-rust">Adobe</span> workflow. Kills the rest.
+        </h2>
+        <p className="mt-4 max-w-[560px] text-moss">
+          Send keepers straight to Lightroom or Photoshop with edits intact. Everything else —
+          the jargon-heavy gallery tools like Pixieset — you can stop paying for.
+        </p>
+
+        <div className="mt-10 grid gap-4 sm:grid-cols-3">
+          {[
+            { k: "Lightroom Classic", v: "Keepers + develop settings, one click" },
+            { k: "Photoshop", v: "Open the frame you flagged, full res" },
+            { k: "Adobe Bridge", v: "Verdicts written as star ratings" },
+          ].map((i, n) => (
+            <div
+              key={i.k}
+              className="rise-in rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
+              style={{ animationDelay: `${n * 90}ms` }}
+            >
+              <p className="font-display text-[15px] font-semibold tracking-tight">{i.k}</p>
+              <p className="mt-2 text-sm text-moss">{i.v}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-[1000px] px-6 pb-24">
+        <div className="rounded-3xl border border-border bg-card p-8 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-12">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Portfolio</p>
+          <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
+            Your site, live in <span className="text-rust">seconds</span>. Not minutes.
+          </h2>
+          <p className="mt-4 max-w-[560px] text-moss">
+            Pick keepers, pick a layout, ship it. Domain generated for you — or bring your own.
+          </p>
+
+          <div className="mt-8 max-w-[520px] overflow-hidden rounded-xl bg-ink px-4 py-3.5 font-mono text-sm text-paper2">
+            <span className="text-rust">$</span> publish →{" "}
+            <span className="type-line align-bottom">maya-okafor.lens.photo</span>
+            <span className="caret ml-0.5 h-[1.05em] align-[-0.15em]" />
+          </div>
+
+          <div className="mt-8 flex flex-wrap gap-2">
+            {["Auto galleries", "Client proofing", "Free subdomain", "Custom domain", "No page builder"].map(
+              (t) => (
+                <span
+                  key={t}
+                  className="rounded-full border border-border px-3 py-1 text-[12px] text-moss transition-colors hover:border-rust/40 hover:text-ink"
+                >
+                  {t}
+                </span>
+              ),
+            )}
+          </div>
+        </div>
+      </section>
+
       <Footer />
+
     </div>
   );
 }
