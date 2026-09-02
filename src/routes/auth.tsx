@@ -24,6 +24,7 @@ export const Route = createFileRoute("/auth")({
   }),
   validateSearch: (search: Record<string, unknown>) => ({
     next: typeof search['next'] === "string" ? (search['next'] as string) : "/shoot",
+    mode: search['mode'] === "signup" ? ("signup" as const) : ("signin" as const),
   }),
   component: AuthPage,
 });
@@ -33,10 +34,14 @@ function safePath(p: string) {
 }
 
 function AuthPage() {
-  const { next } = Route.useSearch();
+  const { next, mode } = Route.useSearch();
   const navigate = useNavigate();
+  const signup = mode === "signup";
   const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState<"google" | "email" | null>(null);
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [busy, setBusy] = useState<"google" | "email" | "password" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,59 +88,172 @@ function AuthPage() {
     else setNote(`Link sent to ${email.trim()}. Open it on this device.`);
   };
 
+  const withPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || password.length < 8) return;
+    setError(null);
+    setNote(null);
+    setBusy("password");
+    if (signup) {
+      const { error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}${safePath(next)}`,
+          data: { full_name: name.trim() || null },
+        },
+      });
+      setBusy(null);
+      if (err) setError(err.message);
+      else setNote(`Account created for ${email.trim()}. Confirm the email we just sent.`);
+      return;
+    }
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setBusy(null);
+    if (err) setError(err.message);
+  };
+
   return (
     <div className="grid min-h-screen place-items-center px-6 py-16 text-ink">
-      <div className="w-full max-w-[360px]">
-        <div className="flex flex-col items-center text-center">
-          <LogoMark className="text-ink" />
-          <h1 className="mt-6 font-display text-[26px] font-semibold tracking-tight">
-            Sign in to LensLabs
-          </h1>
-          <p className="mt-1.5 text-[13px] text-moss">Beta access. Then go shoot.</p>
-        </div>
+      <div className="w-full max-w-[420px]">
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+          <div className="flex flex-col items-center text-center">
+            <LogoMark className="text-ink" />
+            <h1 className="mt-5 font-display text-[26px] font-semibold tracking-tight">
+              {signup ? "Create your account" : "Welcome back"}
+            </h1>
+            <p className="mt-1.5 text-[13px] text-moss">
+              One account for every LensLabs shoot. Go create more.
+            </p>
+          </div>
 
-        <div className="mt-8 space-y-3">
+          <div className="mt-6 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+            <Link
+              to="/auth"
+              search={{ next, mode: "signin" }}
+              className={`rounded-md py-1.5 text-center text-[13px] font-medium transition-colors ${
+                signup ? "text-moss hover:text-ink" : "bg-card text-ink shadow-sm"
+              }`}
+            >
+              Sign in
+            </Link>
+            <Link
+              to="/auth"
+              search={{ next, mode: "signup" }}
+              className={`rounded-md py-1.5 text-center text-[13px] font-medium transition-colors ${
+                signup ? "bg-card text-ink shadow-sm" : "text-moss hover:text-ink"
+              }`}
+            >
+              Sign up
+            </Link>
+          </div>
+
           <button
             onClick={() => void google()}
             disabled={busy !== null}
-            className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-ink px-4 py-2.5 text-[14px] font-medium text-paper2 transition-opacity hover:opacity-85 disabled:opacity-50"
+            className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-lg border border-input px-4 py-2.5 text-[14px] font-medium transition-colors hover:bg-muted disabled:opacity-50"
           >
             <GoogleGlyph />
             {busy === "google" ? "Opening Google…" : "Continue with Google"}
           </button>
 
-          <div className="flex items-center gap-3 py-1">
+          <div className="flex items-center gap-3 py-4">
             <span className="h-px flex-1 bg-border" />
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">or</span>
             <span className="h-px flex-1 bg-border" />
           </div>
 
-          <form onSubmit={(e) => void magicLink(e)} className="space-y-3">
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@studio.com"
-              className="w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-[14px] outline-none placeholder:text-moss focus:border-ink/40"
-            />
+          <form onSubmit={(e) => void withPassword(e)} className="space-y-3">
+            {signup && (
+              <label className="block">
+                <span className="text-[13px] font-medium">Name</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ada Lovelace"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-paper2 px-3.5 py-2.5 text-[14px] outline-none placeholder:text-moss focus:border-rust/50"
+                />
+              </label>
+            )}
+
+            <label className="block">
+              <span className="text-[13px] font-medium">Email</span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@studio.com"
+                className="mt-1.5 w-full rounded-lg border border-input bg-paper2 px-3.5 py-2.5 text-[14px] outline-none placeholder:text-moss focus:border-rust/50"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-[13px] font-medium">Password</span>
+              <div className="relative mt-1.5">
+                <input
+                  type={showPw ? "text" : "password"}
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  className="w-full rounded-lg border border-input bg-paper2 px-3.5 py-2.5 pr-11 text-[14px] outline-none placeholder:text-moss focus:border-rust/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-moss hover:text-ink"
+                >
+                  {showPw ? "Hide" : "Show"}
+                </button>
+              </div>
+            </label>
+
             <button
               type="submit"
               disabled={busy !== null}
-              className="w-full rounded-lg border border-input px-4 py-2.5 text-[14px] font-medium transition-colors hover:bg-muted disabled:opacity-50"
+              className="w-full rounded-lg bg-rust px-4 py-2.5 text-[14px] font-semibold text-paper2 transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {busy === "email" ? "Sending…" : "Continue with email"}
+              {busy === "password"
+                ? signup
+                  ? "Creating…"
+                  : "Signing in…"
+                : signup
+                  ? "Create account"
+                  : "Sign in"}
             </button>
           </form>
 
-          {note && <p className="text-center text-[13px] text-moss">{note}</p>}
-          {error && <p className="text-center text-[13px] text-rust">{error}</p>}
+          <button
+            onClick={(e) => void magicLink(e)}
+            disabled={busy !== null || !email.trim()}
+            className="mt-3 w-full text-center text-[13px] text-moss underline underline-offset-4 hover:text-ink disabled:opacity-50"
+          >
+            {busy === "email" ? "Sending…" : "Email me a magic link instead"}
+          </button>
+
+          {note && <p className="mt-4 text-center text-[13px] text-moss">{note}</p>}
+          {error && <p className="mt-4 text-center text-[13px] text-rust">{error}</p>}
+
+          <p className="mt-6 text-center text-[12px] leading-relaxed text-moss">
+            By continuing you agree to the beta terms. Your photos never leave your machine.
+          </p>
         </div>
 
-        <p className="mt-8 text-center text-[12px] leading-relaxed text-moss">
-          By continuing you agree to the beta terms. Your photos never leave your machine.
-        </p>
-        <p className="mt-4 text-center text-[12px] text-moss">
+        <p className="mt-5 text-center text-[12px] text-moss">
+          {signup ? "Already have an account? " : "New to LensLabs? "}
+          <Link
+            to="/auth"
+            search={{ next, mode: signup ? "signin" : "signup" }}
+            className="text-rust hover:underline"
+          >
+            {signup ? "Sign in" : "Create one"}
+          </Link>
+          {" · "}
           <Link to="/" className="underline underline-offset-4 hover:text-ink">
             Back to LensLabs
           </Link>
