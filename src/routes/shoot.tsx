@@ -268,12 +268,19 @@ function ShootPage() {
     return { kept, cut };
   }, []);
 
-  const writeXmp = useCallback(() => {
+  /** Write XMP sidecars locally AND publish the verdicts to the live Lightroom bridge. */
+  const writeXmp = useCallback(async () => {
     const done = shots.filter((s) => s.verdict !== "undecided" && !s.error);
+    if (!done.length) {
+      setNote("Nothing decided yet — run Auto-cull first.");
+      return 0;
+    }
+
+    const ratingOf = (s: Shot) =>
+      s.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(s.score / 20)));
+
     for (const shot of done) {
-      const rating =
-        shot.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(shot.score / 20)));
-      const xml = buildXmpSidecar(shot.edits, shot.verdict, rating);
+      const xml = buildXmpSidecar(shot.edits, shot.verdict, ratingOf(shot));
       const url = URL.createObjectURL(new Blob([xml], { type: "application/rdf+xml" }));
       const a = document.createElement("a");
       a.href = url;
@@ -281,8 +288,41 @@ function ShootPage() {
       a.click();
       URL.revokeObjectURL(url);
     }
+
+    let pushed = false;
+    try {
+      const res = await fetch(bridgeEndpoint(), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "verdicts",
+          direction: "to-lightroom",
+          frames: done.map((s) => ({
+            file: s.name,
+            verdict: s.verdict,
+            score: s.score,
+            rating: ratingOf(s),
+            label: s.verdict === "keep" ? "Green" : "Red",
+            develop: {
+              exposure: s.edits.exposure / 20,
+              contrast: s.edits.contrast,
+              highlights: s.edits.highlights,
+              shadows: s.edits.shadows,
+              saturation: s.edits.saturation,
+              temperature: Math.round(5500 + (s.edits.temp / 100) * 4500),
+            },
+          })),
+        }),
+      });
+      pushed = res.ok;
+    } catch {
+      pushed = false;
+    }
+
     setNote(
-      `${done.length} XMP sidecar${done.length === 1 ? "" : "s"} written — drop them beside the negatives and hit “Read metadata from file” in Lightroom.`,
+      pushed
+        ? `${done.length} frames sent to Lightroom — sidecars downloaded, and verdicts queued on the bridge (Plug-in Extras → “Pull LensLabs verdicts”).`
+        : `${done.length} XMP sidecar${done.length === 1 ? "" : "s"} written, but the LensLabs bridge was unreachable — drop them beside the negatives and hit “Read metadata from file” in Lightroom.`,
     );
     return done.length;
   }, [shots]);
