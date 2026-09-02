@@ -472,9 +472,9 @@ function ShootPage() {
                         : "border-border"
                   }`}
                 >
-                  {s.thumb ? (
+                  {s.previewUrl ? (
                     <img
-                      src={s.thumb}
+                      src={s.previewUrl}
                       alt={s.name}
                       loading="lazy"
                       className="aspect-[3/2] w-full object-cover"
