@@ -43,7 +43,10 @@ export function InvoicePanel() {
   const addClient = async () => {
     if (!newClient.name.trim()) return;
     const res = (await saveClient({
-      data: { name: newClient.name.trim(), email: newClient.email.trim() || undefined },
+      data: {
+        name: newClient.name.trim(),
+        ...(newClient.email.trim() ? { email: newClient.email.trim() } : {}),
+      },
     })) as any;
     if (res?.error) return setNote(res.error);
     setNewClient({ name: "", email: "" });
@@ -62,7 +65,7 @@ export function InvoicePanel() {
       data: {
         client_id: form.client_id,
         amount,
-        description: form.description || undefined,
+        ...(form.description ? { description: form.description } : {}),
         due_date: form.due_date || null,
         send: deliver,
       },
