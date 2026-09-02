@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
 import { useLens } from "@/lib/lensos-store";
+import { downloadLightroomPlugin } from "@/lib/lightroom-plugin";
 
 export const Route = createFileRoute("/adobe")({
   head: () => ({
