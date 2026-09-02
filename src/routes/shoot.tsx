@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CullChat, type ToolCall } from "@/components/studio/CullChat";
 import { LogoMark } from "@/components/lensos/Logo";
+import { bridgeEndpoint } from "@/lib/lightroom-plugin";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_EDITS,
