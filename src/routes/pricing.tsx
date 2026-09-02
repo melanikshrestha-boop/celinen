@@ -24,23 +24,48 @@ export const Route = createFileRoute("/pricing")({
 
 const tiers = [
   {
-    name: "Starter",
+    name: "Solo",
     price: "$19",
-    features: ["5 shoots / month", "200 shots per cull", "Basic develop tools"],
+    blurb: "One photographer, steady work.",
+    features: [
+      "5 shoots / month · 300 frames per cull",
+      "Focus, exposure, duplicate flags",
+      "Face + eye flags where the browser supports it",
+      "Develop desk: exposure, contrast, WB, crop",
+      "Lightroom folder import + XMP sync back",
+      "Portfolio site on a lens.photo subdomain",
+    ],
     cta: "Start free",
     featured: false,
   },
   {
     name: "Pro",
     price: "$49",
-    features: ["Unlimited shoots", "2,000 shots per cull", "Full develop + presets"],
+    blurb: "Full production OS for working shooters.",
+    features: [
+      "Unlimited shoots · 3,000 frames per cull",
+      "Everything in Solo",
+      "Event Desk, Metadata Desk, Packages, Send",
+      "Adobe handoff: collection sets + XMP round-trip",
+      "Client records, delivery receipts, revisions",
+      "Earnings ledger + Schedule C tax export",
+      "Custom domain on your portfolio",
+    ],
     cta: "Choose Pro",
     featured: true,
   },
   {
     name: "Studio",
     price: "$129",
-    features: ["Everything in Pro", "5 seats + review links", "Batch export"],
+    blurb: "Teams covering multiple events at once.",
+    features: [
+      "Everything in Pro",
+      "5 seats with shared presets and templates",
+      "Multi-event desk with deadline tracking",
+      "Client review links + approval gate",
+      "Batch package export and handoff",
+      "Priority support",
+    ],
     cta: "Talk to us",
     featured: false,
   },
@@ -52,8 +77,11 @@ function PricingPage() {
       <Nav />
       <section className="mx-auto w-full max-w-[1100px] flex-1 px-6 pb-24 pt-20 text-center">
         <h1 className="font-display text-[clamp(2.2rem,5.5vw,3.75rem)] font-bold tracking-[-0.04em]">
-          Priced by <span className="text-rust">shoot</span>.
+          Priced by <span className="text-rust">shoot</span>, not per photo.
         </h1>
+        <p className="mx-auto mt-5 max-w-[560px] text-[15px] text-moss">
+          Culling and develop run on your machine. Originals are never uploaded.
+        </p>
 
         <div className="mt-14 grid items-stretch gap-4 text-left md:grid-cols-3">
           {tiers.map((t) => (
@@ -63,14 +91,18 @@ function PricingPage() {
                 t.featured ? "border-ink/25 shadow-[0_10px_40px_rgba(0,0,0,0.07)]" : "border-border"
               }`}
             >
-              <span className="text-sm text-moss">{t.name}</span>
+              <span className="font-display text-sm font-semibold">{t.name}</span>
+              <p className="mt-1 text-[13px] text-moss">{t.blurb}</p>
               <div className="mt-3 font-display text-4xl font-bold tracking-[-0.03em]">
                 {t.price}
                 <small className="ml-1 text-sm font-normal text-moss">/mo</small>
               </div>
               <ul className="mt-6 flex-1 space-y-2 text-sm text-moss">
                 {t.features.map((f) => (
-                  <li key={f}>{f}</li>
+                  <li key={f} className="flex gap-2">
+                    <span className="text-rust">·</span>
+                    <span>{f}</span>
+                  </li>
                 ))}
               </ul>
               <Link
