@@ -504,7 +504,7 @@ function Earnings() {
               placeholder="0.00"
               className="w-24 rounded-lg border border-input bg-card px-3 py-1.5 text-right font-mono text-[13px] outline-none"
             />
-            <Btn variant="primary" className="px-3 py-1.5 text-[13px]" onClick={add}>
+            <Btn variant="primary" className="px-3 py-1.5 text-[13px]" onClick={() => void add()}>
               Add
             </Btn>
           </div>
