@@ -21,6 +21,11 @@ import {
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
+import {
+  BRIDGE_PATH,
+  downloadLightroomPlugin,
+  type BridgeState,
+} from "@/lib/lightroom-plugin";
 
 export const Route = createFileRoute("/studio")({
   head: () => ({
@@ -71,6 +76,7 @@ function Studio() {
   const folderRef = useRef<HTMLInputElement>(null);
   const [faceEngine, setFaceEngine] = useState(false);
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [linked, setLinked] = useState(false);
 
   useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
@@ -138,6 +144,13 @@ function Studio() {
                 : "undecided",
           edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
           faces: faces ?? undefined,
+          develop: parsed
+            ? {
+                origin: "sidecar",
+                at: Date.now(),
+                rating: parsed.rating ?? undefined,
+              }
+            : undefined,
         });
         bitmap.close?.();
       } catch (err) {
@@ -185,6 +198,119 @@ function Studio() {
     setProgress(null);
     setSelectedId((cur) => cur ?? added[0]?.id ?? null);
   }, []);
+
+  /* ---------------- Lightroom live bridge ---------------- */
+  const lastBridgeAt = useRef(0);
+
+  const mergeBridge = useCallback((state: BridgeState) => {
+    if (!state?.frames?.length) return 0;
+    let touched = 0;
+    setShots((prev) =>
+      prev.map((s) => {
+        const frame = state.frames.find(
+          (f) => baseName(f.file ?? "").toLowerCase() === baseName(s.name).toLowerCase(),
+        );
+        if (!frame) return s;
+        touched++;
+        const d = frame.develop ?? {};
+        const next: Shot = {
+          ...s,
+          edits: {
+            ...s.edits,
+            ...(d.exposure !== undefined
+              ? { exposure: Math.max(-100, Math.min(100, d.exposure * 20)) }
+              : {}),
+            ...(d.contrast !== undefined ? { contrast: d.contrast } : {}),
+            ...(d.highlights !== undefined ? { highlights: d.highlights } : {}),
+            ...(d.shadows !== undefined ? { shadows: d.shadows } : {}),
+            ...(d.saturation !== undefined ? { saturation: d.saturation } : {}),
+            ...(d.temperature !== undefined
+              ? { temp: Math.max(-100, Math.min(100, ((d.temperature - 5500) / 4500) * 100)) }
+              : {}),
+          },
+          verdict:
+            frame.pick === 1 || (frame.rating ?? 0) >= 3
+              ? "keep"
+              : frame.pick === -1
+                ? "reject"
+                : s.verdict,
+          develop: {
+            origin: "lightroom",
+            at: Date.now(),
+            rating: frame.rating,
+            label: frame.label ?? null,
+            caption: frame.iptc?.caption,
+            cropped: d.cropped,
+            processVersion: d.processVersion,
+          },
+        };
+        return next;
+      }),
+    );
+    return touched;
+  }, []);
+
+  const pullFromLightroom = useCallback(
+    async (quiet = false) => {
+      try {
+        const res = await fetch(`${BRIDGE_PATH}?side=studio`, { cache: "no-store" });
+        const state = (await res.json()) as BridgeState;
+        if (!state.at || state.at === lastBridgeAt.current) return;
+        lastBridgeAt.current = state.at;
+        const n = mergeBridge(state);
+        if (n) setSyncNote(`Lightroom pushed ${n} frame${n === 1 ? "" : "s"} · develop settings, rating and IPTC applied.`);
+      } catch {
+        if (!quiet) setSyncNote("Lens OS bridge unreachable — is the studio server running?");
+      }
+    },
+    [mergeBridge],
+  );
+
+  useEffect(() => {
+    if (!linked) return;
+    void pullFromLightroom(true);
+    const t = setInterval(() => void pullFromLightroom(true), 4000);
+    return () => clearInterval(t);
+  }, [linked, pullFromLightroom]);
+
+  /** Publish Lens OS verdicts so the plugin's "Pull" writes them into the catalog. */
+  const pushToLightroom = useCallback(async () => {
+    const frames = shots
+      .filter((s) => !s.error)
+      .map((s) => ({
+        file: s.name,
+        verdict: s.verdict,
+        score: s.score,
+        rating: s.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(s.score / 20))),
+        label: s.verdict === "keep" ? "Green" : s.verdict === "reject" ? "Red" : null,
+        develop: {
+          exposure: s.edits.exposure / 20,
+          contrast: s.edits.contrast,
+          highlights: s.edits.highlights,
+          shadows: s.edits.shadows,
+          saturation: s.edits.saturation,
+          temperature: Math.round(5500 + (s.edits.temp / 100) * 4500),
+        },
+      }));
+    try {
+      const res = await fetch(BRIDGE_PATH, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "verdicts", direction: "to-lightroom", frames }),
+      });
+      if (!res.ok) throw new Error();
+      setShots((prev) =>
+        prev.map((s) =>
+          s.error ? s : { ...s, develop: { ...(s.develop ?? { origin: "lens os" as const }), origin: "lens os" as const, at: Date.now() } },
+        ),
+      );
+      setSyncNote(`${frames.length} frames queued for Lightroom — run Plug-in Extras → “Pull Lens OS verdicts”.`);
+    } catch {
+      setSyncNote("Could not reach the Lens OS bridge to publish verdicts.");
+    }
+  }, [shots]);
+
+
 
   /* ---------------- derived ---------------- */
   const visible = useMemo(() => {
@@ -385,6 +511,30 @@ function Studio() {
             Sync XMP back
           </button>
           <button
+            onClick={() => {
+              const endpoint = downloadLightroomPlugin();
+              setSyncNote(`Plugin downloaded · endpoint ${endpoint} — add it in Lightroom's Plug-in Manager.`);
+            }}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
+          >
+            Lightroom plugin
+          </button>
+          <button
+            onClick={() => setLinked((v) => !v)}
+            className={`rounded-full px-4 py-2 uppercase tracking-[0.12em] transition-colors ${
+              linked ? "bg-rust text-paper2" : "border border-input hover:bg-ink hover:text-paper2"
+            }`}
+          >
+            {linked ? "Live sync · on" : "Live sync · off"}
+          </button>
+          <button
+            onClick={() => void pushToLightroom()}
+            disabled={!shots.length}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
+          >
+            Publish verdicts
+          </button>
+          <button
             onClick={autoCull}
             disabled={!shots.length}
             className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
@@ -537,6 +687,14 @@ function Studio() {
                       <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
                         {s.score || "—"}
                       </span>
+                      {s.develop && (
+                        <span
+                          className="absolute bottom-0 right-0 bg-paper2/85 px-1 font-mono text-[8px] uppercase text-ink"
+                          title={`develop · ${s.develop.origin}`}
+                        >
+                          {s.develop.origin === "lens os" ? "OS" : "LR"}
+                        </span>
+                      )}
                       {s.verdict === "keep" && (
                         <span className="absolute right-1 top-1 size-2 rounded-full bg-moss" />
                       )}
@@ -608,7 +766,42 @@ function Studio() {
                                 : " · eyes closed"}
                           </span>
                         )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 ${
+                            selected.develop ? "bg-ink text-paper2" : "border border-input"
+                          }`}
+                          title={
+                            selected.develop
+                              ? `Last develop update ${new Date(selected.develop.at).toLocaleTimeString()}`
+                              : "No develop settings applied yet"
+                          }
+                        >
+                          develop ·{" "}
+                          {selected.develop
+                            ? selected.develop.origin === "lightroom"
+                              ? "from Lightroom (live)"
+                              : selected.develop.origin === "sidecar"
+                                ? "from XMP sidecar"
+                                : "Lens OS, published"
+                            : "untouched"}
+                        </span>
+                        {selected.develop?.rating !== undefined && selected.develop.rating !== null && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            {selected.develop.rating}★
+                          </span>
+                        )}
+                        {selected.develop?.label && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            {selected.develop.label} label
+                          </span>
+                        )}
+                        {selected.develop?.caption && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            IPTC: {selected.develop.caption}
+                          </span>
+                        )}
                       </span>
+
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">

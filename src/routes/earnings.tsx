@@ -65,11 +65,28 @@ const SEED: Entry[] = [
   { id: "e5", date: "2026-06-15", label: "Gear insurance (quarterly)", kind: "expense", category: "Insurance", amount: 148, eventId: null, source: "manual" },
 ];
 
+/** Ledger categories mapped to the Schedule C line they belong on. */
+const SCHEDULE_C_LINE: Record<string, { line: string; label: string }> = {
+  Advertising: { line: "8", label: "Advertising" },
+  "Car & mileage": { line: "9", label: "Car and truck expenses" },
+  "Contract labor (second shooter)": { line: "11", label: "Contract labor" },
+  "Equipment & depreciation": { line: "13", label: "Depreciation and section 179" },
+  Insurance: { line: "15", label: "Insurance (other than health)" },
+  "Legal & professional": { line: "17", label: "Legal and professional services" },
+  "Office & supplies": { line: "18", label: "Office expense" },
+  "Rent (studio)": { line: "20.2", label: "Rent — other business property (20b)" },
+  Travel: { line: "24.1", label: "Travel (24a)" },
+  "Meals (50%)": { line: "24.2", label: "Deductible meals — 50% (24b)" },
+  "Software & subscriptions": { line: "27.1", label: "Other expenses (27a) — software" },
+  Other: { line: "27.2", label: "Other expenses (27a)" },
+};
+
 const money = (n: number) =>
   n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
 function Earnings() {
-  const { events } = useLens();
+  const { events, clients } = useLens();
+
   const [entries, setEntries] = useState<Entry[]>(SEED);
   const [kind, setKind] = useState<Kind>("expense");
   const [form, setForm] = useState({
@@ -94,8 +111,57 @@ function Earnings() {
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [entries]);
 
+  const scheduleC = useMemo(() => {
+    const rows = new Map<string, { line: string; label: string; amount: number }>();
+    for (const [cat, amount] of byCategory) {
+      const map = SCHEDULE_C_LINE[cat] ?? SCHEDULE_C_LINE['Other']!;
+      const deductible = cat === "Meals (50%)" ? amount * 0.5 : amount;
+      const prev = rows.get(map.line);
+      rows.set(map.line, {
+        line: map.line,
+        label: map.label,
+        amount: (prev?.amount ?? 0) + deductible,
+      });
+    }
+    return [...rows.values()].sort((a, b) => parseFloat(a.line) - parseFloat(b.line));
+  }, [byCategory]);
+
+  const payerName = (eventId: string | null) => {
+    const ev = events.find((v) => v.id === eventId);
+    const client = clients.find((c) => c.id === ev?.clientId);
+    return client?.org || client?.name || ev?.name || "Direct / unassigned";
+  };
+
+  const payers = useMemo(() => {
+    const map = new Map<string, number>();
+    entries
+      .filter((e) => e.kind === "income")
+      .forEach((e) => {
+        const name = payerName(e.eventId);
+        map.set(name, (map.get(name) ?? 0) + e.amount);
+      });
+    return [...map.entries()]
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, events, clients]);
+
+  const payees = useMemo(() => {
+    const map = new Map<string, number>();
+    entries
+      .filter((e) => e.kind === "expense" && e.category.startsWith("Contract labor"))
+      .forEach((e) => {
+        const name = e.label.split("—").slice(-1)[0]!.trim() || e.label;
+        map.set(name, (map.get(name) ?? 0) + e.amount);
+      });
+    return [...map.entries()]
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [entries]);
+
   const selfEmployment = Math.max(0, totals.net) * 0.9235 * 0.153;
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
+
 
   const add = () => {
     const amount = Number(form.amount);
@@ -137,6 +203,34 @@ function Earnings() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const download = (name: string, rows: (string | number)[][]) => {
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportScheduleC = () =>
+    download(`lensos-schedule-c-${new Date().getFullYear()}.csv`, [
+      ["line", "description", "amount_usd"],
+      ["1", "Gross receipts or sales", totals.income.toFixed(2)],
+      ["7", "Gross income", totals.income.toFixed(2)],
+      ...scheduleC.map((r) => [r.line.replace(".1", "a").replace(".2", "b"), r.label.replace(/,/g, ";"), r.amount.toFixed(2)]),
+      ["28", "Total expenses", totals.expense.toFixed(2)],
+      ["31", "Net profit or (loss)", totals.net.toFixed(2)],
+    ]);
+
+  const export1099 = () =>
+    download(`lensos-1099-${new Date().getFullYear()}.csv`, [
+      ["direction", "party", "amount_usd", "threshold_600"],
+      ...payers.map((p) => ["income received", p.name.replace(/,/g, ";"), p.total.toFixed(2), p.total >= 600 ? "yes" : "no"]),
+      ...payees.map((p) => ["contractor paid", p.name.replace(/,/g, ";"), p.total.toFixed(2), p.total >= 600 ? "yes" : "no"]),
+    ]);
+
 
   const cats = kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -318,6 +412,104 @@ function Earnings() {
           </Card>
         </div>
       </div>
+
+      {/* ---------------- tax forms ---------------- */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card className="p-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+              Form 1040 · Schedule C (Profit or Loss From Business)
+            </p>
+            <Btn className="ml-auto px-3 py-1.5 text-[13px]" onClick={exportScheduleC}>
+              Export Schedule C CSV
+            </Btn>
+          </div>
+          <div className="p-4">
+            <div className="flex justify-between border-b border-border pb-2 text-[13px]">
+              <span className="text-moss">Line 1 · Gross receipts or sales</span>
+              <span className="font-mono">{money(totals.income)}</span>
+            </div>
+            <div className="flex justify-between border-b border-border py-2 text-[13px]">
+              <span className="text-moss">Line 7 · Gross income</span>
+              <span className="font-mono">{money(totals.income)}</span>
+            </div>
+            <p className="pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+              Part II · Expenses
+            </p>
+            {scheduleC.map((row) => (
+              <div key={row.line} className="flex justify-between border-b border-border py-1.5 text-[13px]">
+                <span className="text-moss">
+                  Line {row.line} · {row.label}
+                </span>
+                <span className="font-mono">{money(row.amount)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between py-2 text-[13px] font-semibold">
+              <span>Line 28 · Total expenses</span>
+              <span className="font-mono">{money(totals.expense)}</span>
+            </div>
+            <div className="flex justify-between text-[13px] font-semibold">
+              <span>Line 31 · Net profit or (loss)</span>
+              <span className="font-mono">{money(totals.net)}</span>
+            </div>
+            <p className="mt-3 text-[12px] text-moss">
+              Lines shown carry a balance. Meals are reported at the 50% deductible amount on
+              line 24b. This is your ledger mapped to the form — not filed advice.
+            </p>
+          </div>
+        </Card>
+
+        <Card className="p-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+              Form 1099-NEC · payers and payees
+            </p>
+            <Btn className="ml-auto px-3 py-1.5 text-[13px]" onClick={export1099}>
+              Export 1099 CSV
+            </Btn>
+          </div>
+          <div className="p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+              Income you should receive a 1099-NEC for
+            </p>
+            {payers.length === 0 && <p className="mt-2 text-sm text-moss">No income logged.</p>}
+            {payers.map((p) => (
+              <div key={p.name} className="flex items-center justify-between border-b border-border py-2 text-[13px]">
+                <span>{p.name}</span>
+                <span className="flex items-center gap-2">
+                  <Chip tone={p.total >= 600 ? "solid" : "quiet"}>
+                    {p.total >= 600 ? "1099 expected" : "under $600"}
+                  </Chip>
+                  <span className="font-mono">{money(p.total)}</span>
+                </span>
+              </div>
+            ))}
+
+            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+              Contractors you must issue a 1099-NEC to (box 1)
+            </p>
+            {payees.length === 0 && (
+              <p className="mt-2 text-sm text-moss">No contract labor logged.</p>
+            )}
+            {payees.map((p) => (
+              <div key={p.name} className="flex items-center justify-between border-b border-border py-2 text-[13px]">
+                <span>{p.name}</span>
+                <span className="flex items-center gap-2">
+                  <Chip tone={p.total >= 600 ? "warn" : "quiet"}>
+                    {p.total >= 600 ? "file by Jan 31" : "under $600"}
+                  </Chip>
+                  <span className="font-mono">{money(p.total)}</span>
+                </span>
+              </div>
+            ))}
+            <p className="mt-3 text-[12px] text-moss">
+              The $600 threshold is per payer for the calendar year. Collect a W-9 from every
+              contractor before you pay them.
+            </p>
+          </div>
+        </Card>
+      </div>
     </Shell>
   );
 }
+

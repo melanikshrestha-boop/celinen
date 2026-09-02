@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-const COLUMNS: { title: string; links: { label: string; to?: string }[] }[] = [
+const COLUMNS: { title: string; links: { label: string; to?: string; href?: string }[] }[] = [
   {
     title: "Product",
     links: [
@@ -49,6 +49,7 @@ const COLUMNS: { title: string; links: { label: string; to?: string }[] }[] = [
   {
     title: "Connect",
     links: [
+      { label: "Contact sales", href: "mailto:hello@tryiris.ai" },
       { label: "Contact us" },
       { label: "Community" },
       { label: "X (Twitter)" },
@@ -75,7 +76,14 @@ export function Footer() {
               <ul className="mt-5 space-y-3">
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    {l.to ? (
+                    {l.href ? (
+                      <a
+                        href={l.href}
+                        className="text-[14px] text-current/55 transition-colors hover:text-current"
+                      >
+                        {l.label}
+                      </a>
+                    ) : l.to ? (
                       <Link
                         to={l.to}
                         className="text-[14px] text-current/55 transition-colors hover:text-current"
