@@ -50,3 +50,132 @@ export const getClientPortal = createServerFn({ method: "GET" })
       galleries: galleries.data ?? [],
     };
   });
+
+/* ---------------- booking ---------------- */
+
+export const createBookingRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      shoot_type: string;
+      preferred_date: string;
+      location?: string;
+      budget?: number | null;
+      message?: string;
+      name?: string;
+    }) => {
+      if (!d.preferred_date) throw new Error("Pick a date for your shoot");
+      if (!d.shoot_type?.trim()) throw new Error("Tell us what kind of shoot it is");
+      return d;
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const email = (context.claims as { email?: string }).email ?? "";
+    const { data: client } = await context.supabase
+      .from("clients")
+      .select("id, user_id, name")
+      .limit(1)
+      .maybeSingle();
+
+    const { data: row, error } = await context.supabase
+      .from("booking_requests")
+      .insert({
+        user_id: client?.user_id ?? null,
+        client_id: client?.id ?? null,
+        requester_email: email,
+        requester_name: data.name?.trim() || client?.name || null,
+        shoot_type: data.shoot_type.trim(),
+        preferred_date: data.preferred_date,
+        location: data.location?.trim() || null,
+        budget: data.budget ?? null,
+        message: data.message?.trim() || null,
+        status: "new",
+      })
+      .select("*")
+      .single();
+
+    if (error) return { error: error.message };
+    return { booking: row };
+  });
+
+export const listBookingRequests = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("booking_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return data ?? [];
+  });
+
+/** Photographer-side: accept / decline a request. */
+export const setBookingStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string; status: "new" | "confirmed" | "declined" }) => d)
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("booking_requests")
+      .update({ status: data.status, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .eq("user_id", context.userId);
+    return error ? { error: error.message } : { ok: true };
+  });
+
+/* ---------------- client uploads ---------------- */
+
+export const createClientUploadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { filename: string }) => {
+    if (!d.filename?.trim()) throw new Error("Missing file name");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const safe = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+    const path = `client-uploads/${context.userId}/${crypto.randomUUID()}-${safe}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from("deliveries")
+      .createSignedUploadUrl(path);
+    if (error || !signed) return { error: error?.message ?? "Could not start upload" };
+    return { path, token: signed.token, signedUrl: signed.signedUrl };
+  });
+
+export const recordClientUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { storage_path: string; filename: string; note?: string }) => d)
+  .handler(async ({ data, context }) => {
+    const email = (context.claims as { email?: string }).email ?? "";
+    const { data: client } = await context.supabase
+      .from("clients")
+      .select("id, user_id")
+      .limit(1)
+      .maybeSingle();
+
+    const { error } = await context.supabase.from("client_uploads").insert({
+      client_id: client?.id ?? null,
+      user_id: client?.user_id ?? null,
+      uploader_email: email,
+      storage_path: data.storage_path,
+      filename: data.filename,
+      note: data.note?.trim() || null,
+    });
+    return error ? { error: error.message } : { ok: true };
+  });
+
+export const listClientUploads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("client_uploads")
+      .select("id, filename, storage_path, note, created_at")
+      .order("created_at", { ascending: false });
+    if (!data?.length) return [];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed } = await supabaseAdmin.storage
+      .from("deliveries")
+      .createSignedUrls(
+        data.map((u) => u.storage_path),
+        60 * 60 * 6,
+      );
+    return data.map((u, i) => ({ ...u, url: signed?.[i]?.signedUrl ?? null }));
+  });
