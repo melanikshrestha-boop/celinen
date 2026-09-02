@@ -1,6 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Footer, Nav } from "@/components/Nav";
 import { Fade } from "@/components/Fade";
+import { LogoMark } from "@/components/lensos/Logo";
+
+const DEMO_STATS = [
+  { label: "Ingest", value: "100%", sub: "1,298 previews", fill: "100%" },
+  { label: "Picks", value: "146", sub: "1,128 reviewed", fill: "87%" },
+  { label: "Next due", value: "6", sub: "Wire set · 23:30", fill: "50%" },
+];
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
