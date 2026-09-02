@@ -163,17 +163,31 @@ function Index() {
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">Replaces</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
+              Replaces — the average stack a photographer pays for
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {REPLACED.map((r) => (
                 <span
-                  key={r}
-                  className="rounded-lg bg-muted px-2.5 py-1 text-[13px] text-moss line-through decoration-rust/60"
+                  key={r.name}
+                  className="flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-[13px] text-moss"
                 >
-                  {r}
+                  <img
+                    src={logoFor(r.domain)}
+                    alt={`${r.name} logo`}
+                    width={16}
+                    height={16}
+                    loading="lazy"
+                    className="size-4 rounded-[3px]"
+                  />
+                  <span className="line-through decoration-rust/60">{r.name}</span>
+                  <span className="font-mono text-[11px] text-moss/70">${r.usd}/mo</span>
                 </span>
               ))}
             </div>
+            <p className="mt-3 font-mono text-[11px] text-moss">
+              ≈ ${REPLACED_TOTAL}/mo across {REPLACED.length} subscriptions
+            </p>
           </div>
           <div className="rounded-2xl border border-border bg-ink p-5 text-paper2">
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-paper2/60">
@@ -182,7 +196,9 @@ function Index() {
             <p className="mt-3 font-display text-[19px] font-semibold tracking-tight">
               Cull → develop → gallery → site.
             </p>
-            <p className="mt-1 text-sm text-paper2/70">No jargon, no five subscriptions.</p>
+            <p className="mt-1 text-sm text-paper2/70">
+              No jargon, no {REPLACED.length} subscriptions.
+            </p>
           </div>
         </div>
       </Fade>
