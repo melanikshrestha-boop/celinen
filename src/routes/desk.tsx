@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
+import { Shell } from "@/components/lensos/Shell";
+import { LogoMark } from "@/components/lensos/Logo";
 import { useLens } from "@/lib/lensos-store";
-import { packageFill, type IngestState } from "@/lib/lensos";
+import { packageFill } from "@/lib/lensos";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/desk")({
   head: () => ({
@@ -11,12 +13,12 @@ export const Route = createFileRoute("/desk")({
       {
         name: "description",
         content:
-          "Create and switch events, attach sources, watch ingest progress and see which packages still need selects.",
+          "One screen for the shoot: sources ingesting, keepers picked, packages due. Private to your studio.",
       },
       { property: "og:title", content: "Event Desk — LensLabs Production" },
       {
         property: "og:description",
-        content: "The home base for a shoot: events, sources, ingest state and package deadlines.",
+        content: "Sources, picks and deadlines for the current event.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -25,231 +27,154 @@ export const Route = createFileRoute("/desk")({
   component: Desk,
 });
 
-const INGEST_FLOW: IngestState[] = [
-  "source waiting",
-  "permission needed",
-  "enumerating",
-  "indexing previews",
-  "queue ready",
-  "ingest complete",
-];
+function Stat({
+  label,
+  value,
+  sub,
+  delay,
+  to,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  delay: number;
+  to?: "/pick" | "/packages" | "/send";
+}) {
+  const body = (
+    <div
+      className="rise-in group relative overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(0,0,0,0.08)]"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-ink/[0.04] to-transparent sweep" />
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-moss">{label}</p>
+      <p className="mt-3 font-display text-[clamp(1.9rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em]">
+        {value}
+      </p>
+      <p className="mt-2 text-[13px] text-moss">{sub}</p>
+    </div>
+  );
+  return to ? (
+    <Link to={to} className="block">
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+}
 
 function Desk() {
-  const { active, events, clients, setActiveId, createEvent, attachSource } = useLens();
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [genre, setGenre] = useState("");
-  const [venue, setVenue] = useState("");
-  const [clientId, setClientId] = useState(clients[0]!.id);
+  const { active, events, setActiveId, attachSource } = useLens();
+  const [showEvents, setShowEvents] = useState(false);
 
-  const hasWork = active.sources.length > 0 || active.picks.length > 0;
+  const files = active.sources.reduce((s, x) => s + x.files, 0);
+  const previews = active.sources.reduce((s, x) => s + x.previews, 0);
+  const ingest = files ? Math.round((previews / files) * 100) : 0;
+  const due = active.packages
+    .map((p) => ({ p, short: Math.max(0, p.target - packageFill(active, p)) }))
+    .sort((a, b) => b.short - a.short)[0];
 
   return (
-    <Shell onAddSource={() => attachSource(`Folder · /volumes/${Date.now().toString().slice(-4)}`)}>
-      <SectionTitle
-        kicker="Event Desk"
-        title="Everything the job needs before and after Pick."
-        sub="Originals stay read-only. Reject is a soft reject. Nothing sends without your approval."
-      />
-
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Card>
-          <div className="flex items-center justify-between">
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Sources</p>
-            <Btn
-              onClick={() => attachSource(`Card · Slot ${active.sources.length + 1}`)}
-              className="px-3 py-1.5 text-[13px]"
-            >
-              Attach source
-            </Btn>
-          </div>
-
-          {active.sources.length === 0 ? (
-            <div className="mt-6 rounded-xl border border-dashed border-input p-8 text-center">
-              <p className="font-display text-[17px] font-semibold tracking-tight">
-                No source attached
-              </p>
-              <p className="mt-1 text-sm text-moss">Two ways to start work.</p>
-              <div className="mt-5 flex justify-center gap-2">
-                <Btn variant="primary" onClick={() => setCreating(true)}>
-                  Create event
-                </Btn>
-                <Btn onClick={() => attachSource("Card · Slot 1")}>Attach source</Btn>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {active.sources.map((s) => {
-                const step = INGEST_FLOW.indexOf(s.state);
-                return (
-                  <div key={s.id} className="rounded-xl border border-border p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-display text-[15px] font-semibold tracking-tight">
-                        {s.label}
-                      </p>
-                      <Chip tone={s.state === "ingest complete" ? "accent" : "quiet"}>{s.state}</Chip>
-                    </div>
-                    <div className="mt-3 flex gap-1">
-                      {INGEST_FLOW.slice(2).map((st, i) => (
-                        <span
-                          key={st}
-                          className={`h-1 flex-1 rounded-full ${
-                            step - 2 >= i ? "bg-rust" : "bg-muted"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-[11px] text-moss sm:grid-cols-4">
-                      <span>{s.files} files</span>
-                      <span>{s.previews} previews</span>
-                      <span>{s.duplicates} dupes</span>
-                      <span>{s.unsupported} unsupported</span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {s.verifying && <Chip>copy + verify in background</Chip>}
-                      {s.lowDisk && <Chip tone="warn">low disk</Chip>}
-                      {s.previews > 0 && <Chip tone="accent">previews exist · queue reviewable</Chip>}
-                    </div>
-                  </div>
-                );
-              })}
-              <p className="text-[12px] text-moss">
-                Queue ready means previews exist for review — not just filenames counted.
-              </p>
-            </div>
-          )}
-        </Card>
-
-        <div className="space-y-4">
-          <Card>
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Pick</p>
-            <p className="mt-2 font-display text-[17px] font-semibold tracking-tight">
-              {hasWork ? "Queue ready" : "Nothing to review yet"}
-            </p>
-            <p className="mt-1 text-sm text-moss">
-              {active.pickQueue.reviewed}/{active.pickQueue.total} reviewed ·{" "}
-              {active.pickQueue.selects} selects
-            </p>
-            <Link
-              to="/pick"
-              className="mt-4 inline-block rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
-            >
-              Open Pick →
-            </Link>
-          </Card>
-
-          <Card>
-            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
-              Package deadlines
-            </p>
-            {active.packages.length === 0 && (
-              <p className="mt-3 text-sm text-moss">No packages yet.</p>
-            )}
-            <div className="mt-3 space-y-3">
-              {active.packages.map((p) => {
-                const fill = packageFill(active, p);
-                const short = Math.max(0, p.target - fill);
-                return (
-                  <div key={p.id} className="border-b border-border pb-3 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{p.name}</span>
-                      <span className="font-mono text-[11px] text-moss">{p.deadline}</span>
-                    </div>
-                    <p className="mt-1 text-[13px] text-moss">
-                      {fill}/{p.target} selects ·{" "}
-                      {short > 0 ? (
-                        <span className="text-rust">{short} short</span>
-                      ) : (
-                        "target met"
-                      )}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+    <Shell onAddSource={attachSource}>
+      <section className="flex flex-col items-center py-10 text-center">
+        <div className="float-y">
+          <LogoMark size={56} className="iris-breathe text-ink" />
         </div>
+        <h1 className="rise-in mt-6 font-display text-[clamp(2rem,5.5vw,3.4rem)] font-bold leading-[1] tracking-[-0.045em]">
+          {active.name}
+        </h1>
+        <button
+          onClick={() => setShowEvents((v) => !v)}
+          className="rise-in mt-3 rounded-full border border-border px-3 py-1 text-[12px] text-moss transition-colors hover:text-ink [animation-delay:100ms]"
+        >
+          {showEvents ? "hide events" : "switch event"}
+        </button>
+
+        {showEvents && (
+          <div className="scale-in mt-4 flex flex-wrap justify-center gap-2">
+            {events.map((e) => (
+              <button
+                key={e.id}
+                onClick={() => {
+                  setActiveId(e.id);
+                  setShowEvents(false);
+                }}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-[13px] transition-all hover:-translate-y-0.5",
+                  e.id === active.id
+                    ? "border-ink bg-ink text-paper2"
+                    : "border-border bg-card text-moss hover:text-ink",
+                )}
+              >
+                {e.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat
+          label="Ingest"
+          value={files ? `${ingest}%` : "—"}
+          sub={files ? `${previews}/${files} previews` : "attach a card to start"}
+          delay={0}
+        />
+        <Stat
+          label="Picks"
+          value={`${active.pickQueue.selects}`}
+          sub={`${active.pickQueue.reviewed}/${active.pickQueue.total} reviewed`}
+          delay={90}
+          to="/pick"
+        />
+        <Stat
+          label="Next due"
+          value={due ? (due.short > 0 ? `${due.short}` : "✓") : "—"}
+          sub={due ? `${due.p.name} · ${due.p.deadline}` : "no packages"}
+          delay={180}
+          to="/packages"
+        />
       </div>
 
-      <div className="mt-8">
-        <div className="flex items-center justify-between">
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Events</p>
-          <Btn onClick={() => setCreating((c) => !c)} className="px-3 py-1.5 text-[13px]">
-            {creating ? "Cancel" : "Create event"}
-          </Btn>
-        </div>
-
-        {creating && (
-          <Card className="mt-3">
-            <div className="grid gap-3 sm:grid-cols-4">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Event name"
-                className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none"
-              />
-              <input
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                placeholder="Sport / genre"
-                className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none"
-              />
-              <input
-                value={venue}
-                onChange={(e) => setVenue(e.target.value)}
-                placeholder="Venue"
-                className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none"
-              />
-              <select
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none"
-              >
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+      <div className="rise-in mt-4 overflow-hidden rounded-2xl border border-border bg-card [animation-delay:260ms]">
+        {active.sources.length === 0 ? (
+          <button
+            onClick={attachSource}
+            className="flex w-full items-center justify-center gap-3 px-5 py-10 text-sm text-moss transition-colors hover:text-ink"
+          >
+            <LogoMark size={20} className="iris-spin" />
+            Drop a card or folder to begin
+          </button>
+        ) : (
+          active.sources.map((s, i) => (
+            <div
+              key={s.id}
+              className="flex items-center gap-4 border-b border-border px-5 py-4 last:border-0"
+            >
+              <span className="live-dot size-1.5 shrink-0 rounded-full bg-rust" />
+              <span className="w-40 shrink-0 truncate text-[14px] font-medium">{s.label}</span>
+              <span className="relative h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="bar-fill absolute inset-y-0 left-0 rounded-full bg-ink"
+                  style={{
+                    width: `${s.files ? Math.round((s.previews / s.files) * 100) : 0}%`,
+                    animationDelay: `${i * 120}ms`,
+                  }}
+                />
+              </span>
+              <span className="shrink-0 font-mono text-[11px] text-moss">{s.state}</span>
             </div>
-            <Btn
-              variant="primary"
-              className="mt-3"
-              disabled={!name.trim()}
-              onClick={() => {
-                createEvent({ name: name.trim(), genre, venue, clientId });
-                setName("");
-                setCreating(false);
-              }}
-            >
-              Create event + draft job
-            </Btn>
-          </Card>
+          ))
         )}
+      </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          {events.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => setActiveId(e.id)}
-              className={`rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 ${
-                e.id === active.id ? "border-rust/50 bg-card" : "border-border bg-card"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-display text-[15px] font-semibold tracking-tight">
-                  {e.name}
-                </span>
-              </div>
-              <p className="mt-1 text-[13px] text-moss">
-                {e.genre} · {e.start}
-              </p>
-              <div className="mt-3">
-                <Chip tone={e.status === "active" ? "accent" : "quiet"}>{e.status}</Chip>
-              </div>
-            </button>
-          ))}
-        </div>
+      <div className="rise-in mt-8 flex justify-center [animation-delay:340ms]">
+        <Link
+          to="/pick"
+          className="group rounded-xl bg-ink px-7 py-3.5 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(0,0,0,0.18)]"
+        >
+          Open Pick{" "}
+          <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
+        </Link>
       </div>
     </Shell>
   );
