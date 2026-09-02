@@ -33,19 +33,13 @@ export const recordSignup = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<{ ok: true } | { error: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("signups").upsert(
-      {
-        email: data.email,
-        plan: data.plan,
-        billing: data.billing,
-        studio: data.studio || null,
-      },
-      { onConflict: "email,plan", ignoreDuplicates: false },
-    );
-    if (error) {
-      // A duplicate signup is not a failure the visitor needs to see.
-      if (!/duplicate|conflict/i.test(error.message)) return { error: error.message };
-    }
+    const { error } = await supabaseAdmin.from("signups").insert({
+      email: data.email,
+      plan: data.plan,
+      billing: data.billing,
+      studio: data.studio || null,
+    });
+    if (error) return { error: error.message };
     return { ok: true };
   });
 
