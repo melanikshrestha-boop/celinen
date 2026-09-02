@@ -22,48 +22,76 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const TICKER = [
+  "laplacian focus variance",
+  "histogram clipping",
+  "average-hash dedupe",
+  "embedded raw preview",
+  "keeper ranking",
+  "local only · no uploads",
+];
+
 function Index() {
   return (
-    <div className="flex min-h-screen w-full flex-col text-ink">
+    <div className="flex min-h-screen w-full flex-col overflow-hidden text-ink">
       <Nav />
 
       <section className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col items-center px-6 pb-24 pt-24 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[12px] text-moss shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-          <span className="size-1.5 rounded-full bg-rust" />
+        <span className="rise-in inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[12px] text-moss shadow-[0_1px_2px_rgba(0,0,0,0.04)] [animation-delay:0ms]">
+          <span className="live-dot size-1.5 rounded-full bg-rust" />
           Local · RAW + JPEG
         </span>
 
-        <h1 className="mt-8 font-display text-[clamp(2.6rem,7.5vw,5.5rem)] font-bold leading-[0.98] tracking-[-0.04em]">
+        <h1 className="rise-in mt-8 font-display text-[clamp(2.6rem,7.5vw,5.5rem)] font-bold leading-[0.98] tracking-[-0.04em] [animation-delay:90ms]">
           Cull your shoot
           <br />
           in <span className="text-rust">minutes</span>, not hours.
         </h1>
 
-        <p className="mt-8 text-lg text-moss">Drop the folder in</p>
+        <p className="rise-in mt-8 text-lg text-moss [animation-delay:180ms]">Drop the folder in</p>
 
-        <div className="mt-4 w-full max-w-[560px] rounded-xl bg-ink px-4 py-3.5 text-left shadow-[0_8px_30px_rgba(0,0,0,0.10)]">
-          <code className="font-mono text-sm text-paper2">
-            <span className="text-rust">$</span> 300 RAW files → 42 keepers
+        <div className="rise-in relative mt-4 w-full max-w-[560px] overflow-hidden rounded-xl bg-ink px-4 py-3.5 text-left shadow-[0_8px_30px_rgba(0,0,0,0.10)] [animation-delay:240ms]">
+          <div className="scanline pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-transparent via-paper2/8 to-transparent" />
+          <code className="relative font-mono text-sm text-paper2">
+            <span className="text-rust">$</span>{" "}
+            <span className="type-line align-bottom">300 RAW files → 42 keepers</span>
+            <span className="caret ml-0.5 h-[1.05em] align-[-0.15em]" />
           </code>
         </div>
 
-        <p className="mt-4 text-lg text-moss">and let it take it from there.</p>
+        <p className="rise-in mt-4 text-lg text-moss [animation-delay:300ms]">
+          and let it take it from there.
+        </p>
 
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <div className="rise-in mt-10 flex flex-wrap items-center justify-center gap-3 [animation-delay:380ms]">
           <Link
             to="/studio"
-            className="rounded-xl bg-ink px-6 py-3 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
+            className="group rounded-xl bg-ink px-6 py-3 text-sm font-medium text-paper2 transition-all duration-200 hover:-translate-y-0.5 hover:opacity-90 hover:shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
           >
-            Open studio →
+            Open studio{" "}
+            <span className="inline-block transition-transform duration-200 group-hover:translate-x-1">
+              →
+            </span>
           </Link>
           <Link
             to="/pricing"
-            className="rounded-xl border border-input bg-card px-6 py-3 text-sm text-moss transition-colors hover:text-ink"
+            className="rounded-xl border border-input bg-card px-6 py-3 text-sm text-moss transition-all duration-200 hover:-translate-y-0.5 hover:text-ink"
           >
             Pricing
           </Link>
         </div>
       </section>
+
+      <div className="rise-in relative w-full overflow-hidden border-y border-border bg-card/60 py-3 [animation-delay:460ms]">
+        <div className="ticker-track gap-10 whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+          {[...TICKER, ...TICKER].map((t, i) => (
+            <span key={i} className="flex items-center gap-10">
+              {t}
+              <span className="size-1 rounded-full bg-rust/60" />
+            </span>
+          ))}
+        </div>
+      </div>
 
       <Footer />
     </div>

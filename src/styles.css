@@ -125,3 +125,53 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
+
+/* ---- motion ---- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
+@keyframes scan { 0% { transform: translateY(-100%) } 100% { transform: translateY(900%) } }
+@keyframes ticker { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+@keyframes typing { from { width: 0 } to { width: 100% } }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1) }
+  50% { opacity: .35; transform: scale(.75) }
+}
+
+@utility rise-in {
+  opacity: 0;
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@utility caret {
+  display: inline-block;
+  width: 0.55ch;
+  background: currentColor;
+  animation: blink 1.05s steps(1) infinite;
+}
+@utility type-line {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typing 1.8s steps(34, end) 0.35s both;
+}
+@utility ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker 26s linear infinite;
+}
+@utility scanline {
+  animation: scan 3.6s linear infinite;
+}
+@utility live-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in, .type-line, .ticker-track, .scanline, .live-dot, .caret {
+    animation: none !important;
+    opacity: 1 !important;
+    width: auto !important;
+  }
+}
