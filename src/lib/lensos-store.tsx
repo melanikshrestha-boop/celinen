@@ -26,7 +26,7 @@ interface Ctx {
   setPackageState: (packageId: string, state: PackageState) => void;
   createPackage: (pkg: Omit<Package, "id" | "state">) => void;
   handoff: () => void;
-  importReturns: () => void;
+  importReturns: (packageId?: string) => void;
   deliver: (packageId: string, files: number) => void;
   setMoney: (patch: Partial<Money>) => void;
   createGallery: (pin: string | null) => void;
