@@ -280,24 +280,32 @@ function Earnings() {
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
 
 
-  const add = () => {
+  const isUuid = (v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+  const add = async () => {
     const amount = Number(form.amount);
     if (!form.label.trim() || Number.isNaN(amount) || amount <= 0) return;
-    setEntries((prev) => [
-      {
-        id: `x-${Math.random().toString(36).slice(2, 7)}`,
-        date: form.date || new Date().toISOString().slice(0, 10),
-        label: form.label.trim(),
+    const res = (await addTransaction({
+      data: {
         kind,
         category: form.category,
+        description: form.label.trim(),
         amount,
-        eventId: form.eventId || null,
-        source: "manual",
+        occurred_on: form.date || new Date().toISOString().slice(0, 10),
+        shoot_id: form.eventId && isUuid(form.eventId) ? form.eventId : null,
       },
-      ...prev,
-    ]);
+    })) as any;
+    if (res?.error) return setDataError(res.error);
+    setEntries((prev) => [toEntry(res.transaction), ...prev]);
     setForm({ ...form, label: "", amount: "" });
   };
+
+  const removeEntry = async (id: string) => {
+    setEntries((prev) => prev.filter((x) => x.id !== id));
+    await deleteTransaction({ data: { id } });
+  };
+
 
   const exportCsv = () => {
     const rows = [
