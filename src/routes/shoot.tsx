@@ -527,7 +527,7 @@ function ShootPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-5">
               {visible.map((s) => (
                 <button
                   key={s.id}

@@ -52,6 +52,13 @@ export function Nav() {
             Book a shoot
           </Link>
           <Link
+            to="/community"
+            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
+            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
+          >
+            Community
+          </Link>
+          <Link
             to="/pricing"
             className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
             activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
