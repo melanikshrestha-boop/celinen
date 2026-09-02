@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/lensos/Theme";
+import { LogoMark } from "@/components/lensos/Logo";
+
 import { Footer as SiteFooter } from "@/components/lensos/Footer";
 
 export function Nav() {
