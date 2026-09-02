@@ -19,7 +19,14 @@ export const RAW_EXTENSIONS = [
 
 export type Verdict = "keep" | "reject" | "undecided";
 
-export type Flag = "soft" | "blur" | "underexposed" | "overexposed" | "duplicate";
+export type Flag =
+  | "soft"
+  | "blur"
+  | "underexposed"
+  | "overexposed"
+  | "duplicate"
+  | "face-soft"
+  | "eyes-closed";
 
 export interface Edits {
   exposure: number; // -100..100
@@ -108,8 +115,18 @@ function scratchCanvas(w: number, h: number) {
   return { canvas, ctx };
 }
 
+export interface FaceReading {
+  /** number of faces the browser detector found */
+  count: number;
+  /** laplacian variance measured inside the largest face box */
+  faceSharpness: number;
+  /** null when the browser reported no eye landmarks */
+  eyesOpen: boolean | null;
+}
+
 export interface Analysis {
   sharpness: number;
+  faces?: FaceReading | null;
   brightness: number;
   clippedHighlights: number;
   clippedShadows: number;
@@ -181,6 +198,106 @@ export function hamming(a: string, b: string) {
   return d;
 }
 
+/* ---------------- faces + eyes ---------------- */
+
+type DetectedFace = {
+  boundingBox: { x: number; y: number; width: number; height: number };
+  landmarks?: { type: string; locations: { x: number; y: number }[] }[];
+};
+
+let detector: { detect: (s: CanvasImageSource) => Promise<DetectedFace[]> } | null | undefined;
+
+function getDetector() {
+  if (detector !== undefined) return detector;
+  const Ctor = (globalThis as unknown as { FaceDetector?: new (o: object) => never }).FaceDetector;
+  detector = Ctor
+    ? (new Ctor({ fastMode: true, maxDetectedFaces: 12 }) as unknown as {
+        detect: (s: CanvasImageSource) => Promise<DetectedFace[]>;
+      })
+    : null;
+  return detector;
+}
+
+export function faceDetectionAvailable() {
+  return getDetector() !== null;
+}
+
+function lapVariance(data: Uint8ClampedArray, w: number, h: number) {
+  const gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    gray[i] = 0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!;
+  }
+  let sum = 0;
+  let sq = 0;
+  let n = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const v = 4 * gray[i]! - gray[i - 1]! - gray[i + 1]! - gray[i - w]! - gray[i + w]!;
+      sum += v;
+      sq += v * v;
+      n++;
+    }
+  }
+  if (!n) return 0;
+  const mean = sum / n;
+  return sq / n - mean * mean;
+}
+
+/**
+ * Real measurement, no invention: uses the browser FaceDetector when the
+ * engine ships one. Face sharpness is a laplacian variance inside the face
+ * box; eye state is the local contrast around each reported eye landmark
+ * (an open eye contains a dark iris against a bright sclera, a closed lid
+ * is flat). Returns null when the browser has no detector.
+ */
+export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | null> {
+  const det = getDetector();
+  if (!det) return null;
+  let faces: DetectedFace[] = [];
+  try {
+    faces = await det.detect(bitmap);
+  } catch {
+    return null;
+  }
+  if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null };
+
+  const biggest = faces.reduce((a, b) =>
+    a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b,
+  );
+  const box = biggest.boundingBox;
+  const bw = Math.max(8, Math.round(box.width));
+  const bh = Math.max(8, Math.round(box.height));
+  const { ctx } = scratchCanvas(bw, bh);
+  ctx.drawImage(bitmap, box.x, box.y, box.width, box.height, 0, 0, bw, bh);
+  const faceData = ctx.getImageData(0, 0, bw, bh).data;
+  const faceSharpness = lapVariance(faceData, bw, bh);
+
+  const eyes = (biggest.landmarks ?? []).filter((l) => l.type === "eye");
+  let eyesOpen: boolean | null = null;
+  if (eyes.length) {
+    const patch = Math.max(6, Math.round(box.width * 0.16));
+    let openCount = 0;
+    for (const eye of eyes) {
+      const pt = eye.locations[0];
+      if (!pt) continue;
+      const { ctx: ectx } = scratchCanvas(patch, patch);
+      ectx.drawImage(bitmap, pt.x - patch / 2, pt.y - patch / 2, patch, patch, 0, 0, patch, patch);
+      const d = ectx.getImageData(0, 0, patch, patch).data;
+      let min = 255;
+      let max = 0;
+      for (let i = 0; i < patch * patch; i++) {
+        const g = 0.299 * d[i * 4]! + 0.587 * d[i * 4 + 1]! + 0.114 * d[i * 4 + 2]!;
+        if (g < min) min = g;
+        if (g > max) max = g;
+      }
+      if (max - min > 60) openCount++;
+    }
+    eyesOpen = openCount === eyes.length;
+  }
+  return { count: faces.length, faceSharpness, eyesOpen };
+}
+
 export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
   const flags: Flag[] = [];
   // Sharpness typically 0 (mush) .. 900+ (crisp)
@@ -198,7 +315,21 @@ export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
   }
   if (a.clippedShadows > 25) exposure *= 0.8;
 
-  const score = Math.round(Math.max(1, Math.min(99, (focus * 0.72 + exposure * 0.28) * 100)));
+  let base = focus * 0.72 + exposure * 0.28;
+
+  const f = a.faces;
+  if (f && f.count > 0) {
+    // When there is a subject, the face is what has to be sharp.
+    const faceFocus = Math.max(0, Math.min(1, Math.log10(1 + f.faceSharpness) / 2.9));
+    base = base * 0.45 + (faceFocus * 0.72 + exposure * 0.28) * 0.55;
+    if (f.faceSharpness < 90) flags.push("face-soft");
+    if (f.eyesOpen === false) {
+      flags.push("eyes-closed");
+      base *= 0.6;
+    }
+  }
+
+  const score = Math.round(Math.max(1, Math.min(99, base * 100)));
   return { score, flags };
 }
 
