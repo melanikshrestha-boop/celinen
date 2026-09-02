@@ -143,6 +143,13 @@ function Studio() {
                 : "undecided",
           edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
           faces: faces ?? undefined,
+          develop: parsed
+            ? {
+                origin: "sidecar",
+                at: Date.now(),
+                rating: parsed.rating ?? undefined,
+              }
+            : undefined,
         });
         bitmap.close?.();
       } catch (err) {
