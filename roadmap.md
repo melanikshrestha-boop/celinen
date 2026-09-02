@@ -38,3 +38,8 @@
 - [x] Stripe invoices (create + send) and webhook (invoice.paid, charge.succeeded)
 - [x] Wire Earnings ledger + invoices UI to live data (no mock seeds)
 - [x] Client delivery system: galleries, passcode, favourites, downloads (/deliver + /g/:slug) system — gallery links, client favourites, downloads
+
+## 2026-09-02 (culling accuracy)
+- [x] Duplicate detection is subject-aware: near-identical frames where one has closed eyes (or a clearly softer face) are NOT dupes
+- [ ] Client portal: booking requests, client uploads, picks + invoices (blue theme)
+- [ ] Stripe test keys (STRIPE_SECRET_KEY, STRIPE_CONNECT_CLIENT_ID, STRIPE_CONNECT_WEBHOOK_SECRET) — secret form declined, still needed before Connect OAuth / webhook / payment sync can run
