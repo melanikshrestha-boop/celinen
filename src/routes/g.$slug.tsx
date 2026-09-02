@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
 import { openGallery, toggleGalleryFavorite } from "@/lib/delivery.functions";
+import { makeZip } from "@/lib/zip";
 
 export const Route = createFileRoute("/g/$slug")({
   head: () => ({
@@ -33,6 +34,7 @@ function ClientGallery() {
   const [favs, setFavs] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [onlyPicks, setOnlyPicks] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const load = async (code?: string) => {
     const res = (await openGallery({ data: { slug, passcode: code ?? "" } })) as any;
@@ -161,10 +163,11 @@ function ClientGallery() {
           </button>
           {downloads && (
             <button
-              onClick={() => void Promise.all(shown.map(grab))}
-              className="rounded-lg bg-ink px-3 py-1.5 font-mono text-[12px] text-paper2"
+              onClick={() => void grabAll(shown)}
+              disabled={zipping}
+              className="rounded-lg bg-ink px-3 py-1.5 font-mono text-[12px] text-paper2 disabled:opacity-50"
             >
-              Download {onlyPicks ? "favourites" : "all"}
+              {zipping ? "packing originals…" : `Download ${onlyPicks ? "favourites" : "all"} · RAW`}
             </button>
           )}
         </div>
