@@ -7,13 +7,13 @@ import { downloadLightroomPlugin } from "@/lib/lightroom-plugin";
 export const Route = createFileRoute("/adobe")({
   head: () => ({
     meta: [
-      { title: "Adobe Handoff — Lens OS" },
+      { title: "Adobe Handoff — LensLabs" },
       {
         name: "description",
         content:
           "Write XMP and a manifest, describe the Lightroom collection set, import edited returns and resolve field-level conflicts without silent overwrite.",
       },
-      { property: "og:title", content: "Adobe Handoff — Lens OS" },
+      { property: "og:title", content: "Adobe Handoff — LensLabs" },
       {
         property: "og:description",
         content: "Honest Lightroom and Photoshop handoff. Lightroom stays the develop authority.",
@@ -42,7 +42,7 @@ function Adobe() {
 
   const steps: [string, boolean, string][] = [
     ["Import Lightroom folder in the studio", active.sources.length > 0, "Studio → Lightroom folder (reads .xmp sidecars)"],
-    ["Plugin installed and pushing", active.lightroom.returns > 0 || active.lightroom.handoff, "Library → Plug-in Extras → Push selection to Lens OS"],
+    ["Plugin installed and pushing", active.lightroom.returns > 0 || active.lightroom.handoff, "Library → Plug-in Extras → Push selection to LensLabs"],
     ["Picks rated and metadata approved", active.picks.some((p) => p.approved), "Metadata desk → approve"],
     ["Package created and filled", active.packages.length > 0 && picks.length > 0, "Packages → assign picks"],
     ["Edits synced back into the package", active.lightroom.returns > 0, "Import returns below, scoped to one package"],
@@ -52,8 +52,8 @@ function Adobe() {
     <Shell>
       <SectionTitle
         kicker="Adobe"
-        title="Honest handoff. Lens OS does not edit your photos."
-        sub="Lens OS writes XMP and a manifest. Lightroom stays the authority for develop and crop after handoff."
+        title="Honest handoff. LensLabs does not edit your photos."
+        sub="LensLabs writes XMP and a manifest. Lightroom stays the authority for develop and crop after handoff."
       />
 
       <Card className="mb-4">
@@ -93,7 +93,7 @@ function Adobe() {
             <Btn
               onClick={() => {
                 const endpoint = downloadLightroomPlugin();
-                push(`Lens OS.lrplugin downloaded · bridge endpoint ${endpoint}`);
+                push(`LensLabs.lrplugin downloaded · bridge endpoint ${endpoint}`);
               }}
             >
               Download Lightroom plugin
@@ -130,7 +130,7 @@ function Adobe() {
               ["XMP sidecars", `ratings, labels, IPTC, caption, copyright, keywords for ${picks.length} picks`],
               ["Manifest", "asset id, pick/reject, source path, package membership"],
               ["Collection set", `${active.name} → one collection per package`],
-              ["Develop authority", "Lightroom after handoff — Lens OS never rewrites develop settings"],
+              ["Develop authority", "Lightroom after handoff — LensLabs never rewrites develop settings"],
             ].map(([k, v]) => (
               <div key={k} className="border-b border-border pb-3 last:border-0 last:pb-0">
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-moss">{k}</p>
@@ -150,8 +150,8 @@ function Adobe() {
           </div>
 
           <p className="mt-4 text-[12px] text-moss">
-            Lens OS never edits a .lrcat file. Sync happens through XMP sidecars, a manifest and the
-            Lens OS Lightroom plugin — the same path Lightroom itself trusts.
+            LensLabs never edits a .lrcat file. Sync happens through XMP sidecars, a manifest and the
+            LensLabs Lightroom plugin — the same path Lightroom itself trusts.
           </p>
         </Card>
 
@@ -177,7 +177,7 @@ function Adobe() {
                             resolved[key] === "lens" ? "border-rust bg-rust/8" : "border-input"
                           }`}
                         >
-                          <span className="block font-mono text-[10px] uppercase text-moss">Lens OS</span>
+                          <span className="block font-mono text-[10px] uppercase text-moss">LensLabs</span>
                           {c.lens}
                         </button>
                         <button
