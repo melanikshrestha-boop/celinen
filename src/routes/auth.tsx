@@ -74,8 +74,8 @@ function AuthPage() {
     void navigate({ to: safePath(next), replace: true });
   };
 
-  const magicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const magicLink = async (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
     if (!email.trim()) return;
     setError(null);
     setBusy("email");
