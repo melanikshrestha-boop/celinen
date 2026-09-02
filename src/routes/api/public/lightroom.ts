@@ -32,21 +32,43 @@ const json = (data: unknown, status = 200) =>
       "content-type": "application/json",
       "cache-control": "no-store",
       "access-control-allow-origin": "*",
-      "access-control-allow-headers": "content-type",
+      "access-control-allow-headers": "content-type, authorization",
       "access-control-allow-methods": "GET,POST,OPTIONS",
     },
   });
 
 const cleanWorkspace = (value: string | null | undefined) => {
-  const raw = (value ?? "default").trim().toLowerCase();
-  const safe = raw.replace(/[^a-z0-9-_]/g, "").slice(0, 48);
-  return safe || "default";
+  const raw = (value ?? "").trim().toLowerCase();
+  return raw.replace(/[^a-z0-9-_]/g, "").slice(0, 48);
 };
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
 }
+
+/**
+ * The bridge is unauthenticated by URL, so every call must present the studio's
+ * bridge token. The workspace is resolved *from the token*, never from the
+ * client-supplied name alone.
+ */
+async function authorize(request: Request, claimedWorkspace: string) {
+  const token = /^Bearer ([^\s,]+)$/
+    .exec(request.headers.get("authorization") ?? "")?.[1]
+    ?.trim();
+  if (!token || token.length < 20) return null;
+
+  const db = await admin();
+  const { data } = await db
+    .from("lightroom_workspaces")
+    .select("workspace")
+    .eq("token", token)
+    .maybeSingle();
+  if (!data?.workspace) return null;
+  if (claimedWorkspace && claimedWorkspace !== data.workspace) return null;
+  return data.workspace;
+}
+
 
 export const Route = createFileRoute("/api/public/lightroom")({
   server: {
@@ -55,7 +77,8 @@ export const Route = createFileRoute("/api/public/lightroom")({
 
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const workspace = cleanWorkspace(url.searchParams.get("workspace"));
+        const workspace = await authorize(request, cleanWorkspace(url.searchParams.get("workspace")));
+        if (!workspace) return json({ error: "unauthorized" }, 401);
         const direction =
           url.searchParams.get("side") === "studio" ? "to-studio" : "to-lightroom";
 
@@ -87,12 +110,15 @@ export const Route = createFileRoute("/api/public/lightroom")({
           return json({ error: "invalid json" }, 400);
         }
 
+        const workspace = await authorize(request, cleanWorkspace(body.workspace));
+        if (!workspace) return json({ error: "unauthorized" }, 401);
+
         const frames = Array.isArray(body.frames)
           ? body.frames.filter((f) => f && typeof f.file === "string").slice(0, 5000)
           : [];
-        const workspace = cleanWorkspace(body.workspace);
         const direction = body.direction === "to-lightroom" ? "to-lightroom" : "to-studio";
         const at = new Date().toISOString();
+
 
         const db = await admin();
         const { error } = await db.from("lightroom_sync").upsert(

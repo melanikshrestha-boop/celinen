@@ -2,17 +2,38 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
+ * Bind client records to an account only when the account's email is confirmed,
+ * so an unverified sign-up on a guessed client email cannot read their data.
+ */
+async function linkClientRecords(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+  const user = data?.user;
+  if (error || !user?.email || !user.email_confirmed_at) return 0;
+
+  const { data: rows } = await supabaseAdmin
+    .from("clients")
+    .update({ auth_user_id: userId })
+    .is("auth_user_id", null)
+    .ilike("email", user.email)
+    .select("id");
+  return rows?.length ?? 0;
+}
+
+
+/**
  * Client-side of the house: a signed-in client sees only the shoots, invoices
- * and galleries that belong to a client record matching their account.
- * Enforced in the database by public.my_client_ids() + RLS.
+ * and galleries whose client record is linked to their account (clients.auth_user_id).
+ * Linking happens below and requires a *confirmed* account email, so an
+ * unverified sign-up on a guessed address cannot claim someone's records.
  */
 export const getClientPortal = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase;
 
-    // Bind any client records created with this email to the account.
-    await sb.rpc("claim_client_records" as never);
+    await linkClientRecords(context.userId);
+
 
     const { data: clients } = await sb
       .from("clients")

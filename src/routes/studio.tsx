@@ -23,7 +23,9 @@ import {
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
+import { bridgeCredentials, bridgeFetch } from "@/lib/bridge-client";
 import {
+
   bridgeEndpoint,
   downloadLightroomPlugin,
   type BridgeState,
@@ -277,7 +279,7 @@ function Studio() {
   const pullFromLightroom = useCallback(
     async (quiet = false) => {
       try {
-        const res = await fetch(`${bridgeEndpoint()}?side=studio`, { cache: "no-store" });
+        const res = await bridgeFetch(`${bridgeEndpoint()}?side=studio`, { cache: "no-store" });
         const state = (await res.json()) as BridgeState;
         if (!state.at || state.at === lastBridgeAt.current) return;
         lastBridgeAt.current = state.at;
@@ -317,7 +319,7 @@ function Studio() {
         },
       }));
     try {
-      const res = await fetch(bridgeEndpoint(), {
+      const res = await bridgeFetch(bridgeEndpoint(), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind: "verdicts", direction: "to-lightroom", frames }),
@@ -728,8 +730,10 @@ function Studio() {
                     [
                       "Download Lightroom plugin",
                       () => {
-                        const endpoint = downloadLightroomPlugin();
-                        setSyncNote(`Plugin downloaded · endpoint ${endpoint}`);
+                        void bridgeCredentials().then((creds) => {
+                          const endpoint = downloadLightroomPlugin(creds);
+                          setSyncNote(`Plugin downloaded · endpoint ${endpoint}`);
+                        });
                       },
                       false,
                     ],

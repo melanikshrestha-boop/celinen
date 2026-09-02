@@ -399,6 +399,30 @@ export type Database = {
         }
         Relationships: []
       }
+      lightroom_workspaces: {
+        Row: {
+          created_at: string
+          token: string | null
+          token_hash: string | null
+          user_id: string
+          workspace: string
+        }
+        Insert: {
+          created_at?: string
+          token?: string | null
+          token_hash?: string | null
+          user_id: string
+          workspace: string
+        }
+        Update: {
+          created_at?: string
+          token?: string | null
+          token_hash?: string | null
+          user_id?: string
+          workspace?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -592,8 +616,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      claim_client_records: { Args: never; Returns: number }
-      my_client_ids: { Args: never; Returns: string[] }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

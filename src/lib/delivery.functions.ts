@@ -118,10 +118,20 @@ export const addGalleryPhotos = createServerFn({ method: "POST" })
     }) => d,
   )
   .handler(async ({ data, context }) => {
+    // RLS-scoped read: only returns the gallery when the caller owns it.
+    const { data: gallery } = await context.supabase
+      .from("galleries")
+      .select("id")
+      .eq("id", data.gallery_id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!gallery) return { error: "Gallery not found" };
+
     const { count } = await context.supabase
       .from("gallery_photos")
       .select("id", { count: "exact", head: true })
       .eq("gallery_id", data.gallery_id);
+
 
     const rows = data.files.map((f, i) => ({
       gallery_id: data.gallery_id,
