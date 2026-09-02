@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdobeRouteImport } from './routes/adobe'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BookRouteImport } from './routes/book'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as DeliverRouteImport } from './routes/deliver'
@@ -30,6 +31,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
+import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
 import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
@@ -47,6 +49,11 @@ const AdobeRoute = AdobeRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookRoute = BookRouteImport.update({
+  id: '/book',
+  path: '/book',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BusinessRoute = BusinessRouteImport.update({
@@ -139,6 +146,11 @@ const GSlugRoute = GSlugRouteImport.update({
   path: '/g/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const STokenRoute = STokenRouteImport.update({
+  id: '/s/$token',
+  path: '/s/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
@@ -161,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
   '/auth': typeof AuthRoute
+  '/book': typeof BookRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/deliver': typeof DeliverRoute
@@ -179,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
   '/g/$slug': typeof GSlugRoute
+  '/s/$token': typeof STokenRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
@@ -187,6 +201,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
   '/auth': typeof AuthRoute
+  '/book': typeof BookRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/deliver': typeof DeliverRoute
@@ -205,6 +220,7 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
   '/g/$slug': typeof GSlugRoute
+  '/s/$token': typeof STokenRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
@@ -214,6 +230,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
   '/auth': typeof AuthRoute
+  '/book': typeof BookRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/deliver': typeof DeliverRoute
@@ -232,6 +249,7 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
   '/g/$slug': typeof GSlugRoute
+  '/s/$token': typeof STokenRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
@@ -242,6 +260,7 @@ export interface FileRouteTypes {
     | '/'
     | '/adobe'
     | '/auth'
+    | '/book'
     | '/business'
     | '/clients'
     | '/deliver'
@@ -260,6 +279,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/api/chat'
     | '/g/$slug'
+    | '/s/$token'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
@@ -268,6 +288,7 @@ export interface FileRouteTypes {
     | '/'
     | '/adobe'
     | '/auth'
+    | '/book'
     | '/business'
     | '/clients'
     | '/deliver'
@@ -286,6 +307,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/api/chat'
     | '/g/$slug'
+    | '/s/$token'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
@@ -294,6 +316,7 @@ export interface FileRouteTypes {
     | '/'
     | '/adobe'
     | '/auth'
+    | '/book'
     | '/business'
     | '/clients'
     | '/deliver'
@@ -312,6 +335,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/api/chat'
     | '/g/$slug'
+    | '/s/$token'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
@@ -321,6 +345,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdobeRoute: typeof AdobeRoute
   AuthRoute: typeof AuthRoute
+  BookRoute: typeof BookRoute
   BusinessRoute: typeof BusinessRoute
   ClientsRoute: typeof ClientsRoute
   DeliverRoute: typeof DeliverRoute
@@ -339,6 +364,7 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   ApiChatRoute: typeof ApiChatRoute
   GSlugRoute: typeof GSlugRoute
+  STokenRoute: typeof STokenRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
@@ -365,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book': {
+      id: '/book'
+      path: '/book'
+      fullPath: '/book'
+      preLoaderRoute: typeof BookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/business': {
@@ -493,6 +526,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$token': {
+      id: '/s/$token'
+      path: '/s/$token'
+      fullPath: '/s/$token'
+      preLoaderRoute: typeof STokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
@@ -521,6 +561,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
   AuthRoute: AuthRoute,
+  BookRoute: BookRoute,
   BusinessRoute: BusinessRoute,
   ClientsRoute: ClientsRoute,
   DeliverRoute: DeliverRoute,
@@ -539,6 +580,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   ApiChatRoute: ApiChatRoute,
   GSlugRoute: GSlugRoute,
+  STokenRoute: STokenRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,

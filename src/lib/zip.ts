@@ -18,7 +18,10 @@ export function crc32(bytes: Uint8Array) {
 
 export interface ZipEntry {
   path: string;
-  text: string;
+  /** Text payload. Ignored when `bytes` is provided. */
+  text?: string;
+  /** Raw bytes — used for binary files (originals, RAW, etc). */
+  bytes?: Uint8Array;
 }
 
 export function makeZip(entries: ZipEntry[]): Blob {
@@ -43,7 +46,7 @@ export function makeZip(entries: ZipEntry[]): Blob {
 
   for (const entry of entries) {
     const name = enc.encode(entry.path);
-    const data = enc.encode(entry.text);
+    const data = entry.bytes ?? enc.encode(entry.text ?? "");
     const crc = crc32(data);
 
     const local = join([

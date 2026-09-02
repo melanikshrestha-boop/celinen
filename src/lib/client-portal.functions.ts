@@ -200,3 +200,57 @@ export const listClientUploads = createServerFn({ method: "GET" })
       );
     return data.map((u, i) => ({ ...u, url: signed?.[i]?.signedUrl ?? null }));
   });
+
+/* ---------------- guest shoot requests (photographer side) ---------------- */
+
+/**
+ * Photographer inbox: their own requests plus guest requests that no studio has
+ * claimed yet. Guests book without an account, so those rows start unowned.
+ */
+export const listInboxBookings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("booking_requests")
+      .select("id, requester_name, requester_email, shoot_type, preferred_date, status, gallery_id, user_id")
+      .or(`user_id.eq.${context.userId},user_id.is.null`)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    return data ?? [];
+  });
+
+/** Link a delivered gallery to a shoot request so the client's link shows it. */
+export const attachGalleryToBooking = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { booking_id: string; gallery_id: string | null }) => d)
+  .handler(async ({ data, context }) => {
+    if (data.gallery_id) {
+      const { data: gallery } = await context.supabase
+        .from("galleries")
+        .select("id")
+        .eq("id", data.gallery_id)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (!gallery) return { error: "Gallery not found" };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: booking } = await supabaseAdmin
+      .from("booking_requests")
+      .select("id, user_id")
+      .eq("id", data.booking_id)
+      .maybeSingle();
+    if (!booking) return { error: "Request not found" };
+    if (booking.user_id && booking.user_id !== context.userId) return { error: "Not your request" };
+
+    const { error } = await supabaseAdmin
+      .from("booking_requests")
+      .update({
+        gallery_id: data.gallery_id,
+        user_id: context.userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.booking_id);
+    return error ? { error: error.message } : { ok: true };
+  });
