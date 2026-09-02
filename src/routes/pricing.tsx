@@ -248,9 +248,13 @@ function PricingPage() {
                 "Shared packages and receipts",
               ]}
             />
-            <a href="#download" className={`${ctaBase} border border-input text-ink`}>
+            <Link
+              to="/signup"
+              search={{ plan: teamTier.id, billing: cycle }}
+              className={`${ctaBase} border border-input text-ink`}
+            >
               {teamTier.cta}
-            </a>
+            </Link>
           </div>
 
           {/* Enterprise */}
