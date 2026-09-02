@@ -225,6 +225,8 @@ export interface FaceReading {
   faceSharpness: number;
   /** null when the browser reported no eye landmarks */
   eyesOpen: boolean | null;
+  /** normalised (0-1) centre of the largest face — used to bias smart crops */
+  center?: { x: number; y: number } | undefined;
 }
 
 export interface Analysis {
@@ -363,7 +365,7 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
   } catch {
     return null;
   }
-  if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null };
+  if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null, center: undefined };
 
   const biggest = faces.reduce((a, b) =>
     a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b,
@@ -398,7 +400,12 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
     }
     eyesOpen = openCount === eyes.length;
   }
-  return { count: faces.length, faceSharpness, eyesOpen };
+  const center = {
+    x: (box.x + box.width / 2) / bitmap.width,
+    // biased slightly up so the crop keeps headroom, not chin
+    y: (box.y + box.height * 0.42) / bitmap.height,
+  };
+  return { count: faces.length, faceSharpness, eyesOpen, center };
 }
 
 export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
