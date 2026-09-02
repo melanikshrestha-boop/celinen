@@ -122,8 +122,7 @@ function Portal() {
     for (const file of Array.from(files)) {
       setUploading(file.name);
       const slot = await createClientUploadUrl({ data: { filename: file.name } });
-      if ("error" in slot && slot.error) break;
-      if (!("signedUrl" in slot)) break;
+      if (!("signedUrl" in slot) || !slot.signedUrl || !slot.path) break;
       const put = await fetch(slot.signedUrl, { method: "PUT", body: file });
       if (!put.ok) break;
       await recordClientUpload({ data: { storage_path: slot.path, filename: file.name } });
