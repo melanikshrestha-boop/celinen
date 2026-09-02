@@ -138,7 +138,7 @@ export const sendVibeMessage = createServerFn({ method: "POST" })
     const history = (session.messages as VibeMessage[] | null) ?? [];
     const withUser: VibeMessage[] = [
       ...history,
-      { role: "user", content: data.text.trim() },
+      { role: "user" as const, content: data.text.trim() },
     ].slice(-24);
 
     const out = await askAI(withUser);
