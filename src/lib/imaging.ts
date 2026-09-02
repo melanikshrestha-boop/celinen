@@ -453,3 +453,74 @@ export function histogram(canvas: HTMLCanvasElement): number[] {
   const max = Math.max(...bins, 1);
   return bins.map((b) => b / max);
 }
+
+/* ---------------- Lightroom sidecar sync ---------------- */
+
+export interface SidecarSettings {
+  edits: Partial<Edits>;
+  rating: number | null;
+  /** Lightroom pick flag: 1 = flagged/pick, -1 = rejected */
+  pick: number | null;
+}
+
+function num(xml: string, key: string): number | null {
+  const attr = new RegExp(`crs:${key}="([+-]?[0-9.]+)"`).exec(xml);
+  const tag = new RegExp(`<crs:${key}>([+-]?[0-9.]+)</crs:${key}>`).exec(xml);
+  const raw = attr?.[1] ?? tag?.[1];
+  return raw === undefined ? null : Number(raw);
+}
+
+/** Parse a Lightroom .xmp sidecar into Lens OS edit values. */
+export function parseXmpSidecar(xml: string): SidecarSettings {
+  const edits: Partial<Edits> = {};
+  const exposure = num(xml, "Exposure2012");
+  if (exposure !== null) edits.exposure = Math.max(-100, Math.min(100, exposure * 20));
+  const contrast = num(xml, "Contrast2012");
+  if (contrast !== null) edits.contrast = contrast;
+  const highlights = num(xml, "Highlights2012");
+  if (highlights !== null) edits.highlights = highlights;
+  const shadows = num(xml, "Shadows2012");
+  if (shadows !== null) edits.shadows = shadows;
+  const sat = num(xml, "Saturation");
+  if (sat !== null) edits.saturation = sat;
+  const temp = num(xml, "Temperature");
+  if (temp !== null) {
+    // Lightroom stores kelvin; 5500K is neutral for Lens OS.
+    edits.temp = Math.max(-100, Math.min(100, ((temp - 5500) / 4500) * 100));
+  }
+
+  const ratingRaw =
+    /xmp:Rating="(-?\d+)"/.exec(xml)?.[1] ?? /<xmp:Rating>(-?\d+)<\/xmp:Rating>/.exec(xml)?.[1];
+  const pickRaw = /crs:Pick="(-?\d+)"/.exec(xml)?.[1];
+  return {
+    edits,
+    rating: ratingRaw === undefined ? null : Number(ratingRaw),
+    pick: pickRaw === undefined ? null : Number(pickRaw),
+  };
+}
+
+/** Write a Lightroom-readable .xmp sidecar from Lens OS edits. */
+export function buildXmpSidecar(edits: Edits, verdict: Verdict, rating: number) {
+  const kelvin = Math.round(5500 + (edits.temp / 100) * 4500);
+  return `<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+    xmp:Rating="${rating}"
+    crs:Pick="${verdict === "keep" ? 1 : verdict === "reject" ? -1 : 0}"
+    crs:Exposure2012="${(edits.exposure / 20).toFixed(2)}"
+    crs:Contrast2012="${Math.round(edits.contrast)}"
+    crs:Highlights2012="${Math.round(edits.highlights)}"
+    crs:Shadows2012="${Math.round(edits.shadows)}"
+    crs:Saturation="${Math.round(edits.saturation)}"
+    crs:Temperature="${kelvin}"
+    crs:ProcessVersion="11.0"/>
+ </rdf:RDF>
+</x:xmpmeta>`;
+}
+
+export function baseName(name: string) {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? name.slice(0, i) : name;
+}
