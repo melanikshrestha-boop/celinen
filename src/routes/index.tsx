@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Footer, Nav } from "@/components/Nav";
+import { Fade } from "@/components/Fade";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -119,7 +120,7 @@ function Index() {
         </div>
       </div>
 
-      <section className="mx-auto w-full max-w-[1000px] px-6 py-24">
+      <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 py-24">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Integrations</p>
         <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
           Plugs into <span className="text-rust">Adobe</span>. Replaces the rest.
@@ -172,10 +173,10 @@ function Index() {
             <p className="mt-1 text-sm text-paper2/70">No jargon, no five subscriptions.</p>
           </div>
         </div>
-      </section>
+      </Fade>
 
 
-      <section className="mx-auto w-full max-w-[1000px] px-6 pb-24">
+      <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 pb-24">
         <div className="rounded-3xl border border-border bg-card p-8 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-12">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Portfolio</p>
           <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
@@ -204,7 +205,7 @@ function Index() {
             )}
           </div>
         </div>
-      </section>
+      </Fade>
 
       <Footer />
 
