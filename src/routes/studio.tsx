@@ -437,7 +437,141 @@ function Studio() {
     setBusy(null);
   };
 
+  /* ---------------- assistant ---------------- */
+  const chatContext = useMemo(() => {
+    if (!shots.length) return "No shoot loaded yet. Use import_photos to open the picker.";
+    const flagCount: Record<string, number> = {};
+    for (const s of shots) for (const f of s.flags) flagCount[f] = (flagCount[f] ?? 0) + 1;
+    return [
+      `${counts.all} frames · ${counts.keepers} keepers · ${counts.rejected} rejected · ${counts.todo} still undecided`,
+      `flags: ${Object.entries(flagCount).map(([f, n]) => `${f} ${n}`).join(", ") || "none"}`,
+      `filter showing: ${filter}`,
+      selected
+        ? `open frame: ${selected.name} (score ${selected.score}, ${selected.verdict})`
+        : "no frame open",
+    ].join("\n");
+  }, [shots, counts, filter, selected]);
+
+  const executeTool = useCallback(
+    async ({ name, args }: ToolCall): Promise<string> => {
+      const num = (k: string) => (typeof args[k] === "number" ? (args[k] as number) : undefined);
+      switch (name) {
+        case "import_photos":
+          inputRef.current?.click();
+          return "file picker opened";
+        case "cull": {
+          const min = num("min_score") ?? 45;
+          const keepAt = num("keep_score") ?? 70;
+          let kept = 0;
+          let rejected = 0;
+          setShots((prev) =>
+            prev.map((s) => {
+              if (s.error) return s;
+              const bad =
+                s.flags.includes("blur") ||
+                s.flags.includes("duplicate") ||
+                s.flags.includes("eyes-closed") ||
+                s.score < min;
+              if (bad) rejected++;
+              else if (s.score >= keepAt) kept++;
+              return { ...s, verdict: bad ? "reject" : s.score >= keepAt ? "keep" : s.verdict };
+            }),
+          );
+          return `culled ${shots.length} frames — ${kept} kept, ${rejected} rejected`;
+        }
+        case "keep_top": {
+          const n = Math.max(1, Math.round(num("n") ?? 10));
+          const ranked = [...shots]
+            .filter((s) => !s.error)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, n);
+          const ids = new Set(ranked.map((s) => s.id));
+          setShots((prev) =>
+            prev.map((s) =>
+              s.error ? s : { ...s, verdict: ids.has(s.id) ? "keep" : "reject" },
+            ),
+          );
+          return `kept top ${ids.size}, rejected the rest`;
+        }
+        case "reject_flagged": {
+          const flags = (Array.isArray(args.flags) ? args.flags : []) as Flag[];
+          let n = 0;
+          setShots((prev) =>
+            prev.map((s) => {
+              if (s.error || !s.flags.some((f) => flags.includes(f))) return s;
+              n++;
+              return { ...s, verdict: "reject" };
+            }),
+          );
+          return `rejected ${n} frames flagged ${flags.join(", ")}`;
+        }
+        case "set_filter": {
+          const f = String(args.filter ?? "all") as Filter;
+          setFilter(f);
+          return `showing ${f}`;
+        }
+        case "select_photo": {
+          const q = String(args.query ?? "").trim().toLowerCase();
+          const pool = shots.filter((s) => !s.error);
+          if (!pool.length) return "nothing to open";
+          let target = pool.find((s) => s.name.toLowerCase().includes(q));
+          if (!target && q === "best") target = [...pool].sort((a, b) => b.score - a.score)[0];
+          if (!target && q === "worst") target = [...pool].sort((a, b) => a.score - b.score)[0];
+          if (!target && /^\d+$/.test(q)) target = pool[Number(q) - 1];
+          if (!target) return `no frame matched "${q}"`;
+          setSelectedId(target.id);
+          return `opened ${target.name}`;
+        }
+        case "apply_edits": {
+          const patch: Partial<Edits> = {};
+          const map: [string, keyof Edits][] = [
+            ["exposure", "exposure"],
+            ["contrast", "contrast"],
+            ["temperature", "temp"],
+            ["saturation", "saturation"],
+            ["highlights", "highlights"],
+            ["shadows", "shadows"],
+          ];
+          for (const [from, to] of map) {
+            const v = num(from);
+            if (v !== undefined) (patch as Record<string, unknown>)[to] = Math.max(-100, Math.min(100, v));
+          }
+          if (typeof args.crop === "string") patch.crop = args.crop as Edits["crop"];
+          if (!Object.keys(patch).length) return "no settings given";
+          const toKeepers = args.target === "keepers";
+          let n = 0;
+          setShots((prev) =>
+            prev.map((s) => {
+              const hit = toKeepers ? s.verdict === "keep" : s.id === selectedId;
+              if (!hit || s.error) return s;
+              n++;
+              return { ...s, edits: { ...s.edits, ...patch } };
+            }),
+          );
+          return `applied ${Object.keys(patch).join(", ")} to ${n} frame${n === 1 ? "" : "s"}`;
+        }
+        case "export_keepers": {
+          const n = shots.filter((s) => s.verdict === "keep" && !s.error).length;
+          if (!n) return "no keepers to export";
+          void exportKeepers();
+          return `exporting ${n} keepers in the background`;
+        }
+        case "write_xmp": {
+          const n = shots.filter((s) => s.verdict !== "undecided" && !s.error).length;
+          if (!n) return "nothing decided yet";
+          exportSidecars();
+          return `wrote ${n} xmp sidecars`;
+        }
+        default:
+          return "unknown tool";
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shots, selectedId],
+  );
+
   /** Write .xmp sidecars Lightroom picks up on folder re-read. */
+
   const exportSidecars = () => {
     const done = shots.filter((s) => s.verdict !== "undecided" && !s.error);
     for (const shot of done) {
