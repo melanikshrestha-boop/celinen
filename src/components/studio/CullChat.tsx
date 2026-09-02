@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ToolName =
+  | "auto_refine"
   | "cull"
   | "keep_top"
   | "reject_flagged"
