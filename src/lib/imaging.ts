@@ -534,8 +534,9 @@ export function renderToCanvas(
   bitmap: ImageBitmap,
   edits: Edits,
   maxSide = 1400,
+  focus?: { x: number; y: number } | null,
 ) {
-  const { sx, sy, sw, sh } = cropRect(bitmap.width, bitmap.height, edits.crop);
+  const { sx, sy, sw, sh } = cropRect(bitmap.width, bitmap.height, edits.crop, focus);
   const scale = Math.min(1, maxSide / Math.max(sw, sh));
   const w = Math.max(1, Math.round(sw * scale));
   const h = Math.max(1, Math.round(sh * scale));
@@ -548,9 +549,14 @@ export function renderToCanvas(
   ctx.putImageData(img, 0, 0);
 }
 
-export async function exportShot(bitmap: ImageBitmap, edits: Edits, name: string) {
+export async function exportShot(
+  bitmap: ImageBitmap,
+  edits: Edits,
+  name: string,
+  focus?: { x: number; y: number } | null,
+) {
   const canvas = document.createElement("canvas");
-  renderToCanvas(canvas, bitmap, edits, 4000);
+  renderToCanvas(canvas, bitmap, edits, 4000, focus);
   const blob: Blob | null = await new Promise((res) =>
     canvas.toBlob((b) => res(b), "image/jpeg", 0.92),
   );
