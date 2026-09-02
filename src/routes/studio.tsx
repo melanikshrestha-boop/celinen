@@ -8,7 +8,12 @@ import {
   type Shot,
   type Verdict,
   analyseBitmap,
+  analyseFaces,
+  baseName,
+  buildXmpSidecar,
   decodeFile,
+  faceDetectionAvailable,
+  parseXmpSidecar,
   exportShot,
   hamming,
   histogram,
@@ -40,6 +45,16 @@ export const Route = createFileRoute("/studio")({
 
 type Filter = "all" | "keepers" | "flagged" | "rejected" | "todo";
 
+const FLAG_LABEL: Record<Flag, string> = {
+  soft: "soft focus",
+  blur: "blurred",
+  underexposed: "underexposed",
+  overexposed: "blown highlights",
+  duplicate: "duplicate",
+  "face-soft": "face not sharp",
+  "eyes-closed": "eyes closed",
+};
+
 const CROPS: Edits["crop"][] = ["orig", "1:1", "4:5", "3:2", "16:9"];
 
 function Studio() {
@@ -53,9 +68,28 @@ function Studio() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bitmapCache = useRef(new Map<string, ImageBitmap>());
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
+  const [faceEngine, setFaceEngine] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+
+  useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
   /* ---------------- import ---------------- */
   const importFiles = useCallback(async (files: File[]) => {
+    // Lightroom folders carry .xmp sidecars next to the negatives.
+    const sidecars = new Map<string, string>();
+    const sidecarFiles = files.filter((f) => f.name.toLowerCase().endsWith(".xmp"));
+    for (const f of sidecarFiles) {
+      try {
+        sidecars.set(baseName(f.name).toLowerCase(), await f.text());
+      } catch {
+        /* unreadable sidecar is simply skipped */
+      }
+    }
+    files = files.filter((f) => !f.name.toLowerCase().endsWith(".xmp"));
+    if (sidecars.size) {
+      setSyncNote(`${sidecars.size} Lightroom sidecar${sidecars.size === 1 ? "" : "s"} read — develop settings and picks applied.`);
+    }
     if (!files.length) return;
     setProgress({ done: 0, total: files.length });
     const added: Shot[] = [];
@@ -67,7 +101,11 @@ function Studio() {
       try {
         const bitmap = await decodeFile(file);
         const analysis = analyseBitmap(bitmap);
-        const { score, flags } = scoreOf(analysis);
+        const faces = await analyseFaces(bitmap);
+        const { score, flags } = scoreOf({ ...analysis, faces });
+
+        const sidecar = sidecars.get(baseName(file.name).toLowerCase());
+        const parsed = sidecar ? parseXmpSidecar(sidecar) : null;
 
         const thumb = document.createElement("canvas");
         const s = Math.min(1, 480 / Math.max(bitmap.width, bitmap.height));
@@ -92,8 +130,14 @@ function Studio() {
           hash: analysis.hash,
           score,
           flags,
-          verdict: "undecided",
-          edits: { ...DEFAULT_EDITS },
+          verdict:
+            parsed?.pick === 1 || (parsed?.rating ?? 0) >= 3
+              ? "keep"
+              : parsed?.pick === -1
+                ? "reject"
+                : "undecided",
+          edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
+          faces: faces ?? undefined,
         });
         bitmap.close?.();
       } catch (err) {
@@ -237,7 +281,11 @@ function Studio() {
     setShots((prev) =>
       prev.map((s) => {
         if (s.error) return s;
-        const bad = s.flags.includes("blur") || s.flags.includes("duplicate") || s.score < 45;
+        const bad =
+          s.flags.includes("blur") ||
+          s.flags.includes("duplicate") ||
+          s.flags.includes("eyes-closed") ||
+          s.score < 45;
         return { ...s, verdict: bad ? "reject" : s.score >= 70 ? "keep" : s.verdict };
       }),
     );
@@ -261,6 +309,23 @@ function Studio() {
       await new Promise((r) => setTimeout(r, 250));
     }
     setBusy(null);
+  };
+
+  /** Write .xmp sidecars Lightroom picks up on folder re-read. */
+  const exportSidecars = () => {
+    const done = shots.filter((s) => s.verdict !== "undecided" && !s.error);
+    for (const shot of done) {
+      const rating =
+        shot.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(shot.score / 20)));
+      const xml = buildXmpSidecar(shot.edits, shot.verdict, rating);
+      const url = URL.createObjectURL(new Blob([xml], { type: "application/rdf+xml" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${baseName(shot.name)}.xmp`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    setSyncNote(`${done.length} sidecar${done.length === 1 ? "" : "s"} written — re-read metadata in Lightroom to sync.`);
   };
 
   /* ---------------- keyboard ---------------- */
@@ -307,6 +372,19 @@ function Studio() {
             Import shoot
           </button>
           <button
+            onClick={() => folderRef.current?.click()}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
+          >
+            Lightroom folder
+          </button>
+          <button
+            onClick={exportSidecars}
+            disabled={!shots.some((s) => s.verdict !== "undecided")}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
+          >
+            Sync XMP back
+          </button>
+          <button
             onClick={autoCull}
             disabled={!shots.length}
             className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
@@ -322,10 +400,23 @@ function Studio() {
           </button>
         </div>
         <input
+          ref={folderRef}
+          type="file"
+          multiple
+          // @ts-expect-error non-standard directory picker attributes
+          webkitdirectory=""
+          directory=""
+          className="hidden"
+          onChange={(e) => {
+            void importFiles(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
+        <input
           ref={inputRef}
           type="file"
           multiple
-          accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw"
+          accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw,.xmp"
           className="hidden"
           onChange={(e) => {
             void importFiles(Array.from(e.target.files ?? []));
@@ -333,6 +424,11 @@ function Studio() {
           }}
         />
       </header>
+
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-6 pb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+        <span>{faceEngine ? "Face + eye engine · on" : "Face + eye engine · unavailable in this browser"}</span>
+        {syncNote && <span className="text-rust normal-case tracking-normal">{syncNote}</span>}
+      </div>
 
       {progress && (
         <div className="mx-auto max-w-[1600px] px-6 pb-4">
@@ -496,12 +592,22 @@ function Studio() {
                             key={f}
                             className="rounded-full bg-sun px-2 py-0.5 text-[10px] text-ink"
                           >
-                            {f}
+                            {FLAG_LABEL[f]}
                           </span>
                         ))}
                         <span className="rounded-full bg-moss px-2 py-0.5 text-paper2">
                           score {selected.score}
                         </span>
+                        {selected.faces && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            {selected.faces.count} face{selected.faces.count === 1 ? "" : "s"}
+                            {selected.faces.eyesOpen === null
+                              ? ""
+                              : selected.faces.eyesOpen
+                                ? " · eyes open"
+                                : " · eyes closed"}
+                          </span>
+                        )}
                       </span>
                     </div>
 

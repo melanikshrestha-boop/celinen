@@ -10,7 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdobeRouteImport } from './routes/adobe'
+import { Route as BusinessRouteImport } from './routes/business'
+import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as DeskRouteImport } from './routes/desk'
+import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as MetadataRouteImport } from './routes/metadata'
+import { Route as PackagesRouteImport } from './routes/packages'
+import { Route as PickRouteImport } from './routes/pick'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as SendRouteImport } from './routes/send'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StudioRouteImport } from './routes/studio'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +29,64 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdobeRoute = AdobeRouteImport.update({
+  id: '/adobe',
+  path: '/adobe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BusinessRoute = BusinessRouteImport.update({
+  id: '/business',
+  path: '/business',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeskRoute = DeskRouteImport.update({
+  id: '/desk',
+  path: '/desk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EarningsRoute = EarningsRouteImport.update({
+  id: '/earnings',
+  path: '/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MetadataRoute = MetadataRouteImport.update({
+  id: '/metadata',
+  path: '/metadata',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PackagesRoute = PackagesRouteImport.update({
+  id: '/packages',
+  path: '/packages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PickRoute = PickRouteImport.update({
+  id: '/pick',
+  path: '/pick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SendRoute = SendRouteImport.update({
+  id: '/send',
+  path: '/send',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudioRoute = StudioRouteImport.update({
@@ -31,31 +97,118 @@ const StudioRoute = StudioRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/adobe': typeof AdobeRoute
+  '/business': typeof BusinessRoute
+  '/clients': typeof ClientsRoute
+  '/desk': typeof DeskRoute
+  '/earnings': typeof EarningsRoute
+  '/metadata': typeof MetadataRoute
+  '/packages': typeof PackagesRoute
+  '/pick': typeof PickRoute
+  '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/send': typeof SendRoute
+  '/settings': typeof SettingsRoute
   '/studio': typeof StudioRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/adobe': typeof AdobeRoute
+  '/business': typeof BusinessRoute
+  '/clients': typeof ClientsRoute
+  '/desk': typeof DeskRoute
+  '/earnings': typeof EarningsRoute
+  '/metadata': typeof MetadataRoute
+  '/packages': typeof PackagesRoute
+  '/pick': typeof PickRoute
+  '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/send': typeof SendRoute
+  '/settings': typeof SettingsRoute
   '/studio': typeof StudioRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/adobe': typeof AdobeRoute
+  '/business': typeof BusinessRoute
+  '/clients': typeof ClientsRoute
+  '/desk': typeof DeskRoute
+  '/earnings': typeof EarningsRoute
+  '/metadata': typeof MetadataRoute
+  '/packages': typeof PackagesRoute
+  '/pick': typeof PickRoute
+  '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/send': typeof SendRoute
+  '/settings': typeof SettingsRoute
   '/studio': typeof StudioRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pricing' | '/studio'
+  fullPaths:
+    | '/'
+    | '/adobe'
+    | '/business'
+    | '/clients'
+    | '/desk'
+    | '/earnings'
+    | '/metadata'
+    | '/packages'
+    | '/pick'
+    | '/portfolio'
+    | '/pricing'
+    | '/send'
+    | '/settings'
+    | '/studio'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pricing' | '/studio'
-  id: '__root__' | '/' | '/pricing' | '/studio'
+  to:
+    | '/'
+    | '/adobe'
+    | '/business'
+    | '/clients'
+    | '/desk'
+    | '/earnings'
+    | '/metadata'
+    | '/packages'
+    | '/pick'
+    | '/portfolio'
+    | '/pricing'
+    | '/send'
+    | '/settings'
+    | '/studio'
+  id:
+    | '__root__'
+    | '/'
+    | '/adobe'
+    | '/business'
+    | '/clients'
+    | '/desk'
+    | '/earnings'
+    | '/metadata'
+    | '/packages'
+    | '/pick'
+    | '/portfolio'
+    | '/pricing'
+    | '/send'
+    | '/settings'
+    | '/studio'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdobeRoute: typeof AdobeRoute
+  BusinessRoute: typeof BusinessRoute
+  ClientsRoute: typeof ClientsRoute
+  DeskRoute: typeof DeskRoute
+  EarningsRoute: typeof EarningsRoute
+  MetadataRoute: typeof MetadataRoute
+  PackagesRoute: typeof PackagesRoute
+  PickRoute: typeof PickRoute
+  PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
+  SendRoute: typeof SendRoute
+  SettingsRoute: typeof SettingsRoute
   StudioRoute: typeof StudioRoute
 }
 
@@ -68,11 +221,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/adobe': {
+      id: '/adobe'
+      path: '/adobe'
+      fullPath: '/adobe'
+      preLoaderRoute: typeof AdobeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/business': {
+      id: '/business'
+      path: '/business'
+      fullPath: '/business'
+      preLoaderRoute: typeof BusinessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/desk': {
+      id: '/desk'
+      path: '/desk'
+      fullPath: '/desk'
+      preLoaderRoute: typeof DeskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/earnings': {
+      id: '/earnings'
+      path: '/earnings'
+      fullPath: '/earnings'
+      preLoaderRoute: typeof EarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/metadata': {
+      id: '/metadata'
+      path: '/metadata'
+      fullPath: '/metadata'
+      preLoaderRoute: typeof MetadataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/packages': {
+      id: '/packages'
+      path: '/packages'
+      fullPath: '/packages'
+      preLoaderRoute: typeof PackagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pick': {
+      id: '/pick'
+      path: '/pick'
+      fullPath: '/pick'
+      preLoaderRoute: typeof PickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/send': {
+      id: '/send'
+      path: '/send'
+      fullPath: '/send'
+      preLoaderRoute: typeof SendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/studio': {
@@ -87,7 +317,18 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdobeRoute: AdobeRoute,
+  BusinessRoute: BusinessRoute,
+  ClientsRoute: ClientsRoute,
+  DeskRoute: DeskRoute,
+  EarningsRoute: EarningsRoute,
+  MetadataRoute: MetadataRoute,
+  PackagesRoute: PackagesRoute,
+  PickRoute: PickRoute,
+  PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
+  SendRoute: SendRoute,
+  SettingsRoute: SettingsRoute,
   StudioRoute: StudioRoute,
 }
 export const routeTree = rootRouteImport
