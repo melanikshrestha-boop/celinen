@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
 
 export type ToolName =
   | "auto_refine"
@@ -208,9 +210,16 @@ export function CullChat({
       const used: { name: string; result: string }[] = [];
       try {
         for (let round = 0; round < 6; round++) {
+          const { data: session } = await supabase.auth.getSession();
+          const accessToken = session.session?.access_token;
+          if (!accessToken) throw new Error("sign in to use the assistant");
           const res = await fetch("/api/chat", {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${accessToken}`,
+            },
+
             body: JSON.stringify({
               messages: [
                 {

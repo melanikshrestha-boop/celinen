@@ -38,12 +38,14 @@ return {
 }
 `;
 
-const CONFIG_LUA = (endpoint: string, workspace: string) => `-- LensLabs bridge settings.
+const CONFIG_LUA = (endpoint: string, workspace: string, token: string) => `-- LensLabs bridge settings.
 -- endpoint  : the live LensLabs sync URL (only change this if you self-host).
 -- workspace : the studio this catalog syncs into (see Adobe tab in LensLabs).
+-- token     : private key for this studio. Keep this file to yourself.
 return {
   endpoint = '${endpoint}',
   workspace = '${workspace}',
+  token = '${token}',
 }
 `;
 
@@ -70,7 +72,7 @@ function M.endpoint()
 end
 
 function M.workspace()
-  return config.workspace or 'default'
+  return config.workspace or ''
 end
 
 local function withQuery(url, query)
@@ -108,21 +110,31 @@ function M.readPhoto(photo)
   }
 end
 
+function M.token()
+  return config.token or ''
+end
+
+function M.headers(json)
+  local h = { { field = 'Authorization', value = 'Bearer ' .. M.token() } }
+  if json then table.insert(h, { field = 'Content-Type', value = 'application/json' }) end
+  return h
+end
+
 function M.post(body)
   body.workspace = M.workspace()
   body.direction = 'to-studio'
   local payload = JSON:encode(body)
-  local headers = { { field = 'Content-Type', value = 'application/json' } }
-  return LrHttp.post(M.endpoint(), payload, headers)
+  return LrHttp.post(M.endpoint(), payload, M.headers(true))
 end
 
 function M.get()
-  local body = LrHttp.get(withQuery(M.endpoint(), 'workspace=' .. M.workspace()))
+  local body = LrHttp.get(withQuery(M.endpoint(), 'workspace=' .. M.workspace()), M.headers(false))
   if not body then return nil end
   local ok, parsed = pcall(function() return JSON:decode(body) end)
   if ok then return parsed end
   return nil
 end
+
 
 -- XMP on disk keeps Lightroom and LensLabs honest with each other.
 function M.writeSidecar(photo)
@@ -334,7 +346,7 @@ end
 return JSON
 `;
 
-const README = (endpoint: string, workspace = "default") => `LensLabs — Lightroom Classic plugin
+const README = (endpoint: string, workspace: string) => `LensLabs — Lightroom Classic plugin
 ==================================
 
 Install
@@ -362,10 +374,10 @@ Library → Plug-in Extras → "Start live sync (every 5s)"
 LensLabs never touches your .lrcat. All sync goes through XMP + this plugin.
 `;
 
-export function pluginFiles(endpoint: string, workspace = "default") {
+export function pluginFiles(endpoint: string, workspace: string, token: string) {
   return [
     { path: "LensLabs.lrplugin/Info.lua", text: INFO_LUA(endpoint) },
-    { path: "LensLabs.lrplugin/LensLabsConfig.lua", text: CONFIG_LUA(endpoint, workspace) },
+    { path: "LensLabs.lrplugin/LensLabsConfig.lua", text: CONFIG_LUA(endpoint, workspace, token) },
     { path: "LensLabs.lrplugin/LensLabsBridge.lua", text: COMMON_LUA },
     { path: "LensLabs.lrplugin/LensLabsMetadata.lua", text: METADATA_LUA },
     { path: "LensLabs.lrplugin/LensLabsPush.lua", text: PUSH_LUA },
@@ -376,11 +388,11 @@ export function pluginFiles(endpoint: string, workspace = "default") {
   ];
 }
 
-export function downloadLightroomPlugin(workspace = "default") {
+export function downloadLightroomPlugin(credentials: { workspace: string; token: string }) {
   // Always the live domain: Lightroom runs outside the browser and cannot reach
   // a preview or localhost origin.
   const endpoint = bridgeEndpoint();
-  const blob = makeZip(pluginFiles(endpoint, workspace));
+  const blob = makeZip(pluginFiles(endpoint, credentials.workspace, credentials.token));
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -229,6 +229,90 @@ const titleCase = (s: string) =>
     .trim()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+/* ----------------- SSRF guard ----------------- */
+
+function ipv4Blocked(ip: string): boolean {
+  const p = ip.split(".").map(Number);
+  if (p.length !== 4 || p.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+  const [a, b] = p as [number, number, number, number];
+  if (a === 0 || a === 10 || a === 127) return true; // this-net, private, loopback
+  if (a === 169 && b === 254) return true; // link-local + cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true; // private
+  if (a === 192 && b === 168) return true; // private
+  if (a === 192 && b === 0) return true; // ietf special use
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  if (a >= 224) return true; // multicast + reserved
+  return false;
+}
+
+function ipv6Blocked(ip: string): boolean {
+  const v = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (v === "::" || v === "::1") return true;
+  if (v.startsWith("fe8") || v.startsWith("fe9") || v.startsWith("fea") || v.startsWith("feb"))
+    return true; // link-local
+  if (/^f[cd]/.test(v)) return true; // unique local
+  if (v.startsWith("::ffff:")) {
+    const mapped = v.slice(7);
+    return mapped.includes(".") ? ipv4Blocked(mapped) : true;
+  }
+  return false;
+}
+
+const isIpLiteral = (host: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":");
+
+/** Resolve the hostname and reject anything that points at an internal address. */
+async function assertPublicHost(hostname: string) {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal"))
+    throw new Error("Private addresses cannot be imported.");
+
+  if (isIpLiteral(host)) {
+    if (host.includes(":") ? ipv6Blocked(host) : ipv4Blocked(host))
+      throw new Error("Private addresses cannot be imported.");
+    return;
+  }
+
+  const lookup = async (type: "A" | "AAAA") => {
+    const res = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=${type}`,
+      { headers: { accept: "application/dns-json" } },
+    );
+    if (!res.ok) return [] as string[];
+    const body = (await res.json()) as { Answer?: { type: number; data: string }[] };
+    return (body.Answer ?? [])
+      .filter((a) => a.type === (type === "A" ? 1 : 28))
+      .map((a) => a.data.trim());
+  };
+
+  const [v4, v6] = await Promise.all([lookup("A"), lookup("AAAA")]);
+  const all = [...v4, ...v6];
+  if (!all.length) throw new Error("That address could not be resolved.");
+  if (all.some((ip) => (ip.includes(":") ? ipv6Blocked(ip) : ipv4Blocked(ip))))
+    throw new Error("Private addresses cannot be imported.");
+}
+
+/** Fetch with every redirect hop re-validated against the SSRF guard. */
+async function safeFetch(startUrl: string): Promise<Response> {
+  let url = startUrl;
+  for (let hop = 0; hop < 5; hop++) {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) throw new Error("Only http(s) links work.");
+    await assertPublicHost(parsed.hostname);
+    const res = await fetch(url, {
+      headers: { "user-agent": UA, accept: "text/html,*/*" },
+      redirect: "manual",
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) return res;
+      url = new URL(location, url).toString();
+      continue;
+    }
+    return res;
+  }
+  throw new Error("That site redirected too many times.");
+}
+
 export const importPortfolio = createServerFn({ method: "POST" })
   .inputValidator((data: { url: string }) => {
     const raw = String(data?.url ?? "").trim();
@@ -241,18 +325,14 @@ export const importPortfolio = createServerFn({ method: "POST" })
       throw new Error("That does not look like a web address.");
     }
     if (!/^https?:$/.test(parsed.protocol)) throw new Error("Only http(s) links work.");
-    if (/^(localhost|127\.|10\.|192\.168\.|0\.)/i.test(parsed.hostname))
-      throw new Error("Private addresses cannot be imported.");
     return { url: parsed.toString() };
   })
   .handler(async ({ data }): Promise<ImportedSite> => {
-    const res = await fetch(data.url, {
-      headers: { "user-agent": UA, accept: "text/html,*/*" },
-      redirect: "follow",
-    });
+    const res = await safeFetch(data.url);
     if (!res.ok) throw new Error(`That site answered ${res.status}.`);
     const html = (await res.text()).slice(0, 2_000_000);
     const base = new URL(res.url || data.url);
+
 
     const rawTitle =
       meta(html, "og:site_name") ||

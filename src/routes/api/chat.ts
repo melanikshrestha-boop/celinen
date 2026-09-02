@@ -9,6 +9,31 @@ export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Paid AI calls are for signed-in users only.
+        const authHeader = request.headers.get("authorization") ?? "";
+        const token = /^Bearer (.+)$/.exec(authHeader)?.[1]?.trim();
+        const unauthorized = () =>
+          new Response(JSON.stringify({ error: "Sign in to use the assistant." }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          });
+        if (!token || token.split(".").length !== 3) return unauthorized();
+
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseUrl = process.env["SUPABASE_URL"];
+        const supabaseKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
+        if (!supabaseUrl || !supabaseKey) {
+          return new Response(JSON.stringify({ error: "Auth is not configured." }), {
+            status: 500,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        const authClient = createClient(supabaseUrl, supabaseKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const { data: claims, error: claimsError } = await authClient.auth.getClaims(token);
+        if (claimsError || !claims?.claims?.sub) return unauthorized();
+
         const { messages, tools } = (await request.json()) as Body;
         if (!Array.isArray(messages)) {
           return new Response(JSON.stringify({ error: "messages required" }), {
@@ -16,6 +41,7 @@ export const Route = createFileRoute("/api/chat")({
             headers: { "content-type": "application/json" },
           });
         }
+
 
         const key = process.env["LOVABLE_API_KEY"];
         if (!key) {
