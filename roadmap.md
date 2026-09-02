@@ -23,3 +23,9 @@
 - [x] Portfolio: paste existing Pixieset/Squarespace URL -> replicate + edit
 - [x] Auth: LegionEdge-style sign in / sign up pages for "Get started"
 - [x] Light mode accent = blue (not red); tagline "Go create more."
+
+## 2026-09-02 (later)
+- [x] REPLACES card: real logos + monthly cost of the average photographer stack
+- [x] Portfolio replication redo — copies palette, type, nav, layout, hero (editable)
+- [ ] Culling speed: any image type, ~2s for a full drop, with live timing readout
+- [ ] Publish to lenslab.dev and verify pricing / plugin / portfolio live
