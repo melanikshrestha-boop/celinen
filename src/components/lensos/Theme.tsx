@@ -18,7 +18,7 @@ export function ThemeToggle({ className }: { className?: string | undefined }) {
   const flip = () => {
     const next: Mode = mode === "dark" ? "light" : "dark";
     setMode(next);
-    localStorage.setItem("lensos-theme", next);
+    localStorage.setItem("lenslabs-theme", next);
     document.documentElement.classList.toggle("dark", next === "dark");
   };
 
