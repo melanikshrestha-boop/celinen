@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdobeRouteImport } from './routes/adobe'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -35,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdobeRoute = AdobeRouteImport.update({
   id: '/adobe',
   path: '/adobe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BusinessRoute = BusinessRouteImport.update({
@@ -116,6 +122,7 @@ const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/desk': typeof DeskRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/desk': typeof DeskRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/desk': typeof DeskRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/adobe'
+    | '/auth'
     | '/business'
     | '/clients'
     | '/desk'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/adobe'
+    | '/auth'
     | '/business'
     | '/clients'
     | '/desk'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/adobe'
+    | '/auth'
     | '/business'
     | '/clients'
     | '/desk'
@@ -234,6 +246,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdobeRoute: typeof AdobeRoute
+  AuthRoute: typeof AuthRoute
   BusinessRoute: typeof BusinessRoute
   ClientsRoute: typeof ClientsRoute
   DeskRoute: typeof DeskRoute
@@ -265,6 +278,13 @@ declare module '@tanstack/react-router' {
       path: '/adobe'
       fullPath: '/adobe'
       preLoaderRoute: typeof AdobeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/business': {
@@ -378,6 +398,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
+  AuthRoute: AuthRoute,
   BusinessRoute: BusinessRoute,
   ClientsRoute: ClientsRoute,
   DeskRoute: DeskRoute,
