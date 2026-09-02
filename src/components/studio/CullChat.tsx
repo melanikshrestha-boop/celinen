@@ -221,7 +221,7 @@ export function CullChat({
               {
                 role: "assistant",
                 text: message.content?.trim() || "done.",
-                tools: used.length ? [...used] : undefined,
+                ...(used.length ? { tools: [...used] } : {}),
               },
             ]);
             return;

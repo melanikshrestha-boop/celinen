@@ -495,7 +495,7 @@ function Studio() {
           return `kept top ${ids.size}, rejected the rest`;
         }
         case "reject_flagged": {
-          const flags = (Array.isArray(args.flags) ? args.flags : []) as Flag[];
+          const flags = (Array.isArray(args['flags']) ? args['flags'] : []) as Flag[];
           let n = 0;
           setShots((prev) =>
             prev.map((s) => {
@@ -507,12 +507,12 @@ function Studio() {
           return `rejected ${n} frames flagged ${flags.join(", ")}`;
         }
         case "set_filter": {
-          const f = String(args.filter ?? "all") as Filter;
+          const f = String(args['filter'] ?? "all") as Filter;
           setFilter(f);
           return `showing ${f}`;
         }
         case "select_photo": {
-          const q = String(args.query ?? "").trim().toLowerCase();
+          const q = String(args['query'] ?? "").trim().toLowerCase();
           const pool = shots.filter((s) => !s.error);
           if (!pool.length) return "nothing to open";
           let target = pool.find((s) => s.name.toLowerCase().includes(q));
@@ -537,9 +537,9 @@ function Studio() {
             const v = num(from);
             if (v !== undefined) (patch as Record<string, unknown>)[to] = Math.max(-100, Math.min(100, v));
           }
-          if (typeof args.crop === "string") patch.crop = args.crop as Edits["crop"];
+          if (typeof args['crop'] === "string") patch.crop = args['crop'] as Edits["crop"];
           if (!Object.keys(patch).length) return "no settings given";
-          const toKeepers = args.target === "keepers";
+          const toKeepers = args['target'] === "keepers";
           let n = 0;
           setShots((prev) =>
             prev.map((s) => {
