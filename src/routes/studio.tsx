@@ -21,6 +21,11 @@ import {
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
+import {
+  BRIDGE_PATH,
+  downloadLightroomPlugin,
+  type BridgeState,
+} from "@/lib/lightroom-plugin";
 
 export const Route = createFileRoute("/studio")({
   head: () => ({
