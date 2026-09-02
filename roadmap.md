@@ -29,3 +29,12 @@
 - [x] Portfolio replication redo — copies palette, type, nav, layout, hero (editable)
 - [ ] Culling speed: any image type, ~2s for a full drop, with live timing readout
 - [ ] Publish to lenslab.dev and verify pricing / plugin / portfolio live
+
+## 2026-09-02 (backend pass)
+- [x] Supabase schema: profiles, clients, shoots, transactions, invoices (+RLS, grants, signup trigger)
+- [ ] Server functions: ledger/clients/shoots/invoices CRUD scoped to the signed-in photographer
+- [ ] Stripe Connect Standard OAuth (photographer connects their own Stripe)
+- [ ] Sync Stripe charges + payouts into transactions
+- [ ] Stripe invoices (create + send) and webhook (invoice.paid, charge.succeeded)
+- [ ] Wire Earnings + Clients UI to live data (no mock seeds)
+- [ ] NEW: real client delivery system — gallery links, client favourites, downloads
