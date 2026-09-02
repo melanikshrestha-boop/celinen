@@ -56,7 +56,8 @@ export function Nav() {
         <div className="flex items-center gap-2">
         <ThemeToggle />
         <Link
-          to="/studio"
+          to="/auth"
+          search={{ next: "/shoot" }}
           className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
         >
           Get started →

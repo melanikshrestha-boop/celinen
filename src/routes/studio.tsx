@@ -743,8 +743,8 @@ function Studio() {
         </div>
       )}
 
-      <main className="mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0">
+      <main className="mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <div className="min-w-0 xl:order-2">
         {!shots.length && !progress ? (
           <div
             onDrop={onDrop}
@@ -1057,7 +1057,7 @@ function Studio() {
         </div>
 
         {/* assistant rail — chat while it culls in the background */}
-        <aside className="xl:sticky xl:top-16 xl:h-[calc(100vh-5rem)]">
+        <aside className="xl:order-1 xl:sticky xl:top-16 xl:h-[calc(100vh-5rem)]">
           <div className="h-full rounded-sm bg-paper2 p-4 shadow-2xl ring-1 ring-border">
             <CullChat context={chatContext} execute={executeTool} />
           </div>
