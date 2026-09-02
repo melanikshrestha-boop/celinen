@@ -13,3 +13,6 @@
 - [ ] Business: full earnings & losses dashboard with tax-ready export (Schedule C style categories, CSV/summary)
 - [x] Marketing pricing page: Hobby/Individual/Teams/Enterprise, monthly-yearly toggle, FAQ
 - [ ] Studio: face/eye detection scoring, Lightroom folder import
+- [x] Logo mark: real aperture "L" SVG replacing the plain letter badge
+- [x] Auto-orientation: bake EXIF orientation on decode (JPEG + RAW containers) so sideways frames come in upright
+- [x] Smart crop: aspect crops recentre on the detected face instead of dead centre

@@ -110,14 +110,105 @@ async function extractEmbeddedJpeg(file: File): Promise<Blob | null> {
   return new Blob([buf.slice(best.start, best.end)], { type: "image/jpeg" });
 }
 
+/**
+ * Read the EXIF orientation flag (1-8) out of a JPEG/TIFF byte buffer.
+ * Returns 1 (normal) when absent or unreadable.
+ */
+export function readExifOrientation(buf: Uint8Array): number {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let tiffStart = -1;
+
+  if (buf[0] === 0xff && buf[1] === 0xd8) {
+    // JPEG: walk the marker segments looking for APP1/Exif
+    let offset = 2;
+    while (offset + 4 < buf.length) {
+      if (buf[offset] !== 0xff) break;
+      const marker = buf[offset + 1]!;
+      const size = view.getUint16(offset + 2, false);
+      if (marker === 0xe1) {
+        // "Exif\0\0"
+        if (
+          buf[offset + 4] === 0x45 &&
+          buf[offset + 5] === 0x78 &&
+          buf[offset + 6] === 0x69 &&
+          buf[offset + 7] === 0x66
+        ) {
+          tiffStart = offset + 10;
+        }
+        break;
+      }
+      if (marker === 0xda) break; // start of scan
+      offset += 2 + size;
+    }
+  } else if (
+    (buf[0] === 0x49 && buf[1] === 0x49) ||
+    (buf[0] === 0x4d && buf[1] === 0x4d)
+  ) {
+    tiffStart = 0; // bare TIFF (most RAW containers)
+  }
+
+  if (tiffStart < 0 || tiffStart + 8 > buf.length) return 1;
+
+  const little = view.getUint16(tiffStart, false) === 0x4949;
+  const ifdOffset = view.getUint32(tiffStart + 4, little);
+  const ifd = tiffStart + ifdOffset;
+  if (ifd + 2 > buf.length) return 1;
+
+  const entries = view.getUint16(ifd, little);
+  for (let i = 0; i < entries; i++) {
+    const entry = ifd + 2 + i * 12;
+    if (entry + 12 > buf.length) break;
+    if (view.getUint16(entry, little) === 0x0112) {
+      const value = view.getUint16(entry + 8, little);
+      return value >= 1 && value <= 8 ? value : 1;
+    }
+  }
+  return 1;
+}
+
+/** Bake an EXIF orientation into pixels so every downstream step sees it upright. */
+async function applyOrientation(bitmap: ImageBitmap, orientation: number): Promise<ImageBitmap> {
+  if (orientation <= 1) return bitmap;
+  const swap = orientation >= 5;
+  const w = swap ? bitmap.height : bitmap.width;
+  const h = swap ? bitmap.width : bitmap.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+
+  switch (orientation) {
+    case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
+    case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
+    case 4: ctx.transform(1, 0, 0, -1, 0, h); break;
+    case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+    case 6: ctx.transform(0, 1, -1, 0, w, 0); break;
+    case 7: ctx.transform(0, -1, -1, 0, w, h); break;
+    case 8: ctx.transform(0, -1, 1, 0, 0, h); break;
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+  return createImageBitmap(canvas);
+}
+
 export async function decodeFile(file: File): Promise<ImageBitmap> {
   if (isRawFile(file)) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
     const jpeg = await extractEmbeddedJpeg(file);
     if (!jpeg) throw new Error("No embedded preview found in this RAW file");
-    return createImageBitmap(jpeg);
+    const jpegBytes = new Uint8Array(await jpeg.arrayBuffer());
+    let orientation = readExifOrientation(jpegBytes);
+    // Most RAW previews carry no EXIF of their own — fall back to the container's.
+    if (orientation === 1) orientation = readExifOrientation(bytes);
+    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none" });
+    return applyOrientation(bitmap, orientation);
   }
-  return createImageBitmap(file);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const orientation = readExifOrientation(bytes);
+  const bitmap = await createImageBitmap(file, { imageOrientation: "none" });
+  return applyOrientation(bitmap, orientation);
 }
+
 
 function scratchCanvas(w: number, h: number) {
   const canvas = document.createElement("canvas");
@@ -134,6 +225,8 @@ export interface FaceReading {
   faceSharpness: number;
   /** null when the browser reported no eye landmarks */
   eyesOpen: boolean | null;
+  /** normalised (0-1) centre of the largest face — used to bias smart crops */
+  center?: { x: number; y: number } | undefined;
 }
 
 export interface Analysis {
@@ -272,7 +365,7 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
   } catch {
     return null;
   }
-  if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null };
+  if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null, center: undefined };
 
   const biggest = faces.reduce((a, b) =>
     a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b,
@@ -307,7 +400,12 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
     }
     eyesOpen = openCount === eyes.length;
   }
-  return { count: faces.length, faceSharpness, eyesOpen };
+  const center = {
+    x: (box.x + box.width / 2) / bitmap.width,
+    // biased slightly up so the crop keeps headroom, not chin
+    y: (box.y + box.height * 0.42) / bitmap.height,
+  };
+  return { count: faces.length, faceSharpness, eyesOpen, center };
 }
 
 export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
@@ -355,16 +453,29 @@ const CROPS: Record<Edits["crop"], number | null> = {
   "16:9": 16 / 9,
 };
 
-export function cropRect(w: number, h: number, crop: Edits["crop"]) {
+/**
+ * Aspect-ratio crop. When `focus` (normalised 0-1 subject point, usually the
+ * detected face) is supplied the window slides toward the subject instead of
+ * cutting dead centre.
+ */
+export function cropRect(
+  w: number,
+  h: number,
+  crop: Edits["crop"],
+  focus?: { x: number; y: number } | null,
+) {
   const target = CROPS[crop];
   if (!target) return { sx: 0, sy: 0, sw: w, sh: h };
   const current = w / h;
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max, Math.round(v)));
   if (current > target) {
     const sw = Math.round(h * target);
-    return { sx: Math.round((w - sw) / 2), sy: 0, sw, sh: h };
+    const want = focus ? focus.x * w - sw / 2 : (w - sw) / 2;
+    return { sx: clamp(want, w - sw), sy: 0, sw, sh: h };
   }
   const sh = Math.round(w / target);
-  return { sx: 0, sy: Math.round((h - sh) / 2), sw: w, sh };
+  const want = focus ? focus.y * h - sh / 2 : (h - sh) / 2;
+  return { sx: 0, sy: clamp(want, h - sh), sw: w, sh };
 }
 
 function applyPixels(data: Uint8ClampedArray, e: Edits) {
@@ -423,8 +534,9 @@ export function renderToCanvas(
   bitmap: ImageBitmap,
   edits: Edits,
   maxSide = 1400,
+  focus?: { x: number; y: number } | null,
 ) {
-  const { sx, sy, sw, sh } = cropRect(bitmap.width, bitmap.height, edits.crop);
+  const { sx, sy, sw, sh } = cropRect(bitmap.width, bitmap.height, edits.crop, focus);
   const scale = Math.min(1, maxSide / Math.max(sw, sh));
   const w = Math.max(1, Math.round(sw * scale));
   const h = Math.max(1, Math.round(sh * scale));
@@ -437,9 +549,14 @@ export function renderToCanvas(
   ctx.putImageData(img, 0, 0);
 }
 
-export async function exportShot(bitmap: ImageBitmap, edits: Edits, name: string) {
+export async function exportShot(
+  bitmap: ImageBitmap,
+  edits: Edits,
+  name: string,
+  focus?: { x: number; y: number } | null,
+) {
   const canvas = document.createElement("canvas");
-  renderToCanvas(canvas, bitmap, edits, 4000);
+  renderToCanvas(canvas, bitmap, edits, 4000, focus);
   const blob: Blob | null = await new Promise((res) =>
     canvas.toBlob((b) => res(b), "image/jpeg", 0.92),
   );
