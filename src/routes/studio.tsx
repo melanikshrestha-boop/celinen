@@ -124,9 +124,12 @@ function Studio() {
         thumb.width = Math.round(bitmap.width * s);
         thumb.height = Math.round(bitmap.height * s);
         thumb.getContext("2d")!.drawImage(bitmap, 0, 0, thumb.width, thumb.height);
-        const url = thumb.toDataURL("image/jpeg", 0.7);
+        const blob = await new Promise<Blob | null>((res) =>
+          thumb.toBlob(res, "image/jpeg", 0.72),
+        );
+        const url = blob ? URL.createObjectURL(blob) : null;
 
-        added.push({
+        added[i] = ({
           id,
           file,
           name: file.name,
