@@ -1057,7 +1057,7 @@ function Studio() {
         </div>
 
         {/* assistant rail — chat while it culls in the background */}
-        <aside className="xl:sticky xl:top-16 xl:h-[calc(100vh-5rem)]">
+        <aside className="xl:order-1 xl:sticky xl:top-16 xl:h-[calc(100vh-5rem)]">
           <div className="h-full rounded-sm bg-paper2 p-4 shadow-2xl ring-1 ring-border">
             <CullChat context={chatContext} execute={executeTool} />
           </div>
