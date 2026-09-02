@@ -24,6 +24,7 @@ import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 
 const IndexRoute = IndexRouteImport.update({
@@ -101,6 +102,11 @@ const StudioRoute = StudioRouteImport.update({
   path: '/studio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
 }
 export interface FileRoutesByTo {
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
 }
 export interface FileRoutesById {
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
 }
 export interface FileRouteTypes {
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/studio'
+    | '/api/chat'
     | '/api/public/lightroom'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -198,6 +208,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/studio'
+    | '/api/chat'
     | '/api/public/lightroom'
   id:
     | '__root__'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/studio'
+    | '/api/chat'
     | '/api/public/lightroom'
   fileRoutesById: FileRoutesById
 }
@@ -235,6 +247,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
+  ApiChatRoute: typeof ApiChatRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
 }
 
@@ -345,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
@@ -371,6 +391,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
+  ApiChatRoute: ApiChatRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
 }
 export const routeTree = rootRouteImport
