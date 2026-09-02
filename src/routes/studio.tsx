@@ -164,7 +164,7 @@ function Studio() {
         });
         bitmap.close?.();
       } catch (err) {
-        added.push({
+        added[i] = ({
           id,
           file,
           name: file.name,
