@@ -14,6 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      booking_requests: {
+        Row: {
+          budget: number | null
+          client_id: string | null
+          created_at: string
+          id: string
+          location: string | null
+          message: string | null
+          preferred_date: string | null
+          requester_email: string
+          requester_name: string | null
+          shoot_type: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          budget?: number | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          message?: string | null
+          preferred_date?: string | null
+          requester_email: string
+          requester_name?: string | null
+          shoot_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          budget?: number | null
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          location?: string | null
+          message?: string | null
+          preferred_date?: string | null
+          requester_email?: string
+          requester_name?: string | null
+          shoot_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_uploads: {
+        Row: {
+          booking_id: string | null
+          client_id: string | null
+          created_at: string
+          filename: string
+          id: string
+          note: string | null
+          storage_path: string
+          uploader_email: string
+          user_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          filename: string
+          id?: string
+          note?: string | null
+          storage_path: string
+          uploader_email: string
+          user_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          filename?: string
+          id?: string
+          note?: string | null
+          storage_path?: string
+          uploader_email?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_uploads_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "booking_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_uploads_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           auth_user_id: string | null

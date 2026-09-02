@@ -14,7 +14,7 @@ import {
   buildXmpSidecar,
   decodeFile,
   exportShot,
-  hamming,
+  isDuplicatePair,
   isRawFile,
   scoreOf,
 } from "@/lib/imaging";
@@ -180,7 +180,7 @@ function ShootPage() {
           const a = all[i]!;
           const b = all[j]!;
           if (!a.hash || !b.hash) continue;
-          if (hamming(a.hash, b.hash) <= 5 && !a.flags.includes("duplicate")) {
+          if (isDuplicatePair(a, b) && !a.flags.includes("duplicate")) {
             a.flags = [...a.flags, "duplicate"];
           }
         }
