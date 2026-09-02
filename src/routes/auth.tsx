@@ -97,7 +97,7 @@ function AuthPage() {
     setNote(null);
     setBusy("password");
     if (signup) {
-      const { error: err } = await supabase.auth.signUp({
+      const { data: res, error: err } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -106,8 +106,19 @@ function AuthPage() {
         },
       });
       setBusy(null);
-      if (err) setError(err.message);
-      else setNote(`Account created for ${email.trim()}. Confirm the email we just sent.`);
+      if (err) {
+        setError(
+          err.message.toLowerCase().includes("weak")
+            ? "That password shows up in known breach lists. Pick something less guessable."
+            : err.message,
+        );
+        return;
+      }
+      if (res.session) {
+        void navigate({ to: safePath(next), replace: true });
+        return;
+      }
+      setNote(`Account created for ${email.trim()}. Confirm the email we just sent.`);
       return;
     }
     const { error: err } = await supabase.auth.signInWithPassword({
@@ -115,7 +126,12 @@ function AuthPage() {
       password,
     });
     setBusy(null);
-    if (err) setError(err.message);
+    if (err)
+      setError(
+        err.message.toLowerCase().includes("invalid login")
+          ? "That email and password don't match an account. Create one on the Sign up tab."
+          : err.message,
+      );
   };
 
   return (
