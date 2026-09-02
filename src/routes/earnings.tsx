@@ -94,8 +94,57 @@ function Earnings() {
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [entries]);
 
+  const scheduleC = useMemo(() => {
+    const rows = new Map<string, { line: string; label: string; amount: number }>();
+    for (const [cat, amount] of byCategory) {
+      const map = SCHEDULE_C_LINE[cat] ?? SCHEDULE_C_LINE['Other']!;
+      const deductible = cat === "Meals (50%)" ? amount * 0.5 : amount;
+      const prev = rows.get(map.line);
+      rows.set(map.line, {
+        line: map.line,
+        label: map.label,
+        amount: (prev?.amount ?? 0) + deductible,
+      });
+    }
+    return [...rows.values()].sort((a, b) => parseFloat(a.line) - parseFloat(b.line));
+  }, [byCategory]);
+
+  const payerName = (eventId: string | null) => {
+    const ev = events.find((v) => v.id === eventId);
+    const client = clients.find((c) => c.id === ev?.clientId);
+    return client?.org || client?.name || ev?.name || "Direct / unassigned";
+  };
+
+  const payers = useMemo(() => {
+    const map = new Map<string, number>();
+    entries
+      .filter((e) => e.kind === "income")
+      .forEach((e) => {
+        const name = payerName(e.eventId);
+        map.set(name, (map.get(name) ?? 0) + e.amount);
+      });
+    return [...map.entries()]
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, events, clients]);
+
+  const payees = useMemo(() => {
+    const map = new Map<string, number>();
+    entries
+      .filter((e) => e.kind === "expense" && e.category.startsWith("Contract labor"))
+      .forEach((e) => {
+        const name = e.label.split("—").slice(-1)[0]!.trim() || e.label;
+        map.set(name, (map.get(name) ?? 0) + e.amount);
+      });
+    return [...map.entries()]
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [entries]);
+
   const selfEmployment = Math.max(0, totals.net) * 0.9235 * 0.153;
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
+
 
   const add = () => {
     const amount = Number(form.amount);
