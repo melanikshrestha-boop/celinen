@@ -5,13 +5,13 @@ import { Btn, Card, SectionTitle, Shell } from "@/components/lensos/Shell";
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
     meta: [
-      { title: "Portfolio Builder — Lens OS" },
+      { title: "Portfolio Builder — LensLabs" },
       {
         name: "description",
         content:
           "Upload your own photos, write about them, and publish a portfolio page in seconds. Local-first, no template jargon.",
       },
-      { property: "og:title", content: "Portfolio Builder — Lens OS" },
+      { property: "og:title", content: "Portfolio Builder — LensLabs" },
       {
         property: "og:description",
         content: "Drop photos in, write captions, pick a handle, publish.",

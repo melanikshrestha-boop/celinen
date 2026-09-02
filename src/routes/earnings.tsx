@@ -6,13 +6,13 @@ import { useLens } from "@/lib/lensos-store";
 export const Route = createFileRoute("/earnings")({
   head: () => ({
     meta: [
-      { title: "Earnings & Tax — Lens OS" },
+      { title: "Earnings & Tax — LensLabs" },
       {
         name: "description",
         content:
           "Every photography earning and loss in one ledger, grouped into Schedule C expense categories and exportable as a tax-ready CSV or summary.",
       },
-      { property: "og:title", content: "Earnings & Tax — Lens OS" },
+      { property: "og:title", content: "Earnings & Tax — LensLabs" },
       {
         property: "og:description",
         content: "Income, deductible expenses, mileage, quarterly estimates and a tax-ready export.",

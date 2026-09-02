@@ -6,13 +6,13 @@ import { useLens } from "@/lib/lensos-store";
 export const Route = createFileRoute("/clients")({
   head: () => ({
     meta: [
-      { title: "Clients — Lens OS" },
+      { title: "Clients — LensLabs" },
       {
         name: "description",
         content:
           "Client records with contacts, default templates and destinations, plus their events, open packages and last delivery. No CRM bloat.",
       },
-      { property: "og:title", content: "Clients — Lens OS" },
+      { property: "og:title", content: "Clients — LensLabs" },
       { property: "og:description", content: "Contacts, defaults, events, open packages, last delivery." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

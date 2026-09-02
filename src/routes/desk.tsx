@@ -7,13 +7,13 @@ import { packageFill, type IngestState } from "@/lib/lensos";
 export const Route = createFileRoute("/desk")({
   head: () => ({
     meta: [
-      { title: "Event Desk — Lens OS Production" },
+      { title: "Event Desk — LensLabs Production" },
       {
         name: "description",
         content:
           "Create and switch events, attach sources, watch ingest progress and see which packages still need selects.",
       },
-      { property: "og:title", content: "Event Desk — Lens OS Production" },
+      { property: "og:title", content: "Event Desk — LensLabs Production" },
       {
         property: "og:description",
         content: "The home base for a shoot: events, sources, ingest state and package deadlines.",

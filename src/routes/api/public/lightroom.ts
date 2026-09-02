@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
- * Lens OS ↔ Lightroom bridge.
+ * LensLabs ↔ Lightroom bridge.
  *
  * POST — the Lightroom plugin pushes XMP-derived state (rating, label, pick,
  *        IPTC, develop settings) for the selected photos.
- * GET  — the studio polls the last push; the plugin also GETs to pull Lens OS
+ * GET  — the studio polls the last push; the plugin also GETs to pull LensLabs
  *        verdicts back into the catalog.
  *
  * State lives in memory for the running server instance. This is a local
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/api/public/lightroom")({
       GET: async ({ request }) => {
         const store = bucket.__lensosBridge!;
         const which = new URL(request.url).searchParams.get("side");
-        // Default GET serves the Lightroom plugin: Lens OS verdicts to pull in.
+        // Default GET serves the Lightroom plugin: LensLabs verdicts to pull in.
         return json(which === "studio" ? store.toStudio : store.toLightroom);
       },
       POST: async ({ request }) => {
