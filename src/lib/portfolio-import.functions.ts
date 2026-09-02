@@ -49,7 +49,7 @@ function meta(html: string, key: string) {
     "i",
   );
   const m = html.match(re) ?? html.match(alt);
-  return m ? decode(m[1]) : "";
+  return m?.[1] ? decode(m[1]) : "";
 }
 
 function detectPlatform(html: string, host: string) {
@@ -90,7 +90,7 @@ function collectImages(html: string, base: URL): string[] {
     const tag = m[0];
     const srcset = tag.match(/(?:data-srcset|srcset)=["']([^"']+)["']/i);
     if (srcset) {
-      const best = srcset[1].split(",").pop();
+      const best = (srcset[1] ?? "").split(",").pop();
       push(best?.trim());
       continue;
     }
@@ -106,7 +106,7 @@ function collectImages(html: string, base: URL): string[] {
 function collectHeadings(html: string) {
   const out: string[] = [];
   for (const m of html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)) {
-    const text = decode(m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+    const text = decode((m[1] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
     if (text.length > 1 && text.length < 80 && !out.includes(text)) out.push(text);
   }
   return out.slice(0, 12);
@@ -115,7 +115,7 @@ function collectHeadings(html: string) {
 function accentColor(html: string) {
   const counts = new Map<string, number>();
   for (const m of html.matchAll(/#([0-9a-f]{6})\b/gi)) {
-    const hex = `#${m[1].toLowerCase()}`;
+    const hex = `#${(m[1] ?? "").toLowerCase()}`;
     if (/^#(f{6}|0{6}|fff.*|000.*)$/.test(hex)) continue;
     counts.set(hex, (counts.get(hex) ?? 0) + 1);
   }
@@ -173,7 +173,7 @@ export const importPortfolio = createServerFn({ method: "POST" })
       platform: detectPlatform(html, base.hostname),
       name,
       bio: bio.slice(0, 240),
-      handle: base.hostname.replace(/^www\./, "").split(".")[0].slice(0, 32),
+      handle: (base.hostname.replace(/^www\./, "").split(".")[0] ?? "studio").slice(0, 32),
       accent: accentColor(html),
       headings: collectHeadings(html),
       photos: images.map((url, i) => ({
