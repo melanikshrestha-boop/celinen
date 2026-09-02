@@ -65,7 +65,7 @@ export function Btn({
   className,
 }: {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: (() => void) | undefined;
   variant?: "primary" | "ghost" | "danger";
   disabled?: boolean;
   className?: string;
