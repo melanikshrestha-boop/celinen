@@ -175,43 +175,48 @@ function ClientGallery() {
 
       {message && <p className="px-5 py-4 text-sm text-moss">{message}</p>}
 
-      <div className="grid grid-cols-2 gap-2 p-5 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-3 gap-1.5 p-3 sm:grid-cols-3 sm:gap-2 sm:p-5 lg:grid-cols-4">
         {shown.map((p, i) => (
-          <figure key={p.id} className="group relative overflow-hidden rounded-xl border border-border">
+          <figure key={p.id} className="group relative overflow-hidden rounded-lg border border-border sm:rounded-xl">
             {p.url && (
               <img
                 src={p.url}
                 alt={p.filename}
                 loading="lazy"
+                decoding="async"
+                fetchPriority={i < 6 ? "high" : "low"}
+                sizes="(max-width: 640px) 33vw, (max-width: 1024px) 33vw, 25vw"
                 onClick={() => setLightbox(i)}
-                className="aspect-[4/3] w-full cursor-zoom-in object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                className="aspect-square w-full cursor-zoom-in bg-muted object-cover transition-transform duration-300 group-hover:scale-[1.02] sm:aspect-[4/3]"
               />
             )}
-            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-100 transition-opacity sm:p-2 sm:opacity-0 sm:group-hover:opacity-100">
               <button
                 onClick={() => void toggle(p.id)}
                 aria-label="Favourite"
-                className="rounded-full bg-white/90 px-2 py-1 text-[12px] text-black"
+                className="rounded-full bg-white/90 px-2 py-1 text-[11px] text-black sm:text-[12px]"
               >
-                {favs.has(p.id) ? "♥ picked" : "♡ pick"}
+                {favs.has(p.id) ? "♥" : "♡"}
+                <span className="hidden sm:inline">{favs.has(p.id) ? " picked" : " pick"}</span>
               </button>
               {downloads && (
                 <button
                   onClick={() => void grab(p)}
-                  className="ml-auto rounded-full bg-white/90 px-2 py-1 text-[12px] text-black"
+                  className="ml-auto rounded-full bg-white/90 px-2 py-1 text-[11px] text-black sm:text-[12px]"
                 >
-                  download
+                  ↓<span className="hidden sm:inline"> download</span>
                 </button>
               )}
             </div>
             {favs.has(p.id) && (
-              <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] text-black">
+              <span className="absolute right-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] text-black">
                 ♥
               </span>
             )}
           </figure>
         ))}
       </div>
+
 
       {lightbox !== null && shown[lightbox]?.url && (
         <div

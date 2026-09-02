@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EarningsRouteImport } from './routes/earnings'
@@ -64,6 +65,11 @@ const BusinessRoute = BusinessRouteImport.update({
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeliverRoute = DeliverRouteImport.update({
@@ -176,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
@@ -204,6 +211,7 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
+  '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/business'
     | '/clients'
+    | '/community'
     | '/deliver'
     | '/desk'
     | '/earnings'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/business'
     | '/clients'
+    | '/community'
     | '/deliver'
     | '/desk'
     | '/earnings'
@@ -319,6 +330,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/business'
     | '/clients'
+    | '/community'
     | '/deliver'
     | '/desk'
     | '/earnings'
@@ -348,6 +360,7 @@ export interface RootRouteChildren {
   BookRoute: typeof BookRoute
   BusinessRoute: typeof BusinessRoute
   ClientsRoute: typeof ClientsRoute
+  CommunityRoute: typeof CommunityRoute
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
   EarningsRoute: typeof EarningsRoute
@@ -412,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/clients'
       preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/deliver': {
@@ -564,6 +584,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookRoute: BookRoute,
   BusinessRoute: BusinessRoute,
   ClientsRoute: ClientsRoute,
+  CommunityRoute: CommunityRoute,
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
   EarningsRoute: EarningsRoute,
