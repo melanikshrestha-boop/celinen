@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
+import { VibeChat } from "@/components/lensos/VibeChat";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getClientPortal,
@@ -202,7 +203,7 @@ function Portal() {
   const studioName = data.clients[0]?.org || data.clients[0]?.name;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[900px] px-6 py-14 text-ink">
+    <div className="mx-auto min-h-screen w-full max-w-[900px] px-4 py-8 sm:px-6 sm:py-14 text-ink">
       <header className="flex flex-wrap items-center gap-3">
         <LogoMark className="text-ink" />
         <div>
@@ -220,7 +221,7 @@ function Portal() {
       </header>
 
       {!linked && (
-        <div className="mt-8 rounded-2xl border border-border bg-card p-6">
+        <div className="mt-8 rounded-2xl border border-border bg-card p-4 sm:p-6">
           <p className="text-sm">Nothing is linked to {email} yet.</p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-moss">
             Ask your photographer to add you as a client with this exact email address. As soon as
@@ -234,7 +235,7 @@ function Portal() {
         <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
           Book a shoot
         </h2>
-        <div className="mt-3 rounded-2xl border border-border bg-card p-6">
+        <div className="mt-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
           {booking === "sent" ? (
             <div>
               <p className="text-[15px] font-medium text-rust">Request sent.</p>
@@ -256,7 +257,7 @@ function Portal() {
                 <select
                   value={shootType}
                   onChange={(e) => setShootType(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 >
                   {SHOOT_TYPES.map((t) => (
                     <option key={t}>{t}</option>
@@ -269,7 +270,7 @@ function Portal() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 />
               </label>
               <label className="text-[12px] text-moss">
@@ -278,7 +279,7 @@ function Portal() {
                   value={place}
                   onChange={(e) => setPlace(e.target.value)}
                   placeholder="Studio, city or venue"
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 />
               </label>
               <label className="text-[12px] text-moss">
@@ -288,7 +289,7 @@ function Portal() {
                   onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ""))}
                   inputMode="decimal"
                   placeholder="1200"
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 />
               </label>
               <label className="text-[12px] text-moss sm:col-span-2">
@@ -298,7 +299,7 @@ function Portal() {
                   onChange={(e) => setBrief(e.target.value)}
                   rows={3}
                   placeholder="Two looks, golden hour, need 20 edited frames for a launch."
-                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-[14px] text-ink"
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 />
               </label>
               {bookErr && (
@@ -342,12 +343,14 @@ function Portal() {
         )}
       </section>
 
+      <VibeChat />
+
       {/* ---- client uploads ---- */}
       <section className="mt-10">
         <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
           Your uploads
         </h2>
-        <div className="mt-3 rounded-2xl border border-dashed border-input bg-card p-6">
+        <div className="mt-3 rounded-2xl border border-dashed border-input bg-card p-4 sm:p-6">
           <p className="text-[13px] leading-relaxed text-moss">
             Send reference shots, moodboards or your own photos straight to your photographer.
             Private — only the two of you can open them.
