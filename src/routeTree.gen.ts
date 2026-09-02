@@ -29,6 +29,7 @@ import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
+import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -131,6 +132,12 @@ const ApiPublicStripeConnectCallbackRoute =
     path: '/api/public/stripe/connect-callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicStripeConnectWebhookRoute =
+  ApiPublicStripeConnectWebhookRouteImport.update({
+    id: '/api/public/stripe/connect-webhook',
+    path: '/api/public/stripe/connect-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
+  '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -175,6 +183,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
+  '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -198,6 +207,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
+  '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
+    | '/api/public/stripe/connect-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
+    | '/api/public/stripe/connect-webhook'
   id:
     | '__root__'
     | '/'
@@ -266,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
+    | '/api/public/stripe/connect-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -289,6 +302,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
+  ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -433,6 +447,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeConnectCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stripe/connect-webhook': {
+      id: '/api/public/stripe/connect-webhook'
+      path: '/api/public/stripe/connect-webhook'
+      fullPath: '/api/public/stripe/connect-webhook'
+      preLoaderRoute: typeof ApiPublicStripeConnectWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -457,6 +478,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
+  ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
