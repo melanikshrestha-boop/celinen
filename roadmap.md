@@ -1,45 +1,15 @@
 # LensLabs roadmap
 
 ## Done
-- Pick / cull studio (RAW + JPEG, scoring, flags, develop, export)
-- Production OS shell: Desk, Metadata, Packages, Adobe, Send
-- Lightroom plugin + XMP bridge
-- Pricing, signup + Stripe checkout
-- Earnings ledger with Schedule C / 1099 exports
-- Assistant rail (chat-driven culling)
-
-## This pass
-- [x] Shoot bar as a real page (`/shoot`): drop photos anywhere → auto-cull → keepers → Lightroom XMP
-- [x] Lovable-style split layout: chat panel on the LEFT, work canvas on the RIGHT (studio + shoot)
-- [x] Earnings: real shoot data per job — income, hours worked, turnaround vs deadline, profit per hour
-- [x] Sign-in gate for beta: Google first, email fallback, wired to "Get started"
+- Workspace (Event Desk, Pick, Metadata, etc.) is sign-in gated; animated locked screen.
+- Simplified Event Desk: 3 animated stat tiles + slim source rows, logo motion.
+- Home page shows an animated Event Desk demo instead of the real one.
 
 ## Next
-- [ ] Persist shoot sessions per signed-in user
-- [ ] Team seats / shared packages
-
-## 2026-09-02
-- [x] Lightroom plugin points at live lenslab.dev bridge (+workspace)
-- [x] Portfolio: paste existing Pixieset/Squarespace URL -> replicate + edit
-- [x] Auth: LegionEdge-style sign in / sign up pages for "Get started"
-- [x] Light mode accent = blue (not red); tagline "Go create more."
-
-## 2026-09-02 (later)
-- [x] REPLACES card: real logos + monthly cost of the average photographer stack
-- [x] Portfolio replication redo — copies palette, type, nav, layout, hero (editable)
-- [ ] Culling speed: any image type, ~2s for a full drop, with live timing readout
-- [ ] Publish to lenslab.dev and verify pricing / plugin / portfolio live
-
-## 2026-09-02 (backend pass)
-- [x] Supabase schema: profiles, clients, shoots, transactions, invoices (+RLS, grants, signup trigger)
-- [x] Server functions: ledger/clients/shoots/invoices CRUD scoped to the signed-in photographer
-- [x] Stripe Connect Standard OAuth (photographer connects their own Stripe)
-- [x] Sync Stripe charges + payouts into transactions
-- [x] Stripe invoices (create + send) and webhook (invoice.paid, charge.succeeded)
-- [x] Wire Earnings ledger + invoices UI to live data (no mock seeds)
-- [x] Client delivery system: galleries, passcode, favourites, downloads (/deliver + /g/:slug) system — gallery links, client favourites, downloads
-
-## 2026-09-02 (culling accuracy)
-- [x] Duplicate detection is subject-aware: near-identical frames where one has closed eyes (or a clearly softer face) are NOT dupes
-- [ ] Client portal: booking requests, client uploads, picks + invoices (blue theme)
-- [ ] Stripe test keys (STRIPE_SECRET_KEY, STRIPE_CONNECT_CLIENT_ID, STRIPE_CONNECT_WEBHOOK_SECRET) — secret form declined, still needed before Connect OAuth / webhook / payment sync can run
+- [ ] Consent-based client chat: AI reads the client's vibe, ask-and-allow (never automatic), client opts in.
+- [ ] Vibe intake: reference-driven questions ("what does cinematic mean to you") to close the client/photographer gap.
+- [ ] Passive photographer profiling: infer photographer type from editing behavior, no repeated in-workflow questions.
+- [ ] Pricing help: rate guidance so new pros don't underprice.
+- [ ] Client acquisition/marketing surface.
+- [ ] Boundaries: scheduling/expectation guardrails for late or demanding clients.
+- [ ] Community: simulated Discord-style photographer space for 1:1 and group collaboration.
