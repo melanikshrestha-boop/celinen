@@ -31,6 +31,7 @@ function Locked({ loading }: { loading: boolean }) {
             <div className="rise-in mt-8 flex gap-3 [animation-delay:220ms]">
               <Link
                 to="/auth"
+                search={{ next: "/desk" }}
                 className="rounded-xl bg-ink px-6 py-3 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
               >
                 Sign in →
