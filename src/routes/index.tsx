@@ -47,7 +47,19 @@ const ADOBE = [
   },
 ];
 
-const REPLACED = ["Pixieset", "SmugMug", "Photo Mechanic", "Squarespace", "Pic-Time"];
+const REPLACED = [
+  { name: "Pixieset", domain: "pixieset.com", usd: 40 },
+  { name: "SmugMug", domain: "smugmug.com", usd: 15 },
+  { name: "Photo Mechanic", domain: "camerabits.com", usd: 12 },
+  { name: "Squarespace", domain: "squarespace.com", usd: 23 },
+  { name: "Pic-Time", domain: "pic-time.com", usd: 20 },
+  { name: "Narrative Select", domain: "narrative.so", usd: 20 },
+];
+
+const REPLACED_TOTAL = REPLACED.reduce((s, r) => s + r.usd, 0);
+
+const logoFor = (domain: string) =>
+  `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
 
 const TICKER = [
   "laplacian focus variance",
