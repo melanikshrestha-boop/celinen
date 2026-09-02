@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Btn, Card, SectionTitle, Shell } from "@/components/lensos/Shell";
-import { importPortfolio } from "@/lib/portfolio-import.functions";
+import { importPortfolio, type ImportedTheme } from "@/lib/portfolio-import.functions";
 
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
@@ -11,12 +11,12 @@ export const Route = createFileRoute("/portfolio")({
       {
         name: "description",
         content:
-          "Upload your own photos, write about them, and publish a portfolio page in seconds. Local-first, no template jargon.",
+          "Paste your Pixieset, Squarespace, Format or Wix site and LensLabs rebuilds it — palette, type, layout and photos — as an editable portfolio you can publish in seconds.",
       },
-      { property: "og:title", content: "Portfolio Builder — LensLabs" },
+      { property: "og:title", content: "Replicate your photo site — LensLabs" },
       {
         property: "og:description",
-        content: "Drop photos in, write captions, pick a handle, publish.",
+        content: "Paste a link. LensLabs rebuilds the site, then you change whatever you want.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -32,17 +32,33 @@ interface Item {
   story: string;
 }
 
+const DEFAULT_THEME: ImportedTheme = {
+  bg: "#ffffff",
+  ink: "#141414",
+  accent: null,
+  headingFont: "",
+  bodyFont: "",
+  serif: false,
+  uppercaseNav: false,
+  layout: "stack",
+};
+
+const fontStack = (name: string, serif: boolean) =>
+  `${name ? `"${name}", ` : ""}${serif ? "Georgia, 'Times New Roman', serif" : "system-ui, -apple-system, 'Helvetica Neue', sans-serif"}`;
+
 function Portfolio() {
   const [items, setItems] = useState<Item[]>([]);
   const [handle, setHandle] = useState("");
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
+  const [hero, setHero] = useState("");
+  const [nav, setNav] = useState<string[]>([]);
+  const [theme, setTheme] = useState<ImportedTheme>(DEFAULT_THEME);
   const [live, setLive] = useState(false);
   const [srcUrl, setSrcUrl] = useState("");
   const [cloning, setCloning] = useState(false);
   const [cloneNote, setCloneNote] = useState<string | null>(null);
   const [cloneError, setCloneError] = useState<string | null>(null);
-  const [accent, setAccent] = useState<string | null>(null);
   const runImport = useServerFn(importPortfolio);
 
   const clone = async () => {
@@ -55,7 +71,9 @@ function Portfolio() {
       setName(site.name);
       setBio(site.bio);
       setHandle(site.handle);
-      setAccent(site.accent);
+      setHero(site.hero);
+      setNav(site.nav);
+      setTheme(site.theme);
       setItems(
         site.photos.map((ph, i) => ({
           id: `imported-${i}-${Math.random().toString(36).slice(2, 7)}`,
@@ -65,7 +83,7 @@ function Portfolio() {
         })),
       );
       setCloneNote(
-        `Replicated ${site.photos.length} frames from your ${site.platform} site. Everything below is editable.`,
+        `Rebuilt your ${site.platform} site — ${site.photos.length} frames, ${site.nav.length} nav links, palette and type copied. Change anything below.`,
       );
     } catch (err) {
       setCloneError(err instanceof Error ? err.message : "Could not read that site.");
@@ -73,6 +91,7 @@ function Portfolio() {
       setCloning(false);
     }
   };
+
   const input = useRef<HTMLInputElement>(null);
   const urls = useRef<string[]>([]);
 
@@ -104,21 +123,29 @@ function Portfolio() {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
+  const headingStyle = { fontFamily: fontStack(theme.headingFont, theme.serif) };
+  const bodyStyle = { fontFamily: fontStack(theme.bodyFont, false) };
+  const galleryClass =
+    theme.layout === "grid"
+      ? "mt-8 grid grid-cols-2 gap-3"
+      : theme.layout === "masonry"
+        ? "mt-8 columns-2 gap-3 [&>figure]:mb-3 [&>figure]:break-inside-avoid"
+        : "mt-8 space-y-8";
+
   return (
     <Shell hideEventHeader>
       <SectionTitle
         kicker="Portfolio"
-        title="Your photos, your words, live in seconds."
-        sub="Upload what you want to show, write about it, publish. No template gallery jargon."
+        title="Paste your old site. Get it back, editable."
+        sub="Pixieset, Squarespace, Format, Wix, SmugMug — LensLabs copies the palette, the type, the layout and every photo, then hands you the controls."
       />
 
       <Card className="mb-4">
         <p className="font-display text-[17px] font-semibold tracking-tight">
-          Already have a site? Paste it in.
+          Replicate an existing site
         </p>
         <p className="mt-1 text-[13px] text-moss">
-          Pixieset, Squarespace, Format, Wix, SmugMug — LensLabs reads it and rebuilds it here,
-          then you change whatever you want.
+          One link. LensLabs reads the live page and rebuilds it here.
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
@@ -148,6 +175,12 @@ function Portfolio() {
                 placeholder="Your name"
                 className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-rust/50"
               />
+              <input
+                value={hero}
+                onChange={(e) => setHero(e.target.value)}
+                placeholder="Headline (from your old hero)"
+                className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-rust/50"
+              />
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
@@ -164,6 +197,70 @@ function Portfolio() {
                 />
                 <span className="font-mono text-[13px] text-moss">.lens.photo</span>
               </div>
+            </div>
+
+            <div className="mt-4 space-y-2 rounded-xl border border-border p-3">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-moss">
+                Replicated look — change it
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-[13px]">
+                  Background
+                  <input
+                    type="color"
+                    value={theme.bg}
+                    onChange={(e) => setTheme({ ...theme, bg: e.target.value })}
+                    className="size-7 cursor-pointer rounded border border-input bg-transparent"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-[13px]">
+                  Text
+                  <input
+                    type="color"
+                    value={theme.ink}
+                    onChange={(e) => setTheme({ ...theme, ink: e.target.value })}
+                    className="size-7 cursor-pointer rounded border border-input bg-transparent"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-[13px]">
+                  Accent
+                  <input
+                    type="color"
+                    value={theme.accent ?? theme.ink}
+                    onChange={(e) => setTheme({ ...theme, accent: e.target.value })}
+                    className="size-7 cursor-pointer rounded border border-input bg-transparent"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {(["stack", "grid", "masonry"] as const).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setTheme({ ...theme, layout: l })}
+                    className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] ${
+                      theme.layout === l ? "border-rust text-rust" : "border-input text-moss"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setTheme({ ...theme, serif: !theme.serif })}
+                  className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] ${
+                    theme.serif ? "border-rust text-rust" : "border-input text-moss"
+                  }`}
+                >
+                  {theme.serif ? "serif" : "sans"}
+                </button>
+              </div>
+              {theme.headingFont && (
+                <p className="font-mono text-[11px] text-moss">
+                  detected type: {theme.headingFont}
+                  {theme.bodyFont && theme.bodyFont !== theme.headingFont
+                    ? ` / ${theme.bodyFont}`
+                    : ""}
+                </p>
+              )}
             </div>
 
             <div
@@ -233,29 +330,59 @@ function Portfolio() {
             <span className="size-2 rounded-full bg-border" />
             <span className="font-mono text-[11px] text-moss">{slug}.lens.photo</span>
           </div>
-          <div className="p-8">
-            <h2
-              className="font-display text-4xl font-semibold tracking-tight"
-              style={accent ? { color: accent } : undefined}
-            >
-              {name || "Your name"}
+          <div
+            className="p-8"
+            style={{ background: theme.bg, color: theme.ink, ...bodyStyle }}
+          >
+            {nav.length > 0 && (
+              <nav
+                className={`mb-8 flex flex-wrap gap-4 text-[12px] opacity-70 ${
+                  theme.uppercaseNav ? "uppercase tracking-[0.14em]" : ""
+                }`}
+              >
+                {nav.map((n) => (
+                  <span key={n}>{n}</span>
+                ))}
+              </nav>
+            )}
+
+            <h2 className="text-4xl font-semibold tracking-tight" style={headingStyle}>
+              {hero || name || "Your name"}
             </h2>
-            <p className="mt-2 max-w-md text-[15px] text-moss">
+            {name && hero && hero !== name && (
+              <p className="mt-1 text-[13px] opacity-60" style={headingStyle}>
+                {name}
+              </p>
+            )}
+            <p className="mt-2 max-w-md text-[15px] opacity-75">
               {bio || "A sentence about the work you make."}
             </p>
+            <span
+              className="mt-4 inline-block rounded-full px-4 py-1.5 text-[13px]"
+              style={{ background: theme.accent ?? theme.ink, color: theme.bg }}
+            >
+              Get in touch
+            </span>
 
             {items.length === 0 ? (
-              <div className="mt-8 rounded-xl border border-dashed border-input p-10 text-center text-sm text-moss">
+              <div className="mt-8 rounded-xl border border-dashed p-10 text-center text-sm opacity-60">
                 Your photos will appear here as you add them.
               </div>
             ) : (
-              <div className="mt-8 space-y-8">
+              <div className={galleryClass}>
                 {items.map((i) => (
                   <figure key={i.id}>
-                    <img src={i.url} alt={i.title} className="w-full rounded-xl object-cover" />
+                    <img
+                      src={i.url}
+                      alt={i.title}
+                      loading="lazy"
+                      className="w-full rounded-xl object-cover"
+                    />
                     <figcaption className="mt-2">
-                      <p className="font-display text-[16px] font-semibold tracking-tight">{i.title}</p>
-                      {i.story && <p className="text-[14px] text-moss">{i.story}</p>}
+                      <p className="text-[16px] font-semibold tracking-tight" style={headingStyle}>
+                        {i.title}
+                      </p>
+                      {i.story && <p className="text-[14px] opacity-70">{i.story}</p>}
                     </figcaption>
                   </figure>
                 ))}
