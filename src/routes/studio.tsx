@@ -185,13 +185,23 @@ function Studio() {
           error: err instanceof Error ? err.message : "Could not read this file",
         });
       }
-      setProgress({ done: i + 1, total: files.length });
-      // let the UI breathe between frames
-      await new Promise((r) => setTimeout(r, 0));
-    }
+      doneCount++;
+      setProgress({ done: doneCount, total: files.length });
+    };
+
+    // Parallel decode lanes — one per core, capped at 8.
+    const lanes = Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4));
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(lanes, files.length) }, async () => {
+        while (cursor < files.length) await one(cursor++);
+      }),
+    );
+
+    const batch = added.filter(Boolean);
 
     setShots((prev) => {
-      const next = [...prev, ...added];
+      const next = [...prev, ...batch];
       // duplicate detection across the whole set
       for (let i = 0; i < next.length; i++) {
         if (!next[i]!.hash) continue;
