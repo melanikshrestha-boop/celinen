@@ -66,6 +66,27 @@ function ClientGallery() {
     await toggleGalleryFavorite({ data: { slug, photo_id: id, on } });
   };
 
+  /** Zip the originals byte-for-byte — no re-encode, no resize, RAW stays RAW. */
+  const grabAll = async (list: Photo[]) => {
+    setZipping(true);
+    try {
+      const entries: { path: string; bytes: Uint8Array }[] = [];
+      for (const p of list) {
+        if (!p.url) continue;
+        const buf = await (await fetch(p.url)).arrayBuffer();
+        entries.push({ path: p.filename, bytes: new Uint8Array(buf) });
+      }
+      const url = URL.createObjectURL(makeZip(entries));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "gallery"}-originals.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setZipping(false);
+    }
+  };
+
   const grab = async (p: Photo) => {
     if (!p.url) return;
     const blob = await (await fetch(p.url)).blob();
