@@ -15,6 +15,13 @@
       "when": 1788338491333,
       "tag": "0001_lenslabs_business_backend",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788338647697,
+      "tag": "0002_client_delivery_galleries",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,158 @@ export type Database = {
         }
         Relationships: []
       }
+      galleries: {
+        Row: {
+          client_id: string | null
+          cover_path: string | null
+          created_at: string
+          downloads_enabled: boolean
+          expires_at: string | null
+          id: string
+          message: string | null
+          passcode: string | null
+          shoot_id: string | null
+          slug: string
+          status: string
+          title: string
+          user_id: string
+          view_count: number
+        }
+        Insert: {
+          client_id?: string | null
+          cover_path?: string | null
+          created_at?: string
+          downloads_enabled?: boolean
+          expires_at?: string | null
+          id?: string
+          message?: string | null
+          passcode?: string | null
+          shoot_id?: string | null
+          slug: string
+          status?: string
+          title: string
+          user_id: string
+          view_count?: number
+        }
+        Update: {
+          client_id?: string | null
+          cover_path?: string | null
+          created_at?: string
+          downloads_enabled?: boolean
+          expires_at?: string | null
+          id?: string
+          message?: string | null
+          passcode?: string | null
+          shoot_id?: string | null
+          slug?: string
+          status?: string
+          title?: string
+          user_id?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "galleries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "galleries_shoot_id_fkey"
+            columns: ["shoot_id"]
+            isOneToOne: false
+            referencedRelation: "shoots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gallery_favorites: {
+        Row: {
+          created_at: string
+          gallery_id: string
+          id: string
+          note: string | null
+          photo_id: string
+          viewer: string
+        }
+        Insert: {
+          created_at?: string
+          gallery_id: string
+          id?: string
+          note?: string | null
+          photo_id: string
+          viewer?: string
+        }
+        Update: {
+          created_at?: string
+          gallery_id?: string
+          id?: string
+          note?: string | null
+          photo_id?: string
+          viewer?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_favorites_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "galleries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_favorites_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "gallery_photos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gallery_photos: {
+        Row: {
+          created_at: string
+          filename: string
+          gallery_id: string
+          height: number | null
+          id: string
+          sort_order: number
+          storage_path: string
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          filename: string
+          gallery_id: string
+          height?: number | null
+          id?: string
+          sort_order?: number
+          storage_path: string
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          filename?: string
+          gallery_id?: string
+          height?: number | null
+          id?: string
+          sort_order?: number
+          storage_path?: string
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_photos_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "galleries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number
