@@ -193,21 +193,42 @@ async function applyOrientation(bitmap: ImageBitmap, orientation: number): Promi
   return createImageBitmap(canvas);
 }
 
-export async function decodeFile(file: File): Promise<ImageBitmap> {
+/** EXIF lives in the first blocks of the file — never read the whole thing for it. */
+async function headerBytes(file: Blob, bytes = 256 * 1024) {
+  return new Uint8Array(await file.slice(0, bytes).arrayBuffer());
+}
+
+/**
+ * Decode a frame. `maxEdge` decodes straight to a smaller bitmap, which is what
+ * makes culling fast: analysis never needs 45 megapixels.
+ */
+export async function decodeFile(file: File, maxEdge?: number): Promise<ImageBitmap> {
+  const fit = (w: number, h: number) => {
+    if (!maxEdge) return {};
+    const s = Math.min(1, maxEdge / Math.max(w, h));
+    return s >= 1 ? {} : { resizeWidth: Math.round(w * s), resizeQuality: "low" as const };
+  };
+
   if (isRawFile(file)) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
     const jpeg = await extractEmbeddedJpeg(file);
     if (!jpeg) throw new Error("No embedded preview found in this RAW file");
-    const jpegBytes = new Uint8Array(await jpeg.arrayBuffer());
-    let orientation = readExifOrientation(jpegBytes);
+    let orientation = readExifOrientation(await headerBytes(jpeg, 128 * 1024));
     // Most RAW previews carry no EXIF of their own — fall back to the container's.
-    if (orientation === 1) orientation = readExifOrientation(bytes);
-    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none" });
+    if (orientation === 1) orientation = readExifOrientation(await headerBytes(file));
+    const probe = await createImageBitmap(jpeg, { imageOrientation: "none" });
+    const opts = fit(probe.width, probe.height);
+    if (!("resizeWidth" in opts)) return applyOrientation(probe, orientation);
+    probe.close?.();
+    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none", ...opts });
     return applyOrientation(bitmap, orientation);
   }
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const orientation = readExifOrientation(bytes);
-  const bitmap = await createImageBitmap(file, { imageOrientation: "none" });
+
+  const orientation = readExifOrientation(await headerBytes(file));
+  const probe = await createImageBitmap(file, { imageOrientation: "none" });
+  const opts = fit(probe.width, probe.height);
+  if (!("resizeWidth" in opts)) return applyOrientation(probe, orientation);
+  probe.close?.();
+  const bitmap = await createImageBitmap(file, { imageOrientation: "none", ...opts });
   return applyOrientation(bitmap, orientation);
 }
 
