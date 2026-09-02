@@ -38,9 +38,12 @@ return {
 }
 `;
 
-const CONFIG_LUA = (endpoint: string) => `-- Edit this if your LensLabs runs on another host.
+const CONFIG_LUA = (endpoint: string, workspace: string) => `-- LensLabs bridge settings.
+-- endpoint  : the live LensLabs sync URL (only change this if you self-host).
+-- workspace : the studio this catalog syncs into (see Adobe tab in LensLabs).
 return {
   endpoint = '${endpoint}',
+  workspace = '${workspace}',
 }
 `;
 
