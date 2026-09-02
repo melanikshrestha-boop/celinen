@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdobeRouteImport } from './routes/adobe'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -22,6 +23,7 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
@@ -35,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdobeRoute = AdobeRouteImport.update({
   id: '/adobe',
   path: '/adobe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BusinessRoute = BusinessRouteImport.update({
@@ -92,6 +99,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShootRoute = ShootRouteImport.update({
+  id: '/shoot',
+  path: '/shoot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -116,6 +128,7 @@ const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/desk': typeof DeskRoute
@@ -127,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
@@ -135,6 +149,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/desk': typeof DeskRoute
@@ -146,6 +161,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
@@ -155,6 +171,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/auth': typeof AuthRoute
   '/business': typeof BusinessRoute
   '/clients': typeof ClientsRoute
   '/desk': typeof DeskRoute
@@ -166,6 +183,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
@@ -176,6 +194,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/adobe'
+    | '/auth'
     | '/business'
     | '/clients'
     | '/desk'
@@ -187,6 +206,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/shoot'
     | '/signup'
     | '/studio'
     | '/api/chat'
@@ -195,6 +215,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/adobe'
+    | '/auth'
     | '/business'
     | '/clients'
     | '/desk'
@@ -206,6 +227,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/shoot'
     | '/signup'
     | '/studio'
     | '/api/chat'
@@ -214,6 +236,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/adobe'
+    | '/auth'
     | '/business'
     | '/clients'
     | '/desk'
@@ -225,6 +248,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/shoot'
     | '/signup'
     | '/studio'
     | '/api/chat'
@@ -234,6 +258,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdobeRoute: typeof AdobeRoute
+  AuthRoute: typeof AuthRoute
   BusinessRoute: typeof BusinessRoute
   ClientsRoute: typeof ClientsRoute
   DeskRoute: typeof DeskRoute
@@ -245,6 +270,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
+  ShootRoute: typeof ShootRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -265,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/adobe'
       fullPath: '/adobe'
       preLoaderRoute: typeof AdobeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/business': {
@@ -344,6 +377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shoot': {
+      id: '/shoot'
+      path: '/shoot'
+      fullPath: '/shoot'
+      preLoaderRoute: typeof ShootRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -378,6 +418,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
+  AuthRoute: AuthRoute,
   BusinessRoute: BusinessRoute,
   ClientsRoute: ClientsRoute,
   DeskRoute: DeskRoute,
@@ -389,6 +430,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
+  ShootRoute: ShootRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   ApiChatRoute: ApiChatRoute,

@@ -159,6 +159,62 @@ function Earnings() {
       .sort((a, b) => b.total - a.total);
   }, [entries]);
 
+  /* ---------- real shoot data wired into the ledger ---------- */
+  const jobs = useMemo(
+    () =>
+      events.map((ev) => {
+        const ledgerIncome = entries
+          .filter((e) => e.eventId === ev.id && e.kind === "income")
+          .reduce((s, e) => s + e.amount, 0);
+        const ledgerExpense = entries
+          .filter((e) => e.eventId === ev.id && e.kind === "expense")
+          .reduce((s, e) => s + e.amount, 0);
+
+        const income =
+          ledgerIncome ||
+          ev.money.collected ||
+          ev.money.invoiced ||
+          ev.money.agreedRevenue ||
+          0;
+        const expense = ledgerExpense || ev.money.actualCosts || ev.money.estimatedCosts || 0;
+
+        const hours = ev.metrics.workMinutes / 60;
+        const net = income - expense;
+        const perHour = hours > 0 ? net / hours : null;
+
+        const deadline = ev.deadlines[0] ?? null;
+        const receipt = ev.receipts[0] ?? null;
+        const turnaround = receipt
+          ? { state: "delivered" as const, at: receipt.at }
+          : ev.status === "draft"
+            ? { state: "not shot" as const, at: null }
+            : { state: "open" as const, at: null };
+
+        return {
+          id: ev.id,
+          name: ev.name,
+          client: clients.find((c) => c.id === ev.clientId)?.name ?? "—",
+          frames: ev.metrics.ingested,
+          keepers: ev.pickQueue.selects,
+          hours,
+          income,
+          expense,
+          net,
+          perHour,
+          deadline,
+          turnaround,
+        };
+      }),
+    [events, entries, clients],
+  );
+
+  const shootTotals = useMemo(() => {
+    const hours = jobs.reduce((s, j) => s + j.hours, 0);
+    const net = jobs.reduce((s, j) => s + j.net, 0);
+    const frames = jobs.reduce((s, j) => s + j.frames, 0);
+    return { hours, net, frames, perHour: hours > 0 ? net / hours : 0 };
+  }, [jobs]);
+
   const selfEmployment = Math.max(0, totals.net) * 0.9235 * 0.153;
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
 
@@ -255,6 +311,66 @@ function Earnings() {
           </Card>
         ))}
       </div>
+
+      <Card className="mt-4 p-0">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+            Per shoot — live from your jobs
+          </p>
+          <p className="ml-auto font-mono text-[11px] text-moss">
+            {shootTotals.frames.toLocaleString()} frames · {shootTotals.hours.toFixed(1)} h ·{" "}
+            <span className="text-ink">{money(shootTotals.perHour)}/h</span>
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+                <th className="p-3 text-left">Shoot</th>
+                <th className="p-3 text-right">Frames</th>
+                <th className="p-3 text-right">Keepers</th>
+                <th className="p-3 text-right">Hours</th>
+                <th className="p-3 text-right">Income</th>
+                <th className="p-3 text-right">Costs</th>
+                <th className="p-3 text-right">Profit / hr</th>
+                <th className="p-3 text-left">Turnaround</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((j) => (
+                <tr key={j.id} className="border-b border-border last:border-0">
+                  <td className="p-3">
+                    <p className="font-medium">{j.name}</p>
+                    <p className="font-mono text-[10px] text-moss">{j.client}</p>
+                  </td>
+                  <td className="p-3 text-right font-mono">{j.frames.toLocaleString()}</td>
+                  <td className="p-3 text-right font-mono">{j.keepers}</td>
+                  <td className="p-3 text-right font-mono">{j.hours.toFixed(1)}</td>
+                  <td className="p-3 text-right font-mono">{money(j.income)}</td>
+                  <td className="p-3 text-right font-mono">{money(j.expense)}</td>
+                  <td
+                    className={`p-3 text-right font-mono ${j.net < 0 ? "text-rust" : ""}`}
+                  >
+                    {j.perHour === null ? "—" : `${money(j.perHour)}/h`}
+                  </td>
+                  <td className="p-3">
+                    <p className="font-mono text-[11px]">
+                      {j.turnaround.state === "delivered"
+                        ? `delivered ${j.turnaround.at}`
+                        : j.turnaround.state === "not shot"
+                          ? "not shot yet"
+                          : "in progress"}
+                    </p>
+                    <p className="font-mono text-[10px] text-moss">
+                      {j.deadline ? `due ${j.deadline.at} · ${j.deadline.label}` : "no deadline set"}
+                    </p>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
         <Card className="p-0">
