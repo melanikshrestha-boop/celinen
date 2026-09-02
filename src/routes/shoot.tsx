@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CullChat, type ToolCall } from "@/components/studio/CullChat";
 import { LogoMark } from "@/components/lensos/Logo";
+import { bridgeFetch } from "@/lib/bridge-client";
 import { bridgeEndpoint } from "@/lib/lightroom-plugin";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -291,7 +292,7 @@ function ShootPage() {
 
     let pushed = false;
     try {
-      const res = await fetch(bridgeEndpoint(), {
+      const res = await bridgeFetch(bridgeEndpoint(), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

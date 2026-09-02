@@ -43,6 +43,20 @@
       "when": 1788340029634,
       "tag": "0005_client_bookings_and_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788365651512,
+      "tag": "0006_security_hardening_client_linkage_and_bridge",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788365772528,
+      "tag": "0007_lightroom_workspace_token_add",
+      "breakpoints": true
     }
   ]
 }
