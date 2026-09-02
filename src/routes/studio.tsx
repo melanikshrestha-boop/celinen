@@ -100,14 +100,18 @@ function Studio() {
     }
     if (!files.length) return;
     setProgress({ done: 0, total: files.length });
-    const added: Shot[] = [];
+    const started = performance.now();
+    const stamp = Date.now();
+    const added: Shot[] = new Array(files.length);
+    let doneCount = 0;
 
-    for (let i = 0; i < files.length; i++) {
+    const one = async (i: number) => {
       const file = files[i]!;
-      const id = `${file.name}-${file.size}-${i}-${Date.now()}`;
+      const id = `${file.name}-${file.size}-${i}-${stamp}`;
       const raw = isRawFile(file);
       try {
-        const bitmap = await decodeFile(file);
+        // Cull-resolution decode: analysis never needs the full 45MP frame.
+        const bitmap = await decodeFile(file, 1280);
         const analysis = analyseBitmap(bitmap);
         const faces = await analyseFaces(bitmap);
         const { score, flags } = scoreOf({ ...analysis, faces });
