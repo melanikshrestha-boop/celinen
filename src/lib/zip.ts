@@ -18,7 +18,10 @@ export function crc32(bytes: Uint8Array) {
 
 export interface ZipEntry {
   path: string;
-  text: string;
+  /** Text payload. Ignored when `bytes` is provided. */
+  text?: string;
+  /** Raw bytes — used for binary files (originals, RAW, etc). */
+  bytes?: Uint8Array;
 }
 
 export function makeZip(entries: ZipEntry[]): Blob {
