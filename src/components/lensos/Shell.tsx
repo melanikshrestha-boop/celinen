@@ -66,9 +66,9 @@ export function Btn({
 }: {
   children: React.ReactNode;
   onClick?: (() => void) | undefined;
-  variant?: "primary" | "ghost" | "danger";
-  disabled?: boolean;
-  className?: string;
+  variant?: "primary" | "ghost" | "danger" | undefined;
+  disabled?: boolean | undefined;
+  className?: string | undefined;
 }) {
   return (
     <button
@@ -153,7 +153,7 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   );
 }
 
-export function EventHeader({ onAddSource }: { onAddSource?: () => void }) {
+export function EventHeader({ onAddSource }: { onAddSource?: (() => void) | undefined }) {
   const { active, clients, events, setActiveId } = useLens();
   const client = clientOf(clients, active.clientId);
   const next = active.deadlines[0];
@@ -205,8 +205,8 @@ export function Shell({
   hideEventHeader,
 }: {
   children: React.ReactNode;
-  onAddSource?: () => void;
-  hideEventHeader?: boolean;
+  onAddSource?: (() => void) | undefined;
+  hideEventHeader?: boolean | undefined;
 }) {
   const [palette, setPalette] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });

@@ -150,7 +150,7 @@ export function LensProvider({ children }: { children: ReactNode }) {
                   fields: {
                     ...p.fields,
                     iptc: { value: template, source: "template" },
-                    copyright: { value: p.fields.copyright?.value ?? "", source: "template" },
+                    copyright: { value: p.fields['copyright']?.value ?? "", source: "template" },
                   },
                 }
               : p,

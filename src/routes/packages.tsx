@@ -42,7 +42,7 @@ function Packages() {
     const fill = packageFill(active, pkg);
     if (fill < pkg.target) issues.push(`${pkg.target - fill} selects short of target`);
     assigned
-      .filter((p) => !p.fields.caption?.value)
+      .filter((p) => !p.fields['caption']?.value)
       .forEach((p) => issues.push(`${p.frame}: caption missing`));
     assigned.filter((p) => !p.approved).forEach((p) => issues.push(`${p.frame}: metadata not approved`));
     setValidation(issues);

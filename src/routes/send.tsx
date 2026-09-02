@@ -34,7 +34,7 @@ function Send() {
   const pkg = active.packages.find((p) => p.id === pkgId);
   const files = pkg ? packageFill(active, pkg) : 0;
   const blockers = pkg
-    ? active.picks.filter((p) => p.packageId === pkg.id && (!p.approved || !p.fields.caption?.value))
+    ? active.picks.filter((p) => p.packageId === pkg.id && (!p.approved || !p.fields['caption']?.value))
     : [];
 
   return (

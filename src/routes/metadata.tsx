@@ -39,7 +39,7 @@ function MetadataDesk() {
 
   const conflicts = sel.filter((id) => {
     const p = picks.find((x) => x.id === id);
-    return p && p.fields.iptc?.source === "manual";
+    return p && p.fields['iptc']?.source === "manual";
   }).length;
 
   if (!picks.length) {
@@ -87,7 +87,7 @@ function MetadataDesk() {
                 <button onClick={() => setFocus(p.id)} className="flex-1 text-left">
                   <span className="font-mono text-[12px]">{p.frame}</span>
                   <span className="ml-2 text-[12px] text-moss">
-                    {p.fields.caption?.value || "no caption"}
+                    {p.fields['caption']?.value || "no caption"}
                   </span>
                 </button>
                 {p.suggestions.some((s) => s.status === "open") && <Chip tone="accent">suggestion</Chip>}
