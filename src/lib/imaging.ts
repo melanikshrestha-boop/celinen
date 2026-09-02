@@ -110,14 +110,105 @@ async function extractEmbeddedJpeg(file: File): Promise<Blob | null> {
   return new Blob([buf.slice(best.start, best.end)], { type: "image/jpeg" });
 }
 
+/**
+ * Read the EXIF orientation flag (1-8) out of a JPEG/TIFF byte buffer.
+ * Returns 1 (normal) when absent or unreadable.
+ */
+export function readExifOrientation(buf: Uint8Array): number {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let tiffStart = -1;
+
+  if (buf[0] === 0xff && buf[1] === 0xd8) {
+    // JPEG: walk the marker segments looking for APP1/Exif
+    let offset = 2;
+    while (offset + 4 < buf.length) {
+      if (buf[offset] !== 0xff) break;
+      const marker = buf[offset + 1]!;
+      const size = view.getUint16(offset + 2, false);
+      if (marker === 0xe1) {
+        // "Exif\0\0"
+        if (
+          buf[offset + 4] === 0x45 &&
+          buf[offset + 5] === 0x78 &&
+          buf[offset + 6] === 0x69 &&
+          buf[offset + 7] === 0x66
+        ) {
+          tiffStart = offset + 10;
+        }
+        break;
+      }
+      if (marker === 0xda) break; // start of scan
+      offset += 2 + size;
+    }
+  } else if (
+    (buf[0] === 0x49 && buf[1] === 0x49) ||
+    (buf[0] === 0x4d && buf[1] === 0x4d)
+  ) {
+    tiffStart = 0; // bare TIFF (most RAW containers)
+  }
+
+  if (tiffStart < 0 || tiffStart + 8 > buf.length) return 1;
+
+  const little = view.getUint16(tiffStart, false) === 0x4949;
+  const ifdOffset = view.getUint32(tiffStart + 4, little);
+  const ifd = tiffStart + ifdOffset;
+  if (ifd + 2 > buf.length) return 1;
+
+  const entries = view.getUint16(ifd, little);
+  for (let i = 0; i < entries; i++) {
+    const entry = ifd + 2 + i * 12;
+    if (entry + 12 > buf.length) break;
+    if (view.getUint16(entry, little) === 0x0112) {
+      const value = view.getUint16(entry + 8, little);
+      return value >= 1 && value <= 8 ? value : 1;
+    }
+  }
+  return 1;
+}
+
+/** Bake an EXIF orientation into pixels so every downstream step sees it upright. */
+async function applyOrientation(bitmap: ImageBitmap, orientation: number): Promise<ImageBitmap> {
+  if (orientation <= 1) return bitmap;
+  const swap = orientation >= 5;
+  const w = swap ? bitmap.height : bitmap.width;
+  const h = swap ? bitmap.width : bitmap.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+
+  switch (orientation) {
+    case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
+    case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
+    case 4: ctx.transform(1, 0, 0, -1, 0, h); break;
+    case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+    case 6: ctx.transform(0, 1, -1, 0, w, 0); break;
+    case 7: ctx.transform(0, -1, -1, 0, w, h); break;
+    case 8: ctx.transform(0, -1, 1, 0, 0, h); break;
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+  return createImageBitmap(canvas);
+}
+
 export async function decodeFile(file: File): Promise<ImageBitmap> {
   if (isRawFile(file)) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
     const jpeg = await extractEmbeddedJpeg(file);
     if (!jpeg) throw new Error("No embedded preview found in this RAW file");
-    return createImageBitmap(jpeg);
+    const jpegBytes = new Uint8Array(await jpeg.arrayBuffer());
+    let orientation = readExifOrientation(jpegBytes);
+    // Most RAW previews carry no EXIF of their own — fall back to the container's.
+    if (orientation === 1) orientation = readExifOrientation(bytes);
+    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none" });
+    return applyOrientation(bitmap, orientation);
   }
-  return createImageBitmap(file);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const orientation = readExifOrientation(bytes);
+  const bitmap = await createImageBitmap(file, { imageOrientation: "none" });
+  return applyOrientation(bitmap, orientation);
 }
+
 
 function scratchCanvas(w: number, h: number) {
   const canvas = document.createElement("canvas");
