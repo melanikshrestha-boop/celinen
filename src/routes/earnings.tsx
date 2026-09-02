@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
 import { useLens } from "@/lib/lensos-store";
+import { InvoicePanel } from "@/components/lensos/InvoicePanel";
 import {
   addTransaction,
   deleteTransaction,
@@ -419,6 +420,8 @@ function Earnings() {
         {stripeNote && <p className="mt-2 font-mono text-[12px] text-moss">{stripeNote}</p>}
         {loading && <p className="mt-2 font-mono text-[12px] text-moss">loading ledger…</p>}
       </Card>
+
+      <InvoicePanel />
 
 
       <div className="grid gap-4 md:grid-cols-3">
