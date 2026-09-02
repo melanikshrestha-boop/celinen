@@ -367,6 +367,60 @@ function Earnings() {
         sub="Grouped into Schedule C categories. Nothing is estimated for you unless it is labelled an estimate."
       />
 
+      {dataError && (
+        <Card className="mb-4 border-destructive/40">
+          <p className="text-sm text-destructive">{dataError}</p>
+        </Card>
+      )}
+
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+              Stripe · your own account
+            </p>
+            <p className="mt-1 text-[13px] text-moss">
+              {stripeAccount
+                ? `Connected — ${stripeAccount}. Charges and paid invoices land in this ledger automatically.`
+                : "Connect your existing Stripe account to import charges and send invoices."}
+            </p>
+          </div>
+          <div className="ml-auto flex gap-2">
+            {stripeAccount ? (
+              <>
+                <Btn
+                  className="px-3 py-1.5 text-[13px]"
+                  disabled={stripeBusy === "sync"}
+                  onClick={() => void runSync()}
+                >
+                  {stripeBusy === "sync" ? "Syncing…" : "Sync payments"}
+                </Btn>
+                <Btn
+                  className="px-3 py-1.5 text-[13px]"
+                  onClick={() =>
+                    void disconnectStripe().then(() => setStripeAccount(null))
+                  }
+                >
+                  Disconnect
+                </Btn>
+              </>
+            ) : (
+              <Btn
+                variant="primary"
+                className="px-3 py-1.5 text-[13px]"
+                disabled={stripeBusy === "connect"}
+                onClick={() => void connectStripe()}
+              >
+                {stripeBusy === "connect" ? "Opening Stripe…" : "Connect Stripe"}
+              </Btn>
+            )}
+          </div>
+        </div>
+        {stripeNote && <p className="mt-2 font-mono text-[12px] text-moss">{stripeNote}</p>}
+        {loading && <p className="mt-2 font-mono text-[12px] text-moss">loading ledger…</p>}
+      </Card>
+
+
       <div className="grid gap-4 md:grid-cols-3">
         {[
           ["Income", money(totals.income), "gross receipts"],
