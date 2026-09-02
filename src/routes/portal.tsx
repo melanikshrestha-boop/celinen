@@ -1,8 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
 import { supabase } from "@/integrations/supabase/client";
-import { getClientPortal } from "@/lib/client-portal.functions";
+import {
+  getClientPortal,
+  createBookingRequest,
+  listBookingRequests,
+  createClientUploadUrl,
+  recordClientUpload,
+  listClientUploads,
+} from "@/lib/client-portal.functions";
 
 export const Route = createFileRoute("/portal")({
   ssr: false,
