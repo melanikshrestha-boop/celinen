@@ -193,6 +193,7 @@ function Index() {
             </span>
             <Link
               to="/auth"
+              search={{ next: "/desk" }}
               className="ml-auto rounded-xl bg-ink px-5 py-2.5 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
             >
               Start your desk →

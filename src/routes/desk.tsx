@@ -74,7 +74,7 @@ function Desk() {
     .sort((a, b) => b.short - a.short)[0];
 
   return (
-    <Shell onAddSource={attachSource}>
+    <Shell onAddSource={() => attachSource("New source")}>
       <section className="flex flex-col items-center py-10 text-center">
         <div className="float-y">
           <LogoMark size={56} className="iris-breathe text-ink" />
@@ -138,7 +138,7 @@ function Desk() {
       <div className="rise-in mt-4 overflow-hidden rounded-2xl border border-border bg-card [animation-delay:260ms]">
         {active.sources.length === 0 ? (
           <button
-            onClick={attachSource}
+            onClick={() => attachSource("New source")}
             className="flex w-full items-center justify-center gap-3 px-5 py-10 text-sm text-moss transition-colors hover:text-ink"
           >
             <LogoMark size={20} className="iris-spin" />
