@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ToolName =
+  | "auto_refine"
   | "cull"
   | "keep_top"
   | "reject_flagged"
@@ -125,6 +126,21 @@ const TOOLS = [
           highlights: { type: "number" },
           shadows: { type: "number" },
           crop: { type: "string", enum: ["orig", "1:1", "4:5", "3:2", "16:9"] },
+        },
+        required: ["target"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "auto_refine",
+      description:
+        "Auto refine (like Lightroom's Auto button): set exposure, contrast, white balance, highlights, shadows and saturation from each frame's own histogram.",
+      parameters: {
+        type: "object",
+        properties: {
+          target: { type: "string", enum: ["selected", "keepers", "all"] },
         },
         required: ["target"],
       },

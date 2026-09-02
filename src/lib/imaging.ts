@@ -62,6 +62,8 @@ export interface Shot {
   clippedHighlights: number;
   clippedShadows: number;
   hash: string;
+  /** measured tone statistics — feeds Auto Refine */
+  tone?: ToneStats | undefined;
   score: number;
   flags: Flag[];
   verdict: Verdict;
@@ -229,6 +231,21 @@ export interface FaceReading {
   center?: { x: number; y: number } | undefined;
 }
 
+/** Tone statistics used by Auto Refine (Lightroom's "Auto" equivalent). */
+export interface ToneStats {
+  /** 2nd percentile luma — the real black point */
+  black: number;
+  /** 98th percentile luma — the real white point */
+  white: number;
+  /** median luma */
+  median: number;
+  rMean: number;
+  gMean: number;
+  bMean: number;
+  /** mean HSL-ish saturation, 0..1 */
+  satMean: number;
+}
+
 export interface Analysis {
   sharpness: number;
   faces?: FaceReading | null;
@@ -236,6 +253,7 @@ export interface Analysis {
   clippedHighlights: number;
   clippedShadows: number;
   hash: string;
+  tone: ToneStats;
 }
 
 /** Laplacian variance for focus, histogram stats for exposure, aHash for dupes. */
@@ -249,17 +267,52 @@ export function analyseBitmap(bitmap: ImageBitmap): Analysis {
   const { data } = ctx.getImageData(0, 0, w, h);
 
   const gray = new Float32Array(w * h);
+  const hist = new Uint32Array(256);
   let sum = 0;
   let clipHi = 0;
   let clipLo = 0;
+  let rSum = 0;
+  let gSum = 0;
+  let bSum = 0;
+  let satSum = 0;
   for (let i = 0; i < w * h; i++) {
-    const g = 0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!;
+    const r = data[i * 4]!;
+    const gc = data[i * 4 + 1]!;
+    const b = data[i * 4 + 2]!;
+    const g = 0.299 * r + 0.587 * gc + 0.114 * b;
     gray[i] = g;
+    hist[Math.min(255, Math.max(0, Math.round(g)))]!++;
     sum += g;
+    rSum += r;
+    gSum += gc;
+    bSum += b;
+    const mx = Math.max(r, gc, b);
+    const mn = Math.min(r, gc, b);
+    satSum += mx === 0 ? 0 : (mx - mn) / mx;
     if (g > 250) clipHi++;
     if (g < 5) clipLo++;
   }
-  const brightness = sum / (w * h);
+  const n = w * h;
+  const brightness = sum / n;
+
+  const percentile = (p: number) => {
+    const want = p * n;
+    let acc = 0;
+    for (let v = 0; v < 256; v++) {
+      acc += hist[v]!;
+      if (acc >= want) return v;
+    }
+    return 255;
+  };
+  const tone: ToneStats = {
+    black: percentile(0.02),
+    white: percentile(0.98),
+    median: Math.max(1, percentile(0.5)),
+    rMean: rSum / n,
+    gMean: gSum / n,
+    bMean: bSum / n,
+    satMean: satSum / n,
+  };
 
   let lapSum = 0;
   let lapSq = 0;
@@ -294,8 +347,56 @@ export function analyseBitmap(bitmap: ImageBitmap): Analysis {
     clippedHighlights: (clipHi / (w * h)) * 100,
     clippedShadows: (clipLo / (w * h)) * 100,
     hash,
+    tone,
   };
 }
+
+/**
+ * Auto Refine — the LensLabs answer to Lightroom's Auto button.
+ * Everything below is derived from the frame's own measured histogram:
+ * exposure targets a mid-grey median, highlights/shadows recover the real
+ * clipping points, contrast fills the tonal range, temp neutralises a colour
+ * cast (grey-world), saturation nudges flat frames back to life.
+ */
+export function autoRefine(tone: ToneStats, base: Edits = DEFAULT_EDITS): Edits {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const round = (v: number) => Math.round(v);
+
+  // exposure: pull the median toward 118 (mid grey), gently
+  const gain = 118 / tone.median;
+  const exposure = clamp((gain - 1) * 70, -55, 55);
+  const g = 1 + exposure / 100;
+
+  const whiteAfter = tone.white * g;
+  const blackAfter = tone.black * g;
+
+  // highlights: recover anything that would blow out after the exposure move
+  const highlights = whiteAfter > 242 ? -clamp((whiteAfter - 242) * 2.2, 0, 70) : 0;
+  // shadows: open crushed blacks, but keep some depth
+  const shadows = blackAfter < 14 ? clamp((14 - blackAfter) * 3.2, 0, 60) : 0;
+
+  // contrast: fill the range when the frame is flat, ease off when it is harsh
+  const spread = whiteAfter - blackAfter;
+  const contrast =
+    spread < 170 ? clamp((170 - spread) * 0.22, 0, 32) : clamp((spread - 235) * -0.5, -18, 0);
+
+  // white balance: grey-world cast correction (blue cast -> warm up)
+  const temp = clamp((tone.bMean - tone.rMean) * 1.5, -45, 45);
+
+  // saturation: bring flat frames up, pull back anything already loud
+  const saturation = clamp((0.24 - tone.satMean) * 150, -18, 30);
+
+  return {
+    ...base,
+    exposure: round(exposure),
+    contrast: round(contrast),
+    temp: round(temp),
+    saturation: round(saturation),
+    highlights: round(highlights),
+    shadows: round(shadows),
+  };
+}
+
 
 export function hamming(a: string, b: string) {
   let d = 0;
