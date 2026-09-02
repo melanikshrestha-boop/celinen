@@ -133,6 +133,21 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "auto_refine",
+      description:
+        "Auto refine (like Lightroom's Auto button): set exposure, contrast, white balance, highlights, shadows and saturation from each frame's own histogram.",
+      parameters: {
+        type: "object",
+        properties: {
+          target: { type: "string", enum: ["selected", "keepers", "all"] },
+        },
+        required: ["target"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "export_keepers",
       description: "Export every keeper as an edited JPEG.",
       parameters: { type: "object", properties: {} },
