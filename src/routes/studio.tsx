@@ -758,7 +758,42 @@ function Studio() {
                                 : " · eyes closed"}
                           </span>
                         )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 ${
+                            selected.develop ? "bg-ink text-paper2" : "border border-input"
+                          }`}
+                          title={
+                            selected.develop
+                              ? `Last develop update ${new Date(selected.develop.at).toLocaleTimeString()}`
+                              : "No develop settings applied yet"
+                          }
+                        >
+                          develop ·{" "}
+                          {selected.develop
+                            ? selected.develop.origin === "lightroom"
+                              ? "from Lightroom (live)"
+                              : selected.develop.origin === "sidecar"
+                                ? "from XMP sidecar"
+                                : "Lens OS, published"
+                            : "untouched"}
+                        </span>
+                        {selected.develop?.rating !== undefined && selected.develop.rating !== null && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            {selected.develop.rating}★
+                          </span>
+                        )}
+                        {selected.develop?.label && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            {selected.develop.label} label
+                          </span>
+                        )}
+                        {selected.develop?.caption && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            IPTC: {selected.develop.caption}
+                          </span>
+                        )}
                       </span>
+
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
