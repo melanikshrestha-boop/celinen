@@ -28,6 +28,7 @@ import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
 import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
@@ -127,6 +128,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GSlugRoute = GSlugRouteImport.update({
+  id: '/g/$slug',
+  path: '/g/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
@@ -189,6 +196,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
@@ -240,6 +249,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/api/chat'
+    | '/g/$slug'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/api/chat'
+    | '/g/$slug'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/api/chat'
+    | '/g/$slug'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
@@ -313,6 +325,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   ApiChatRoute: typeof ApiChatRoute
+  GSlugRoute: typeof GSlugRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
@@ -453,6 +466,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$slug': {
+      id: '/g/$slug'
+      path: '/g/$slug'
+      fullPath: '/g/$slug'
+      preLoaderRoute: typeof GSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
@@ -497,6 +517,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   ApiChatRoute: ApiChatRoute,
+  GSlugRoute: GSlugRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
