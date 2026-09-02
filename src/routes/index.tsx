@@ -45,7 +45,7 @@ function Index() {
         <h1 className="rise-in mt-8 font-display text-[clamp(2.6rem,7.5vw,5.5rem)] font-bold leading-[0.98] tracking-[-0.04em] [animation-delay:90ms]">
           Cull your shoot
           <br />
-          in <span className="text-rust">minutes</span>, not hours.
+          in <span className="text-rust">seconds</span>, not minutes.
         </h1>
 
         <p className="rise-in mt-8 text-lg text-moss [animation-delay:180ms]">Drop the folder in</p>
