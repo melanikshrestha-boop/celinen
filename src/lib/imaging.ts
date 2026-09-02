@@ -202,34 +202,35 @@ async function headerBytes(file: Blob, bytes = 256 * 1024) {
  * Decode a frame. `maxEdge` decodes straight to a smaller bitmap, which is what
  * makes culling fast: analysis never needs 45 megapixels.
  */
-export async function decodeFile(file: File, maxEdge?: number): Promise<ImageBitmap> {
-  const fit = (w: number, h: number) => {
-    if (!maxEdge) return {};
-    const s = Math.min(1, maxEdge / Math.max(w, h));
-    return s >= 1 ? {} : { resizeWidth: Math.round(w * s), resizeQuality: "low" as const };
-  };
+async function shrink(bitmap: ImageBitmap, maxEdge?: number): Promise<ImageBitmap> {
+  if (!maxEdge) return bitmap;
+  const s = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  if (s >= 1) return bitmap;
+  const w = Math.max(1, Math.round(bitmap.width * s));
+  const h = Math.max(1, Math.round(bitmap.height * s));
+  const small = await createImageBitmap(bitmap, {
+    resizeWidth: w,
+    resizeHeight: h,
+    resizeQuality: "low",
+  });
+  bitmap.close?.();
+  return small;
+}
 
+export async function decodeFile(file: File, maxEdge?: number): Promise<ImageBitmap> {
   if (isRawFile(file)) {
     const jpeg = await extractEmbeddedJpeg(file);
     if (!jpeg) throw new Error("No embedded preview found in this RAW file");
     let orientation = readExifOrientation(await headerBytes(jpeg, 128 * 1024));
     // Most RAW previews carry no EXIF of their own — fall back to the container's.
     if (orientation === 1) orientation = readExifOrientation(await headerBytes(file));
-    const probe = await createImageBitmap(jpeg, { imageOrientation: "none" });
-    const opts = fit(probe.width, probe.height);
-    if (!("resizeWidth" in opts)) return applyOrientation(probe, orientation);
-    probe.close?.();
-    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none", ...opts });
-    return applyOrientation(bitmap, orientation);
+    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none" });
+    return applyOrientation(await shrink(bitmap, maxEdge), orientation);
   }
 
   const orientation = readExifOrientation(await headerBytes(file));
-  const probe = await createImageBitmap(file, { imageOrientation: "none" });
-  const opts = fit(probe.width, probe.height);
-  if (!("resizeWidth" in opts)) return applyOrientation(probe, orientation);
-  probe.close?.();
-  const bitmap = await createImageBitmap(file, { imageOrientation: "none", ...opts });
-  return applyOrientation(bitmap, orientation);
+  const bitmap = await createImageBitmap(file, { imageOrientation: "none" });
+  return applyOrientation(await shrink(bitmap, maxEdge), orientation);
 }
 
 
