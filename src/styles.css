@@ -150,6 +150,8 @@
   transition: opacity 0.7s ease-in-out;
 }
 
+.fade-scroll.is-in { opacity: 1; }
+
 @utility caret {
   display: inline-block;
   width: 0.55ch;
@@ -175,7 +177,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise-in, .type-line, .ticker-track, .scanline, .live-dot, .caret {
+  .rise-in, .type-line, .ticker-track, .scanline, .live-dot, .caret, .fade-scroll {
     animation: none !important;
     opacity: 1 !important;
     width: auto !important;
