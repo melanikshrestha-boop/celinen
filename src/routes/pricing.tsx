@@ -50,19 +50,21 @@ function PricingPage() {
   return (
     <div className="flex min-h-screen w-full flex-col text-ink">
       <Nav />
-      <section className="mx-auto w-full max-w-[1000px] flex-1 px-6 pb-24 pt-20">
-        <h1 className="font-display text-[clamp(2rem,5vw,3.25rem)] font-medium tracking-tight">
-          Priced by shoot.
+      <section className="mx-auto w-full max-w-[1100px] flex-1 px-6 pb-24 pt-20 text-center">
+        <h1 className="font-display text-[clamp(2.2rem,5.5vw,3.75rem)] font-bold tracking-[-0.04em]">
+          Priced by <span className="text-rust">shoot</span>.
         </h1>
 
-        <div className="mt-12 grid items-stretch gap-4 md:grid-cols-3">
+        <div className="mt-14 grid items-stretch gap-4 text-left md:grid-cols-3">
           {tiers.map((t) => (
             <div
               key={t.name}
-              className={`panel flex flex-col p-7 ${t.featured ? "border-ink/30" : ""}`}
+              className={`flex flex-col rounded-2xl border bg-card p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${
+                t.featured ? "border-ink/25 shadow-[0_10px_40px_rgba(0,0,0,0.07)]" : "border-border"
+              }`}
             >
               <span className="text-sm text-moss">{t.name}</span>
-              <div className="mt-3 font-display text-4xl font-medium tracking-tight">
+              <div className="mt-3 font-display text-4xl font-bold tracking-[-0.03em]">
                 {t.price}
                 <small className="ml-1 text-sm font-normal text-moss">/mo</small>
               </div>
@@ -73,8 +75,8 @@ function PricingPage() {
               </ul>
               <Link
                 to="/studio"
-                className={`mt-8 block rounded-md py-2.5 text-center text-sm transition-opacity hover:opacity-85 ${
-                  t.featured ? "bg-ink text-paper" : "border border-input text-ink"
+                className={`mt-8 block rounded-xl py-2.5 text-center text-sm font-medium transition-opacity hover:opacity-85 ${
+                  t.featured ? "bg-ink text-paper2" : "border border-input text-ink"
                 }`}
               >
                 {t.cta}
@@ -87,3 +89,4 @@ function PricingPage() {
     </div>
   );
 }
+
