@@ -318,6 +318,104 @@ function Earnings() {
           </Card>
         </div>
       </div>
+
+      {/* ---------------- tax forms ---------------- */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card className="p-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+              Form 1040 · Schedule C (Profit or Loss From Business)
+            </p>
+            <Btn className="ml-auto px-3 py-1.5 text-[13px]" onClick={exportScheduleC}>
+              Export Schedule C CSV
+            </Btn>
+          </div>
+          <div className="p-4">
+            <div className="flex justify-between border-b border-border pb-2 text-[13px]">
+              <span className="text-moss">Line 1 · Gross receipts or sales</span>
+              <span className="font-mono">{money(totals.income)}</span>
+            </div>
+            <div className="flex justify-between border-b border-border py-2 text-[13px]">
+              <span className="text-moss">Line 7 · Gross income</span>
+              <span className="font-mono">{money(totals.income)}</span>
+            </div>
+            <p className="pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+              Part II · Expenses
+            </p>
+            {scheduleC.map((row) => (
+              <div key={row.line} className="flex justify-between border-b border-border py-1.5 text-[13px]">
+                <span className="text-moss">
+                  Line {row.line} · {row.label}
+                </span>
+                <span className="font-mono">{money(row.amount)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between py-2 text-[13px] font-semibold">
+              <span>Line 28 · Total expenses</span>
+              <span className="font-mono">{money(totals.expense)}</span>
+            </div>
+            <div className="flex justify-between text-[13px] font-semibold">
+              <span>Line 31 · Net profit or (loss)</span>
+              <span className="font-mono">{money(totals.net)}</span>
+            </div>
+            <p className="mt-3 text-[12px] text-moss">
+              Lines shown carry a balance. Meals are reported at the 50% deductible amount on
+              line 24b. This is your ledger mapped to the form — not filed advice.
+            </p>
+          </div>
+        </Card>
+
+        <Card className="p-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+              Form 1099-NEC · payers and payees
+            </p>
+            <Btn className="ml-auto px-3 py-1.5 text-[13px]" onClick={export1099}>
+              Export 1099 CSV
+            </Btn>
+          </div>
+          <div className="p-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+              Income you should receive a 1099-NEC for
+            </p>
+            {payers.length === 0 && <p className="mt-2 text-sm text-moss">No income logged.</p>}
+            {payers.map((p) => (
+              <div key={p.name} className="flex items-center justify-between border-b border-border py-2 text-[13px]">
+                <span>{p.name}</span>
+                <span className="flex items-center gap-2">
+                  <Chip tone={p.total >= 600 ? "solid" : "quiet"}>
+                    {p.total >= 600 ? "1099 expected" : "under $600"}
+                  </Chip>
+                  <span className="font-mono">{money(p.total)}</span>
+                </span>
+              </div>
+            ))}
+
+            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+              Contractors you must issue a 1099-NEC to (box 1)
+            </p>
+            {payees.length === 0 && (
+              <p className="mt-2 text-sm text-moss">No contract labor logged.</p>
+            )}
+            {payees.map((p) => (
+              <div key={p.name} className="flex items-center justify-between border-b border-border py-2 text-[13px]">
+                <span>{p.name}</span>
+                <span className="flex items-center gap-2">
+                  <Chip tone={p.total >= 600 ? "warn" : "quiet"}>
+                    {p.total >= 600 ? "file by Jan 31" : "under $600"}
+                  </Chip>
+                  <span className="font-mono">{money(p.total)}</span>
+                </span>
+              </div>
+            ))}
+            <p className="mt-3 text-[12px] text-moss">
+              The $600 threshold is per payer for the calendar year. Collect a W-9 from every
+              contractor before you pay them.
+            </p>
+          </div>
+        </Card>
+      </div>
     </Shell>
   );
 }
+
