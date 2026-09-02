@@ -271,7 +271,11 @@ function Studio() {
     setShots((prev) =>
       prev.map((s) => {
         if (s.error) return s;
-        const bad = s.flags.includes("blur") || s.flags.includes("duplicate") || s.score < 45;
+        const bad =
+          s.flags.includes("blur") ||
+          s.flags.includes("duplicate") ||
+          s.flags.includes("eyes-closed") ||
+          s.score < 45;
         return { ...s, verdict: bad ? "reject" : s.score >= 70 ? "keep" : s.verdict };
       }),
     );
@@ -295,6 +299,23 @@ function Studio() {
       await new Promise((r) => setTimeout(r, 250));
     }
     setBusy(null);
+  };
+
+  /** Write .xmp sidecars Lightroom picks up on folder re-read. */
+  const exportSidecars = () => {
+    const done = shots.filter((s) => s.verdict !== "undecided" && !s.error);
+    for (const shot of done) {
+      const rating =
+        shot.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(shot.score / 20)));
+      const xml = buildXmpSidecar(shot.edits, shot.verdict, rating);
+      const url = URL.createObjectURL(new Blob([xml], { type: "application/rdf+xml" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${baseName(shot.name)}.xmp`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    setSyncNote(`${done.length} sidecar${done.length === 1 ? "" : "s"} written — re-read metadata in Lightroom to sync.`);
   };
 
   /* ---------------- keyboard ---------------- */
@@ -341,6 +362,19 @@ function Studio() {
             Import shoot
           </button>
           <button
+            onClick={() => folderRef.current?.click()}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2"
+          >
+            Lightroom folder
+          </button>
+          <button
+            onClick={exportSidecars}
+            disabled={!shots.some((s) => s.verdict !== "undecided")}
+            className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
+          >
+            Sync XMP back
+          </button>
+          <button
             onClick={autoCull}
             disabled={!shots.length}
             className="rounded-full border border-input px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper2 disabled:opacity-40"
@@ -356,10 +390,23 @@ function Studio() {
           </button>
         </div>
         <input
+          ref={folderRef}
+          type="file"
+          multiple
+          // @ts-expect-error non-standard directory picker attributes
+          webkitdirectory=""
+          directory=""
+          className="hidden"
+          onChange={(e) => {
+            void importFiles(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
+        <input
           ref={inputRef}
           type="file"
           multiple
-          accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw"
+          accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw,.xmp"
           className="hidden"
           onChange={(e) => {
             void importFiles(Array.from(e.target.files ?? []));
@@ -367,6 +414,11 @@ function Studio() {
           }}
         />
       </header>
+
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-6 pb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+        <span>{faceEngine ? "Face + eye engine · on" : "Face + eye engine · unavailable in this browser"}</span>
+        {syncNote && <span className="text-rust normal-case tracking-normal">{syncNote}</span>}
+      </div>
 
       {progress && (
         <div className="mx-auto max-w-[1600px] px-6 pb-4">
