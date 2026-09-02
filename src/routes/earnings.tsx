@@ -204,6 +204,34 @@ function Earnings() {
     URL.revokeObjectURL(url);
   };
 
+  const download = (name: string, rows: (string | number)[][]) => {
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportScheduleC = () =>
+    download(`lensos-schedule-c-${new Date().getFullYear()}.csv`, [
+      ["line", "description", "amount_usd"],
+      ["1", "Gross receipts or sales", totals.income.toFixed(2)],
+      ["7", "Gross income", totals.income.toFixed(2)],
+      ...scheduleC.map((r) => [r.line.replace(".1", "a").replace(".2", "b"), r.label.replace(/,/g, ";"), r.amount.toFixed(2)]),
+      ["28", "Total expenses", totals.expense.toFixed(2)],
+      ["31", "Net profit or (loss)", totals.net.toFixed(2)],
+    ]);
+
+  const export1099 = () =>
+    download(`lensos-1099-${new Date().getFullYear()}.csv`, [
+      ["direction", "party", "amount_usd", "threshold_600"],
+      ...payers.map((p) => ["income received", p.name.replace(/,/g, ";"), p.total.toFixed(2), p.total >= 600 ? "yes" : "no"]),
+      ...payees.map((p) => ["contractor paid", p.name.replace(/,/g, ";"), p.total.toFixed(2), p.total >= 600 ? "yes" : "no"]),
+    ]);
+
+
   const cats = kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   return (
