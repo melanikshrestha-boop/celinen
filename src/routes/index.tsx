@@ -27,33 +27,41 @@ function Index() {
     <div className="flex min-h-screen w-full flex-col text-ink">
       <Nav />
 
-      <section className="mx-auto flex w-full max-w-[900px] flex-1 flex-col items-center justify-center px-6 py-32 text-center">
-        <h1 className="font-display text-[clamp(2.6rem,7vw,5rem)] font-medium leading-[1.02] tracking-tight">
-          Cull a whole shoot.
+      <section className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col items-center px-6 pb-24 pt-24 text-center">
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[12px] text-moss shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <span className="size-1.5 rounded-full bg-rust" />
+          Local · RAW + JPEG
+        </span>
+
+        <h1 className="mt-8 font-display text-[clamp(2.6rem,7.5vw,5.5rem)] font-bold leading-[0.98] tracking-[-0.04em]">
+          Cull your shoot
+          <br />
+          in <span className="text-rust">minutes</span>, not hours.
         </h1>
-        <p className="mt-6 max-w-md text-base leading-relaxed text-moss">
-          Drop 300 RAW files in. Get your keepers out.
-        </p>
+
+        <p className="mt-8 text-lg text-moss">Drop the folder in</p>
+
+        <div className="mt-4 w-full max-w-[560px] rounded-xl bg-ink px-4 py-3.5 text-left shadow-[0_8px_30px_rgba(0,0,0,0.10)]">
+          <code className="font-mono text-sm text-paper2">
+            <span className="text-rust">$</span> 300 RAW files → 42 keepers
+          </code>
+        </div>
+
+        <p className="mt-4 text-lg text-moss">and let it take it from there.</p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
           <Link
             to="/studio"
-            className="rounded-md bg-ink px-6 py-3 text-sm text-paper transition-opacity hover:opacity-85"
+            className="rounded-xl bg-ink px-6 py-3 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
           >
-            Open studio
+            Open studio →
           </Link>
           <Link
             to="/pricing"
-            className="rounded-md border border-input px-6 py-3 text-sm text-moss transition-colors hover:text-ink"
+            className="rounded-xl border border-input bg-card px-6 py-3 text-sm text-moss transition-colors hover:text-ink"
           >
             Pricing
           </Link>
-        </div>
-
-        <div className="mt-20 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
-          <span>Runs locally</span>
-          <span>No uploads</span>
-          <span>RAW + JPEG</span>
         </div>
       </section>
 
