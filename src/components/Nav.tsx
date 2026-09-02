@@ -45,6 +45,13 @@ export function Nav() {
             Earnings
           </Link>
           <Link
+            to="/book"
+            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
+            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
+          >
+            Book a shoot
+          </Link>
+          <Link
             to="/pricing"
             className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
             activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}

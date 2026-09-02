@@ -16,9 +16,11 @@ export type Database = {
     Tables: {
       booking_requests: {
         Row: {
+          access_token: string | null
           budget: number | null
           client_id: string | null
           created_at: string
+          gallery_id: string | null
           id: string
           location: string | null
           message: string | null
@@ -31,9 +33,11 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          access_token?: string | null
           budget?: number | null
           client_id?: string | null
           created_at?: string
+          gallery_id?: string | null
           id?: string
           location?: string | null
           message?: string | null
@@ -46,9 +50,11 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          access_token?: string | null
           budget?: number | null
           client_id?: string | null
           created_at?: string
+          gallery_id?: string | null
           id?: string
           location?: string | null
           message?: string | null
@@ -66,6 +72,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_requests_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "galleries"
             referencedColumns: ["id"]
           },
         ]

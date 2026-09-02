@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
 import { openGallery, toggleGalleryFavorite } from "@/lib/delivery.functions";
+import { makeZip } from "@/lib/zip";
 
 export const Route = createFileRoute("/g/$slug")({
   head: () => ({
@@ -33,6 +34,7 @@ function ClientGallery() {
   const [favs, setFavs] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [onlyPicks, setOnlyPicks] = useState(false);
+  const [zipping, setZipping] = useState(false);
 
   const load = async (code?: string) => {
     const res = (await openGallery({ data: { slug, passcode: code ?? "" } })) as any;
@@ -64,6 +66,27 @@ function ClientGallery() {
       return next;
     });
     await toggleGalleryFavorite({ data: { slug, photo_id: id, on } });
+  };
+
+  /** Zip the originals byte-for-byte — no re-encode, no resize, RAW stays RAW. */
+  const grabAll = async (list: Photo[]) => {
+    setZipping(true);
+    try {
+      const entries: { path: string; bytes: Uint8Array }[] = [];
+      for (const p of list) {
+        if (!p.url) continue;
+        const buf = await (await fetch(p.url)).arrayBuffer();
+        entries.push({ path: p.filename, bytes: new Uint8Array(buf) });
+      }
+      const url = URL.createObjectURL(makeZip(entries));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "gallery"}-originals.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setZipping(false);
+    }
   };
 
   const grab = async (p: Photo) => {
@@ -140,10 +163,11 @@ function ClientGallery() {
           </button>
           {downloads && (
             <button
-              onClick={() => void Promise.all(shown.map(grab))}
-              className="rounded-lg bg-ink px-3 py-1.5 font-mono text-[12px] text-paper2"
+              onClick={() => void grabAll(shown)}
+              disabled={zipping}
+              className="rounded-lg bg-ink px-3 py-1.5 font-mono text-[12px] text-paper2 disabled:opacity-50"
             >
-              Download {onlyPicks ? "favourites" : "all"}
+              {zipping ? "packing originals…" : `Download ${onlyPicks ? "favourites" : "all"} · RAW`}
             </button>
           )}
         </div>
