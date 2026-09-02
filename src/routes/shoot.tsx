@@ -76,34 +76,50 @@ function ShootPage() {
     };
   }, [navigate]);
 
-  /* ---------------- import ---------------- */
+  /* ---------------- import ----------------
+   * Parallel decode pool. Frames decode at a culling resolution (1280px long
+   * edge) instead of full size, thumbnails go out as blob URLs, and results
+   * stream into the grid as each worker finishes — a 300-frame drop lands in
+   * a couple of seconds instead of a minute.
+   */
   const importFiles = useCallback(async (files: File[]) => {
     files = files.filter((f) => !f.name.toLowerCase().endsWith(".xmp"));
     if (!files.length) return;
-    setProgress({ done: 0, total: files.length });
-    const added: Shot[] = [];
 
-    for (let i = 0; i < files.length; i++) {
+    const started = performance.now();
+    setProgress({ done: 0, total: files.length });
+    setNote(null);
+
+    const stamp = Date.now();
+    const added: Shot[] = new Array(files.length);
+    let done = 0;
+
+    const one = async (i: number) => {
       const file = files[i]!;
-      const id = `${file.name}-${file.size}-${i}-${Date.now()}`;
+      const id = `${file.name}-${file.size}-${i}-${stamp}`;
       try {
-        const bitmap = await decodeFile(file);
+        const bitmap = await decodeFile(file, 1280);
         const analysis = analyseBitmap(bitmap);
         const faces = await analyseFaces(bitmap);
         const { score, flags } = scoreOf({ ...analysis, faces });
 
-        const thumb = document.createElement("canvas");
         const s = Math.min(1, 420 / Math.max(bitmap.width, bitmap.height));
-        thumb.width = Math.round(bitmap.width * s);
-        thumb.height = Math.round(bitmap.height * s);
-        thumb.getContext("2d")!.drawImage(bitmap, 0, 0, thumb.width, thumb.height);
+        const tw = Math.max(1, Math.round(bitmap.width * s));
+        const th = Math.max(1, Math.round(bitmap.height * s));
+        const thumb = document.createElement("canvas");
+        thumb.width = tw;
+        thumb.height = th;
+        thumb.getContext("2d")!.drawImage(bitmap, 0, 0, tw, th);
+        const blob = await new Promise<Blob | null>((res) =>
+          thumb.toBlob(res, "image/jpeg", 0.72),
+        );
 
-        added.push({
+        added[i] = {
           id,
           file,
           name: file.name,
           isRaw: isRawFile(file),
-          previewUrl: thumb.toDataURL("image/jpeg", 0.8),
+          previewUrl: blob ? URL.createObjectURL(blob) : null,
           width: bitmap.width,
           height: bitmap.height,
           sizeMb: file.size / 1_048_576,
@@ -118,10 +134,10 @@ function ShootPage() {
           faces: faces ?? undefined,
           verdict: "undecided",
           edits: { ...DEFAULT_EDITS },
-        });
+        };
         bitmap.close?.();
       } catch (err) {
-        added.push({
+        added[i] = {
           id,
           file,
           name: file.name,
@@ -140,14 +156,25 @@ function ShootPage() {
           verdict: "undecided",
           edits: { ...DEFAULT_EDITS },
           error: (err as Error).message || "could not read this file",
-        });
+        };
       }
-      setProgress({ done: i + 1, total: files.length });
-    }
+      done++;
+      setProgress({ done, total: files.length });
+    };
+
+    const lanes = Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4));
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(lanes, files.length) }, async () => {
+        while (cursor < files.length) await one(cursor++);
+      }),
+    );
+
+    const shots = added.filter(Boolean);
 
     // duplicate pass across the whole shoot
     setShots((prev) => {
-      const all = [...prev, ...added];
+      const all = [...prev, ...shots];
       for (let i = 0; i < all.length; i++) {
         for (let j = 0; j < i; j++) {
           const a = all[i]!;
@@ -160,8 +187,13 @@ function ShootPage() {
       }
       return all;
     });
+
+    const secs = (performance.now() - started) / 1000;
+    const rate = Math.round(shots.length / Math.max(secs, 0.001));
     setProgress(null);
-    setNote(`${added.length} frame${added.length === 1 ? "" : "s"} in. say the word.`);
+    setNote(
+      `${shots.length} frame${shots.length === 1 ? "" : "s"} read in ${secs.toFixed(1)}s · ${rate}/sec · ${lanes} lanes. say the word.`,
+    );
   }, []);
 
   /* whole-page drop */
