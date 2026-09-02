@@ -14,7 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      lightroom_sync: {
+        Row: {
+          direction: string
+          frames: Json
+          id: string
+          kind: string
+          updated_at: string
+          workspace: string
+        }
+        Insert: {
+          direction: string
+          frames?: Json
+          id?: string
+          kind?: string
+          updated_at?: string
+          workspace: string
+        }
+        Update: {
+          direction?: string
+          frames?: Json
+          id?: string
+          kind?: string
+          updated_at?: string
+          workspace?: string
+        }
+        Relationships: []
+      }
+      signups: {
+        Row: {
+          billing: string
+          created_at: string
+          email: string
+          id: string
+          plan: string
+          studio: string | null
+        }
+        Insert: {
+          billing?: string
+          created_at?: string
+          email: string
+          id?: string
+          plan?: string
+          studio?: string | null
+        }
+        Update: {
+          billing?: string
+          created_at?: string
+          email?: string
+          id?: string
+          plan?: string
+          studio?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
