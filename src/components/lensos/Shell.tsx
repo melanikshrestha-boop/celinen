@@ -216,6 +216,7 @@ export function Shell({
 }) {
   const [palette, setPalette] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const session = useSessionState();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -229,8 +230,11 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  if (session !== "in") return <Locked loading={session === "loading"} />;
+
   return (
     <div className="min-h-screen text-ink">
+
       <div className="sticky top-0 z-50 border-b border-border bg-card/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-[1240px] items-center gap-3 px-6 py-3">
           <Link to="/" className="flex shrink-0 items-center gap-2">
