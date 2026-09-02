@@ -48,17 +48,17 @@
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  /* Pantone-style warm stone */
-  --paper: oklch(0.93 0.006 90);
-  --paper2: oklch(0.96 0.004 90);
-  --ink: oklch(0.24 0.008 90);
-  /* quiet accent: graphite ink, used sparingly */
-  --rust: oklch(0.3 0.01 90);
-  --moss: oklch(0.55 0.008 90);
-  --sun: oklch(0.42 0.01 90);
-  --mist: oklch(0.89 0.006 90);
+  /* Monid-style: warm off-white paper, near-black ink, one electric blue */
+  --paper: oklch(0.977 0.004 100);
+  --paper2: oklch(1 0 0);
+  --ink: oklch(0.17 0.005 260);
+  /* accent: electric blue */
+  --rust: oklch(0.55 0.24 265);
+  --moss: oklch(0.56 0.008 260);
+  --sun: oklch(0.65 0.16 265);
+  --mist: oklch(0.94 0.003 100);
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -67,19 +67,20 @@
   --popover: var(--paper2);
   --popover-foreground: var(--ink);
   --primary: var(--rust);
-  --primary-foreground: oklch(0.97 0.004 90);
+  --primary-foreground: oklch(0.99 0 0);
   --secondary: var(--mist);
   --secondary-foreground: var(--ink);
   --muted: var(--mist);
   --muted-foreground: var(--moss);
   --accent: var(--mist);
   --accent-foreground: var(--ink);
-  --destructive: oklch(0.5 0.1 25);
-  --destructive-foreground: oklch(0.97 0.004 90);
-  --border: oklch(0.24 0.008 90 / 12%);
-  --input: oklch(0.24 0.008 90 / 18%);
-  --ring: var(--ink);
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.17 0.005 260 / 9%);
+  --input: oklch(0.17 0.005 260 / 14%);
+  --ring: var(--rust);
 }
+
 
 @layer base {
   * {
