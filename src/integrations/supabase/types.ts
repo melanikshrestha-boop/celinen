@@ -14,6 +14,102 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          org: string | null
+          phone: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          org?: string | null
+          phone?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          org?: string | null
+          phone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          amount: number
+          client_id: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          due_date: string | null
+          hosted_invoice_url: string | null
+          id: string
+          shoot_id: string | null
+          status: string
+          stripe_invoice_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          client_id?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          hosted_invoice_url?: string | null
+          id?: string
+          shoot_id?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          client_id?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          hosted_invoice_url?: string | null
+          id?: string
+          shoot_id?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_shoot_id_fkey"
+            columns: ["shoot_id"]
+            isOneToOne: false
+            referencedRelation: "shoots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lightroom_sync: {
         Row: {
           direction: string
@@ -41,6 +137,89 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          stripe_account_id: string | null
+          stripe_account_status: string
+          studio_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          stripe_account_id?: string | null
+          stripe_account_status?: string
+          studio_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          stripe_account_id?: string | null
+          stripe_account_status?: string
+          studio_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shoots: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          frames: number
+          id: string
+          keepers: number
+          location: string | null
+          name: string
+          shoot_date: string | null
+          status: string
+          user_id: string
+          work_minutes: number
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          frames?: number
+          id?: string
+          keepers?: number
+          location?: string | null
+          name: string
+          shoot_date?: string | null
+          status?: string
+          user_id: string
+          work_minutes?: number
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          frames?: number
+          id?: string
+          keepers?: number
+          location?: string | null
+          name?: string
+          shoot_date?: string | null
+          status?: string
+          user_id?: string
+          work_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shoots_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signups: {
         Row: {
           billing: string
@@ -67,6 +246,84 @@ export type Database = {
           studio?: string | null
         }
         Relationships: []
+      }
+      stripe_oauth_states: {
+        Row: {
+          created_at: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string
+          client_id: string | null
+          created_at: string
+          description: string
+          id: string
+          kind: string
+          occurred_on: string
+          shoot_id: string | null
+          source: string
+          stripe_object_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          client_id?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          kind: string
+          occurred_on?: string
+          shoot_id?: string | null
+          source?: string
+          stripe_object_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          client_id?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          kind?: string
+          occurred_on?: string
+          shoot_id?: string | null
+          source?: string
+          stripe_object_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_shoot_id_fkey"
+            columns: ["shoot_id"]
+            isOneToOne: false
+            referencedRelation: "shoots"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
