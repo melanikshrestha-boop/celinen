@@ -62,6 +62,8 @@ export interface Shot {
   clippedHighlights: number;
   clippedShadows: number;
   hash: string;
+  /** measured tone statistics — feeds Auto Refine */
+  tone?: ToneStats | undefined;
   score: number;
   flags: Flag[];
   verdict: Verdict;
