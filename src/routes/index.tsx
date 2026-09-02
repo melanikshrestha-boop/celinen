@@ -22,6 +22,32 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const ADOBE = [
+  {
+    k: "Lightroom Classic",
+    mark: "Lr",
+    bg: "oklch(0.28 0.09 265)",
+    fg: "oklch(0.82 0.16 240)",
+    v: "Keepers + develop settings",
+  },
+  {
+    k: "Photoshop",
+    mark: "Ps",
+    bg: "oklch(0.26 0.08 250)",
+    fg: "oklch(0.80 0.14 235)",
+    v: "Open flagged frame, full res",
+  },
+  {
+    k: "Adobe Bridge",
+    mark: "Br",
+    bg: "oklch(0.27 0.07 285)",
+    fg: "oklch(0.82 0.12 290)",
+    v: "Verdicts as star ratings",
+  },
+];
+
+const REPLACED = ["Pixieset", "SmugMug", "Photo Mechanic", "Squarespace", "Pic-Time"];
+
 const TICKER = [
   "laplacian focus variance",
   "histogram clipping",
