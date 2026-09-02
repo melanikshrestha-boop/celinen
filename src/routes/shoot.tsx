@@ -101,35 +101,44 @@ function ShootPage() {
           id,
           file,
           name: file.name,
-          raw: isRawFile(file),
-          thumb: thumb.toDataURL("image/jpeg", 0.8),
+          isRaw: isRawFile(file),
+          previewUrl: thumb.toDataURL("image/jpeg", 0.8),
           width: bitmap.width,
           height: bitmap.height,
+          sizeMb: file.size / 1_048_576,
+          sharpness: analysis.sharpness,
+          brightness: analysis.brightness,
+          clippedHighlights: analysis.clippedHighlights,
+          clippedShadows: analysis.clippedShadows,
           score,
           flags,
           hash: analysis.hash,
-          faces,
+          faces: faces ?? undefined,
           verdict: "undecided",
           edits: { ...DEFAULT_EDITS },
-        } as Shot);
+        });
         bitmap.close?.();
       } catch (err) {
         added.push({
           id,
           file,
           name: file.name,
-          raw: isRawFile(file),
-          thumb: "",
+          isRaw: isRawFile(file),
+          previewUrl: null,
           width: 0,
           height: 0,
+          sizeMb: file.size / 1_048_576,
+          sharpness: 0,
+          brightness: 0,
+          clippedHighlights: 0,
+          clippedShadows: 0,
           score: 0,
           flags: [],
           hash: "",
-          faces: null,
           verdict: "undecided",
           edits: { ...DEFAULT_EDITS },
           error: (err as Error).message || "could not read this file",
-        } as Shot);
+        });
       }
       setProgress({ done: i + 1, total: files.length });
     }
