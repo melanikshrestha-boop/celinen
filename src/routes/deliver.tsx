@@ -11,6 +11,7 @@ import {
   updateGallery,
 } from "@/lib/delivery.functions";
 import { listClients } from "@/lib/finance.functions";
+import { listInboxBookings, attachGalleryToBooking } from "@/lib/client-portal.functions";
 
 export const Route = createFileRoute("/deliver")({
   head: () => ({
@@ -60,6 +61,7 @@ function Deliver() {
   const [form, setForm] = useState({ title: "", client_id: "", passcode: "", message: "" });
   const fileRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [inbox, setInbox] = useState<Awaited<ReturnType<typeof listInboxBookings>>>([]);
 
   const refresh = useCallback(async () => {
     const rows = (await listGalleries()) as unknown as GalleryRow[];
@@ -72,6 +74,7 @@ function Deliver() {
       try {
         await refresh();
         setClients((await listClients()) as never);
+        setInbox(await listInboxBookings());
       } catch {
         setError("Sign in to manage delivery galleries.");
       }
@@ -264,6 +267,31 @@ function Deliver() {
                 </div>
               </div>
               <p className="mt-2 break-all font-mono text-[12px] text-moss">{link}</p>
+
+              <label className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[12px] text-moss">
+                Send to shoot request
+                <select
+                  value={inbox.find((b) => b.gallery_id === open.id)?.id ?? ""}
+                  onChange={async (e) => {
+                    const prev = inbox.find((b) => b.gallery_id === open.id);
+                    if (prev && prev.id !== e.target.value)
+                      await attachGalleryToBooking({ data: { booking_id: prev.id, gallery_id: null } });
+                    if (e.target.value)
+                      await attachGalleryToBooking({
+                        data: { booking_id: e.target.value, gallery_id: open.id },
+                      });
+                    setInbox(await listInboxBookings());
+                  }}
+                  className="rounded-lg border border-input bg-card px-2 py-1.5 text-[12px] text-ink"
+                >
+                  <option value="">— none —</option>
+                  {inbox.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.requester_name ?? b.requester_email} · {b.shoot_type} · {b.preferred_date ?? "tbc"}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <Btn
