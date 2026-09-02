@@ -76,6 +76,7 @@ function Studio() {
   const folderRef = useRef<HTMLInputElement>(null);
   const [faceEngine, setFaceEngine] = useState(false);
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [linked, setLinked] = useState(false);
 
   useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
