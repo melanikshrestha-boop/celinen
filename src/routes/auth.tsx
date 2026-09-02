@@ -46,6 +46,9 @@ function AuthPage() {
   const [busy, setBusy] = useState<"google" | "email" | "password" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Guard against a pre-hydration native form submit wiping the form.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   useEffect(() => {
     let alive = true;
@@ -233,7 +236,7 @@ function AuthPage() {
 
             <button
               type="submit"
-              disabled={busy !== null}
+              disabled={busy !== null || !ready}
               className="w-full rounded-lg bg-rust px-4 py-2.5 text-[14px] font-semibold text-paper2 transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {busy === "password"
