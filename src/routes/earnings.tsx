@@ -312,6 +312,66 @@ function Earnings() {
         ))}
       </div>
 
+      <Card className="mt-4 p-0">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+            Per shoot — live from your jobs
+          </p>
+          <p className="ml-auto font-mono text-[11px] text-moss">
+            {shootTotals.frames.toLocaleString()} frames · {shootTotals.hours.toFixed(1)} h ·{" "}
+            <span className="text-ink">{money(shootTotals.perHour)}/h</span>
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
+                <th className="p-3 text-left">Shoot</th>
+                <th className="p-3 text-right">Frames</th>
+                <th className="p-3 text-right">Keepers</th>
+                <th className="p-3 text-right">Hours</th>
+                <th className="p-3 text-right">Income</th>
+                <th className="p-3 text-right">Costs</th>
+                <th className="p-3 text-right">Profit / hr</th>
+                <th className="p-3 text-left">Turnaround</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((j) => (
+                <tr key={j.id} className="border-b border-border last:border-0">
+                  <td className="p-3">
+                    <p className="font-medium">{j.name}</p>
+                    <p className="font-mono text-[10px] text-moss">{j.client}</p>
+                  </td>
+                  <td className="p-3 text-right font-mono">{j.frames.toLocaleString()}</td>
+                  <td className="p-3 text-right font-mono">{j.keepers}</td>
+                  <td className="p-3 text-right font-mono">{j.hours.toFixed(1)}</td>
+                  <td className="p-3 text-right font-mono">{money(j.income)}</td>
+                  <td className="p-3 text-right font-mono">{money(j.expense)}</td>
+                  <td
+                    className={`p-3 text-right font-mono ${j.net < 0 ? "text-rust" : ""}`}
+                  >
+                    {j.perHour === null ? "—" : `${money(j.perHour)}/h`}
+                  </td>
+                  <td className="p-3">
+                    <p className="font-mono text-[11px]">
+                      {j.turnaround.state === "delivered"
+                        ? `delivered ${j.turnaround.at}`
+                        : j.turnaround.state === "not shot"
+                          ? "not shot yet"
+                          : "in progress"}
+                    </p>
+                    <p className="font-mono text-[10px] text-moss">
+                      {j.deadline ? `due ${j.deadline.at} · ${j.deadline.label}` : "no deadline set"}
+                    </p>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
         <Card className="p-0">
           <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
