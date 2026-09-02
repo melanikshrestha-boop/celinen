@@ -118,9 +118,9 @@ function PricingPage() {
               Product
             </Link>
             <span className="rounded-lg bg-muted px-3 py-1.5 text-ink">Pricing</span>
-            <a href="#download" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
-              Sign in
-            </a>
+            <Link to="/studio" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
+              Open studio
+            </Link>
             <a href="#volume" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
               Contact sales
             </a>
@@ -128,12 +128,13 @@ function PricingPage() {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <a
-              href="#download"
+            <Link
+              to="/signup"
+              search={{ plan: "starter", billing: cycle }}
               className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
             >
-              Download
-            </a>
+              Get started
+            </Link>
           </div>
         </header>
       </div>
@@ -185,9 +186,13 @@ function PricingPage() {
                 "Basic keeper recommendations",
               ]}
             />
-            <a href="#download" className={`${ctaBase} border border-input text-ink`}>
+            <Link
+              to="/signup"
+              search={{ plan: "hobby", billing: cycle }}
+              className={`${ctaBase} border border-input text-ink`}
+            >
               Start Hobby
-            </a>
+            </Link>
           </div>
 
           {/* Individual */}
@@ -213,9 +218,13 @@ function PricingPage() {
                 "\u201cNeeds you\u201d queue for story frames the AI would kill",
               ]}
             />
-            <a href="#download" className={`${ctaBase} bg-ink text-paper2`}>
+            <Link
+              to="/signup"
+              search={{ plan: indTier.id, billing: cycle }}
+              className={`${ctaBase} bg-ink text-paper2`}
+            >
               {indTier.cta}
-            </a>
+            </Link>
           </div>
 
           {/* Teams */}
@@ -240,9 +249,13 @@ function PricingPage() {
                 "Shared packages and receipts",
               ]}
             />
-            <a href="#download" className={`${ctaBase} border border-input text-ink`}>
+            <Link
+              to="/signup"
+              search={{ plan: teamTier.id, billing: cycle }}
+              className={`${ctaBase} border border-input text-ink`}
+            >
               {teamTier.cta}
-            </a>
+            </Link>
           </div>
 
           {/* Enterprise */}
@@ -332,12 +345,13 @@ function PricingPage() {
             <p className="text-[13px] text-moss">Import, pick, hand off, send.</p>
           </div>
           <div className="ml-auto flex gap-2">
-            <a
-              href="#download"
+            <Link
+              to="/signup"
+              search={{ plan: "starter", billing: cycle }}
               className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 hover:opacity-85"
             >
-              Download
-            </a>
+              Get started
+            </Link>
             <a
               href="mailto:hello@tryiris.ai"
               className="rounded-xl border border-input px-4 py-2 text-sm font-medium hover:opacity-85"
