@@ -67,8 +67,19 @@ export interface Shot {
   verdict: Verdict;
   edits: Edits;
   faces?: FaceReading | undefined;
+  /** Where this frame's develop state came from. */
+  develop?: {
+    origin: "lightroom" | "sidecar" | "lens os";
+    at: number;
+    rating?: number | undefined;
+    label?: string | null | undefined;
+    caption?: string | undefined;
+    cropped?: boolean | undefined;
+    processVersion?: string | undefined;
+  } | undefined;
   error?: string;
 }
+
 
 export function extension(name: string) {
   const parts = name.split(".");
