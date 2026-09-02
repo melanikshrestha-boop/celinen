@@ -57,7 +57,7 @@ export function Nav() {
         <ThemeToggle />
         <Link
           to="/auth"
-          search={{ next: "/shoot" }}
+          search={{ next: "/shoot", mode: "signup" as const }}
           className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
         >
           Get started →

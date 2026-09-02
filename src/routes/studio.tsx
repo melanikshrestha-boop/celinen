@@ -24,7 +24,7 @@ import {
   scoreOf,
 } from "@/lib/imaging";
 import {
-  BRIDGE_PATH,
+  bridgeEndpoint,
   downloadLightroomPlugin,
   type BridgeState,
 } from "@/lib/lightroom-plugin";
@@ -256,7 +256,7 @@ function Studio() {
   const pullFromLightroom = useCallback(
     async (quiet = false) => {
       try {
-        const res = await fetch(`${BRIDGE_PATH}?side=studio`, { cache: "no-store" });
+        const res = await fetch(`${bridgeEndpoint()}?side=studio`, { cache: "no-store" });
         const state = (await res.json()) as BridgeState;
         if (!state.at || state.at === lastBridgeAt.current) return;
         lastBridgeAt.current = state.at;
@@ -296,7 +296,7 @@ function Studio() {
         },
       }));
     try {
-      const res = await fetch(BRIDGE_PATH, {
+      const res = await fetch(bridgeEndpoint(), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind: "verdicts", direction: "to-lightroom", frames }),

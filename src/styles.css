@@ -54,8 +54,8 @@
   --paper: oklch(0.985 0.002 90);
   --paper2: oklch(1 0 0);
   --ink: oklch(0.16 0.004 285);
-  /* accent: signal red */
-  --rust: oklch(0.585 0.212 28);
+  /* accent: signal blue (light mode) */
+  --rust: oklch(0.53 0.19 258);
   --moss: oklch(0.52 0.008 285);
   --sun: oklch(0.66 0.17 32);
   --mist: oklch(0.955 0.002 90);

@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Btn, Card, SectionTitle, Shell } from "@/components/lensos/Shell";
+import { importPortfolio } from "@/lib/portfolio-import.functions";
 
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
@@ -36,6 +38,41 @@ function Portfolio() {
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [live, setLive] = useState(false);
+  const [srcUrl, setSrcUrl] = useState("");
+  const [cloning, setCloning] = useState(false);
+  const [cloneNote, setCloneNote] = useState<string | null>(null);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+  const [accent, setAccent] = useState<string | null>(null);
+  const runImport = useServerFn(importPortfolio);
+
+  const clone = async () => {
+    if (!srcUrl.trim()) return;
+    setCloning(true);
+    setCloneError(null);
+    setCloneNote(null);
+    try {
+      const site = await runImport({ data: { url: srcUrl.trim() } });
+      setName(site.name);
+      setBio(site.bio);
+      setHandle(site.handle);
+      setAccent(site.accent);
+      setItems(
+        site.photos.map((ph, i) => ({
+          id: `imported-${i}-${Math.random().toString(36).slice(2, 7)}`,
+          url: ph.url,
+          title: ph.title,
+          story: ph.story,
+        })),
+      );
+      setCloneNote(
+        `Replicated ${site.photos.length} frames from your ${site.platform} site. Everything below is editable.`,
+      );
+    } catch (err) {
+      setCloneError(err instanceof Error ? err.message : "Could not read that site.");
+    } finally {
+      setCloning(false);
+    }
+  };
   const input = useRef<HTMLInputElement>(null);
   const urls = useRef<string[]>([]);
 
@@ -74,6 +111,32 @@ function Portfolio() {
         title="Your photos, your words, live in seconds."
         sub="Upload what you want to show, write about it, publish. No template gallery jargon."
       />
+
+      <Card className="mb-4">
+        <p className="font-display text-[17px] font-semibold tracking-tight">
+          Already have a site? Paste it in.
+        </p>
+        <p className="mt-1 text-[13px] text-moss">
+          Pixieset, Squarespace, Format, Wix, SmugMug — LensLabs reads it and rebuilds it here,
+          then you change whatever you want.
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={srcUrl}
+            onChange={(e) => setSrcUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void clone();
+            }}
+            placeholder="yourname.pixieset.com"
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 font-mono text-sm outline-none focus:border-rust/50"
+          />
+          <Btn variant="primary" disabled={cloning || !srcUrl.trim()} onClick={() => void clone()}>
+            {cloning ? "Replicating…" : "Replicate site"}
+          </Btn>
+        </div>
+        {cloneNote && <p className="mt-2 text-[13px] text-moss">{cloneNote}</p>}
+        {cloneError && <p className="mt-2 text-[13px] text-rust">{cloneError}</p>}
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
         <div className="space-y-4">
@@ -171,7 +234,10 @@ function Portfolio() {
             <span className="font-mono text-[11px] text-moss">{slug}.lens.photo</span>
           </div>
           <div className="p-8">
-            <h2 className="font-display text-4xl font-semibold tracking-tight">
+            <h2
+              className="font-display text-4xl font-semibold tracking-tight"
+              style={accent ? { color: accent } : undefined}
+            >
               {name || "Your name"}
             </h2>
             <p className="mt-2 max-w-md text-[15px] text-moss">
