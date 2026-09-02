@@ -46,7 +46,7 @@ export function makeZip(entries: ZipEntry[]): Blob {
 
   for (const entry of entries) {
     const name = enc.encode(entry.path);
-    const data = enc.encode(entry.text);
+    const data = entry.bytes ?? enc.encode(entry.text ?? "");
     const crc = crc32(data);
 
     const local = join([
