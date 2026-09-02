@@ -63,16 +63,27 @@ const EXPENSE_CATEGORIES = [
 
 const INCOME_CATEGORIES = ["Event coverage", "Licensing", "Print sales", "Retainer", "Other income"];
 
-const SEED: Entry[] = [
-  { id: "i1", date: "2026-08-22", label: "Halden Track Invitational — wire set", kind: "income", category: "Event coverage", amount: 1450, eventId: "e-invitational", source: "delivery" },
-  { id: "i2", date: "2026-08-04", label: "Metro Wire licensing — 6 frames", kind: "income", category: "Licensing", amount: 380, eventId: null, source: "manual" },
-  { id: "i3", date: "2026-07-19", label: "Northgate Prep retainer", kind: "income", category: "Retainer", amount: 900, eventId: "e-northgate", source: "manual" },
-  { id: "e1", date: "2026-08-22", label: "Fuel + tolls to Halden Oval", kind: "expense", category: "Car & mileage", amount: 64, eventId: "e-invitational", source: "manual" },
-  { id: "e2", date: "2026-08-01", label: "Adobe Photography Plan", kind: "expense", category: "Software & subscriptions", amount: 19.99, eventId: null, source: "imported" },
-  { id: "e3", date: "2026-07-11", label: "70-200 f/2.8 service", kind: "expense", category: "Equipment & depreciation", amount: 310, eventId: null, source: "manual" },
-  { id: "e4", date: "2026-07-02", label: "Second shooter — Kai", kind: "expense", category: "Contract labor (second shooter)", amount: 250, eventId: "e-invitational", source: "manual" },
-  { id: "e5", date: "2026-06-15", label: "Gear insurance (quarterly)", kind: "expense", category: "Insurance", amount: 148, eventId: null, source: "manual" },
-];
+type TxRow = {
+  id: string;
+  occurred_on: string;
+  description: string;
+  kind: Kind;
+  category: string;
+  amount: number | string;
+  shoot_id: string | null;
+  source: string;
+};
+
+const toEntry = (t: TxRow): Entry => ({
+  id: t.id,
+  date: t.occurred_on,
+  label: t.description,
+  kind: t.kind,
+  category: t.category,
+  amount: Number(t.amount),
+  eventId: t.shoot_id,
+  source: (t.source === "manual" ? "manual" : "imported") as Entry["source"],
+});
 
 /** Ledger categories mapped to the Schedule C line they belong on. */
 const SCHEDULE_C_LINE: Record<string, { line: string; label: string }> = {
