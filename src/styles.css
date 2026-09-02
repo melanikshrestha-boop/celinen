@@ -187,13 +187,13 @@
 
 /* ---- dark mode ---- */
 .dark {
-  --paper: oklch(0.16 0.004 260);
-  --paper2: oklch(0.19 0.005 260);
-  --ink: oklch(0.97 0.002 100);
-  --rust: oklch(0.68 0.17 265);
-  --moss: oklch(0.68 0.008 260);
-  --sun: oklch(0.72 0.14 265);
-  --mist: oklch(0.24 0.006 260);
+  --paper: oklch(0.145 0.004 285);
+  --paper2: oklch(0.185 0.005 285);
+  --ink: oklch(0.975 0.001 90);
+  --rust: oklch(0.635 0.215 28);
+  --moss: oklch(0.70 0.006 285);
+  --sun: oklch(0.72 0.17 32);
+  --mist: oklch(0.225 0.005 285);
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -202,7 +202,7 @@
   --popover: var(--paper2);
   --popover-foreground: var(--ink);
   --primary: var(--rust);
-  --primary-foreground: oklch(0.14 0.004 260);
+  --primary-foreground: oklch(0.99 0 0);
   --secondary: var(--mist);
   --secondary-foreground: var(--ink);
   --muted: var(--mist);
@@ -210,10 +210,48 @@
   --accent: var(--mist);
   --accent-foreground: var(--ink);
   --destructive: oklch(0.62 0.19 25);
-  --border: oklch(0.97 0.002 100 / 12%);
-  --input: oklch(0.97 0.002 100 / 18%);
+  --border: oklch(0.975 0.001 90 / 10%);
+  --input: oklch(0.975 0.001 90 / 16%);
   --ring: var(--rust);
 }
+
+/* ---- engineered surface: faint blueprint grid + vignette ---- */
+@utility grid-field {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--ink) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--ink) 6%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 20%, transparent 80%);
+}
+
+@utility eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rust);
+}
+
+@utility rule-line {
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(to right, color-mix(in oklab, var(--rust) 55%, transparent), transparent);
+}
+
+@utility card-edge {
+  background: color-mix(in oklab, var(--paper2) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+.card-edge:hover {
+  border-color: color-mix(in oklab, var(--rust) 45%, transparent);
+  background: color-mix(in oklab, var(--rust) 4%, var(--paper2));
+}
+
 
 html { color-scheme: light; }
 html.dark { color-scheme: dark; }
