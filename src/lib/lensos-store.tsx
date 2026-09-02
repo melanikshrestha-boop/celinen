@@ -182,18 +182,25 @@ export function LensProvider({ children }: { children: ReactNode }) {
             p.state === "selects ready" ? { ...p, state: "in Lightroom" } : p,
           ),
         })),
-      importReturns: () =>
-        patchActive((e) => ({
-          ...e,
-          lightroom: {
-            ...e.lightroom,
-            returns: e.picks.filter((p) => p.packageId).length,
-            conflicts: 2,
-          },
-          packages: e.packages.map((p) =>
-            p.state === "in Lightroom" ? { ...p, state: "edits returning" } : p,
-          ),
-        })),
+      importReturns: (packageId) =>
+        patchActive((e) => {
+          const returned = e.picks.filter(
+            (p) => p.packageId && (!packageId || p.packageId === packageId),
+          ).length;
+          return {
+            ...e,
+            lightroom: {
+              ...e.lightroom,
+              returns: e.lightroom.returns + returned,
+              conflicts: 2,
+            },
+            packages: e.packages.map((p) =>
+              (packageId ? p.id === packageId : p.state === "in Lightroom")
+                ? { ...p, state: "edits returning" }
+                : p,
+            ),
+          };
+        }),
       deliver: (packageId, files) =>
         patchActive((e) => {
           const prior = e.receipts.filter((r) => r.packageId === packageId).length;
