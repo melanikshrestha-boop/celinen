@@ -1,6 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Footer, Nav } from "@/components/Nav";
 import { Fade } from "@/components/Fade";
+import { LogoMark } from "@/components/lensos/Logo";
+
+const DEMO_STATS = [
+  { label: "Ingest", value: "100%", sub: "1,298 previews", fill: "100%" },
+  { label: "Picks", value: "146", sub: "1,128 reviewed", fill: "87%" },
+  { label: "Next due", value: "6", sub: "Wire set · 23:30", fill: "50%" },
+];
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -131,6 +139,70 @@ function Index() {
           ))}
         </div>
       </div>
+
+      <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 py-24">
+        <div className="flex flex-col items-center text-center">
+          <div className="float-y">
+            <LogoMark size={48} className="iris-breathe text-ink" />
+          </div>
+          <h2 className="mt-6 font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
+            Your desk. One screen.
+          </h2>
+          <p className="mt-3 text-moss">Live demo — the real one is private to your studio.</p>
+        </div>
+
+        <div className="mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.07)]">
+          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+            <LogoMark size={18} className="iris-spin text-ink" />
+            <span className="font-display text-[13px] font-semibold tracking-tight">
+              Ridgeway vs. Corbin Valley
+            </span>
+            <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-moss">
+              <span className="live-dot size-1.5 rounded-full bg-rust" />
+              local only
+            </span>
+          </div>
+
+          <div className="grid gap-4 p-5 sm:grid-cols-3">
+            {DEMO_STATS.map((s, i) => (
+              <div
+                key={s.label}
+                className="relative overflow-hidden rounded-2xl border border-border p-5"
+              >
+                <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-ink/[0.05] to-transparent sweep" />
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
+                  {s.label}
+                </p>
+                <p className="mt-3 font-display text-[2.1rem] font-bold leading-none tracking-[-0.04em]">
+                  {s.value}
+                </p>
+                <p className="mt-2 text-[13px] text-moss">{s.sub}</p>
+                <span className="mt-4 block h-1 overflow-hidden rounded-full bg-muted">
+                  <span
+                    className="bar-fill block h-full rounded-full bg-ink"
+                    style={{ width: s.fill, animationDelay: `${i * 160}ms` }}
+                  />
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-t border-border px-5 py-4">
+            <span className="font-mono text-[11px] text-moss">
+              CFexpress A → previews → keepers → Lightroom
+            </span>
+            <Link
+              to="/auth"
+              search={{ next: "/desk" }}
+              className="ml-auto rounded-xl bg-ink px-5 py-2.5 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
+            >
+              Start your desk →
+            </Link>
+          </div>
+        </div>
+      </Fade>
+
+
 
       <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 py-24">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Integrations</p>
