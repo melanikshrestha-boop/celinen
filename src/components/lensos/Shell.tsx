@@ -6,6 +6,49 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { Footer } from "@/components/lensos/Footer";
 import { LogoMark } from "@/components/lensos/Logo";
+import { useSessionState } from "@/lib/use-session";
+
+/** Every workspace screen is private — nothing renders until a studio is signed in. */
+function Locked({ loading }: { loading: boolean }) {
+  return (
+    <div className="grid min-h-screen place-items-center px-6 text-ink">
+      <div className="flex flex-col items-center text-center">
+        <div className="float-y">
+          <LogoMark size={72} className={loading ? "iris-spin text-ink" : "iris-breathe text-ink"} />
+        </div>
+        {loading ? (
+          <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.22em] text-moss">
+            opening workspace…
+          </p>
+        ) : (
+          <>
+            <h1 className="rise-in mt-8 font-display text-[clamp(1.8rem,5vw,2.9rem)] font-bold tracking-[-0.04em]">
+              Sign in to open your studio.
+            </h1>
+            <p className="rise-in mt-3 max-w-[380px] text-moss [animation-delay:120ms]">
+              Your desk, picks and clients are private.
+            </p>
+            <div className="rise-in mt-8 flex gap-3 [animation-delay:220ms]">
+              <Link
+                to="/auth"
+                className="rounded-xl bg-ink px-6 py-3 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
+              >
+                Sign in →
+              </Link>
+              <Link
+                to="/"
+                className="rounded-xl border border-input bg-card px-6 py-3 text-sm text-moss transition-all hover:-translate-y-0.5 hover:text-ink"
+              >
+                See the demo
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 const NAV = [
   { to: "/desk", label: "Event Desk" },
