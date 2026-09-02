@@ -159,6 +159,62 @@ function Earnings() {
       .sort((a, b) => b.total - a.total);
   }, [entries]);
 
+  /* ---------- real shoot data wired into the ledger ---------- */
+  const jobs = useMemo(
+    () =>
+      events.map((ev) => {
+        const ledgerIncome = entries
+          .filter((e) => e.eventId === ev.id && e.kind === "income")
+          .reduce((s, e) => s + e.amount, 0);
+        const ledgerExpense = entries
+          .filter((e) => e.eventId === ev.id && e.kind === "expense")
+          .reduce((s, e) => s + e.amount, 0);
+
+        const income =
+          ledgerIncome ||
+          ev.money.collected ||
+          ev.money.invoiced ||
+          ev.money.agreedRevenue ||
+          0;
+        const expense = ledgerExpense || ev.money.actualCosts || ev.money.estimatedCosts || 0;
+
+        const hours = ev.metrics.workMinutes / 60;
+        const net = income - expense;
+        const perHour = hours > 0 ? net / hours : null;
+
+        const deadline = ev.deadlines[0] ?? null;
+        const receipt = ev.receipts[0] ?? null;
+        const turnaround = receipt
+          ? { state: "delivered" as const, at: receipt.at }
+          : ev.status === "draft"
+            ? { state: "not shot" as const, at: null }
+            : { state: "open" as const, at: null };
+
+        return {
+          id: ev.id,
+          name: ev.name,
+          client: clients.find((c) => c.id === ev.clientId)?.name ?? "—",
+          frames: ev.metrics.ingested,
+          keepers: ev.pickQueue.selects,
+          hours,
+          income,
+          expense,
+          net,
+          perHour,
+          deadline,
+          turnaround,
+        };
+      }),
+    [events, entries, clients],
+  );
+
+  const shootTotals = useMemo(() => {
+    const hours = jobs.reduce((s, j) => s + j.hours, 0);
+    const net = jobs.reduce((s, j) => s + j.net, 0);
+    const frames = jobs.reduce((s, j) => s + j.frames, 0);
+    return { hours, net, frames, perHour: hours > 0 ? net / hours : 0 };
+  }, [jobs]);
+
   const selfEmployment = Math.max(0, totals.net) * 0.9235 * 0.153;
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
 
