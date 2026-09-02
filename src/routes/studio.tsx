@@ -45,6 +45,16 @@ export const Route = createFileRoute("/studio")({
 
 type Filter = "all" | "keepers" | "flagged" | "rejected" | "todo";
 
+const FLAG_LABEL: Record<Flag, string> = {
+  soft: "soft focus",
+  blur: "blurred",
+  underexposed: "underexposed",
+  overexposed: "blown highlights",
+  duplicate: "duplicate",
+  "face-soft": "face not sharp",
+  "eyes-closed": "eyes closed",
+};
+
 const CROPS: Edits["crop"][] = ["orig", "1:1", "4:5", "3:2", "16:9"];
 
 function Studio() {
@@ -582,12 +592,22 @@ function Studio() {
                             key={f}
                             className="rounded-full bg-sun px-2 py-0.5 text-[10px] text-ink"
                           >
-                            {f}
+                            {FLAG_LABEL[f]}
                           </span>
                         ))}
                         <span className="rounded-full bg-moss px-2 py-0.5 text-paper2">
                           score {selected.score}
                         </span>
+                        {selected.faces && (
+                          <span className="rounded-full border border-input px-2 py-0.5">
+                            {selected.faces.count} face{selected.faces.count === 1 ? "" : "s"}
+                            {selected.faces.eyesOpen === null
+                              ? ""
+                              : selected.faces.eyesOpen
+                                ? " · eyes open"
+                                : " · eyes closed"}
+                          </span>
+                        )}
                       </span>
                     </div>
 
