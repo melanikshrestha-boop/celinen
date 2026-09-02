@@ -363,7 +363,7 @@ function Studio() {
       try {
         const bmp = await getBitmap(selected);
         if (cancelled) return;
-        renderToCanvas(canvas, bmp, selected.edits, 1400);
+        renderToCanvas(canvas, bmp, selected.edits, 1400, selected.faces?.center ?? null);
         setBins(histogram(canvas));
       } catch {
         /* preview unavailable */
@@ -421,7 +421,7 @@ function Studio() {
     if (!selected || selected.error) return;
     setBusy("Exporting…");
     const bmp = await getBitmap(selected);
-    await exportShot(bmp, selected.edits, selected.name);
+    await exportShot(bmp, selected.edits, selected.name, selected.faces?.center ?? null);
     setBusy(null);
   };
 
@@ -430,7 +430,7 @@ function Studio() {
     for (let i = 0; i < keepers.length; i++) {
       setBusy(`Exporting ${i + 1}/${keepers.length}…`);
       const bmp = await decodeFile(keepers[i]!.file);
-      await exportShot(bmp, keepers[i]!.edits, keepers[i]!.name);
+      await exportShot(bmp, keepers[i]!.edits, keepers[i]!.name, keepers[i]!.faces?.center ?? null);
       bmp.close?.();
       await new Promise((r) => setTimeout(r, 250));
     }
