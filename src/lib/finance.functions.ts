@@ -337,7 +337,7 @@ export const createInvoice = createServerFn({ method: "POST" })
               )
             : 14,
           metadata: { lenslabs_invoice_id: invoice.id, lenslabs_user_id: userId },
-          description: data.description ?? undefined,
+          ...(data.description ? { description: data.description } : {}),
         },
         opts,
       );
@@ -351,7 +351,7 @@ export const createInvoice = createServerFn({ method: "POST" })
         },
         opts,
       );
-      const sent = await stripe.invoices.sendInvoice(stripeInvoice.id!, opts);
+      const sent = await stripe.invoices.sendInvoice(stripeInvoice.id!, {}, opts);
 
       const { data: updated } = await supabase
         .from("invoices")
