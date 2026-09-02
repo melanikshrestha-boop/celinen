@@ -23,6 +23,7 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
@@ -98,6 +99,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShootRoute = ShootRouteImport.update({
+  id: '/shoot',
+  path: '/shoot',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
+  '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/api/chat': typeof ApiChatRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/shoot'
     | '/signup'
     | '/studio'
     | '/api/chat'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/shoot'
     | '/signup'
     | '/studio'
     | '/api/chat'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/send'
     | '/settings'
+    | '/shoot'
     | '/signup'
     | '/studio'
     | '/api/chat'
@@ -258,6 +270,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
+  ShootRoute: typeof ShootRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -364,6 +377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shoot': {
+      id: '/shoot'
+      path: '/shoot'
+      fullPath: '/shoot'
+      preLoaderRoute: typeof ShootRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -410,6 +430,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
+  ShootRoute: ShootRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   ApiChatRoute: ApiChatRoute,
