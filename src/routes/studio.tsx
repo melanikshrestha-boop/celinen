@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditSlider } from "@/components/studio/Slider";
+import { CullChat, type ToolCall } from "@/components/studio/CullChat";
 import {
   DEFAULT_EDITS,
   type Edits,
