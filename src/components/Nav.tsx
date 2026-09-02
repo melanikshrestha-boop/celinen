@@ -7,9 +7,8 @@ export function Nav() {
     <div className="sticky top-4 z-50 px-4">
       <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
         <Link to="/" className="flex items-center gap-2">
-          <span className="grid size-6 place-items-center rounded-md bg-ink font-display text-[13px] font-bold text-paper2">
-            L
-          </span>
+          <LogoMark className="text-ink" />
+
           <span className="font-display text-[15px] font-semibold tracking-tight">Lens OS</span>
         </Link>
 
