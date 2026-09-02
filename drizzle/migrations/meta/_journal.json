@@ -36,6 +36,13 @@
       "when": 1788339122032,
       "tag": "0004_client_portal_access",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788340029634,
+      "tag": "0005_client_bookings_and_uploads",
+      "breakpoints": true
     }
   ]
 }
