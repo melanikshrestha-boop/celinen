@@ -263,10 +263,17 @@ function PricingPage() {
                 <span className="font-display text-sm font-semibold">Business</span>
                 <p className="mt-1 text-[13px] text-moss">Studios running multiple shooters.</p>
                 <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
-                  $64
+                  ${BUSINESS.yearly}
                   <small className="ml-1 text-sm font-normal text-moss">/ user / mo</small>
                 </div>
-                <p className="mt-1 text-[12px] text-moss">Billed yearly.</p>
+                <p className="mt-1 text-[12px] text-moss">
+                  Billed yearly · ${BUSINESS.monthly} / user monthly ·{" "}
+                  <span className="text-rust">
+                    save {savingsPct(BUSINESS.monthly, BUSINESS.yearly)}% ($
+                    {savingsPerYear(BUSINESS.monthly, BUSINESS.yearly)} / user / yr)
+                  </span>
+                </p>
+
                 <Features
                   items={[
                     "Everything in Teams",
