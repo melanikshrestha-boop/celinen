@@ -5,22 +5,33 @@ import {
   setVibeConsent,
   sendVibeMessage,
   finishVibeSession,
+  confirmVibeBooking,
   type VibeMessage,
 } from "@/lib/vibe.functions";
 
 type Session = Awaited<ReturnType<typeof getVibeSession>>;
 
+const SHOOT_TYPES = ["portrait", "sports", "event", "wedding", "product", "editorial"];
+
 /**
  * Opt-in, ask-and-allow shoot concierge. Nothing runs until the client
  * explicitly turns it on, and turning it off wipes the transcript.
  */
-export function VibeChat() {
+export function VibeChat({ onBooked }: { onBooked?: () => void } = {}) {
   const [session, setSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<VibeMessage[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [booking, setBooking] = useState({
+    shoot_type: SHOOT_TYPES[0]!,
+    preferred_date: "",
+    location: "",
+    budget: "",
+  });
+  const [booked, setBooked] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
 
   useEffect(() => {
     let alive = true;
