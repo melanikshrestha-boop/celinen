@@ -56,6 +56,7 @@ const NAV = [
   { to: "/pick", label: "Pick" },
   { to: "/metadata", label: "Metadata" },
   { to: "/packages", label: "Packages" },
+  { to: "/rates", label: "Rates" },
   { to: "/adobe", label: "Adobe" },
   { to: "/send", label: "Send" },
   { to: "/deliver", label: "Deliver" },

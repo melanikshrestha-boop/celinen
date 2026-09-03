@@ -207,3 +207,85 @@ export const finishVibeSession = createServerFn({ method: "POST" })
       .single();
     return error ? { error: error.message } : { session: row };
   });
+
+/**
+ * Turn a finished concierge chat into an actual shoot request. The brief the
+ * assistant wrote travels with it, so the photographer gets the vibe and the
+ * date in one row.
+ */
+export const confirmVibeBooking = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      id: string;
+      shoot_type: string;
+      preferred_date?: string | null;
+      location?: string | null;
+      budget?: number | null;
+    }) => {
+      if (!d.shoot_type?.trim()) throw new Error("Pick a shoot type");
+      return d;
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: session } = await supabase
+      .from("vibe_sessions")
+      .select("*")
+      .eq("id", data.id)
+      .eq("owner_auth_id", userId)
+      .maybeSingle();
+    if (!session) return { error: "Session not found" };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const email = authUser?.user?.email;
+    if (!email) return { error: "Your account has no email address." };
+
+    const { data: client } = await supabaseAdmin
+      .from("clients")
+      .select("id, user_id, name")
+      .eq("auth_user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    const tags = (session.vibe_tags ?? []).join(", ");
+    const message = [
+      session.summary ?? "",
+      tags ? `\nStyle tags: ${tags}` : "",
+    ]
+      .join("")
+      .trim();
+
+    const { data: booking, error } = await supabaseAdmin
+      .from("booking_requests")
+      .insert({
+        user_id: client?.user_id ?? session.user_id ?? null,
+        client_id: client?.id ?? null,
+        requester_email: email,
+        requester_name: client?.name ?? authUser?.user?.user_metadata?.["full_name"] ?? null,
+        shoot_type: data.shoot_type,
+        preferred_date: data.preferred_date || null,
+        location: data.location || null,
+        budget: data.budget ?? null,
+        message: message || null,
+        status: "new",
+      })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+
+    const { data: row } = await supabase
+      .from("vibe_sessions")
+      .update({
+        booking_id: booking.id,
+        status: "booked",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", session.id)
+      .select("*")
+      .single();
+
+    return { booking_id: booking.id, session: row };
+  });

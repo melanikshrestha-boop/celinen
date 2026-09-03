@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdobeRouteImport } from './routes/adobe'
+import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as BusinessRouteImport } from './routes/business'
@@ -25,6 +26,7 @@ import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as RatesRouteImport } from './routes/rates'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
@@ -45,6 +47,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdobeRoute = AdobeRouteImport.update({
   id: '/adobe',
   path: '/adobe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AmbassadorRoute = AmbassadorRouteImport.update({
+  id: '/ambassador',
+  path: '/ambassador',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -117,6 +124,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RatesRoute = RatesRouteImport.update({
+  id: '/rates',
+  path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SendRoute = SendRouteImport.update({
   id: '/send',
   path: '/send',
@@ -178,6 +190,7 @@ const ApiPublicStripeConnectWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
@@ -192,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/rates': typeof RatesRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
@@ -207,6 +221,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
@@ -221,6 +236,7 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/rates': typeof RatesRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
@@ -237,6 +253,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
@@ -251,6 +268,7 @@ export interface FileRoutesById {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/rates': typeof RatesRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
@@ -268,6 +286,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/adobe'
+    | '/ambassador'
     | '/auth'
     | '/book'
     | '/business'
@@ -282,6 +301,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/rates'
     | '/send'
     | '/settings'
     | '/shoot'
@@ -297,6 +317,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/adobe'
+    | '/ambassador'
     | '/auth'
     | '/book'
     | '/business'
@@ -311,6 +332,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/rates'
     | '/send'
     | '/settings'
     | '/shoot'
@@ -326,6 +348,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/adobe'
+    | '/ambassador'
     | '/auth'
     | '/book'
     | '/business'
@@ -340,6 +363,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/rates'
     | '/send'
     | '/settings'
     | '/shoot'
@@ -356,6 +380,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdobeRoute: typeof AdobeRoute
+  AmbassadorRoute: typeof AmbassadorRoute
   AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
   BusinessRoute: typeof BusinessRoute
@@ -370,6 +395,7 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
+  RatesRoute: typeof RatesRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
@@ -397,6 +423,13 @@ declare module '@tanstack/react-router' {
       path: '/adobe'
       fullPath: '/adobe'
       preLoaderRoute: typeof AdobeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ambassador': {
+      id: '/ambassador'
+      path: '/ambassador'
+      fullPath: '/ambassador'
+      preLoaderRoute: typeof AmbassadorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -497,6 +530,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rates': {
+      id: '/rates'
+      path: '/rates'
+      fullPath: '/rates'
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/send': {
       id: '/send'
       path: '/send'
@@ -580,6 +620,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
+  AmbassadorRoute: AmbassadorRoute,
   AuthRoute: AuthRoute,
   BookRoute: BookRoute,
   BusinessRoute: BusinessRoute,
@@ -594,6 +635,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
+  RatesRoute: RatesRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
