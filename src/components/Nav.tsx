@@ -1,85 +1,81 @@
 import { Link } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { LogoMark } from "@/components/lensos/Logo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { Footer as SiteFooter } from "@/components/lensos/Footer";
+
+const LINKS = [
+  { to: "/", label: "Home", exact: true },
+  { to: "/studio", label: "Studio" },
+  { to: "/desk", label: "Event Desk" },
+  { to: "/earnings", label: "Earnings" },
+  { to: "/book", label: "Book a shoot" },
+  { to: "/community", label: "Community" },
+  { to: "/pricing", label: "Pricing" },
+] as const;
 
 export function Nav() {
   return (
     <div className="sticky top-4 z-50 px-4">
-      <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
-        <Link to="/" className="flex items-center gap-2">
+      <header className="mx-auto grid w-full max-w-[1240px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
+        <Link to="/" className="flex shrink-0 items-center gap-2">
           <LogoMark className="text-ink" />
-
           <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
         </Link>
 
-        <nav className="hidden items-center gap-1 text-sm text-moss sm:flex">
-          <Link
-            to="/"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-            activeOptions={{ exact: true }}
-          >
-            Home
-          </Link>
-          <Link
-            to="/studio"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-          >
-            Studio
-          </Link>
-          <Link
-            to="/desk"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-          >
-            Event Desk
-          </Link>
-          <Link
-            to="/earnings"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-          >
-            Earnings
-          </Link>
-          <Link
-            to="/book"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-          >
-            Book a shoot
-          </Link>
-          <Link
-            to="/community"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-          >
-            Community
-          </Link>
-          <Link
-            to="/pricing"
-            className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-            activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-          >
-            Pricing
-          </Link>
+        <nav className="hidden min-w-0 items-center justify-center gap-1 whitespace-nowrap text-sm text-moss lg:flex">
+          {LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
+              activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
+              {...(l.exact ? { activeOptions: { exact: true } } : {})}
+            >
+              {l.label}
+            </Link>
+          ))}
         </nav>
 
-        <div className="flex items-center gap-2">
-        <ThemeToggle />
-        <Link
-          to="/auth"
-          search={{ next: "/shoot", mode: "signup" as const }}
-          className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
-        >
-          Get started →
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="Open menu"
+              className="grid size-9 shrink-0 place-items-center rounded-xl border border-input text-moss transition-colors hover:text-ink lg:hidden"
+            >
+              <span className="-mt-1.5 text-lg leading-none">…</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {LINKS.map((l) => (
+                <DropdownMenuItem key={l.to} asChild>
+                  <Link to={l.to} className="w-full cursor-pointer text-sm">
+                    {l.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Link
+            to="/auth"
+            search={{ next: "/shoot", mode: "signup" as const }}
+            className="shrink-0 whitespace-nowrap rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
+          >
+            Get started →
+          </Link>
         </div>
       </header>
     </div>
   );
 }
+
 
 export const Footer = SiteFooter;
