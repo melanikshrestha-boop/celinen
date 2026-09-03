@@ -52,7 +52,7 @@ function SignupPage() {
   const [billing, setBilling] = useState<"monthly" | "yearly">(
     search.billing === "monthly" ? "monthly" : "yearly",
   );
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(search.email ?? "");
   const [studio, setStudio] = useState("");
   const [seats, setSeats] = useState(1);
   const [busy, setBusy] = useState(false);
