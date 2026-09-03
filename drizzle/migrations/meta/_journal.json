@@ -71,6 +71,13 @@
       "when": 1788392205877,
       "tag": "0009_vibe_sessions_and_community",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788393936442,
+      "tag": "0010_remove_anon_gallery_passcode_exposure",
+      "breakpoints": true
     }
   ]
 }
