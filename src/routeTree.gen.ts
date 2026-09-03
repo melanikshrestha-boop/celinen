@@ -26,6 +26,7 @@ import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as RatesRouteImport } from './routes/rates'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
@@ -123,6 +124,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RatesRoute = RatesRouteImport.update({
+  id: '/rates',
+  path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SendRoute = SendRouteImport.update({
   id: '/send',
   path: '/send',
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/rates': typeof RatesRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
@@ -229,6 +236,7 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/rates': typeof RatesRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/rates': typeof RatesRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/rates'
     | '/send'
     | '/settings'
     | '/shoot'
@@ -322,6 +332,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/rates'
     | '/send'
     | '/settings'
     | '/shoot'
@@ -352,6 +363,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/rates'
     | '/send'
     | '/settings'
     | '/shoot'
@@ -383,6 +395,7 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
+  RatesRoute: typeof RatesRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rates': {
+      id: '/rates'
+      path: '/rates'
+      fullPath: '/rates'
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/send': {
       id: '/send'
       path: '/send'
@@ -615,6 +635,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
+  RatesRoute: RatesRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
