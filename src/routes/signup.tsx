@@ -28,6 +28,7 @@ export const Route = createFileRoute("/signup")({
   validateSearch: (search: Record<string, unknown>) => ({
     plan: typeof search['plan'] === "string" ? (search['plan'] as string) : "starter",
     billing: search['billing'] === "monthly" ? "monthly" : "yearly",
+    email: typeof search['email'] === "string" ? (search['email'] as string) : "",
   }),
   component: SignupPage,
 });
