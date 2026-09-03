@@ -67,11 +67,19 @@ function Portal() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
 
+  const [studios, setStudios] = useState<StudioRates[]>([]);
+
   const refresh = useCallback(async () => {
-    const [b, u] = await Promise.all([listBookingRequests(), listClientUploads()]);
+    const [b, u, r] = await Promise.all([
+      listBookingRequests(),
+      listClientUploads(),
+      getStudioRates().catch(() => ({ studios: [] as StudioRates[] })),
+    ]);
     setBookings(b);
     setUploads(u);
+    setStudios(r.studios);
   }, []);
+
 
   useEffect(() => {
     let alive = true;
