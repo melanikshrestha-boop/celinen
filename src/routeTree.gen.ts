@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdobeRouteImport } from './routes/adobe'
+import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as BusinessRouteImport } from './routes/business'
@@ -45,6 +46,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdobeRoute = AdobeRouteImport.update({
   id: '/adobe',
   path: '/adobe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AmbassadorRoute = AmbassadorRouteImport.update({
+  id: '/ambassador',
+  path: '/ambassador',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -178,6 +184,7 @@ const ApiPublicStripeConnectWebhookRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
@@ -268,6 +277,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/adobe'
+    | '/ambassador'
     | '/auth'
     | '/book'
     | '/business'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/adobe'
+    | '/ambassador'
     | '/auth'
     | '/book'
     | '/business'
@@ -326,6 +337,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/adobe'
+    | '/ambassador'
     | '/auth'
     | '/book'
     | '/business'
@@ -356,6 +368,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdobeRoute: typeof AdobeRoute
+  AmbassadorRoute: typeof AmbassadorRoute
   AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
   BusinessRoute: typeof BusinessRoute
@@ -397,6 +410,13 @@ declare module '@tanstack/react-router' {
       path: '/adobe'
       fullPath: '/adobe'
       preLoaderRoute: typeof AdobeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ambassador': {
+      id: '/ambassador'
+      path: '/ambassador'
+      fullPath: '/ambassador'
+      preLoaderRoute: typeof AmbassadorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -580,6 +600,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
+  AmbassadorRoute: AmbassadorRoute,
   AuthRoute: AuthRoute,
   BookRoute: BookRoute,
   BusinessRoute: BusinessRoute,
