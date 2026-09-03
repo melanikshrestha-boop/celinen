@@ -10,7 +10,9 @@ import {
   createClientUploadUrl,
   recordClientUpload,
   listClientUploads,
+  getInvoicePaymentLink,
 } from "@/lib/client-portal.functions";
+import { getStudioRates, type StudioRates } from "@/lib/rates.functions";
 
 export const Route = createFileRoute("/portal")({
   ssr: false,
@@ -343,7 +345,7 @@ function Portal() {
         )}
       </section>
 
-      <VibeChat />
+      <VibeChat onBooked={() => void refresh()} />
 
       {/* ---- client uploads ---- */}
       <section className="mt-10">
