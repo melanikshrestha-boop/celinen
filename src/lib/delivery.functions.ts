@@ -190,9 +190,10 @@ export const getGallery = createServerFn({ method: "GET" })
 /* ---------------- client (public) side ---------------- */
 
 export const openGallery = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; passcode?: string }) => d)
+  .inputValidator((d: { slug: string; passcode?: string; visitor?: string }) => d)
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { mintVisitorToken, verifyVisitorToken } = await import("@/lib/gallery-visitor.server");
 
     const { data: gallery } = await supabaseAdmin
       .from("galleries")
@@ -206,13 +207,22 @@ export const openGallery = createServerFn({ method: "POST" })
     if (gallery.passcode && gallery.passcode !== (data.passcode ?? ""))
       return { error: "passcode" as const, title: gallery.title };
 
+    // Reuse the caller's token when it is genuinely ours for this gallery, else mint a fresh one.
+    const existingVisitor = verifyVisitorToken(gallery.id, data.visitor);
+    const visitorToken = existingVisitor ? data.visitor! : mintVisitorToken(gallery.id);
+    const visitorId = existingVisitor ?? verifyVisitorToken(gallery.id, visitorToken)!;
+
     const [{ data: photos }, { data: favorites }] = await Promise.all([
       supabaseAdmin
         .from("gallery_photos")
         .select("id, filename, storage_path, width, height, sort_order")
         .eq("gallery_id", gallery.id)
         .order("sort_order"),
-      supabaseAdmin.from("gallery_favorites").select("photo_id").eq("gallery_id", gallery.id),
+      supabaseAdmin
+        .from("gallery_favorites")
+        .select("photo_id")
+        .eq("gallery_id", gallery.id)
+        .eq("viewer", visitorId),
     ]);
 
     const paths = (photos ?? []).map((p) => p.storage_path);
@@ -232,6 +242,7 @@ export const openGallery = createServerFn({ method: "POST" })
         message: gallery.message,
         downloads_enabled: gallery.downloads_enabled,
       },
+      visitor_token: visitorToken,
       photos: (photos ?? []).map((p, i) => ({
         id: p.id,
         filename: p.filename,
@@ -244,9 +255,11 @@ export const openGallery = createServerFn({ method: "POST" })
   });
 
 export const toggleGalleryFavorite = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; photo_id: string; on: boolean; viewer?: string }) => d)
+  .inputValidator((d: { slug: string; photo_id: string; on: boolean; visitor: string }) => d)
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { verifyVisitorToken } = await import("@/lib/gallery-visitor.server");
+
     const { data: gallery } = await supabaseAdmin
       .from("galleries")
       .select("id, status, expires_at")
@@ -256,7 +269,19 @@ export const toggleGalleryFavorite = createServerFn({ method: "POST" })
     if (gallery.expires_at && new Date(gallery.expires_at).getTime() < Date.now())
       return { error: "Gallery link expired" };
 
-    const viewer = data.viewer?.slice(0, 60) || "client";
+    // A gallery link on its own cannot write: the visitor token is the credential.
+    const viewer = verifyVisitorToken(gallery.id, data.visitor);
+    if (!viewer) return { error: "Open the gallery again to pick favourites" };
+
+    // The photo must belong to this gallery.
+    const { data: photo } = await supabaseAdmin
+      .from("gallery_photos")
+      .select("id")
+      .eq("id", data.photo_id)
+      .eq("gallery_id", gallery.id)
+      .maybeSingle();
+    if (!photo) return { error: "Photo is not in this gallery" };
+
     if (data.on) {
       await supabaseAdmin
         .from("gallery_favorites")
@@ -268,6 +293,7 @@ export const toggleGalleryFavorite = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("gallery_favorites")
         .delete()
+        .eq("gallery_id", gallery.id)
         .eq("photo_id", data.photo_id)
         .eq("viewer", viewer);
     }
