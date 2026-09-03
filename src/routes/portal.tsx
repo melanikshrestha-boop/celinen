@@ -459,6 +459,58 @@ function Portal() {
             </div>
           </section>
 
+          {studios.length > 0 && (
+            <section>
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
+                Rates
+              </h2>
+              <div className="mt-3 grid gap-3">
+                {studios.map((st) => (
+                  <div key={st.userId} className="rounded-2xl border border-border bg-card p-5">
+                    <p className="font-display text-[16px] font-semibold">{st.name}</p>
+                    <p className="mt-0.5 text-[12.5px] text-moss">
+                      {[st.specialty, st.city].filter(Boolean).join(" · ")}
+                    </p>
+                    {st.bio && (
+                      <p className="mt-2 text-[13.5px] leading-relaxed text-moss">{st.bio}</p>
+                    )}
+                    <div className="mt-4 grid gap-2">
+                      {st.packages.map((pk) => (
+                        <div
+                          key={pk.id}
+                          className="flex flex-wrap items-center gap-3 rounded-xl border border-border px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[14.5px] font-medium">{pk.title}</p>
+                            <p className="text-[12.5px] text-moss">
+                              {[pk.duration, pk.deliverables, pk.turnaround]
+                                .filter(Boolean)
+                                .join(" · ") || pk.blurb}
+                            </p>
+                          </div>
+                          <span className="ml-auto font-mono text-[14px]">
+                            {money(Number(pk.price), pk.currency)}
+                            <span className="text-[11px] text-moss">
+                              {pk.unit === "hour" ? " / hr" : pk.unit === "day" ? " / day" : ""}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                      {st.packages.length === 0 && (
+                        <p className="text-[13px] text-moss">Ask for a quote — no set packages.</p>
+                      )}
+                    </div>
+                    {(st.travelNote || st.bookingNote) && (
+                      <p className="mt-3 text-[12px] leading-relaxed text-moss">
+                        {[st.travelNote, st.bookingNote].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section>
             <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
               Invoices
@@ -486,22 +538,45 @@ function Portal() {
                   <span className="ml-auto font-mono text-[14px]">
                     {money(Number(inv.amount), inv.currency)}
                   </span>
-                  {inv.status !== "paid" && inv.hosted_invoice_url && (
-                    <a
-                      href={inv.hosted_invoice_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg bg-rust px-3 py-1.5 text-[13px] font-semibold text-paper2 hover:opacity-90"
-                    >
-                      Pay now
-                    </a>
-                  )}
+                  {inv.status !== "paid" && <PayButton id={inv.id} url={inv.hosted_invoice_url} />}
                 </div>
               ))}
             </div>
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Opens the photographer's Stripe payment page, creating it on demand. */
+function PayButton({ id, url }: { id: string; url: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const pay = async () => {
+    if (url) {
+      window.open(url, "_blank", "noopener");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    const res = await getInvoicePaymentLink({ data: { invoice_id: id } });
+    setBusy(false);
+    if ("url" in res && res.url) window.open(res.url, "_blank", "noopener");
+    else setErr("error" in res ? (res.error ?? "Could not open payment") : "Could not open payment");
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {err && <span className="text-[12px] text-destructive">{err}</span>}
+      <button
+        onClick={() => void pay()}
+        disabled={busy}
+        className="rounded-lg bg-rust px-3 py-1.5 text-[13px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+      >
+        {busy ? "Opening…" : "Pay now"}
+      </button>
     </div>
   );
 }
