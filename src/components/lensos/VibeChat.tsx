@@ -210,6 +210,65 @@ export function VibeChat({ onBooked }: { onBooked?: () => void } = {}) {
               </div>
             )}
 
+            {session.summary && (
+              <div className="border-t border-border px-4 py-4 sm:px-5">
+                {booked || session.status === "booked" ? (
+                  <p className="text-[13px] leading-relaxed text-moss">
+                    <span className="font-medium text-rust">Shoot requested.</span> Your brief went
+                    over with it — your photographer confirms the date from here.
+                  </p>
+                ) : (
+                  <>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
+                      Book it
+                    </p>
+                    <div className="mt-3 grid gap-2.5 sm:grid-cols-4">
+                      <select
+                        value={booking.shoot_type}
+                        onChange={(e) => setBooking({ ...booking, shoot_type: e.target.value })}
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      >
+                        {SHOOT_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t[0]!.toUpperCase() + t.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={booking.preferred_date}
+                        onChange={(e) => setBooking({ ...booking, preferred_date: e.target.value })}
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      />
+                      <input
+                        value={booking.location}
+                        onChange={(e) => setBooking({ ...booking, location: e.target.value })}
+                        placeholder="Location"
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      />
+                      <input
+                        value={booking.budget}
+                        onChange={(e) =>
+                          setBooking({ ...booking, budget: e.target.value.replace(/[^0-9.]/g, "") })
+                        }
+                        inputMode="decimal"
+                        placeholder="Budget"
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      />
+                    </div>
+                    <button
+                      onClick={() => void confirm()}
+                      disabled={busy}
+                      className="mt-3 rounded-xl bg-ink px-4 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-85 disabled:opacity-60"
+                    >
+                      {busy ? "Sending…" : "Confirm this shoot"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+
             {err && <p className="px-4 pb-2 text-[12px] text-destructive sm:px-5">{err}</p>}
 
             <div className="flex items-end gap-2 border-t border-border px-3 py-3 sm:px-5">
