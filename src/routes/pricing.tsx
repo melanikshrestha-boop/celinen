@@ -50,7 +50,7 @@ const FAQ: [string, string][] = [
   ["Do you offer refunds?", "Cancel anytime and keep access until the end of the paid period. Email us within 14 days of a first charge and we'll sort it out."],
 ];
 
-const COMPARE: { section: string; rows: [string, string, string, string][] }[] = [
+const COMPARE: { section: string; rows: string[][] }[] = [
   {
     section: "Culling",
     rows: [
@@ -58,7 +58,7 @@ const COMPARE: { section: string; rows: [string, string, string, string][] }[] =
       ["RAW + JPEG ingest", "yes", "yes", "yes", "yes"],
       ["Duplicate & stack sorting", "yes", "yes", "yes", "yes"],
       ["Needs-you queue", "no", "yes", "yes", "yes"],
-    ] as unknown as [string, string, string, string][],
+    ],
   },
   {
     section: "Delivery",
@@ -67,7 +67,7 @@ const COMPARE: { section: string; rows: [string, string, string, string][] }[] =
       ["Client galleries", "no", "yes", "yes", "yes"],
       ["Client favourites sync", "no", "yes", "yes", "yes"],
       ["Custom gallery destinations", "no", "no", "no", "yes"],
-    ] as unknown as [string, string, string, string][],
+    ],
   },
   {
     section: "Team & billing",
@@ -76,7 +76,7 @@ const COMPARE: { section: string; rows: [string, string, string, string][] }[] =
       ["Centralized billing", "no", "no", "yes", "yes"],
       ["SSO & seat management", "no", "no", "no", "yes"],
       ["Invoice / PO billing", "no", "no", "no", "yes"],
-    ] as unknown as [string, string, string, string][],
+    ],
   },
 ];
 
