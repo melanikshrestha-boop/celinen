@@ -41,6 +41,17 @@ const TEAM_STEPS = [
   { photos: "25,000 photos / user / mo", plan: "agency", monthly: 80, yearly: 64 },
 ];
 
+/* Enterprise Business seat: $80 monthly, $64/mo when billed yearly. */
+const BUSINESS = { monthly: 80, yearly: 64 };
+
+/** Percent saved by paying the annual rate instead of the monthly rate. */
+const savingsPct = (monthly: number, yearly: number) =>
+  monthly > 0 ? Math.round(((monthly - yearly) / monthly) * 100) : 0;
+
+/** Dollars saved over 12 months. */
+const savingsPerYear = (monthly: number, yearly: number) => (monthly - yearly) * 12;
+
+
 const FAQ: [string, string][] = [
   ["What counts as a photo?", "A frame ingested into a job during the billing period. Re-culling the same job never counts twice."],
   ["Do I have to leave Lightroom?", "No. LensLabs decides volume; keepers hand off to Lightroom and Photoshop with XMP intact. Craft stays where it is."],
@@ -134,6 +145,10 @@ function PricingPage() {
   const team = TEAM_STEPS[teamStep]!;
   const proPrice = yearly ? pro.yearly : pro.monthly;
   const teamPrice = yearly ? team.yearly : team.monthly;
+  const active = audience === "teams" ? team : pro;
+  const activePct = savingsPct(active.monthly, active.yearly);
+  const activeSaved = savingsPerYear(active.monthly, active.yearly);
+
 
   return (
     <div className="flex min-h-screen w-full flex-col text-ink">
@@ -233,8 +248,9 @@ function PricingPage() {
                 Annual
               </button>
               <span className="rounded-full border border-rust/40 bg-rust/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-rust">
-                Save 20%
+                Save {activePct}% · ${activeSaved}/yr
               </span>
+
             </div>
           )}
         </div>
@@ -247,10 +263,17 @@ function PricingPage() {
                 <span className="font-display text-sm font-semibold">Business</span>
                 <p className="mt-1 text-[13px] text-moss">Studios running multiple shooters.</p>
                 <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
-                  $64
+                  ${BUSINESS.yearly}
                   <small className="ml-1 text-sm font-normal text-moss">/ user / mo</small>
                 </div>
-                <p className="mt-1 text-[12px] text-moss">Billed yearly.</p>
+                <p className="mt-1 text-[12px] text-moss">
+                  Billed yearly · ${BUSINESS.monthly} / user monthly ·{" "}
+                  <span className="text-rust">
+                    save {savingsPct(BUSINESS.monthly, BUSINESS.yearly)}% ($
+                    {savingsPerYear(BUSINESS.monthly, BUSINESS.yearly)} / user / yr)
+                  </span>
+                </p>
+
                 <Features
                   items={[
                     "Everything in Teams",
@@ -366,10 +389,26 @@ function PricingPage() {
                   </small>
                 </div>
                 <p className="mt-1 text-[12px] text-moss">
-                  {yearly
-                    ? `Billed yearly · $${audience === "teams" ? team.monthly : pro.monthly} monthly`
-                    : "Billed monthly"}
+                  {yearly ? (
+                    <>
+                      Billed yearly (${active.yearly * 12}
+                      {audience === "teams" ? " / user" : ""} / yr) · ${active.monthly} monthly ·{" "}
+                      <span className="text-rust">
+                        save {activePct}% (${activeSaved}
+                        {audience === "teams" ? " / user" : ""} / yr)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Billed monthly · switch to annual for ${active.yearly} / mo and{" "}
+                      <span className="text-rust">
+                        save {activePct}% (${activeSaved}
+                        {audience === "teams" ? " / user" : ""} / yr)
+                      </span>
+                    </>
+                  )}
                 </p>
+
 
                 {/* usage selector */}
                 <label className="mt-4 block">
@@ -387,9 +426,11 @@ function PricingPage() {
                   >
                     {(audience === "teams" ? TEAM_STEPS : PRO_STEPS).map((s, i) => (
                       <option key={s.plan} value={i}>
-                        {s.photos}
+                        {s.photos} — ${yearly ? s.yearly : s.monthly}/mo
+                        {yearly ? ` (save ${savingsPct(s.monthly, s.yearly)}%)` : ""}
                       </option>
                     ))}
+
                   </select>
                 </label>
 
