@@ -25,10 +25,14 @@ export const Route = createFileRoute("/signup")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { plan: string; billing: "monthly" | "yearly"; email?: string } => ({
     plan: typeof search['plan'] === "string" ? (search['plan'] as string) : "starter",
     billing: search['billing'] === "monthly" ? "monthly" : "yearly",
-    email: typeof search['email'] === "string" ? (search['email'] as string) : "",
+    ...(typeof search['email'] === "string" && search['email']
+      ? { email: search['email'] as string }
+      : {}),
   }),
   component: SignupPage,
 });
