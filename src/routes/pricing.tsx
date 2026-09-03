@@ -41,6 +41,17 @@ const TEAM_STEPS = [
   { photos: "25,000 photos / user / mo", plan: "agency", monthly: 80, yearly: 64 },
 ];
 
+/* Enterprise Business seat: $80 monthly, $64/mo when billed yearly. */
+const BUSINESS = { monthly: 80, yearly: 64 };
+
+/** Percent saved by paying the annual rate instead of the monthly rate. */
+const savingsPct = (monthly: number, yearly: number) =>
+  monthly > 0 ? Math.round(((monthly - yearly) / monthly) * 100) : 0;
+
+/** Dollars saved over 12 months. */
+const savingsPerYear = (monthly: number, yearly: number) => (monthly - yearly) * 12;
+
+
 const FAQ: [string, string][] = [
   ["What counts as a photo?", "A frame ingested into a job during the billing period. Re-culling the same job never counts twice."],
   ["Do I have to leave Lightroom?", "No. LensLabs decides volume; keepers hand off to Lightroom and Photoshop with XMP intact. Craft stays where it is."],
