@@ -426,9 +426,11 @@ function PricingPage() {
                   >
                     {(audience === "teams" ? TEAM_STEPS : PRO_STEPS).map((s, i) => (
                       <option key={s.plan} value={i}>
-                        {s.photos}
+                        {s.photos} — ${yearly ? s.yearly : s.monthly}/mo
+                        {yearly ? ` (save ${savingsPct(s.monthly, s.yearly)}%)` : ""}
                       </option>
                     ))}
+
                   </select>
                 </label>
 
