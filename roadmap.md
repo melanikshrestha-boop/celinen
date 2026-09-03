@@ -15,3 +15,10 @@
 - [ ] Client acquisition/marketing surface.
 - [ ] Boundaries: scheduling/expectation guardrails for late or demanding clients.
 - [ ] Photographer-side view of client vibe briefs inside the Event Desk.
+
+## Shipped — rates, payments, ambassadors
+- `/rates` — photographer sets shoot packages + studio profile; published packages appear in client portals.
+- Portal rate cards + "Pay now" that creates a Stripe hosted invoice on the photographer's connected account (needs Stripe keys to complete).
+- Shoot concierge now ends in a real booking: type, date, location, budget → `booking_requests` with the AI brief attached.
+- Pricing page upgrade form → saves signup, hands off to `/signup` checkout with plan/billing/email prefilled; states the % and $ saved.
+- `/ambassador` — campus program page for Big Ten / D1 sports shooters, application writes to `ambassador_applications`.
