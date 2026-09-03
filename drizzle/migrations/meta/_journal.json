@@ -78,6 +78,13 @@
       "when": 1788393936442,
       "tag": "0010_remove_anon_gallery_passcode_exposure",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788468602194,
+      "tag": "0011_lock_gallery_favorites_to_server",
+      "breakpoints": true
     }
   ]
 }
