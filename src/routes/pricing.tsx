@@ -145,6 +145,10 @@ function PricingPage() {
   const team = TEAM_STEPS[teamStep]!;
   const proPrice = yearly ? pro.yearly : pro.monthly;
   const teamPrice = yearly ? team.yearly : team.monthly;
+  const active = audience === "teams" ? team : pro;
+  const activePct = savingsPct(active.monthly, active.yearly);
+  const activeSaved = savingsPerYear(active.monthly, active.yearly);
+
 
   return (
     <div className="flex min-h-screen w-full flex-col text-ink">
