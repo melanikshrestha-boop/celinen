@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { Footer } from "@/components/lensos/Footer";
 import { LogoMark } from "@/components/lensos/Logo";
@@ -475,8 +475,8 @@ function PricingPage() {
               </thead>
               <tbody>
                 {COMPARE.map((group) => (
-                  <>
-                    <tr key={group.section} className="border-b border-border bg-muted/50">
+                  <Fragment key={group.section}>
+                    <tr className="border-b border-border bg-muted/50">
                       <td
                         colSpan={5}
                         className="px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-moss"
@@ -494,7 +494,7 @@ function PricingPage() {
                         ))}
                       </tr>
                     ))}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
