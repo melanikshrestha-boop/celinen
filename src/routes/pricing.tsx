@@ -499,7 +499,7 @@ function PricingPage() {
 
         {/* upgrade form */}
         <div id="upgrade" className="mt-20 scroll-mt-8">
-          <UpgradeForm cycle={cycle} audience={audience} proPlan={proStep.plan} teamPlan={teamStep.plan} />
+          <UpgradeForm cycle={cycle} audience={audience} proPlan={pro.plan} teamPlan={team.plan} />
         </div>
 
         {/* comparison table */}
