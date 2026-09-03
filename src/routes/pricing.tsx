@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { recordSignup } from "@/utils/payments.functions";
 import { Fragment, useState } from "react";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { Footer } from "@/components/lensos/Footer";
@@ -495,6 +497,11 @@ function PricingPage() {
           )}
         </div>
 
+        {/* upgrade form */}
+        <div id="upgrade" className="mt-20 scroll-mt-8">
+          <UpgradeForm cycle={cycle} audience={audience} proPlan={pro.plan} teamPlan={team.plan} />
+        </div>
+
         {/* comparison table */}
         <div className="mt-20">
           <h2 className="text-center font-display text-[26px] font-bold tracking-[-0.03em]">
@@ -605,3 +612,129 @@ function PricingPage() {
     </div>
   );
 }
+
+/** Saves the email, then hands off to checkout with the plan pre-selected. */
+function UpgradeForm({
+  cycle,
+  audience,
+  proPlan,
+  teamPlan,
+}: {
+  cycle: Cycle;
+  audience: Audience;
+  proPlan: string;
+  teamPlan: string;
+}) {
+  const navigate = useNavigate();
+  const save = useServerFn(recordSignup);
+  const [email, setEmail] = useState("");
+  const [studio, setStudio] = useState("");
+  const [plan, setPlan] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const suggested = audience === "teams" ? teamPlan : proPlan;
+  const chosen = plan ?? suggested;
+  const option = UPGRADE_PLANS.find((p) => p.id === chosen) ?? UPGRADE_PLANS[1]!;
+  const price = cycle === "yearly" ? option.yearly : option.monthly;
+  const saved = (option.monthly - option.yearly) * 12;
+  const pct = Math.round(((option.monthly - option.yearly) / option.monthly) * 100);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    if (!email.trim()) return setErr("We need an email to put the plan on.");
+    setBusy(true);
+    try {
+      const res = await save({
+        data: { email: email.trim().toLowerCase(), plan: chosen, billing: cycle, studio },
+      });
+      if ("error" in res && res.error) throw new Error(res.error);
+      await navigate({
+        to: "/signup",
+        search: { plan: chosen, billing: cycle, email: email.trim().toLowerCase() },
+      });
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : "Could not start checkout");
+      setBusy(false);
+    }
+  };
+
+  const field =
+    "mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink outline-none focus:border-rust sm:py-2 sm:text-[14px]";
+
+  return (
+    <div className="mx-auto max-w-[720px] rounded-2xl border border-border bg-card p-6 sm:p-8">
+      <h2 className="font-display text-[24px] font-bold tracking-[-0.03em]">Upgrade now</h2>
+      <p className="mt-1.5 text-[13.5px] text-moss">
+        Pick a plan, drop your email, pay on the next screen. Cancel any time.
+      </p>
+
+      <form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-2">
+        <label className="text-[12px] text-moss">
+          Plan
+          <select value={chosen} onChange={(e) => setPlan(e.target.value)} className={field}>
+            {UPGRADE_PLANS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label} — ${cycle === "yearly" ? p.yearly : p.monthly}/mo
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[12px] text-moss">
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@studio.com"
+            className={field}
+          />
+        </label>
+        <label className="text-[12px] text-moss sm:col-span-2">
+          Studio name (optional)
+          <input value={studio} onChange={(e) => setStudio(e.target.value)} className={field} />
+        </label>
+
+        <div className="rounded-xl border border-border bg-background px-4 py-3 text-[13px] sm:col-span-2">
+          <span className="font-mono text-[15px]">${price}</span>
+          <span className="text-moss">
+            {option.perUser ? " / user" : ""} per month, billed {cycle}
+          </span>
+          {cycle === "yearly" ? (
+            <span className="ml-2 text-rust">
+              save {pct}% — ${saved}
+              {option.perUser ? " / user" : ""} a year vs ${option.monthly}/mo
+            </span>
+          ) : (
+            <span className="ml-2 text-moss">
+              switch to yearly and save {pct}% (${saved}
+              {option.perUser ? " / user" : ""} a year)
+            </span>
+          )}
+        </div>
+
+        {err && <p className="text-[13px] text-destructive sm:col-span-2">{err}</p>}
+
+        <div className="sm:col-span-2">
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-xl bg-rust px-5 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+          >
+            {busy ? "Starting…" : "Continue to checkout"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+const UPGRADE_PLANS = [
+  { id: "hobby", label: "Hobby", monthly: 20, yearly: 16, perUser: false },
+  { id: "starter", label: "Pro · 1,000 photos", monthly: 20, yearly: 16, perUser: false },
+  { id: "sideline", label: "Pro · 5,000 photos", monthly: 60, yearly: 48, perUser: false },
+  { id: "arena", label: "Pro · 25,000 photos", monthly: 200, yearly: 160, perUser: false },
+  { id: "crew", label: "Teams · Crew", monthly: 40, yearly: 32, perUser: true },
+  { id: "agency", label: "Teams · Agency", monthly: 80, yearly: 64, perUser: true },
+];

@@ -5,22 +5,33 @@ import {
   setVibeConsent,
   sendVibeMessage,
   finishVibeSession,
+  confirmVibeBooking,
   type VibeMessage,
 } from "@/lib/vibe.functions";
 
 type Session = Awaited<ReturnType<typeof getVibeSession>>;
 
+const SHOOT_TYPES = ["portrait", "sports", "event", "wedding", "product", "editorial"];
+
 /**
  * Opt-in, ask-and-allow shoot concierge. Nothing runs until the client
  * explicitly turns it on, and turning it off wipes the transcript.
  */
-export function VibeChat() {
+export function VibeChat({ onBooked }: { onBooked?: () => void } = {}) {
   const [session, setSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<VibeMessage[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [booking, setBooking] = useState({
+    shoot_type: SHOOT_TYPES[0]!,
+    preferred_date: "",
+    location: "",
+    budget: "",
+  });
+  const [booked, setBooked] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
 
   useEffect(() => {
     let alive = true;
@@ -81,6 +92,30 @@ export function VibeChat() {
     else if (res.session) setSession(res.session);
     setBusy(false);
   }, [session]);
+
+  const confirm = useCallback(async () => {
+    if (!session) return;
+    setBusy(true);
+    setErr(null);
+    const res = await confirmVibeBooking({
+      data: {
+        id: session.id,
+        shoot_type: booking.shoot_type,
+        preferred_date: booking.preferred_date || null,
+        location: booking.location || null,
+        budget: booking.budget ? Number(booking.budget) : null,
+      },
+    });
+    if ("error" in res && res.error) setErr(res.error);
+    else {
+      if (res.session) setSession(res.session);
+      setBooked(true);
+      onBooked?.();
+    }
+    setBusy(false);
+  }, [session, booking, onBooked]);
+
+
 
   if (!session) return null;
 
@@ -174,6 +209,65 @@ export function VibeChat() {
                 )}
               </div>
             )}
+
+            {session.summary && (
+              <div className="border-t border-border px-4 py-4 sm:px-5">
+                {booked || session.status === "booked" ? (
+                  <p className="text-[13px] leading-relaxed text-moss">
+                    <span className="font-medium text-rust">Shoot requested.</span> Your brief went
+                    over with it — your photographer confirms the date from here.
+                  </p>
+                ) : (
+                  <>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
+                      Book it
+                    </p>
+                    <div className="mt-3 grid gap-2.5 sm:grid-cols-4">
+                      <select
+                        value={booking.shoot_type}
+                        onChange={(e) => setBooking({ ...booking, shoot_type: e.target.value })}
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      >
+                        {SHOOT_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t[0]!.toUpperCase() + t.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={booking.preferred_date}
+                        onChange={(e) => setBooking({ ...booking, preferred_date: e.target.value })}
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      />
+                      <input
+                        value={booking.location}
+                        onChange={(e) => setBooking({ ...booking, location: e.target.value })}
+                        placeholder="Location"
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      />
+                      <input
+                        value={booking.budget}
+                        onChange={(e) =>
+                          setBooking({ ...booking, budget: e.target.value.replace(/[^0-9.]/g, "") })
+                        }
+                        inputMode="decimal"
+                        placeholder="Budget"
+                        className="rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:text-[13.5px]"
+                      />
+                    </div>
+                    <button
+                      onClick={() => void confirm()}
+                      disabled={busy}
+                      className="mt-3 rounded-xl bg-ink px-4 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-85 disabled:opacity-60"
+                    >
+                      {busy ? "Sending…" : "Confirm this shoot"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
 
             {err && <p className="px-4 pb-2 text-[12px] text-destructive sm:px-5">{err}</p>}
 

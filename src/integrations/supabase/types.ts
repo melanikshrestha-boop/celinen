@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ambassador_applications: {
+        Row: {
+          conference: string | null
+          created_at: string
+          email: string
+          id: string
+          message: string | null
+          name: string
+          portfolio: string | null
+          school: string | null
+          socials: string | null
+          sports: string | null
+        }
+        Insert: {
+          conference?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          message?: string | null
+          name: string
+          portfolio?: string | null
+          school?: string | null
+          socials?: string | null
+          sports?: string | null
+        }
+        Update: {
+          conference?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string | null
+          name?: string
+          portfolio?: string | null
+          school?: string | null
+          socials?: string | null
+          sports?: string | null
+        }
+        Relationships: []
+      }
       booking_requests: {
         Row: {
           access_token: string | null
@@ -512,34 +551,100 @@ export type Database = {
       }
       profiles: {
         Row: {
+          bio: string | null
+          booking_note: string | null
+          city: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
+          specialty: string | null
           stripe_account_id: string | null
           stripe_account_status: string
           studio_name: string | null
+          travel_note: string | null
           updated_at: string
         }
         Insert: {
+          bio?: string | null
+          booking_note?: string | null
+          city?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
+          specialty?: string | null
           stripe_account_id?: string | null
           stripe_account_status?: string
           studio_name?: string | null
+          travel_note?: string | null
           updated_at?: string
         }
         Update: {
+          bio?: string | null
+          booking_note?: string | null
+          city?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          specialty?: string | null
           stripe_account_id?: string | null
           stripe_account_status?: string
           studio_name?: string | null
+          travel_note?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      shoot_packages: {
+        Row: {
+          blurb: string | null
+          created_at: string
+          currency: string
+          deliverables: string | null
+          duration: string | null
+          id: string
+          price: number
+          published: boolean
+          sort_order: number
+          title: string
+          turnaround: string | null
+          unit: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blurb?: string | null
+          created_at?: string
+          currency?: string
+          deliverables?: string | null
+          duration?: string | null
+          id?: string
+          price?: number
+          published?: boolean
+          sort_order?: number
+          title: string
+          turnaround?: string | null
+          unit?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blurb?: string | null
+          created_at?: string
+          currency?: string
+          deliverables?: string | null
+          duration?: string | null
+          id?: string
+          price?: number
+          published?: boolean
+          sort_order?: number
+          title?: string
+          turnaround?: string | null
+          unit?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

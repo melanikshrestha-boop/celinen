@@ -254,3 +254,107 @@ export const attachGalleryToBooking = createServerFn({ method: "POST" })
       .eq("id", data.booking_id);
     return error ? { error: error.message } : { ok: true };
   });
+
+/* ---------------- invoice payment (client side) ---------------- */
+
+/**
+ * A signed-in client asks to pay one of their own invoices. We verify the
+ * invoice belongs to a client record linked to this account, then return the
+ * photographer's Stripe hosted invoice URL — creating and sending it on their
+ * connected account if it does not exist yet.
+ */
+export const getInvoicePaymentLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { invoice_id: string }) => {
+    if (!d.invoice_id) throw new Error("Missing invoice");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+
+    // RLS already scopes invoices to linked clients; re-read through it.
+    const { data: invoice } = await sb
+      .from("invoices")
+      .select("id, amount, currency, description, status, hosted_invoice_url, client_id, user_id")
+      .eq("id", data.invoice_id)
+      .maybeSingle();
+    if (!invoice) return { error: "Invoice not found" };
+    if (invoice.status === "paid") return { error: "This invoice is already paid." };
+    if (invoice.hosted_invoice_url) return { url: invoice.hosted_invoice_url };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Confirm the caller really owns this client record.
+    const { data: client } = await supabaseAdmin
+      .from("clients")
+      .select("id, name, org, email, auth_user_id")
+      .eq("id", invoice.client_id ?? "")
+      .maybeSingle();
+    if (!client || client.auth_user_id !== context.userId) return { error: "Invoice not found" };
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_account_id, email")
+      .eq("id", invoice.user_id)
+      .maybeSingle();
+    const account = profile?.stripe_account_id;
+    if (!account) {
+      return {
+        error: "Your photographer hasn't switched on card payments yet — reply to their email to settle up.",
+      };
+    }
+
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const email = client.email || authUser?.user?.email;
+    if (!email) return { error: "We need an email on your account before you can pay online." };
+
+    try {
+      const { platformStripe, stripeMessage } = await import("@/lib/stripe-connect.server");
+      const stripe = platformStripe();
+      const opts = { stripeAccount: account } as const;
+
+      const found = await stripe.customers.list({ email, limit: 1 }, opts);
+      const customer =
+        found.data[0] ??
+        (await stripe.customers.create({ email, name: client.org || client.name }, opts));
+
+      const stripeInvoice = await stripe.invoices.create(
+        {
+          customer: customer.id,
+          collection_method: "send_invoice",
+          days_until_due: 7,
+          metadata: { lenslabs_invoice_id: invoice.id, lenslabs_user_id: invoice.user_id },
+          ...(invoice.description ? { description: invoice.description } : {}),
+        },
+        opts,
+      );
+      await stripe.invoiceItems.create(
+        {
+          customer: customer.id,
+          invoice: stripeInvoice.id,
+          amount: Math.round(Number(invoice.amount) * 100),
+          currency: invoice.currency || "usd",
+          description: invoice.description || "Photography services",
+        },
+        opts,
+      );
+      const finalized = await stripe.invoices.finalizeInvoice(stripeInvoice.id!, {}, opts);
+      const url = finalized.hosted_invoice_url;
+      if (!url) return { error: stripeMessage(new Error("Stripe did not return a payment page.")) };
+
+      await supabaseAdmin
+        .from("invoices")
+        .update({
+          status: invoice.status === "draft" ? "sent" : invoice.status,
+          stripe_invoice_id: finalized.id,
+          hosted_invoice_url: url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", invoice.id);
+
+      return { url };
+    } catch (e) {
+      const { stripeMessage } = await import("@/lib/stripe-connect.server");
+      return { error: stripeMessage(e) };
+    }
+  });

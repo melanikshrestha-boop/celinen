@@ -29,6 +29,7 @@ const COLUMNS: { title: string; links: { label: string; to?: string; href?: stri
     links: [
       { label: "About" },
       { label: "Photographers" },
+      { label: "Campus ambassadors", to: "/ambassador" },
       { label: "Careers" },
       { label: "Method" },
       { label: "Quality" },
