@@ -248,8 +248,9 @@ function PricingPage() {
                 Annual
               </button>
               <span className="rounded-full border border-rust/40 bg-rust/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-rust">
-                Save 20%
+                Save {activePct}% · ${activeSaved}/yr
               </span>
+
             </div>
           )}
         </div>
