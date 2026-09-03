@@ -93,6 +93,30 @@ export function VibeChat({ onBooked }: { onBooked?: () => void } = {}) {
     setBusy(false);
   }, [session]);
 
+  const confirm = useCallback(async () => {
+    if (!session) return;
+    setBusy(true);
+    setErr(null);
+    const res = await confirmVibeBooking({
+      data: {
+        id: session.id,
+        shoot_type: booking.shoot_type,
+        preferred_date: booking.preferred_date || null,
+        location: booking.location || null,
+        budget: booking.budget ? Number(booking.budget) : null,
+      },
+    });
+    if ("error" in res && res.error) setErr(res.error);
+    else {
+      if (res.session) setSession(res.session);
+      setBooked(true);
+      onBooked?.();
+    }
+    setBusy(false);
+  }, [session, booking, onBooked]);
+
+
+
   if (!session) return null;
 
   return (
