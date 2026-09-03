@@ -389,10 +389,26 @@ function PricingPage() {
                   </small>
                 </div>
                 <p className="mt-1 text-[12px] text-moss">
-                  {yearly
-                    ? `Billed yearly · $${audience === "teams" ? team.monthly : pro.monthly} monthly`
-                    : "Billed monthly"}
+                  {yearly ? (
+                    <>
+                      Billed yearly (${active.yearly * 12}
+                      {audience === "teams" ? " / user" : ""} / yr) · ${active.monthly} monthly ·{" "}
+                      <span className="text-rust">
+                        save {activePct}% (${activeSaved}
+                        {audience === "teams" ? " / user" : ""} / yr)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Billed monthly · switch to annual for ${active.yearly} / mo and{" "}
+                      <span className="text-rust">
+                        save {activePct}% (${activeSaved}
+                        {audience === "teams" ? " / user" : ""} / yr)
+                      </span>
+                    </>
+                  )}
                 </p>
+
 
                 {/* usage selector */}
                 <label className="mt-4 block">
