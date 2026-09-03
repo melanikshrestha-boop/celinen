@@ -36,14 +36,27 @@ function ClientGallery() {
   const [onlyPicks, setOnlyPicks] = useState(false);
   const [zipping, setZipping] = useState(false);
 
+  /** Signed, per-visitor credential for this gallery — favourites can't be written without it. */
+  const tokenKey = `lenslabs.gallery.${slug}.visitor`;
+  const [visitor, setVisitor] = useState("");
+
   const load = async (code?: string) => {
-    const res = (await openGallery({ data: { slug, passcode: code ?? "" } })) as any;
+    const stored = typeof window === "undefined" ? "" : (localStorage.getItem(tokenKey) ?? "");
+    const res = (await openGallery({ data: { slug, passcode: code ?? "", visitor: stored } })) as any;
     if (res?.error === "passcode") {
       setTitle(res.title ?? "");
       setState("passcode");
       return;
     }
     if (res?.error) return setState("gone");
+    if (res.visitor_token) {
+      setVisitor(res.visitor_token);
+      try {
+        localStorage.setItem(tokenKey, res.visitor_token);
+      } catch {
+        /* private mode — the token just lives for this session */
+      }
+    }
     setTitle(res.gallery.title);
     setMessage(res.gallery.message);
     setDownloads(res.gallery.downloads_enabled);
@@ -58,6 +71,7 @@ function ClientGallery() {
   }, [slug]);
 
   const toggle = async (id: string) => {
+    if (!visitor) return;
     const on = !favs.has(id);
     setFavs((prev) => {
       const next = new Set(prev);
@@ -65,7 +79,16 @@ function ClientGallery() {
       else next.delete(id);
       return next;
     });
-    await toggleGalleryFavorite({ data: { slug, photo_id: id, on } });
+    const res = (await toggleGalleryFavorite({ data: { slug, photo_id: id, on, visitor } })) as any;
+    if (res?.error) {
+      // Roll the optimistic pick back if the server refused it.
+      setFavs((prev) => {
+        const next = new Set(prev);
+        if (on) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    }
   };
 
   /** Zip the originals byte-for-byte — no re-encode, no resize, RAW stays RAW. */
