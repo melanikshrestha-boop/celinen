@@ -10,7 +10,7 @@ import {
 
 import { Footer as SiteFooter } from "@/components/lensos/Footer";
 
-const LINKS = [
+const LINKS: { to: string; label: string; exact?: boolean }[] = [
   { to: "/", label: "Home", exact: true },
   { to: "/studio", label: "Studio" },
   { to: "/desk", label: "Event Desk" },
@@ -18,7 +18,7 @@ const LINKS = [
   { to: "/book", label: "Book a shoot" },
   { to: "/community", label: "Community" },
   { to: "/pricing", label: "Pricing" },
-] as const;
+];
 
 export function Nav() {
   return (
