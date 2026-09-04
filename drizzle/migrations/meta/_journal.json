@@ -92,6 +92,13 @@
       "when": 1788478786423,
       "tag": "0012_packages_rates_and_ambassador",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788520019592,
+      "tag": "0013_gallery_photos_passcode_gate",
+      "breakpoints": true
     }
   ]
 }
