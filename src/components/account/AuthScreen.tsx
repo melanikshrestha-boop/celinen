@@ -145,7 +145,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
     <main className="auth-screen">
       <section className="auth-panel" aria-labelledby="auth-title">
         <Link to="/" className="auth-brand" aria-label="LensLabs home">
-          <LogoMark size={38} />
+          <LogoMark size={32} />
           <span>LensLabs</span>
         </Link>
         <header className="auth-heading">
@@ -209,7 +209,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="picasso@studio.com"
+                placeholder="picasso@gmail.com"
               />
             </label>
             <label htmlFor="auth-password">Password</label>
@@ -262,17 +262,19 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           )}
           {note && <p role="status">{note}</p>}
         </div>
-        <button
-          type="button"
-          className="auth-magic"
-          disabled={!ready || busy !== null}
-          onClick={magicLink}
-        >
-          {busy === "email" ? "Sending your link…" : "Email me a sign-in link instead"}
-        </button>
+        {!signup && (
+          <button
+            type="button"
+            className="auth-magic"
+            disabled={!ready || busy !== null}
+            onClick={magicLink}
+          >
+            {busy === "email" ? "Sending your link…" : "Email me a sign-in link instead"}
+          </button>
+        )}
 
         <div className="auth-assurance">
-          <LockKeyhole size={28} aria-hidden="true" />
+          <LockKeyhole size={20} aria-hidden="true" />
           <div>
             <h2>Your originals stay local</h2>
             <p>LensLabs only uploads prepared gallery copies when you publish.</p>

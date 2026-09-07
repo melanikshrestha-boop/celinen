@@ -79,6 +79,56 @@ try {
   );
   assert(document.querySelector("#auth-email").value === "", "Example email is not prefilled");
   assert(
+    document.querySelector("#auth-name").placeholder === "Pablo Picasso",
+    "Exact artist-name example",
+  );
+  assert(
+    document.querySelector("#auth-email").placeholder === "picasso@gmail.com",
+    "Exact requested email example",
+  );
+  assert(
+    document.querySelector("#auth-password").placeholder === "At least 8 characters",
+    "Exact password placeholder",
+  );
+  assert(!document.querySelector(".auth-magic"), "Signup has no competing magic-link action");
+  assert(
+    getComputedStyle(document.querySelector(".auth-submit")).backgroundImage === "none",
+    "Primary CTA has flat ivory color, not a gradient",
+  );
+  const aligned = [
+    ".auth-google",
+    "#auth-name",
+    "#auth-email",
+    "#auth-password",
+    ".auth-submit",
+    ".auth-assurance",
+  ].map((selector) => document.querySelector(selector).getBoundingClientRect());
+  assert(
+    aligned.every(
+      (rect) =>
+        Math.abs(rect.left - aligned[0].left) < 0.5 &&
+        Math.abs(rect.right - aligned[0].right) < 0.5,
+    ),
+    "All controls and trust row share exact edges",
+  );
+  if (innerWidth >= 1024 && getComputedStyle(document.documentElement).fontSize === "16px") {
+    const panel = document.querySelector(".auth-panel").getBoundingClientRect();
+    assert(panel.width >= 460 && panel.width <= 500, "Desktop card width matches 460–500px target");
+    assert(
+      panel.height >= 680 && panel.height <= 760,
+      "Desktop card height matches 680–760px target",
+    );
+    assert(
+      aligned.slice(1, 4).every((rect) => rect.height >= 44 && rect.height <= 46),
+      "Inputs match 44–46px target",
+    );
+    assert(
+      [aligned[0], aligned[4]].every((rect) => rect.height >= 46 && rect.height <= 48),
+      "Google and primary buttons match 46–48px target",
+    );
+    assert(aligned[5].height >= 72 && aligned[5].height <= 82, "Trust row matches 72–82px target");
+  }
+  assert(
     document.querySelector("#auth-password").type === "password",
     "Password is hidden initially",
   );
@@ -91,9 +141,9 @@ try {
   assert(requests.length === 0, "Empty submit sends no auth request");
   await fill("auth-name", "Pablo QA");
   await fill("auth-email", "not-an-email");
-  document.querySelector(".auth-magic").click();
+  submit();
   await pause();
-  assert(requests.length === 0, "Magic-link email validation prevents invalid requests");
+  assert(requests.length === 0, "Invalid signup email sends no request");
   await fill("auth-email", "lenslabs-qa@example.invalid");
   await fill("auth-password", "synthetic-test-password");
   document.querySelector(".auth-password button").click();
@@ -117,8 +167,8 @@ try {
     "Google is locked during email submission",
   );
   assert(
-    document.querySelector(".auth-magic").disabled,
-    "Magic link is locked during password submission",
+    !document.querySelector(".auth-magic"),
+    "Signup does not add another action during submission",
   );
   const urlDuringRequest = location.href;
   document.querySelector(".auth-switch a").click();
@@ -153,6 +203,10 @@ try {
   await switchMode();
   assert(!document.querySelector("#auth-name"), "Sign-in removes signup-only fields");
   assert(
+    document.querySelector(".auth-magic"),
+    "Existing sign-in keeps its passwordless recovery option",
+  );
+  assert(
     document.querySelector("#auth-password").autocomplete === "current-password",
     "Sign-in supports saved credentials",
   );
@@ -160,6 +214,14 @@ try {
   assert(
     new URL(location.href).searchParams.get("next") === "/workspace",
     "Switching modes preserves the next destination",
+  );
+  await fill("auth-email", "not-an-email");
+  const beforeInvalidEmail = requests.length;
+  document.querySelector(".auth-magic").click();
+  await pause();
+  assert(
+    requests.length === beforeInvalidEmail,
+    "Sign-in magic link validates the email before sending",
   );
   await fill("auth-email", "lenslabs-qa@example.invalid");
   await fill("auth-password", "short");

@@ -1,5 +1,13 @@
 # Account entry repair — September 7, 2026
 
+## Compact refinement
+
+The subsequent refinement keeps the same lens asset and dark photographic identity while reducing the normal desktop card from 560 × 845px to **484 × 698px**. Measured at 1440 × 1000: 26px vertical / 30px horizontal padding, 29px semibold heading, 14px subtitle, 13px labels, 45px inputs, 47px Google and primary buttons, and a 76px trust row. Controls and trust row share exact left/right edges.
+
+The CTA is flat, subdued ivory with no gradient; the panel has a quieter border/shadow and the existing background is dimmed through a CSS overlay. Placeholders are exactly `Pablo Picasso`, `picasso@gmail.com`, and `At least 8 characters`. The signup magic-link action is removed; returning users still have passwordless recovery on the sign-in screen.
+
+**53 browser checks pass**, including the requested dimensions, alignment, exact placeholders, absence of signup clutter, and existing auth interactions with simulated provider responses. Desktop and 390px phone screenshots were inspected. A 320px viewport and 200% text size have no horizontal overflow or clipped controls. All 804 existing tests, TypeScript, changed-component ESLint, and the production build pass. The live-provider and Lovable publication limits below are unchanged.
+
 ## Correct product surface
 
 Use `http://localhost:8080/auth?mode=signup&next=%2Fworkspace` for the running local website.
