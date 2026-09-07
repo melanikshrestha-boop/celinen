@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAccount } from "@/components/account/AccountProvider";
 import { Footer, Nav } from "@/components/Nav";
 import { Fade } from "@/components/Fade";
 import { LogoMark } from "@/components/lensos/Logo";
@@ -8,7 +9,6 @@ const DEMO_STATS = [
   { label: "Picks", value: "146", sub: "1,128 reviewed", fill: "87%" },
   { label: "Next due", value: "6", sub: "Wire set · 23:30", fill: "50%" },
 ];
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -56,6 +56,7 @@ const ADOBE = [
 ];
 
 const REPLACED = [
+  { name: "Aftershoot", domain: "aftershoot.com", usd: 0 },
   { name: "Pixieset", domain: "pixieset.com", usd: 40 },
   { name: "SmugMug", domain: "smugmug.com", usd: 15 },
   { name: "Photo Mechanic", domain: "camerabits.com", usd: 12 },
@@ -66,8 +67,7 @@ const REPLACED = [
 
 const REPLACED_TOTAL = REPLACED.reduce((s, r) => s + r.usd, 0);
 
-const logoFor = (domain: string) =>
-  `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+const logoFor = (domain: string) => `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
 
 const TICKER = [
   "laplacian focus variance",
@@ -79,6 +79,7 @@ const TICKER = [
 ];
 
 function Index() {
+  const account = useAccount();
   return (
     <div className="flex min-h-screen w-full flex-col overflow-hidden text-ink">
       <Nav />
@@ -192,8 +193,8 @@ function Index() {
               CFexpress A → previews → keepers → Lightroom
             </span>
             <Link
-              to="/auth"
-              search={{ next: "/desk" }}
+              to={account?.status === "in" ? "/desk" : "/auth"}
+              search={account?.status === "in" ? {} : { next: "/desk" }}
               className="ml-auto rounded-xl bg-ink px-5 py-2.5 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
             >
               Start your desk →
@@ -202,12 +203,10 @@ function Index() {
         </div>
       </Fade>
 
-
-
       <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 py-24">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Integrations</p>
         <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
-          Plugs into <span className="text-rust">Adobe</span>. Replaces the rest.
+          Your edits are only <span className="text-rust">the beginning.</span>
         </h2>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
@@ -234,9 +233,9 @@ function Index() {
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="py-5 sm:pr-5">
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
-              Replaces — the average stack a photographer pays for
+              Less app-hopping. More photography.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {REPLACED.map((r) => (
@@ -252,29 +251,29 @@ function Index() {
                     loading="lazy"
                     className="size-4 rounded-[3px]"
                   />
-                  <span className="line-through decoration-rust/60">{r.name}</span>
-                  <span className="font-mono text-[11px] text-moss/70">${r.usd}/mo</span>
+                  <span>{r.name}</span>
                 </span>
               ))}
             </div>
-            <p className="mt-3 font-mono text-[11px] text-moss">
-              ≈ ${REPLACED_TOTAL}/mo across {REPLACED.length} subscriptions
+            <p className="mt-4 text-sm leading-relaxed text-moss">
+              If your Aftershoot workflow still leaves you chasing clients, writing captions,
+              and uploading everything again, the shoot ended. Your second shift didn’t.
             </p>
           </div>
-          <div className="rounded-2xl border border-border bg-ink p-5 text-paper2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-paper2/60">
-              One tool
+          <div className="py-5 sm:pl-5 text-ink">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
+              The LensLabs direction
             </p>
             <p className="mt-3 font-display text-[19px] font-semibold tracking-tight">
-              Cull → develop → gallery → site.
+              Less second-shift energy.
             </p>
-            <p className="mt-1 text-sm text-paper2/70">
-              No jargon, no {REPLACED.length} subscriptions.
+            <p className="mt-2 text-sm leading-relaxed text-moss">
+              Keep the client, the follow-up, and the final photos together. Review one publishing
+              draft for your portfolio and Instagram. Connections required; nothing posts without your approval.
             </p>
           </div>
         </div>
       </Fade>
-
 
       <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 pb-24">
         <div className="rounded-3xl border border-border bg-card p-8 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-12">
@@ -293,22 +292,25 @@ function Index() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-2">
-            {["Auto galleries", "Client proofing", "Free subdomain", "Custom domain", "No page builder"].map(
-              (t) => (
-                <span
-                  key={t}
-                  className="rounded-full border border-border px-3 py-1 text-[12px] text-moss transition-colors hover:border-rust/40 hover:text-ink"
-                >
-                  {t}
-                </span>
-              ),
-            )}
+            {[
+              "Auto galleries",
+              "Client proofing",
+              "Free subdomain",
+              "Custom domain",
+              "No page builder",
+            ].map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-border px-3 py-1 text-[12px] text-moss transition-colors hover:border-rust/40 hover:text-ink"
+              >
+                {t}
+              </span>
+            ))}
           </div>
         </div>
       </Fade>
 
       <Footer />
-
     </div>
   );
 }

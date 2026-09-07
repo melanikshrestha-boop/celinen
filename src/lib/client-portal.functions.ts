@@ -1,5 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  clientClaimEmailMatches,
+  escapeClientEmailPattern,
+  isOwnedByStudio,
+} from "@/lib/client-portal-ownership";
 
 /**
  * Bind client records to an account only when the account's email is confirmed,
@@ -11,13 +16,30 @@ async function linkClientRecords(userId: string) {
   const user = data?.user;
   if (error || !user?.email || !user.email_confirmed_at) return 0;
 
-  const { data: rows } = await supabaseAdmin
+  const { data: candidates, error: lookupError } = await supabaseAdmin
     .from("clients")
-    .update({ auth_user_id: userId })
+    .select("id, email")
     .is("auth_user_id", null)
-    .ilike("email", user.email)
-    .select("id");
-  return rows?.length ?? 0;
+    .ilike("email", escapeClientEmailPattern(user.email));
+  if (lookupError) throw new Error("Could not verify your client records. Try again.");
+
+  let linked = 0;
+  for (const candidate of candidates ?? []) {
+    // PostgREST treats '*' as a wildcard alias even after SQL LIKE escaping.
+    // The pattern is only a lookup hint; literal email equality authorizes a claim.
+    if (!clientClaimEmailMatches(user.email, candidate.email)) continue;
+    const { data: row, error: claimError } = await supabaseAdmin
+      .from("clients")
+      .update({ auth_user_id: userId })
+      .eq("id", candidate.id)
+      .eq("email", candidate.email)
+      .is("auth_user_id", null)
+      .select("id")
+      .maybeSingle();
+    if (claimError) throw new Error("Could not link your verified client records. Try again.");
+    if (row) linked++;
+  }
+  return linked;
 }
 
 
@@ -38,6 +60,7 @@ export const getClientPortal = createServerFn({ method: "GET" })
     const { data: clients } = await sb
       .from("clients")
       .select("id, name, org, email, phone")
+      .eq("auth_user_id", context.userId)
       .order("created_at", { ascending: true });
 
     const ids = (clients ?? []).map((c) => c.id);
@@ -204,55 +227,64 @@ export const listClientUploads = createServerFn({ method: "GET" })
 /* ---------------- guest shoot requests (photographer side) ---------------- */
 
 /**
- * Photographer inbox: their own requests plus guest requests that no studio has
- * claimed yet. Guests book without an account, so those rows start unowned.
+ * Photographer inbox: only requests assigned to this authenticated studio.
+ * Unassigned guest intake stays private until verified studio routing exists;
+ * signing in is not permission to view or claim another person's request.
  */
 export const listInboxBookings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    const { data, error } = await context.supabase
       .from("booking_requests")
-      .select("id, requester_name, requester_email, shoot_type, preferred_date, status, gallery_id, user_id")
-      .or(`user_id.eq.${context.userId},user_id.is.null`)
+      .select(
+        "id, requester_name, requester_email, shoot_type, preferred_date, status, gallery_id, user_id",
+      )
+      .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
       .limit(100);
-    return data ?? [];
+    if (error) throw new Error("Could not load your studio's requests. Try again.");
+    return (data ?? []).filter((booking) => isOwnedByStudio(context.userId, booking));
   });
 
 /** Link a delivered gallery to a shoot request so the client's link shows it. */
 export const attachGalleryToBooking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { booking_id: string; gallery_id: string | null }) => d)
+  .inputValidator((d: { booking_id: string; gallery_id: string | null }) => {
+    if (typeof d.booking_id !== "string" || !d.booking_id.trim()) {
+      throw new Error("Missing request");
+    }
+    if (d.gallery_id !== null && (typeof d.gallery_id !== "string" || !d.gallery_id.trim())) {
+      throw new Error("Missing gallery");
+    }
+    return d;
+  })
   .handler(async ({ data, context }) => {
     if (data.gallery_id) {
-      const { data: gallery } = await context.supabase
+      const { data: gallery, error } = await context.supabase
         .from("galleries")
-        .select("id")
+        .select("id, user_id")
         .eq("id", data.gallery_id)
         .eq("user_id", context.userId)
         .maybeSingle();
-      if (!gallery) return { error: "Gallery not found" };
+      if (error) return { error: "Could not verify gallery ownership. Try again." };
+      if (!isOwnedByStudio(context.userId, gallery)) return { error: "Gallery not found" };
     }
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: booking } = await supabaseAdmin
-      .from("booking_requests")
-      .select("id, user_id")
-      .eq("id", data.booking_id)
-      .maybeSingle();
-    if (!booking) return { error: "Request not found" };
-    if (booking.user_id && booking.user_id !== context.userId) return { error: "Not your request" };
-
-    const { error } = await supabaseAdmin
+    // Ownership is part of the write predicate itself, not just a prior read.
+    // Never assign user_id here: guest intake cannot be claimed by guessed ID.
+    const { data: booking, error } = await context.supabase
       .from("booking_requests")
       .update({
         gallery_id: data.gallery_id,
-        user_id: context.userId,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", data.booking_id);
-    return error ? { error: error.message } : { ok: true };
+      .eq("id", data.booking_id)
+      .eq("user_id", context.userId)
+      .select("id, user_id")
+      .maybeSingle();
+    if (error) return { error: "Could not update your studio's request. Try again." };
+    if (!isOwnedByStudio(context.userId, booking)) return { error: "Request not found" };
+    return { ok: true };
   });
 
 /* ---------------- invoice payment (client side) ---------------- */

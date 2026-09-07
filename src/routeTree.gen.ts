@@ -20,20 +20,29 @@ import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as MailRouteImport } from './routes/mail'
 import { Route as MetadataRouteImport } from './routes/metadata'
 import { Route as PackagesRouteImport } from './routes/packages'
 import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as PublishRouteImport } from './routes/publish'
 import { Route as RatesRouteImport } from './routes/rates'
+import { Route as ResearchRouteImport } from './routes/research'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as VideoRouteImport } from './routes/video'
+import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
+import { Route as PPostIdRouteImport } from './routes/p.$postId'
+import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$ownerId'
+import { Route as ReviewIdRouteImport } from './routes/review.$id'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
@@ -94,6 +103,11 @@ const EarningsRoute = EarningsRouteImport.update({
   path: '/earnings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MailRoute = MailRouteImport.update({
+  id: '/mail',
+  path: '/mail',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MetadataRoute = MetadataRouteImport.update({
   id: '/metadata',
   path: '/metadata',
@@ -124,9 +138,24 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PublishRoute = PublishRouteImport.update({
+  id: '/publish',
+  path: '/publish',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RatesRoute = RatesRouteImport.update({
   id: '/rates',
   path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResearchRoute = ResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SendRoute = SendRouteImport.update({
@@ -154,6 +183,16 @@ const StudioRoute = StudioRouteImport.update({
   path: '/studio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VideoRoute = VideoRouteImport.update({
+  id: '/video',
+  path: '/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkspaceRoute = WorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -162,6 +201,21 @@ const ApiChatRoute = ApiChatRouteImport.update({
 const GSlugRoute = GSlugRouteImport.update({
   id: '/g/$slug',
   path: '/g/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PPostIdRoute = PPostIdRouteImport.update({
+  id: '/p/$postId',
+  path: '/p/$postId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhotographerOwnerIdRoute = PhotographerOwnerIdRouteImport.update({
+  id: '/photographer/$ownerId',
+  path: '/photographer/$ownerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewIdRoute = ReviewIdRouteImport.update({
+  id: '/review/$id',
+  path: '/review/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const STokenRoute = STokenRouteImport.update({
@@ -199,20 +253,29 @@ export interface FileRoutesByFullPath {
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
+  '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/packages': typeof PackagesRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/projects': typeof ProjectsRoute
+  '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
+  '/research': typeof ResearchRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/video': typeof VideoRoute
+  '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/g/$slug': typeof GSlugRoute
+  '/p/$postId': typeof PPostIdRoute
+  '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
+  '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
@@ -230,20 +293,29 @@ export interface FileRoutesByTo {
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
+  '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/packages': typeof PackagesRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/projects': typeof ProjectsRoute
+  '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
+  '/research': typeof ResearchRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/video': typeof VideoRoute
+  '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/g/$slug': typeof GSlugRoute
+  '/p/$postId': typeof PPostIdRoute
+  '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
+  '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
@@ -262,20 +334,29 @@ export interface FileRoutesById {
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/earnings': typeof EarningsRoute
+  '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/packages': typeof PackagesRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/projects': typeof ProjectsRoute
+  '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
+  '/research': typeof ResearchRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/video': typeof VideoRoute
+  '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/g/$slug': typeof GSlugRoute
+  '/p/$postId': typeof PPostIdRoute
+  '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
+  '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
@@ -295,20 +376,29 @@ export interface FileRouteTypes {
     | '/deliver'
     | '/desk'
     | '/earnings'
+    | '/mail'
     | '/metadata'
     | '/packages'
     | '/pick'
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/projects'
+    | '/publish'
     | '/rates'
+    | '/research'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/signup'
     | '/studio'
+    | '/video'
+    | '/workspace'
     | '/api/chat'
     | '/g/$slug'
+    | '/p/$postId'
+    | '/photographer/$ownerId'
+    | '/review/$id'
     | '/s/$token'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
@@ -326,20 +416,29 @@ export interface FileRouteTypes {
     | '/deliver'
     | '/desk'
     | '/earnings'
+    | '/mail'
     | '/metadata'
     | '/packages'
     | '/pick'
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/projects'
+    | '/publish'
     | '/rates'
+    | '/research'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/signup'
     | '/studio'
+    | '/video'
+    | '/workspace'
     | '/api/chat'
     | '/g/$slug'
+    | '/p/$postId'
+    | '/photographer/$ownerId'
+    | '/review/$id'
     | '/s/$token'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
@@ -357,20 +456,29 @@ export interface FileRouteTypes {
     | '/deliver'
     | '/desk'
     | '/earnings'
+    | '/mail'
     | '/metadata'
     | '/packages'
     | '/pick'
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/projects'
+    | '/publish'
     | '/rates'
+    | '/research'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/signup'
     | '/studio'
+    | '/video'
+    | '/workspace'
     | '/api/chat'
     | '/g/$slug'
+    | '/p/$postId'
+    | '/photographer/$ownerId'
+    | '/review/$id'
     | '/s/$token'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
@@ -389,20 +497,29 @@ export interface RootRouteChildren {
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
   EarningsRoute: typeof EarningsRoute
+  MailRoute: typeof MailRoute
   MetadataRoute: typeof MetadataRoute
   PackagesRoute: typeof PackagesRoute
   PickRoute: typeof PickRoute
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
+  ProjectsRoute: typeof ProjectsRoute
+  PublishRoute: typeof PublishRoute
   RatesRoute: typeof RatesRoute
+  ResearchRoute: typeof ResearchRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
+  VideoRoute: typeof VideoRoute
+  WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
   GSlugRoute: typeof GSlugRoute
+  PPostIdRoute: typeof PPostIdRoute
+  PhotographerOwnerIdRoute: typeof PhotographerOwnerIdRoute
+  ReviewIdRoute: typeof ReviewIdRoute
   STokenRoute: typeof STokenRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
@@ -488,6 +605,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EarningsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mail': {
+      id: '/mail'
+      path: '/mail'
+      fullPath: '/mail'
+      preLoaderRoute: typeof MailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/metadata': {
       id: '/metadata'
       path: '/metadata'
@@ -530,11 +654,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/publish': {
+      id: '/publish'
+      path: '/publish'
+      fullPath: '/publish'
+      preLoaderRoute: typeof PublishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rates': {
       id: '/rates'
       path: '/rates'
       fullPath: '/rates'
       preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/research': {
+      id: '/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/send': {
@@ -572,6 +717,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/video': {
+      id: '/video'
+      path: '/video'
+      fullPath: '/video'
+      preLoaderRoute: typeof VideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workspace': {
+      id: '/workspace'
+      path: '/workspace'
+      fullPath: '/workspace'
+      preLoaderRoute: typeof WorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -584,6 +743,27 @@ declare module '@tanstack/react-router' {
       path: '/g/$slug'
       fullPath: '/g/$slug'
       preLoaderRoute: typeof GSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/p/$postId': {
+      id: '/p/$postId'
+      path: '/p/$postId'
+      fullPath: '/p/$postId'
+      preLoaderRoute: typeof PPostIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/photographer/$ownerId': {
+      id: '/photographer/$ownerId'
+      path: '/photographer/$ownerId'
+      fullPath: '/photographer/$ownerId'
+      preLoaderRoute: typeof PhotographerOwnerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review/$id': {
+      id: '/review/$id'
+      path: '/review/$id'
+      fullPath: '/review/$id'
+      preLoaderRoute: typeof ReviewIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/s/$token': {
@@ -629,20 +809,29 @@ const rootRouteChildren: RootRouteChildren = {
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
   EarningsRoute: EarningsRoute,
+  MailRoute: MailRoute,
   MetadataRoute: MetadataRoute,
   PackagesRoute: PackagesRoute,
   PickRoute: PickRoute,
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
+  ProjectsRoute: ProjectsRoute,
+  PublishRoute: PublishRoute,
   RatesRoute: RatesRoute,
+  ResearchRoute: ResearchRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
+  VideoRoute: VideoRoute,
+  WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
   GSlugRoute: GSlugRoute,
+  PPostIdRoute: PPostIdRoute,
+  PhotographerOwnerIdRoute: PhotographerOwnerIdRoute,
+  ReviewIdRoute: ReviewIdRoute,
   STokenRoute: STokenRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,

@@ -1,219 +1,394 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { ArrowUp, Plus } from "lucide-react";
+import { useAccount } from "@/components/account/AccountProvider";
+import { useChatHistory, ChatSaveStatus } from "@/components/workbench/ChatHistory";
+import { transcriptContext, type ChatMessage } from "@/lib/chat-history";
+import { shouldSendMessage } from "@/lib/account-preferences";
+import { ShootOverview } from "@/components/workbench/ShootOverview";
+import type { ShootBrief } from "@/lib/studio/shoot-brief";
+import type { ReactNode } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { workbenchNavigation } from "@/lib/workbench";
+import { workspaceStorageKey } from "@/lib/workspace-storage";
+import { parseWorkspaceRequest } from "@/lib/workbench-projects";
+import {
+  LOCAL_COMMAND_HELP,
+  STUDIO_TOOL_DEFINITIONS,
+  isToolName,
+  parseLocalCommand,
+  type ToolCall,
+} from "@/lib/studio/commands";
+import { isLocalSingleUserMode } from "@/lib/app-mode";
+import { parseCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
+import { studioCommandRefusal, studioToolBoundary } from "@/lib/studio/command-safety";
+import type { EditTarget, StudioProposal } from "@/lib/studio/proposals";
+import { ProposalReview } from "./ProposalReview";
+import { parseAdobeSettingsPaste, type AdobeSettingsPastePlan } from "@/lib/studio/adobe-paste";
+import {
+  parseStudioWorkflowIntent,
+  type StudioWorkflowIntent,
+} from "@/lib/studio/workflow-intents";
 
+export type { ToolCall, ToolName } from "@/lib/studio/commands";
 
-export type ToolName =
-  | "auto_refine"
-  | "cull"
-  | "keep_top"
-  | "reject_flagged"
-  | "set_filter"
-  | "select_photo"
-  | "apply_edits"
-  | "export_keepers"
-  | "write_xmp"
-  | "import_photos";
-
-export type ToolCall = { name: ToolName; args: Record<string, unknown> };
-
-type Msg = {
-  role: "user" | "assistant";
-  text: string;
-  tools?: { name: string; result: string }[];
-};
-
-const TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "cull",
-      description:
-        "Run the culling pass over the whole shoot in the background: rejects blurred, duplicate, eyes-closed and low-scoring frames, keeps strong ones.",
-      parameters: {
-        type: "object",
-        properties: {
-          min_score: {
-            type: "number",
-            description: "Frames scoring below this are rejected. Default 45.",
-          },
-          keep_score: {
-            type: "number",
-            description: "Frames scoring at or above this are kept. Default 70.",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "keep_top",
-      description: "Keep only the N highest-scoring frames and reject everything else.",
-      parameters: {
-        type: "object",
-        properties: { n: { type: "number", description: "How many frames to keep." } },
-        required: ["n"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "reject_flagged",
-      description: "Reject every frame carrying any of the given flags.",
-      parameters: {
-        type: "object",
-        properties: {
-          flags: {
-            type: "array",
-            items: {
-              type: "string",
-              enum: [
-                "soft",
-                "blur",
-                "underexposed",
-                "overexposed",
-                "duplicate",
-                "face-soft",
-                "eyes-closed",
-              ],
-            },
-          },
-        },
-        required: ["flags"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "set_filter",
-      description: "Change which frames the filmstrip shows.",
-      parameters: {
-        type: "object",
-        properties: {
-          filter: { type: "string", enum: ["all", "todo", "keepers", "flagged", "rejected"] },
-        },
-        required: ["filter"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "select_photo",
-      description:
-        "Open a frame on the light table. Use 'best', 'worst', a filename, or a 1-based position.",
-      parameters: {
-        type: "object",
-        properties: { query: { type: "string" } },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "apply_edits",
-      description:
-        "Apply develop settings. Values are -100..100 except crop. Target 'selected' or 'keepers'.",
-      parameters: {
-        type: "object",
-        properties: {
-          target: { type: "string", enum: ["selected", "keepers"] },
-          exposure: { type: "number" },
-          contrast: { type: "number" },
-          temperature: { type: "number" },
-          saturation: { type: "number" },
-          highlights: { type: "number" },
-          shadows: { type: "number" },
-          crop: { type: "string", enum: ["orig", "1:1", "4:5", "3:2", "16:9"] },
-        },
-        required: ["target"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "auto_refine",
-      description:
-        "Auto refine (like Lightroom's Auto button): set exposure, contrast, white balance, highlights, shadows and saturation from each frame's own histogram.",
-      parameters: {
-        type: "object",
-        properties: {
-          target: { type: "string", enum: ["selected", "keepers", "all"] },
-        },
-        required: ["target"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "export_keepers",
-      description: "Export every keeper as an edited JPEG.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "write_xmp",
-      description: "Write XMP sidecars so Lightroom picks up the ratings and develop settings.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "import_photos",
-      description: "Open the file picker so the photographer can load a shoot.",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-];
+type Msg = ChatMessage;
 
 type ApiMsg = Record<string, unknown>;
 
-export function CullChat({
+const STUDIO_PENDING_COMMAND_KEY = "lenslabs.pending-command.v1:studio";
+const LEGACY_PENDING_COMMAND_KEY = "lenslabs.pending-command.v1";
+const noPreview = () =>
+  "No preview is waiting here. Open Studio for plain-English editing with before/after review.";
+const noAction = () => {};
+
+export function CullChat(props: Parameters<typeof CullChatSession>[0]) {
+  const history = useChatHistory();
+  if (history && !history.ready)
+    return (
+      <div className="workbench-chat">
+        <ChatSaveStatus />
+        {!history.error && <p className="workbench-loading">Opening your conversations…</p>}
+      </div>
+    );
+  return <CullChatSession key={history?.active?.id ?? "session-chat"} {...props} />;
+}
+function CullChatSession({
+  workspace = false,
+  storageScope = "device-local",
+  onConversationChange,
+  onWorkspaceRequest,
+  onNavigate,
   context,
   execute,
+  stageEdit = noPreview,
+  proposal = null,
+  before = false,
+  onCompare = noAction,
+  onApply = noPreview,
+  onDiscard = noPreview,
+  onTarget = noAction,
+  suggestedPrompt = null,
+  stageAdobeSettings = noPreview,
+  frameCount = 0,
+  status = null,
+  importProgress = null,
+  importing = false,
+  onImportFolder,
+  onImportFiles,
+  onCancelImport,
+  onWorkflow,
+  shoot,
+  onReviewShoot = noAction,
+  onOpenPhoto = noAction,
+  recovery,
+  paused = false,
 }: {
+  workspace?: boolean;
+  shoot?: ShootBrief | undefined;
+  onReviewShoot?: () => void;
+  onOpenPhoto?: (id: string) => void;
+  recovery?: ReactNode;
+  paused?: boolean;
+  storageScope?: string;
+  onConversationChange?: (hasContent: boolean) => void;
+  onWorkspaceRequest?:
+    ((request: { path: "/research" | "/mail"; query: string }) => Promise<boolean>) | undefined;
+  onNavigate?: ((href: string) => Promise<boolean>) | undefined;
   context: string;
   execute: (call: ToolCall) => Promise<string>;
+  stageEdit?: (plan: CreativeEditPlan) => string;
+  proposal?: StudioProposal | null;
+  before?: boolean;
+  onCompare?: () => void;
+  onApply?: () => string;
+  onDiscard?: () => string;
+  onTarget?: (target: EditTarget) => void;
+  suggestedPrompt?: { text: string; at: number } | null;
+  stageAdobeSettings?: (plan: AdobeSettingsPastePlan) => string;
+  frameCount?: number;
+  status?: string | null;
+  importProgress?: { done: number; total: number } | null;
+  importing?: boolean;
+  onImportFolder?: () => void;
+  onImportFiles?: () => void;
+  onCancelImport?: () => void;
+  onWorkflow?: (intent: Exclude<StudioWorkflowIntent, { kind: "refusal" }>) => string;
 }) {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
+  const history = useChatHistory();
+  const account = useAccount();
+  const snapshot = history?.snapshot;
+  const lockChat = history?.setLocked;
+  const [msgs, setMsgs] = useState<Msg[]>(() => history?.active?.messages ?? []);
+  const [input, setInput] = useState(() => history?.active?.draft ?? "");
   const [thinking, setThinking] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
-  const historyRef = useRef<ApiMsg[]>([]);
+  const historyRef = useRef<ApiMsg[]>(transcriptContext(history?.active?.messages ?? []));
+  const lifecycle = useRef({ active: true, controller: new AbortController() });
+  useEffect(() => {
+    const run = { active: true, controller: new AbortController() };
+    lifecycle.current = run;
+    return () => {
+      run.active = false;
+      run.controller.abort();
+    };
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
+  const sendingRef = useRef(false);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [msgs, thinking, running]);
-
+    onConversationChange?.(
+      Boolean(input.trim()) ||
+        thinking ||
+        running !== null ||
+        Boolean(history?.pending) ||
+        Boolean(history?.error),
+    );
+  }, [input, thinking, running, history?.pending, history?.error, onConversationChange]);
   useEffect(() => {
-    inputRef.current?.focus();
+    snapshot?.(msgs, input);
+  }, [msgs, input, snapshot]);
+  useEffect(() => {
+    lockChat?.(thinking || running !== null || !!proposal || paused);
+    return () => lockChat?.(false);
+  }, [thinking, running, proposal, paused, lockChat]);
+
+  const proposalAction = useCallback((action: () => string) => {
+    let text: string;
+    try {
+      text = action();
+    } catch (error) {
+      text = error instanceof Error ? error.message : "That change could not be applied.";
+    }
+    historyRef.current.push({ role: "assistant", content: text });
+    setMsgs((messages) => [...messages, { role: "assistant", text }]);
   }, []);
+
+  useEffect(() => {
+    if (suggestedPrompt) {
+      setInput(suggestedPrompt.text);
+      inputRef.current?.focus();
+    }
+  }, [suggestedPrompt]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior:
+        account?.preferences.reduceMotion ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+    });
+  }, [msgs, thinking, running, account?.preferences.reduceMotion]);
+
+  useEffect(() => {
+    try {
+      const key = workspaceStorageKey(STUDIO_PENDING_COMMAND_KEY, storageScope);
+      const pending = sessionStorage.getItem(key)?.trim();
+      if (pending) setInput(pending);
+      sessionStorage.removeItem(key);
+      if (storageScope === "device-local") sessionStorage.removeItem(LEGACY_PENDING_COMMAND_KEY);
+    } catch {
+      // Storage can be blocked in a private or embedded browser. The command
+      // panel still works normally in that case.
+    }
+    inputRef.current?.focus();
+  }, [storageScope]);
 
   const send = useCallback(
     async (text: string) => {
-      if (!text.trim() || thinking) return;
+      const trimmed = text.trim();
+      if (!trimmed || sendingRef.current || history?.error || history?.switching) return;
+      const run = lifecycle.current;
+      const checkActive = () => {
+        if (!run.active) throw new DOMException("Conversation closed", "AbortError");
+      };
+      const safeExecute = async (call: ToolCall) => {
+        checkActive();
+        const result = await execute(call);
+        checkActive();
+        return result;
+      };
+      const adobe = parseAdobeSettingsPaste(trimmed);
+      if (adobe?.kind === "plan" && onImportFolder && !frameCount) {
+        setInput(trimmed);
+        setMsgs((messages) => [
+          ...messages,
+          {
+            role: "assistant",
+            text: "Add your photos first, then send these settings to preview them. I’ve kept the settings in the composer.",
+          },
+        ]);
+        return;
+      }
+      sendingRef.current = true;
       setInput("");
-      setMsgs((m) => [...m, { role: "user", text }]);
-      historyRef.current.push({ role: "user", content: text });
+      const displayText =
+        adobe?.kind === "plan"
+          ? `${adobe.name}\n${adobe.summary}`
+          : adobe
+            ? "Pasted Adobe settings"
+            : trimmed;
+      const workspaceRequest = onWorkspaceRequest && parseWorkspaceRequest(trimmed);
+      setMsgs((m) => [
+        ...m,
+        {
+          role: "user",
+          text: displayText,
+          ...(workspaceRequest ? { privateConnector: true } : {}),
+        },
+      ]);
+      // Connector commands stay visible locally but never enter the hosted photo planner history.
+      if (!workspaceRequest) historyRef.current.push({ role: "user", content: displayText });
       setThinking(true);
 
       const used: { name: string; result: string }[] = [];
       try {
+        if (workspaceRequest) {
+          const opened = await onWorkspaceRequest!(workspaceRequest);
+          const reply = opened
+            ? workspaceRequest.path === "/mail"
+              ? "Opened a Gmail search tab. Connect Gmail there to read messages; nothing is sent or changed."
+              : "Opened a web research tab. Results will appear there when search is connected; no photo data is included."
+            : "Kept your current workspace open.";
+          checkActive();
+          setMsgs((messages) => [
+            ...messages,
+            { role: "assistant", text: reply, privateConnector: true },
+          ]);
+          return;
+        }
+        const destination = onNavigate && workbenchNavigation(trimmed);
+        if (destination) {
+          const opened = await onNavigate!(destination);
+          const reply = opened
+            ? "Opened alongside this chat. No photos were sent or changed."
+            : "Kept your current tool open. No photos were sent or changed.";
+          historyRef.current.push({ role: "assistant", content: reply });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+          return;
+        }
+        if (adobe) {
+          const reply = adobe.kind === "refusal" ? adobe.reason : stageAdobeSettings(adobe);
+          historyRef.current.push({ role: "assistant", content: reply });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+          return;
+        }
+        const refusal = studioCommandRefusal(trimmed);
+        if (refusal) {
+          historyRef.current.push({ role: "assistant", content: refusal });
+          setMsgs((messages) => [...messages, { role: "assistant", text: refusal }]);
+          return;
+        }
+        const workflow = parseStudioWorkflowIntent(trimmed);
+        if (workflow) {
+          const reply =
+            workflow.kind === "refusal"
+              ? workflow.reason
+              : onWorkflow
+                ? onWorkflow(workflow)
+                : "Open Studio to review bursts or prepare a deadline export.";
+          historyRef.current.push({ role: "assistant", content: reply });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+          return;
+        }
+        if (
+          /^(?:apply(?: it| that| the edit)?|accept(?: suggestions)?|use this(?: look)?)\.?$/i.test(
+            trimmed,
+          )
+        ) {
+          proposalAction(onApply);
+          return;
+        }
+        if (
+          /^(?:discard(?: it| that| the preview)?|cancel(?: it| that| the preview)?)\.?$/i.test(
+            trimmed,
+          )
+        ) {
+          proposalAction(onDiscard);
+          return;
+        }
+        const creative = parseCreativeEdit(trimmed);
+        if (creative) {
+          const reply = creative.kind === "plan" ? stageEdit(creative) : creative.reason;
+          historyRef.current.push({ role: "assistant", content: reply });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+          return;
+        }
+        const local = parseLocalCommand(trimmed);
+        if (local) {
+          const calls = local.calls.some((call) => call.name === "keep_top")
+            ? local.calls.filter((call) => call.name !== "cull")
+            : local.calls;
+          let preview = false;
+          for (const call of calls) {
+            const label = call.name.replace(/_/g, " ");
+            setRunning(label);
+            let result: string;
+            try {
+              result = await safeExecute(call);
+            } catch (err) {
+              result = `failed: ${(err as Error).message}`;
+            }
+            used.push({ name: label, result });
+            checkActive();
+            if (studioToolBoundary(result) === "preview") {
+              preview = true;
+              break;
+            }
+            if (studioToolBoundary(result) === "failed") break;
+          }
+          const reply = preview
+            ? "Review the proposal below. No edits or selections are saved until you accept; any export or later steps wait for your approval."
+            : used.some((tool) => studioToolBoundary(tool.result) === "failed")
+              ? "That step could not be completed. Later steps were not run."
+              : "The results are shown above.";
+          const receipt = used.map((tool) => `${tool.name}: ${tool.result}`).join("; ");
+          historyRef.current.push({
+            role: "assistant",
+            content: `${reply} ${receipt}`.trim(),
+          });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply, tools: used }]);
+          return;
+        }
+
+        if (isLocalSingleUserMode) {
+          const reply = `i couldn't match that locally yet. ${LOCAL_COMMAND_HELP}`;
+          historyRef.current.push({ role: "assistant", content: reply });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+          return;
+        }
+
+        let accessToken: string | undefined;
+        const remoteConfigured = Boolean(
+          import.meta.env["VITE_SUPABASE_URL"] && import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"],
+        );
+        if (remoteConfigured) {
+          try {
+            const { supabase } = await import("@/integrations/supabase/client");
+            const { data } = await supabase.auth.getSession();
+            checkActive();
+            if (data.session?.user.id === storageScope) accessToken = data.session.access_token;
+          } catch {
+            // Local Studio commands do not depend on auth configuration.
+          }
+        }
+        if (!accessToken) {
+          const reply = `i couldn't match that locally yet. ${LOCAL_COMMAND_HELP}`;
+          historyRef.current.push({ role: "assistant", content: reply });
+          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+          return;
+        }
+
         for (let round = 0; round < 6; round++) {
-          const { data: session } = await supabase.auth.getSession();
-          const accessToken = session.session?.access_token;
-          if (!accessToken) throw new Error("sign in to use the assistant");
+          checkActive();
           const res = await fetch("/api/chat", {
+            signal: run.controller.signal,
             method: "POST",
             headers: {
               "content-type": "application/json",
@@ -224,17 +399,24 @@ export function CullChat({
               messages: [
                 {
                   role: "system",
-                  content: `You are the LensLabs culling assistant, embedded in the studio next to the photographer's shoot. You do the work — call tools instead of explaining steps. Be extremely brief: one short line, lowercase, no lists unless asked. Never ask permission for reversible actions; just run them and report the count. Current shoot state:\n${context}`,
+                  content: `You are the LensLabs photography assistant. Speak in plain English. Earlier conversation messages are historical receipts and may refer to a different shoot or interrupted preview. The current shoot state below is authoritative. Never repeat an earlier action without a new explicit request. Tools propose edits and selections; the photographer reviews and applies them. Never claim edits were saved or photos exported without a successful tool result. Never pretend to see visual details: you have metadata only. Subject-aware edits, removals and athlete recognition are unavailable. Stop after a preview and wait for the user's decision. Current shoot state:\n${context}`,
                 },
                 ...historyRef.current,
               ],
-              tools: TOOLS,
+              tools: STUDIO_TOOL_DEFINITIONS,
             }),
           });
           const data = (await res.json()) as {
-            message?: { content?: string; tool_calls?: any[] };
+            message?: {
+              content?: string;
+              tool_calls?: Array<{
+                id?: string;
+                function?: { name?: unknown; arguments?: string };
+              }>;
+            };
             error?: string;
           };
+          checkActive();
           if (!res.ok || data.error) throw new Error(data.error ?? "Assistant unavailable.");
           const message = data.message ?? {};
           historyRef.current.push(message as ApiMsg);
@@ -252,122 +434,358 @@ export function CullChat({
             return;
           }
 
-          for (const call of calls) {
+          for (const [index, call] of calls.entries()) {
             let args: Record<string, unknown> = {};
             try {
               args = JSON.parse(call.function?.arguments || "{}");
             } catch {
               /* empty args */
             }
-            const name = call.function?.name as ToolName;
-            setRunning(name.replace(/_/g, " "));
+            const proposedName = call.function?.name;
+            const label =
+              typeof proposedName === "string" ? proposedName.replace(/_/g, " ") : "tool";
+            setRunning(label);
             let result: string;
-            try {
-              result = await execute({ name, args });
-            } catch (err) {
-              result = `failed: ${(err as Error).message}`;
+            if (!isToolName(proposedName)) {
+              result = "failed: unknown studio command";
+            } else {
+              try {
+                result = await safeExecute({ name: proposedName, args });
+              } catch (err) {
+                result = `failed: ${(err as Error).message}`;
+              }
             }
-            used.push({ name: name.replace(/_/g, " "), result });
-            historyRef.current.push({
-              role: "tool",
-              tool_call_id: call.id,
-              content: result,
-            });
+            used.push({ name: label, result });
+            if (call.id) {
+              historyRef.current.push({
+                role: "tool",
+                tool_call_id: call.id,
+                content: result,
+              });
+            }
+            const boundary = studioToolBoundary(result);
+            if (boundary) {
+              // Finish the tool-call protocol without executing any remaining
+              // actions. Otherwise the next chat turn contains orphan calls.
+              for (const skipped of calls.slice(index + 1)) {
+                if (skipped.id) {
+                  historyRef.current.push({
+                    role: "tool",
+                    tool_call_id: skipped.id,
+                    content:
+                      boundary === "preview"
+                        ? "Not run: a preview requires the photographer's approval first."
+                        : "Not run: an earlier step failed. Ask the photographer what to do next.",
+                  });
+                }
+              }
+              const reply =
+                boundary === "preview"
+                  ? "Your preview is ready. Review and apply it before doing anything else."
+                  : "That step could not be completed. Later steps were not run.";
+              historyRef.current.push({ role: "assistant", content: reply });
+              setMsgs((messages) => [
+                ...messages,
+                {
+                  role: "assistant",
+                  text: reply,
+                  tools: [...used],
+                },
+              ]);
+              return;
+            }
           }
           setRunning(null);
         }
-        setMsgs((m) => [...m, { role: "assistant", text: "stopped — too many steps.", tools: used }]);
+        setMsgs((m) => [
+          ...m,
+          { role: "assistant", text: "stopped — too many steps.", tools: used },
+        ]);
       } catch (err) {
+        if (!run.active) return;
         setMsgs((m) => [...m, { role: "assistant", text: (err as Error).message }]);
       } finally {
-        setRunning(null);
-        setThinking(false);
-        inputRef.current?.focus();
+        if (run.active) {
+          setRunning(null);
+          setThinking(false);
+          sendingRef.current = false;
+          inputRef.current?.focus();
+        }
       }
     },
-    [context, execute, thinking],
+    [
+      context,
+      execute,
+      onApply,
+      onDiscard,
+      proposalAction,
+      stageEdit,
+      stageAdobeSettings,
+      onImportFolder,
+      frameCount,
+      onWorkflow,
+      onNavigate,
+      onWorkspaceRequest,
+      history?.error,
+      history?.switching,
+      storageScope,
+    ],
   );
 
   return (
-    <div className="flex h-full min-h-[420px] flex-col">
-      <div className="flex items-center justify-between border-b border-border pb-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-moss">Assistant</span>
-        {(thinking || running) && (
-          <span className="font-mono text-[10px] text-rust">
-            {running ? `${running}…` : "thinking…"}
+    <div className={workspace ? "workbench-chat" : "flex h-full min-h-[420px] flex-col"}>
+      {workspace && <ChatSaveStatus />}
+      {(!workspace || thinking || running) && (
+        <div
+          className={
+            workspace
+              ? "workbench-chat-status"
+              : "flex items-center justify-between border-b border-border pb-2"
+          }
+        >
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
+            {workspace
+              ? frameCount
+                ? `${frameCount.toLocaleString()} photos in this shoot`
+                : ""
+              : "Assistant"}
           </span>
-        )}
-      </div>
+          {(thinking || running) && (
+            <span className="font-mono text-[10px] text-rust">
+              {running ? `${running}…` : "thinking…"}
+            </span>
+          )}
+        </div>
+      )}
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto py-3 pr-1">
-        {!msgs.length && (
-          <div className="space-y-2 font-mono text-[11px] text-moss">
-            <p>tell it what you want. it culls in the background.</p>
-            {[
-              "cull the shoot and keep the top 40",
-              "reject everything blurred or duplicate",
-              "warm the keepers slightly and export",
-            ].map((q) => (
-              <button
-                key={q}
-                onClick={() => void send(q)}
-                className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-ink hover:text-paper2"
-              >
-                {q}
-              </button>
-            ))}
+      <div
+        ref={scrollRef}
+        className={
+          workspace ? "workbench-messages" : "min-h-0 flex-1 space-y-3 overflow-y-auto py-3 pr-1"
+        }
+        aria-label="Shoot and conversation"
+      >
+        {workspace && shoot && shoot.total > 0 && (
+          <ShootOverview
+            shoot={shoot}
+            compact={msgs.length > 0 || Boolean(proposal)}
+            paused={paused}
+            onReview={onReviewShoot}
+            onOpen={onOpenPhoto}
+            onReconnect={onImportFolder}
+          />
+        )}
+        {!msgs.length && !proposal && !(workspace && frameCount > 0) && (
+          <div
+            className={
+              workspace ? "workbench-chat-empty" : "space-y-2 font-mono text-[11px] text-moss"
+            }
+          >
+            {workspace ? (
+              <>
+                <p className="workbench-eyebrow">YOUR PHOTOGRAPHY WORKSPACE</p>
+                <h1>The shoot starts here.</h1>
+                <p>Drop your folder. Find your keepers. Make it yours.</p>
+                <button
+                  type="button"
+                  className="workbench-review-shoot"
+                  onClick={onImportFolder}
+                  disabled={importing || paused}
+                >
+                  Choose a folder <Plus size={17} />
+                </button>
+                <span className="workbench-empty-hint">RAW + JPEG · originals stay untouched</span>
+              </>
+            ) : (
+              <p>tell it what you want. it culls in the background.</p>
+            )}
+            {!workspace &&
+              [
+                "cull the shoot and keep the top 40",
+                "reject everything blurred or duplicate",
+                "warm the keepers slightly and export",
+              ].map((q) => (
+                <button
+                  key={q}
+                  onClick={() => void send(q)}
+                  className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-ink hover:text-paper2"
+                >
+                  {q}
+                </button>
+              ))}
           </div>
         )}
 
-        {msgs.map((m, i) => (
-          <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
-            {m.role === "user" ? (
-              <span className="max-w-[85%] rounded-lg bg-ink px-3 py-1.5 text-[12px] leading-relaxed text-paper2">
-                {m.text}
-              </span>
-            ) : (
-              <div className="max-w-[95%] space-y-1.5">
-                {m.tools?.map((t, j) => (
-                  <div key={j} className="font-mono text-[10px] text-moss">
-                    <span className="text-rust">▸</span> {t.name} — {t.result}
-                  </div>
-                ))}
-                <p className="text-[12px] leading-relaxed text-ink">{m.text}</p>
-              </div>
+        <div role="log" aria-label="Photo assistant conversation">
+          {msgs.map((m, i) => (
+            <div
+              key={i}
+              className={
+                workspace
+                  ? `workbench-message ${m.role}`
+                  : m.role === "user"
+                    ? "flex justify-end"
+                    : ""
+              }
+            >
+              {m.role === "user" ? (
+                <span className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-ink px-3 py-1.5 text-[12px] leading-relaxed text-paper2">
+                  {m.text}
+                </span>
+              ) : (
+                <div className="max-w-[95%] space-y-1.5">
+                  {m.tools?.map((t, j) => (
+                    <div key={j} className="font-mono text-[10px] text-moss">
+                      <span className="text-rust">▸</span> {t.name} — {t.result}
+                    </div>
+                  ))}
+                  <p className="text-[12px] leading-relaxed text-ink">{m.text}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {!workspace &&
+          !!msgs.length &&
+          !frameCount &&
+          !importing &&
+          (onImportFolder || onImportFiles) && (
+            <div className="flex items-center gap-3 font-mono text-[11px] text-moss">
+              {onImportFolder && (
+                <button
+                  type="button"
+                  onClick={onImportFolder}
+                  className="underline underline-offset-2"
+                >
+                  Import folder
+                </button>
+              )}
+              {onImportFiles && (
+                <button
+                  type="button"
+                  onClick={onImportFiles}
+                  className="underline underline-offset-2"
+                >
+                  Import files
+                </button>
+              )}
+            </div>
+          )}
+        {!recovery && (status || importing || importProgress) && (
+          <div
+            className="space-y-1.5 font-mono text-[11px] text-moss"
+            role="status"
+            aria-live="polite"
+          >
+            <p>
+              {importProgress
+                ? `Reading and checking photos · ${importProgress.done.toLocaleString()} / ${importProgress.total.toLocaleString()}`
+                : status || "Reading photos…"}
+            </p>
+            {importing && (
+              <button
+                type="button"
+                onClick={onCancelImport}
+                className="underline underline-offset-2"
+              >
+                Stop import
+              </button>
             )}
           </div>
-        ))}
+        )}
       </div>
+
+      {recovery}
+
+      {proposal && (
+        <ProposalReview
+          proposal={proposal}
+          before={before}
+          onCompare={onCompare}
+          onApply={() => proposalAction(onApply)}
+          onDiscard={() => proposalAction(onDiscard)}
+          onTarget={onTarget}
+        />
+      )}
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void send(input);
         }}
-        className="border-t border-border pt-2"
+        className={workspace ? "workbench-composer" : "border-t border-border pt-2"}
       >
+        <label htmlFor="studio-chat-input" className="sr-only">
+          Message your photo assistant or paste Adobe settings
+        </label>
         <textarea
+          id="studio-chat-input"
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (
+              shouldSendMessage(
+                {
+                  key: e.key,
+                  shiftKey: e.shiftKey,
+                  metaKey: e.metaKey,
+                  ctrlKey: e.ctrlKey,
+                  isComposing: e.nativeEvent.isComposing,
+                },
+                account?.preferences.sendKey ?? "enter",
+              )
+            ) {
               e.preventDefault();
               void send(input);
             }
           }}
           rows={2}
-          placeholder="cull this shoot…"
+          maxLength={32000}
+          disabled={history?.switching}
+          placeholder={
+            workspace ? "Describe an edit, or paste Adobe settings…" : "cull this shoot…"
+          }
           className="w-full resize-none rounded-md border border-input bg-paper px-2.5 py-2 font-mono text-[11px] text-ink outline-none placeholder:text-moss focus:border-ink/40"
         />
-        <div className="flex items-center justify-between pt-1.5">
-          <span className="font-mono text-[10px] text-moss">enter to send</span>
+        <div
+          className={
+            workspace ? "workbench-composer-actions" : "flex items-center justify-between pt-1.5"
+          }
+        >
+          {workspace ? (
+            <div className="workbench-composer-tools">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Attach photos or a folder"
+                    disabled={importing || paused}
+                  >
+                    <Plus size={21} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="workbench-attach-menu" align="start" side="top">
+                  <DropdownMenuItem disabled={!onImportFolder} onSelect={() => onImportFolder?.()}>
+                    Choose folder
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!onImportFiles} onSelect={() => onImportFiles?.()}>
+                    Choose photos
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {importing && <span>Importing photos…</span>}
+            </div>
+          ) : (
+            <span className="font-mono text-[10px] text-moss">enter to send</span>
+          )}
           <button
             type="submit"
-            disabled={thinking || !input.trim()}
+            aria-label={workspace ? "Send message" : "Run command"}
+            disabled={thinking || !input.trim() || !!history?.error || history?.switching}
             className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
           >
-            Run
+            {workspace ? <ArrowUp size={19} /> : "Run"}
           </button>
         </div>
       </form>

@@ -1,0 +1,243 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Context,
+} from "react";
+import type { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { verifiedSessionReceiver } from "@/lib/account-access";
+import {
+  accountName,
+  DEFAULT_PREFERENCES,
+  displayNameSchema,
+  observeSession,
+  preferenceKey,
+  preferencesSchema,
+  readPreferences,
+  type AccountPreferences,
+} from "@/lib/account-preferences";
+type Account = {
+  status: "loading" | "in" | "out";
+  scope: string | null;
+  user: User | null;
+  local: boolean;
+  name: string;
+  error: string | null;
+  preferences: AccountPreferences;
+  saveName: (name: string) => Promise<void>;
+  savePreferences: (patch: Partial<AccountPreferences>) => void;
+  signOut: () => Promise<boolean>;
+  registerLeaveGuard: (guard: () => Promise<boolean>) => () => void;
+};
+const AccountContext =
+  (import.meta.hot?.data["accountContext"] as Context<Account | null> | undefined) ??
+  createContext<Account | null>(null);
+if (import.meta.hot) import.meta.hot.data["accountContext"] = AccountContext;
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAccount = () => useContext(AccountContext);
+export function AccountProvider({ children }: { children: ReactNode }) {
+  const [status, setStatus] = useState<Account["status"]>("loading");
+  const [user, setUser] = useState<User | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<AccountPreferences>(DEFAULT_PREFERENCES);
+  const guards = useRef(new Set<() => Promise<boolean>>());
+  const signingOut = useRef(false);
+  const identityEpoch = useRef(0);
+  const profileEpoch = useRef(0);
+  const scope = status === "in" ? (user?.id ?? null) : null;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  useEffect(() => {
+    const receiver = verifiedSessionReceiver(
+      async (token) => {
+        const { data, error } = await supabase.auth.getUser(token);
+        if (error) throw error;
+        return data.user;
+      },
+      (verified) => {
+        identityEpoch.current++;
+        setUser(verified);
+        setStatus(verified ? "in" : "out");
+        setError(null);
+      },
+      () => setError("Sign in with a verified email to open your workspace."),
+    );
+    const stop = observeSession<Session | null>(
+      (receive) => {
+        const { data } = supabase.auth.onAuthStateChange((_event, session) => receive(session));
+        return () => data.subscription.unsubscribe();
+      },
+      async () => {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        return data.session;
+      },
+      receiver.receive,
+      () => {
+        receiver.cancel();
+        setUser(null);
+        setStatus("out");
+        setError("Your saved sign-in could not be restored. Sign in again to continue.");
+      },
+    );
+    return () => {
+      receiver.cancel();
+      stop();
+    };
+  }, []);
+  useEffect(() => {
+    if (!scope) return;
+    let alive = true;
+    const epoch = identityEpoch.current,
+      profile = profileEpoch.current;
+    // Cached SDK sessions remember sign-in; the profile itself is refreshed from Auth.
+    void supabase.auth
+      .getUser()
+      .then(({ data, error }) => {
+        if (
+          !error &&
+          alive &&
+          scopeRef.current === scope &&
+          identityEpoch.current === epoch &&
+          profileEpoch.current === profile &&
+          data.user?.id === scope
+        )
+          setUser(data.user);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [scope]);
+  useEffect(() => {
+    if (!scope) {
+      setPreferences(DEFAULT_PREFERENCES);
+      return;
+    }
+    const read = () => {
+      try {
+        setPreferences(readPreferences(localStorage.getItem(preferenceKey(scope))));
+      } catch {
+        setError("Preferences could not be read on this browser.");
+      }
+    };
+    read();
+    const changed = (event: StorageEvent) => {
+      if (event.key === preferenceKey(scope) || event.key === null) read();
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [scope]);
+  useEffect(() => {
+    if (!scope) return;
+    const apply = () => {
+      document.documentElement.classList.toggle("dark", preferences.theme === "dark");
+      document.documentElement.dataset["reduceMotion"] = String(preferences.reduceMotion);
+      document.documentElement.dataset["chatText"] = preferences.textSize;
+    };
+    apply();
+  }, [scope, preferences]);
+  const registerLeaveGuard = useCallback((guard: () => Promise<boolean>) => {
+    guards.current.add(guard);
+    return () => {
+      guards.current.delete(guard);
+    };
+  }, []);
+  const savePreferences = useCallback(
+    (patch: Partial<AccountPreferences>) => {
+      if (!scope) throw new Error("Open your workspace first.");
+      const next = preferencesSchema.parse({
+        ...readPreferences(localStorage.getItem(preferenceKey(scope))),
+        ...patch,
+      });
+      localStorage.setItem(preferenceKey(scope), JSON.stringify(next));
+      setPreferences(next);
+    },
+    [scope],
+  );
+  const saveName = useCallback(
+    async (value: string) => {
+      const name = displayNameSchema.parse(value);
+      if (!scope) throw new Error("Sign in first.");
+      const epoch = identityEpoch.current;
+      profileEpoch.current++;
+      const { saveAccountName } = await import("@/lib/account.functions");
+      const saved = await saveAccountName({ data: { expectedOwner: scope, name } });
+      if (scopeRef.current === scope && identityEpoch.current === epoch)
+        setUser((user) =>
+          user?.id === scope
+            ? {
+                ...user,
+                user_metadata: {
+                  ...user.user_metadata,
+                  display_name: saved.name,
+                  full_name: saved.name,
+                },
+              }
+            : user,
+        );
+    },
+    [scope],
+  );
+  const signOut = useCallback(async () => {
+    if (signingOut.current) return false;
+    signingOut.current = true;
+    const startingScope = scopeRef.current,
+      epoch = identityEpoch.current;
+    setError(null);
+    try {
+      for (const guard of guards.current) if (!(await guard())) return false;
+      if (scopeRef.current !== startingScope || identityEpoch.current !== epoch)
+        throw new Error("Your account changed while saving. Check the profile and try again.");
+      {
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user.id !== startingScope || identityEpoch.current !== epoch)
+          throw new Error("Your account changed. Check the profile before signing out.");
+        const { error } = await supabase.auth.signOut({ scope: "local" });
+        if (error) throw error;
+      }
+      setUser(null);
+      identityEpoch.current++;
+      setStatus("out");
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Sign-out failed. Try again.");
+      return false;
+    } finally {
+      signingOut.current = false;
+    }
+  }, []);
+  const value = useMemo<Account>(
+    () => ({
+      status,
+      scope,
+      user,
+      local: false,
+      name: accountName(user?.user_metadata, user?.email),
+      error,
+      preferences,
+      saveName,
+      savePreferences,
+      signOut,
+      registerLeaveGuard,
+    }),
+    [
+      status,
+      scope,
+      user,
+      error,
+      preferences,
+      saveName,
+      savePreferences,
+      signOut,
+      registerLeaveGuard,
+    ],
+  );
+  return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
+}

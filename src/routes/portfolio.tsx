@@ -288,10 +288,10 @@ function Portfolio() {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Btn variant="primary" disabled={!items.length} onClick={() => setLive(true)}>
-                Publish
+                Preview layout
               </Btn>
               {live && (
-                <span className="font-mono text-[12px] text-rust">live · {slug}.lens.photo</span>
+                <span className="text-sm text-moss">Preview only · <a href="/publish" className="underline">Publish approved finals</a></span>
               )}
             </div>
           </Card>

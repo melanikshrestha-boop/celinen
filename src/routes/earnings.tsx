@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
 import { useLens } from "@/lib/lensos-store";
+import { SEED_EVENTS } from "@/lib/lensos";
 import { InvoicePanel } from "@/components/lensos/InvoicePanel";
 import {
   addTransaction,
@@ -12,6 +13,29 @@ import {
   startStripeConnect,
   syncStripe,
 } from "@/lib/finance.functions";
+import { isLocalSingleUserMode } from "@/lib/app-mode";
+import {
+  CLIENT_WORKSPACE_KEY,
+  invoiceClientKey,
+  invoiceClientOptions,
+  loadClientWorkspace,
+  type WorkspaceClient,
+} from "@/lib/client-workspace";
+import {
+  buildLocalInvoiceDraft,
+  buildLocalLedgerEntry,
+  commitLocalFinanceState,
+  deleteLocalInvoiceDraft,
+  deleteLocalLedgerEntry,
+  emptyLocalFinanceState,
+  loadLocalFinanceState,
+  parseCurrencyToCents,
+  upsertLocalInvoiceDraft,
+  upsertLocalLedgerEntry,
+  type LocalFinanceState,
+  type LocalInvoiceDraft,
+  type LocalLedgerEntry,
+} from "@/lib/local-finance-store";
 
 export const Route = createFileRoute("/earnings")({
   head: () => ({
@@ -25,7 +49,8 @@ export const Route = createFileRoute("/earnings")({
       { property: "og:title", content: "Earnings & Tax — LensLabs" },
       {
         property: "og:description",
-        content: "Income, deductible expenses, mileage, quarterly estimates and a tax-ready export.",
+        content:
+          "Income, deductible expenses, mileage, quarterly estimates and a tax-ready export.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -62,7 +87,13 @@ const EXPENSE_CATEGORIES = [
   "Other",
 ];
 
-const INCOME_CATEGORIES = ["Event coverage", "Licensing", "Print sales", "Retainer", "Other income"];
+const INCOME_CATEGORIES = [
+  "Event coverage",
+  "Licensing",
+  "Print sales",
+  "Retainer",
+  "Other income",
+];
 
 type TxRow = {
   id: string;
@@ -86,6 +117,17 @@ const toEntry = (t: TxRow): Entry => ({
   source: (t.source === "manual" ? "manual" : "imported") as Entry["source"],
 });
 
+const localToEntry = (entry: LocalLedgerEntry): Entry => ({
+  id: entry.id,
+  date: entry.occurredOn,
+  label: entry.description,
+  kind: entry.kind,
+  category: entry.category,
+  amount: entry.amountCents / 100,
+  eventId: entry.shootId,
+  source: entry.source,
+});
+
 /** Ledger categories mapped to the Schedule C line they belong on. */
 const SCHEDULE_C_LINE: Record<string, { line: string; label: string }> = {
   Advertising: { line: "8", label: "Advertising" },
@@ -105,15 +147,48 @@ const SCHEDULE_C_LINE: Record<string, { line: string; label: string }> = {
 const money = (n: number) =>
   n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
-function Earnings() {
-  const { events, clients } = useLens();
+const sumMoney = (amounts: number[]) =>
+  amounts.reduce((totalCents, amount) => totalCents + Math.round(amount * 100), 0) / 100;
 
+const DEMO_EVENT_IDS = new Set(SEED_EVENTS.map((event) => event.id));
+
+function Earnings() {
+  const { events: allEvents, clients } = useLens();
+
+  const [runtimeMode, setRuntimeMode] = useState<"checking" | "local" | "remote">("checking");
+  const events = useMemo(
+    () =>
+      runtimeMode === "remote"
+        ? allEvents
+        : allEvents.filter((event) => !DEMO_EVENT_IDS.has(event.id)),
+    [allEvents, runtimeMode],
+  );
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [stripeAccount, setStripeAccount] = useState<string | null>(null);
   const [stripeBusy, setStripeBusy] = useState<string | null>(null);
   const [stripeNote, setStripeNote] = useState<string | null>(null);
+  const [localFinance, setLocalFinance] = useState<LocalFinanceState>(() =>
+    emptyLocalFinanceState(),
+  );
+  const [localFinanceWritable, setLocalFinanceWritable] = useState(true);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [confirmDeleteEntryId, setConfirmDeleteEntryId] = useState<string | null>(null);
+  const [invoiceDrafts, setInvoiceDrafts] = useState<LocalInvoiceDraft[]>([]);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [confirmDeleteInvoiceId, setConfirmDeleteInvoiceId] = useState<string | null>(null);
+  const [invoiceNote, setInvoiceNote] = useState<string | null>(null);
+  const [localClientForm, setLocalClientForm] = useState({ name: "", email: "" });
+  const [workspaceClients, setWorkspaceClients] = useState<WorkspaceClient[]>([]);
+  const [invoiceForm, setInvoiceForm] = useState({
+    clientId: null as string | null,
+    clientName: "",
+    clientEmail: "",
+    description: "",
+    amount: "",
+    dueDate: "",
+  });
 
   const reload = async () => {
     const rows = (await listTransactions()) as unknown as TxRow[];
@@ -121,9 +196,22 @@ function Earnings() {
   };
 
   useEffect(() => {
+    if (isLocalSingleUserMode) {
+      const loaded = loadLocalFinanceState();
+      setRuntimeMode("local");
+      setLocalFinance(loaded.state);
+      setEntries(loaded.state.entries.map(localToEntry));
+      setInvoiceDrafts(loaded.state.invoices);
+      setLocalFinanceWritable(loaded.ok);
+      setDataError(loaded.warning);
+      setLoading(false);
+      return;
+    }
+
+    setRuntimeMode("remote");
     void (async () => {
       try {
-        const [profile] = await Promise.all([getProfile() as any, reload()]);
+        const [profile] = await Promise.all([getProfile(), reload()]);
         setStripeAccount(profile?.stripe_account_id ?? null);
       } catch {
         setDataError("Sign in to load your live ledger.");
@@ -133,17 +221,75 @@ function Earnings() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (runtimeMode !== "local") return;
+    const readContacts = () => {
+      const loaded = loadClientWorkspace();
+      if (loaded.ok) setWorkspaceClients(loaded.state.clients);
+      else
+        setInvoiceNote(
+          "CRM contacts could not be read. Existing invoice contacts remain available; saved client data was not changed.",
+        );
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === CLIENT_WORKSPACE_KEY || event.key === null) readContacts();
+    };
+    readContacts();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", readContacts);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", readContacts);
+    };
+  }, [runtimeMode]);
+
+  const commitLocalFinance = async (next: LocalFinanceState): Promise<boolean> => {
+    if (runtimeMode !== "local") return false;
+    if (!localFinanceWritable) {
+      setDataError("Editing is paused so the existing local finance data is not overwritten.");
+      return false;
+    }
+
+    const saved = await commitLocalFinanceState(next);
+    if (!saved.ok) {
+      if (saved.reason === "conflict" && saved.currentState) {
+        setLocalFinance(saved.currentState);
+        setEntries(saved.currentState.entries.map(localToEntry));
+        setInvoiceDrafts(saved.currentState.invoices);
+      } else if (saved.reason === "invalid") {
+        setLocalFinanceWritable(false);
+      }
+      setDataError(saved.error);
+      return false;
+    }
+
+    setLocalFinance(saved.state);
+    setEntries(saved.state.entries.map(localToEntry));
+    setInvoiceDrafts(saved.state.invoices);
+    setDataError(null);
+    return true;
+  };
+
   const connectStripe = async () => {
+    if (runtimeMode !== "remote") {
+      setStripeNote("Stripe is unavailable in local-personal mode. No connection was attempted.");
+      return;
+    }
     setStripeBusy("connect");
-    const res = (await startStripeConnect()) as any;
+    const res = await startStripeConnect();
     setStripeBusy(null);
     if (res?.error) return setStripeNote(res.error);
+    if (!res?.url) return setStripeNote("Stripe did not return a connection link.");
     window.location.href = res.url;
   };
 
   const runSync = async () => {
+    if (runtimeMode !== "remote") {
+      setStripeNote("Stripe sync is unavailable in local-personal mode. Nothing was imported.");
+      return;
+    }
     setStripeBusy("sync");
-    const res = (await syncStripe()) as any;
+    const res = await syncStripe();
     setStripeBusy(null);
     if (res?.error) return setStripeNote(res.error);
     setStripeNote(`Imported ${res.imported} Stripe payments.`);
@@ -160,8 +306,8 @@ function Earnings() {
   });
 
   const totals = useMemo(() => {
-    const income = entries.filter((e) => e.kind === "income").reduce((s, e) => s + e.amount, 0);
-    const expense = entries.filter((e) => e.kind === "expense").reduce((s, e) => s + e.amount, 0);
+    const income = sumMoney(entries.filter((e) => e.kind === "income").map((e) => e.amount));
+    const expense = sumMoney(entries.filter((e) => e.kind === "expense").map((e) => e.amount));
     return { income, expense, net: income - expense };
   }, [entries]);
 
@@ -169,14 +315,16 @@ function Earnings() {
     const map = new Map<string, number>();
     entries
       .filter((e) => e.kind === "expense")
-      .forEach((e) => map.set(e.category, (map.get(e.category) ?? 0) + e.amount));
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+      .forEach((e) => map.set(e.category, (map.get(e.category) ?? 0) + Math.round(e.amount * 100)));
+    return [...map.entries()]
+      .map(([category, amountCents]) => [category, amountCents / 100] as const)
+      .sort((a, b) => b[1] - a[1]);
   }, [entries]);
 
   const scheduleC = useMemo(() => {
     const rows = new Map<string, { line: string; label: string; amount: number }>();
     for (const [cat, amount] of byCategory) {
-      const map = SCHEDULE_C_LINE[cat] ?? SCHEDULE_C_LINE['Other']!;
+      const map = SCHEDULE_C_LINE[cat] ?? SCHEDULE_C_LINE["Other"]!;
       const deductible = cat === "Meals (50%)" ? amount * 0.5 : amount;
       const prev = rows.get(map.line);
       rows.set(map.line, {
@@ -200,10 +348,10 @@ function Earnings() {
       .filter((e) => e.kind === "income")
       .forEach((e) => {
         const name = payerName(e.eventId);
-        map.set(name, (map.get(name) ?? 0) + e.amount);
+        map.set(name, (map.get(name) ?? 0) + Math.round(e.amount * 100));
       });
     return [...map.entries()]
-      .map(([name, total]) => ({ name, total }))
+      .map(([name, totalCents]) => ({ name, total: totalCents / 100 }))
       .sort((a, b) => b.total - a.total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, events, clients]);
@@ -214,10 +362,10 @@ function Earnings() {
       .filter((e) => e.kind === "expense" && e.category.startsWith("Contract labor"))
       .forEach((e) => {
         const name = e.label.split("—").slice(-1)[0]!.trim() || e.label;
-        map.set(name, (map.get(name) ?? 0) + e.amount);
+        map.set(name, (map.get(name) ?? 0) + Math.round(e.amount * 100));
       });
     return [...map.entries()]
-      .map(([name, total]) => ({ name, total }))
+      .map(([name, totalCents]) => ({ name, total: totalCents / 100 }))
       .sort((a, b) => b.total - a.total);
   }, [entries]);
 
@@ -225,20 +373,27 @@ function Earnings() {
   const jobs = useMemo(
     () =>
       events.map((ev) => {
-        const ledgerIncome = entries
-          .filter((e) => e.eventId === ev.id && e.kind === "income")
-          .reduce((s, e) => s + e.amount, 0);
-        const ledgerExpense = entries
-          .filter((e) => e.eventId === ev.id && e.kind === "expense")
-          .reduce((s, e) => s + e.amount, 0);
+        const ledgerIncome =
+          entries
+            .filter((e) => e.eventId === ev.id && e.kind === "income")
+            .reduce((cents, e) => cents + Math.round(e.amount * 100), 0) / 100;
+        const ledgerExpense =
+          entries
+            .filter((e) => e.eventId === ev.id && e.kind === "expense")
+            .reduce((cents, e) => cents + Math.round(e.amount * 100), 0) / 100;
 
         const income =
-          ledgerIncome ||
-          ev.money.collected ||
-          ev.money.invoiced ||
-          ev.money.agreedRevenue ||
-          0;
-        const expense = ledgerExpense || ev.money.actualCosts || ev.money.estimatedCosts || 0;
+          runtimeMode === "local"
+            ? ledgerIncome
+            : ledgerIncome ||
+              ev.money.collected ||
+              ev.money.invoiced ||
+              ev.money.agreedRevenue ||
+              0;
+        const expense =
+          runtimeMode === "local"
+            ? ledgerExpense
+            : ledgerExpense || ev.money.actualCosts || ev.money.estimatedCosts || 0;
 
         const hours = ev.metrics.workMinutes / 60;
         const net = income - expense;
@@ -267,12 +422,12 @@ function Earnings() {
           turnaround,
         };
       }),
-    [events, entries, clients],
+    [events, entries, clients, runtimeMode],
   );
 
   const shootTotals = useMemo(() => {
     const hours = jobs.reduce((s, j) => s + j.hours, 0);
-    const net = jobs.reduce((s, j) => s + j.net, 0);
+    const net = sumMoney(jobs.map((job) => job.net));
     const frames = jobs.reduce((s, j) => s + j.frames, 0);
     return { hours, net, frames, perHour: hours > 0 ? net / hours : 0 };
   }, [jobs]);
@@ -280,33 +435,162 @@ function Earnings() {
   const selfEmployment = Math.max(0, totals.net) * 0.9235 * 0.153;
   const quarterly = (selfEmployment + Math.max(0, totals.net) * 0.15) / 4;
 
-
   const isUuid = (v: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
   const add = async () => {
-    const amount = Number(form.amount);
-    if (!form.label.trim() || Number.isNaN(amount) || amount <= 0) return;
-    const res = (await addTransaction({
+    const amountCents = parseCurrencyToCents(form.amount);
+    if (!form.label.trim()) return setDataError("Add a description.");
+    if (amountCents === null) {
+      return setDataError("Enter a positive amount with up to two decimals.");
+    }
+
+    const occurredOn = form.date || new Date().toISOString().slice(0, 10);
+    if (runtimeMode === "local") {
+      const existing = editingEntryId
+        ? localFinance.entries.find((entry) => entry.id === editingEntryId)
+        : null;
+      if (editingEntryId && !existing) {
+        setDataError("That local ledger entry no longer exists. Nothing was changed.");
+        return;
+      }
+
+      const built = buildLocalLedgerEntry(
+        {
+          kind,
+          category: form.category,
+          description: form.label,
+          amount: form.amount,
+          occurredOn,
+          shootId: form.eventId || null,
+        },
+        existing ? { id: existing.id, createdAt: existing.createdAt } : {},
+      );
+      if (!built.ok) return setDataError(built.error);
+      if (!(await commitLocalFinance(upsertLocalLedgerEntry(localFinance, built.value)))) return;
+
+      setEditingEntryId(null);
+      setForm((current) => ({ ...current, label: "", amount: "" }));
+      return;
+    }
+
+    if (runtimeMode !== "remote") return;
+    const amount = amountCents / 100;
+    const res = await addTransaction({
       data: {
         kind,
         category: form.category,
         description: form.label.trim(),
         amount,
-        occurred_on: form.date || new Date().toISOString().slice(0, 10),
+        occurred_on: occurredOn,
         shoot_id: form.eventId && isUuid(form.eventId) ? form.eventId : null,
       },
-    })) as any;
+    });
     if (res?.error) return setDataError(res.error);
-    setEntries((prev) => [toEntry(res.transaction), ...prev]);
+    if (!res?.transaction) return setDataError("The transaction was not saved.");
+    setEntries((prev) => [toEntry(res.transaction as TxRow), ...prev]);
     setForm({ ...form, label: "", amount: "" });
   };
 
   const removeEntry = async (id: string) => {
+    if (runtimeMode === "local") {
+      if (!(await commitLocalFinance(deleteLocalLedgerEntry(localFinance, id)))) return;
+      setConfirmDeleteEntryId(null);
+      if (editingEntryId === id) {
+        setEditingEntryId(null);
+        setForm((current) => ({ ...current, label: "", amount: "" }));
+      }
+      return;
+    }
+
+    if (runtimeMode !== "remote") return;
+    const res = await deleteTransaction({ data: { id } });
+    if (res?.error) return setDataError(res.error);
     setEntries((prev) => prev.filter((x) => x.id !== id));
-    await deleteTransaction({ data: { id } });
   };
 
+  const editLocalEntry = (entry: Entry) => {
+    if (runtimeMode !== "local") return;
+    setKind(entry.kind);
+    setForm({
+      date: entry.date,
+      label: entry.label,
+      category: entry.category,
+      amount: entry.amount.toFixed(2),
+      eventId: entry.eventId ?? "",
+    });
+    setEditingEntryId(entry.id);
+    setConfirmDeleteEntryId(null);
+    setDataError(null);
+  };
+
+  const cancelEntryEdit = () => {
+    setEditingEntryId(null);
+    setForm((current) => ({ ...current, label: "", amount: "" }));
+  };
+
+  const saveInvoiceDraft = async () => {
+    if (runtimeMode !== "local") return;
+    const existing = editingInvoiceId
+      ? localFinance.invoices.find((invoice) => invoice.id === editingInvoiceId)
+      : null;
+    if (editingInvoiceId && !existing) {
+      setInvoiceNote("That local invoice draft no longer exists. Nothing was changed.");
+      return;
+    }
+
+    const built = buildLocalInvoiceDraft(
+      invoiceForm,
+      existing ? { id: existing.id, createdAt: existing.createdAt } : {},
+    );
+    if (!built.ok) return setInvoiceNote(built.error);
+    if (!(await commitLocalFinance(upsertLocalInvoiceDraft(localFinance, built.value)))) return;
+
+    setEditingInvoiceId(null);
+    setInvoiceForm({
+      clientId: null,
+      clientName: "",
+      clientEmail: "",
+      description: "",
+      amount: "",
+      dueDate: "",
+    });
+    setInvoiceNote("Draft saved in this browser. It was not sent and is not marked paid.");
+  };
+
+  const editInvoiceDraft = (invoice: LocalInvoiceDraft) => {
+    setEditingInvoiceId(invoice.id);
+    setInvoiceForm({
+      clientId: invoice.clientId ?? null,
+      clientName: invoice.clientName,
+      clientEmail: invoice.clientEmail ?? "",
+      description: invoice.description,
+      amount: (invoice.amountCents / 100).toFixed(2),
+      dueDate: invoice.dueDate ?? "",
+    });
+    setConfirmDeleteInvoiceId(null);
+    setInvoiceNote(null);
+  };
+
+  const cancelInvoiceEdit = () => {
+    setEditingInvoiceId(null);
+    setInvoiceForm({
+      clientId: null,
+      clientName: "",
+      clientEmail: "",
+      description: "",
+      amount: "",
+      dueDate: "",
+    });
+  };
+
+  const removeInvoiceDraft = async (id: string) => {
+    if (runtimeMode !== "local") return;
+    if (!(await commitLocalFinance(deleteLocalInvoiceDraft(localFinance, id)))) return;
+    setConfirmDeleteInvoiceId(null);
+    if (editingInvoiceId === id) cancelInvoiceEdit();
+    setInvoiceNote("Draft deleted from this browser.");
+  };
 
   const exportCsv = () => {
     const rows = [
@@ -345,7 +629,11 @@ function Earnings() {
       ["line", "description", "amount_usd"],
       ["1", "Gross receipts or sales", totals.income.toFixed(2)],
       ["7", "Gross income", totals.income.toFixed(2)],
-      ...scheduleC.map((r) => [r.line.replace(".1", "a").replace(".2", "b"), r.label.replace(/,/g, ";"), r.amount.toFixed(2)]),
+      ...scheduleC.map((r) => [
+        r.line.replace(".1", "a").replace(".2", "b"),
+        r.label.replace(/,/g, ";"),
+        r.amount.toFixed(2),
+      ]),
       ["28", "Total expenses", totals.expense.toFixed(2)],
       ["31", "Net profit or (loss)", totals.net.toFixed(2)],
     ]);
@@ -353,12 +641,31 @@ function Earnings() {
   const export1099 = () =>
     download(`lensos-1099-${new Date().getFullYear()}.csv`, [
       ["direction", "party", "amount_usd", "threshold_600"],
-      ...payers.map((p) => ["income received", p.name.replace(/,/g, ";"), p.total.toFixed(2), p.total >= 600 ? "yes" : "no"]),
-      ...payees.map((p) => ["contractor paid", p.name.replace(/,/g, ";"), p.total.toFixed(2), p.total >= 600 ? "yes" : "no"]),
+      ...payers.map((p) => [
+        "income received",
+        p.name.replace(/,/g, ";"),
+        p.total.toFixed(2),
+        p.total >= 600 ? "yes" : "no",
+      ]),
+      ...payees.map((p) => [
+        "contractor paid",
+        p.name.replace(/,/g, ";"),
+        p.total.toFixed(2),
+        p.total >= 600 ? "yes" : "no",
+      ]),
     ]);
 
-
   const cats = kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const selectedInvoiceContact = {
+    clientId: invoiceForm.clientId,
+    name: invoiceForm.clientName,
+    email: invoiceForm.clientEmail,
+  };
+  const localInvoiceClients = invoiceClientOptions(
+    workspaceClients,
+    invoiceDrafts,
+    selectedInvoiceContact,
+  );
 
   return (
     <Shell hideEventHeader>
@@ -381,9 +688,11 @@ function Earnings() {
               Stripe · your own account
             </p>
             <p className="mt-1 text-[13px] text-moss">
-              {stripeAccount
-                ? `Connected — ${stripeAccount}. Charges and paid invoices land in this ledger automatically.`
-                : "Connect your existing Stripe account to import charges and send invoices."}
+              {runtimeMode === "local"
+                ? "Local ledger and invoice drafts stay in this browser. Stripe is disconnected."
+                : stripeAccount
+                  ? `Connected — ${stripeAccount}. Charges and paid invoices land in this ledger automatically.`
+                  : "Connect your existing Stripe account to import charges and send invoices."}
             </p>
           </div>
           <div className="ml-auto flex gap-2">
@@ -398,9 +707,7 @@ function Earnings() {
                 </Btn>
                 <Btn
                   className="px-3 py-1.5 text-[13px]"
-                  onClick={() =>
-                    void disconnectStripe().then(() => setStripeAccount(null))
-                  }
+                  onClick={() => void disconnectStripe().then(() => setStripeAccount(null))}
                 >
                   Disconnect
                 </Btn>
@@ -409,7 +716,7 @@ function Earnings() {
               <Btn
                 variant="primary"
                 className="px-3 py-1.5 text-[13px]"
-                disabled={stripeBusy === "connect"}
+                disabled={runtimeMode !== "remote" || stripeBusy === "connect"}
                 onClick={() => void connectStripe()}
               >
                 {stripeBusy === "connect" ? "Opening Stripe…" : "Connect Stripe"}
@@ -421,8 +728,192 @@ function Earnings() {
         {loading && <p className="mt-2 font-mono text-[12px] text-moss">loading ledger…</p>}
       </Card>
 
-      <InvoicePanel />
+      {runtimeMode === "local" && (
+        <Card className="mt-4 p-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Invoices</p>
+            <p className="ml-auto font-mono text-[11px] text-moss">local drafts · not sent</p>
+          </div>
 
+          <div className="flex flex-wrap gap-2 border-b border-border p-4">
+            <select
+              value={invoiceForm.clientName ? invoiceClientKey(selectedInvoiceContact) : ""}
+              onChange={(event) => {
+                const contact = localInvoiceClients.find(
+                  ([key]) => key === event.target.value,
+                )?.[1];
+                setInvoiceForm((current) => ({
+                  ...current,
+                  clientId: contact?.clientId ?? null,
+                  clientName: contact?.name ?? "",
+                  clientEmail: contact?.email ?? "",
+                }));
+              }}
+              aria-label="Invoice client"
+              className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
+            >
+              <option value="">Client…</option>
+              {localInvoiceClients.map(([key, contact]) => (
+                <option key={key} value={key}>
+                  {contact.name}
+                  {contact.clientId ? " · Clients" : " · saved contact"}
+                </option>
+              ))}
+            </select>
+            <input
+              value={invoiceForm.description}
+              onChange={(event) =>
+                setInvoiceForm((current) => ({ ...current, description: event.target.value }))
+              }
+              placeholder="What for"
+              className="min-w-[160px] flex-1 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
+            />
+            <input
+              type="date"
+              value={invoiceForm.dueDate}
+              onChange={(event) =>
+                setInvoiceForm((current) => ({ ...current, dueDate: event.target.value }))
+              }
+              onInput={(event) => {
+                const dueDate = event.currentTarget.value;
+                setInvoiceForm((current) => ({ ...current, dueDate }));
+              }}
+              aria-label="Invoice due date"
+              className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
+            />
+            <input
+              inputMode="decimal"
+              value={invoiceForm.amount}
+              onChange={(event) =>
+                setInvoiceForm((current) => ({ ...current, amount: event.target.value }))
+              }
+              placeholder="0.00"
+              aria-label="Invoice amount in USD"
+              className="w-24 rounded-lg border border-input bg-card px-3 py-1.5 text-right font-mono text-[13px] outline-none"
+            />
+            <Btn
+              className="px-3 py-1.5 text-[13px]"
+              disabled={!localFinanceWritable}
+              onClick={() => void saveInvoiceDraft()}
+            >
+              {editingInvoiceId ? "Save changes" : "Save draft"}
+            </Btn>
+            {editingInvoiceId ? (
+              <Btn className="px-3 py-1.5 text-[13px]" onClick={cancelInvoiceEdit}>
+                Cancel
+              </Btn>
+            ) : (
+              <Btn variant="primary" className="px-3 py-1.5 text-[13px]" disabled>
+                <span title="Sending invoices requires a connected account.">Send invoice</span>
+              </Btn>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-b border-border p-4">
+            <input
+              value={localClientForm.name}
+              onChange={(event) =>
+                setLocalClientForm((current) => ({ ...current, name: event.target.value }))
+              }
+              placeholder="New client name"
+              className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
+            />
+            <input
+              type="email"
+              value={localClientForm.email}
+              onChange={(event) =>
+                setLocalClientForm((current) => ({ ...current, email: event.target.value }))
+              }
+              placeholder="client@email.com"
+              className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
+            />
+            <Btn
+              className="px-3 py-1.5 text-[13px]"
+              disabled={!localFinanceWritable || !localClientForm.name.trim()}
+              onClick={() => {
+                setInvoiceForm((current) => ({
+                  ...current,
+                  clientId: null,
+                  clientName: localClientForm.name.trim(),
+                  clientEmail: localClientForm.email.trim(),
+                }));
+                setLocalClientForm({ name: "", email: "" });
+                setInvoiceNote(
+                  "Client selected for this draft. Save the draft to keep their details.",
+                );
+              }}
+            >
+              Use client
+            </Btn>
+            {invoiceNote && (
+              <p role="status" className="ml-auto self-center font-mono text-[12px] text-moss">
+                {invoiceNote}
+              </p>
+            )}
+          </div>
+
+          <div className="max-h-[320px] overflow-y-auto">
+            {invoiceDrafts.length === 0 && localFinanceWritable && (
+              <p className="p-4 text-sm text-moss">No invoices yet.</p>
+            )}
+            {!localFinanceWritable && (
+              <p className="text-sm text-moss">
+                Saved invoice data is still in browser storage, but it cannot be shown safely.
+              </p>
+            )}
+            {invoiceDrafts.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 last:border-0"
+              >
+                <span className="text-sm font-medium">{invoice.clientName}</span>
+                {invoice.clientEmail && (
+                  <span className="text-[12px] text-moss">{invoice.clientEmail}</span>
+                )}
+                <span className="text-[13px] text-moss">{invoice.description}</span>
+                <Chip>draft · not sent</Chip>
+                {invoice.dueDate && (
+                  <span className="font-mono text-[11px] text-moss">due {invoice.dueDate}</span>
+                )}
+                <span className="ml-auto font-mono text-[13px]">
+                  {money(invoice.amountCents / 100)}
+                </span>
+                <button
+                  onClick={() => editInvoiceDraft(invoice)}
+                  className="font-mono text-[12px] text-moss hover:text-ink"
+                >
+                  edit
+                </button>
+                {confirmDeleteInvoiceId === invoice.id ? (
+                  <>
+                    <button
+                      onClick={() => void removeInvoiceDraft(invoice.id)}
+                      className="font-mono text-[12px] text-destructive"
+                    >
+                      confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteInvoiceId(null)}
+                      className="font-mono text-[12px] text-moss hover:text-ink"
+                    >
+                      cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteInvoiceId(invoice.id)}
+                    className="font-mono text-[12px] text-moss hover:text-destructive"
+                  >
+                    delete
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {runtimeMode === "remote" && <InvoicePanel />}
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
@@ -474,9 +965,7 @@ function Earnings() {
                   <td className="p-3 text-right font-mono">{j.hours.toFixed(1)}</td>
                   <td className="p-3 text-right font-mono">{money(j.income)}</td>
                   <td className="p-3 text-right font-mono">{money(j.expense)}</td>
-                  <td
-                    className={`p-3 text-right font-mono ${j.net < 0 ? "text-rust" : ""}`}
-                  >
+                  <td className={`p-3 text-right font-mono ${j.net < 0 ? "text-rust" : ""}`}>
                     {j.perHour === null ? "—" : `${money(j.perHour)}/h`}
                   </td>
                   <td className="p-3">
@@ -488,7 +977,9 @@ function Earnings() {
                           : "in progress"}
                     </p>
                     <p className="font-mono text-[10px] text-moss">
-                      {j.deadline ? `due ${j.deadline.at} · ${j.deadline.label}` : "no deadline set"}
+                      {j.deadline
+                        ? `due ${j.deadline.at} · ${j.deadline.label}`
+                        : "no deadline set"}
                     </p>
                   </td>
                 </tr>
@@ -514,7 +1005,10 @@ function Earnings() {
                   key={k}
                   onClick={() => {
                     setKind(k);
-                    setForm({ ...form, category: (k === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES)[0]! });
+                    setForm((current) => ({
+                      ...current,
+                      category: (k === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES)[0]!,
+                    }));
                   }}
                   className={`px-3 py-1.5 text-[13px] ${kind === k ? "bg-ink text-paper2" : "text-moss"}`}
                 >
@@ -559,16 +1053,41 @@ function Earnings() {
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="0.00"
+              inputMode="decimal"
+              aria-label="Ledger amount in USD"
               className="w-24 rounded-lg border border-input bg-card px-3 py-1.5 text-right font-mono text-[13px] outline-none"
             />
-            <Btn variant="primary" className="px-3 py-1.5 text-[13px]" onClick={() => void add()}>
-              Add
+            <Btn
+              variant="primary"
+              className="px-3 py-1.5 text-[13px]"
+              disabled={
+                runtimeMode === "checking" || (runtimeMode === "local" && !localFinanceWritable)
+              }
+              onClick={() => void add()}
+            >
+              {editingEntryId ? "Save" : "Add"}
             </Btn>
+            {editingEntryId && (
+              <Btn className="px-3 py-1.5 text-[13px]" onClick={cancelEntryEdit}>
+                Cancel
+              </Btn>
+            )}
           </div>
 
           <div className="max-h-[420px] overflow-y-auto">
+            {entries.length === 0 && !loading && localFinanceWritable && (
+              <p className="p-4 text-sm text-moss">No ledger entries yet.</p>
+            )}
+            {runtimeMode === "local" && !localFinanceWritable && (
+              <p className="text-sm text-moss">
+                Saved ledger data is still in browser storage, but it cannot be shown safely.
+              </p>
+            )}
             {entries.map((e) => (
-              <div key={e.id} className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 last:border-0">
+              <div
+                key={e.id}
+                className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 last:border-0"
+              >
                 <span className="font-mono text-[11px] text-moss">{e.date}</span>
                 <span className="text-sm">{e.label}</span>
                 <Chip>{e.category}</Chip>
@@ -583,12 +1102,42 @@ function Earnings() {
                   {e.kind === "income" ? "+" : "−"}
                   {money(e.amount)}
                 </span>
-                <button
-                  onClick={() => void removeEntry(e.id)}
-                  className="text-[12px] text-moss hover:text-ink"
-                >
-                  ✕
-                </button>
+                {runtimeMode === "local" && (
+                  <button
+                    onClick={() => editLocalEntry(e)}
+                    className="font-mono text-[12px] text-moss hover:text-ink"
+                  >
+                    edit
+                  </button>
+                )}
+                {runtimeMode === "local" && confirmDeleteEntryId === e.id ? (
+                  <>
+                    <button
+                      onClick={() => void removeEntry(e.id)}
+                      className="font-mono text-[12px] text-destructive"
+                    >
+                      confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteEntryId(null)}
+                      className="font-mono text-[12px] text-moss hover:text-ink"
+                    >
+                      cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() =>
+                      runtimeMode === "local"
+                        ? setConfirmDeleteEntryId(e.id)
+                        : void removeEntry(e.id)
+                    }
+                    className="text-[12px] text-moss hover:text-ink"
+                    aria-label={runtimeMode === "local" ? `Delete ${e.label}` : undefined}
+                  >
+                    {runtimeMode === "local" ? "delete" : "✕"}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -679,7 +1228,10 @@ function Earnings() {
               Part II · Expenses
             </p>
             {scheduleC.map((row) => (
-              <div key={row.line} className="flex justify-between border-b border-border py-1.5 text-[13px]">
+              <div
+                key={row.line}
+                className="flex justify-between border-b border-border py-1.5 text-[13px]"
+              >
                 <span className="text-moss">
                   Line {row.line} · {row.label}
                 </span>
@@ -695,8 +1247,8 @@ function Earnings() {
               <span className="font-mono">{money(totals.net)}</span>
             </div>
             <p className="mt-3 text-[12px] text-moss">
-              Lines shown carry a balance. Meals are reported at the 50% deductible amount on
-              line 24b. This is your ledger mapped to the form — not filed advice.
+              Lines shown carry a balance. Meals are reported at the 50% deductible amount on line
+              24b. This is your ledger mapped to the form — not filed advice.
             </p>
           </div>
         </Card>
@@ -716,7 +1268,10 @@ function Earnings() {
             </p>
             {payers.length === 0 && <p className="mt-2 text-sm text-moss">No income logged.</p>}
             {payers.map((p) => (
-              <div key={p.name} className="flex items-center justify-between border-b border-border py-2 text-[13px]">
+              <div
+                key={p.name}
+                className="flex items-center justify-between border-b border-border py-2 text-[13px]"
+              >
                 <span>{p.name}</span>
                 <span className="flex items-center gap-2">
                   <Chip tone={p.total >= 600 ? "solid" : "quiet"}>
@@ -734,7 +1289,10 @@ function Earnings() {
               <p className="mt-2 text-sm text-moss">No contract labor logged.</p>
             )}
             {payees.map((p) => (
-              <div key={p.name} className="flex items-center justify-between border-b border-border py-2 text-[13px]">
+              <div
+                key={p.name}
+                className="flex items-center justify-between border-b border-border py-2 text-[13px]"
+              >
                 <span>{p.name}</span>
                 <span className="flex items-center gap-2">
                   <Chip tone={p.total >= 600 ? "warn" : "quiet"}>
@@ -754,4 +1312,3 @@ function Earnings() {
     </Shell>
   );
 }
-

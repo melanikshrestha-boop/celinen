@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { LensProvider } from "@/lib/lensos-store";
+import { WorkbenchBoundary } from "@/components/workbench/Workbench";
+import { AccountProvider, useAccount } from "@/components/account/AccountProvider";
 
 function NotFoundComponent() {
   return (
@@ -129,10 +131,21 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LensProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-      </LensProvider>
+      <AccountProvider>
+        <AccountContent />
+      </AccountProvider>
     </QueryClientProvider>
+  );
+}
+
+function AccountContent() {
+  const account = useAccount();
+  return (
+    <LensProvider key={account?.scope ?? "signed-out"}>
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <WorkbenchBoundary>
+        <Outlet />
+      </WorkbenchBoundary>
+    </LensProvider>
   );
 }

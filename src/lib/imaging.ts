@@ -20,13 +20,7 @@ export const RAW_EXTENSIONS = [
 export type Verdict = "keep" | "reject" | "undecided";
 
 export type Flag =
-  | "soft"
-  | "blur"
-  | "underexposed"
-  | "overexposed"
-  | "duplicate"
-  | "face-soft"
-  | "eyes-closed";
+  "soft" | "blur" | "underexposed" | "overexposed" | "duplicate" | "face-soft" | "eyes-closed";
 
 export interface Edits {
   exposure: number; // -100..100
@@ -52,8 +46,19 @@ export interface Shot {
   id: string;
   file: File;
   name: string;
+  /** Stable path used to reconcile the same source after a reload/re-import. */
+  relativePath?: string;
+  /** Native EXIF evidence. Never synthesized from a file's modification time. */
+  captureTimeMs?: number | undefined;
+  captureTimeBasis?: "utc" | "camera_clock" | undefined;
+  cameraKey?: string | undefined;
+  analysisBackend?: "native-cpp" | "worker" | "main-thread" | undefined;
   isRaw: boolean;
   previewUrl: string | null;
+  /** Small local preview. Named projects may also retain an explicitly saved original copy. */
+  previewBlob?: Blob | undefined;
+  /** False when a restored project needs its original folder reconnected. */
+  sourceAvailable?: boolean | undefined;
   width: number;
   height: number;
   sizeMb: number;
@@ -70,18 +75,19 @@ export interface Shot {
   edits: Edits;
   faces?: FaceReading | undefined;
   /** Where this frame's develop state came from. */
-  develop?: {
-    origin: "lightroom" | "sidecar" | "lens os";
-    at: number;
-    rating?: number | undefined;
-    label?: string | null | undefined;
-    caption?: string | undefined;
-    cropped?: boolean | undefined;
-    processVersion?: string | undefined;
-  } | undefined;
+  develop?:
+    | {
+        origin: "lightroom" | "sidecar" | "lens os";
+        at: number;
+        rating?: number | undefined;
+        label?: string | null | undefined;
+        caption?: string | undefined;
+        cropped?: boolean | undefined;
+        processVersion?: string | undefined;
+      }
+    | undefined;
   error?: string;
 }
-
 
 export function extension(name: string) {
   const parts = name.split(".");
@@ -112,60 +118,142 @@ async function extractEmbeddedJpeg(file: File): Promise<Blob | null> {
   return new Blob([buf.slice(best.start, best.end)], { type: "image/jpeg" });
 }
 
-/**
- * Read the EXIF orientation flag (1-8) out of a JPEG/TIFF byte buffer.
- * Returns 1 (normal) when absent or unreadable.
- */
-export function readExifOrientation(buf: Uint8Array): number {
+type OrientationTag = { value: number; offset: number; little: boolean };
+
+function tiffOrientationTags(buf: Uint8Array, start = 0): OrientationTag[] {
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  let tiffStart = -1;
-
-  if (buf[0] === 0xff && buf[1] === 0xd8) {
-    // JPEG: walk the marker segments looking for APP1/Exif
-    let offset = 2;
-    while (offset + 4 < buf.length) {
-      if (buf[offset] !== 0xff) break;
-      const marker = buf[offset + 1]!;
-      const size = view.getUint16(offset + 2, false);
-      if (marker === 0xe1) {
-        // "Exif\0\0"
-        if (
-          buf[offset + 4] === 0x45 &&
-          buf[offset + 5] === 0x78 &&
-          buf[offset + 6] === 0x69 &&
-          buf[offset + 7] === 0x66
-        ) {
-          tiffStart = offset + 10;
-        }
-        break;
-      }
-      if (marker === 0xda) break; // start of scan
-      offset += 2 + size;
-    }
-  } else if (
-    (buf[0] === 0x49 && buf[1] === 0x49) ||
-    (buf[0] === 0x4d && buf[1] === 0x4d)
-  ) {
-    tiffStart = 0; // bare TIFF (most RAW containers)
-  }
-
-  if (tiffStart < 0 || tiffStart + 8 > buf.length) return 1;
-
-  const little = view.getUint16(tiffStart, false) === 0x4949;
-  const ifdOffset = view.getUint32(tiffStart + 4, little);
-  const ifd = tiffStart + ifdOffset;
-  if (ifd + 2 > buf.length) return 1;
-
+  if (start + 8 > buf.length) return [];
+  const order = view.getUint16(start, false);
+  if (order !== 0x4949 && order !== 0x4d4d) return [];
+  const little = order === 0x4949;
+  // TIFF-based RAW containers can use a different magic with this same IFD layout.
+  const ifd = start + view.getUint32(start + 4, little);
+  if (ifd < start + 8 || ifd + 2 > buf.length) return [];
   const entries = view.getUint16(ifd, little);
+  const tags: OrientationTag[] = [];
   for (let i = 0; i < entries; i++) {
     const entry = ifd + 2 + i * 12;
     if (entry + 12 > buf.length) break;
-    if (view.getUint16(entry, little) === 0x0112) {
+    if (
+      view.getUint16(entry, little) === 0x0112 &&
+      view.getUint16(entry + 2, little) === 3 &&
+      view.getUint32(entry + 4, little) === 1
+    ) {
       const value = view.getUint16(entry + 8, little);
-      return value >= 1 && value <= 8 ? value : 1;
+      tags.push({ value: value >= 1 && value <= 8 ? value : 1, offset: entry + 8, little });
     }
   }
+  return tags;
+}
+
+function isExif(buf: Uint8Array, offset: number): boolean {
+  return [0x45, 0x78, 0x69, 0x66, 0, 0].every((byte, i) => buf[offset + i] === byte);
+}
+
+/** Read EXIF orientation (1-8) from JPEG/TIFF bytes; absent/unreadable means 1. */
+export function readExifOrientation(buf: Uint8Array): number {
+  if (buf[0] !== 0xff || buf[1] !== 0xd8) return tiffOrientationTags(buf)[0]?.value ?? 1;
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  for (let offset = 2; offset + 4 <= buf.length;) {
+    if (buf[offset] !== 0xff) break;
+    const marker = buf[offset + 1]!;
+    if (marker === 0xff) {
+      offset++;
+      continue;
+    }
+    if (marker === 0xda || marker === 0xd9) break;
+    const size = view.getUint16(offset + 2, false);
+    if (size < 2 || offset + 2 + size > buf.length) break;
+    if (marker === 0xe1 && isExif(buf, offset + 4)) {
+      const tag = tiffOrientationTags(buf.subarray(offset + 10, offset + 2 + size))[0];
+      if (tag) return tag.value;
+    }
+    offset += 2 + size;
+  }
   return 1;
+}
+
+/** Neutralize only orientation tags in a temporary decode blob, never the source file.
+ * Some browsers ignore imageOrientation:"none". Metadata-free orientation makes
+ * manual transforms deterministic, including mirrored and square photographs.
+ */
+async function orientationDecodeSource(file: Blob) {
+  const prefix = await headerBytes(file, 64 * 1024);
+  const tags: OrientationTag[] = [];
+  if (prefix[0] === 0xff && prefix[1] === 0xd8) {
+    // Read only metadata segments, including EXIF following large ICC/XMP blocks.
+    for (let offset = 2; offset + 4 <= file.size;) {
+      const header =
+        offset + 4 <= prefix.length
+          ? prefix.subarray(offset, offset + 4)
+          : new Uint8Array(await file.slice(offset, offset + 4).arrayBuffer());
+      if (header[0] !== 0xff) break;
+      const marker = header[1]!;
+      if (marker === 0xff) {
+        offset++;
+        continue;
+      }
+      if (marker === 0xda || marker === 0xd9) break;
+      const size = (header[2]! << 8) | header[3]!;
+      if (size < 2 || offset + 2 + size > file.size) break;
+      if (marker === 0xe1) {
+        const segment =
+          offset + 2 + size <= prefix.length
+            ? prefix.subarray(offset + 4, offset + 2 + size)
+            : new Uint8Array(await file.slice(offset + 4, offset + 2 + size).arrayBuffer());
+        if (isExif(segment, 0))
+          tags.push(
+            ...tiffOrientationTags(segment, 6).map((tag) => ({
+              ...tag,
+              offset: offset + 4 + tag.offset,
+            })),
+          );
+      }
+      offset += 2 + size;
+    }
+  } else {
+    // A TIFF/RAW IFD can live well beyond the first header block. Read that
+    // directory only (at most 65,535 entries), never allocate up to its offset.
+    const order = prefix.length >= 8 ? new DataView(prefix.buffer).getUint16(0) : 0;
+    if (order === 0x4949 || order === 0x4d4d) {
+      const little = order === 0x4949;
+      const ifd = new DataView(prefix.buffer).getUint32(4, little);
+      if (ifd >= 8 && ifd + 2 <= file.size) {
+        const countBytes =
+          ifd + 2 <= prefix.length
+            ? prefix.subarray(ifd, ifd + 2)
+            : new Uint8Array(await file.slice(ifd, ifd + 2).arrayBuffer());
+        const count = new DataView(countBytes.buffer, countBytes.byteOffset, 2).getUint16(
+          0,
+          little,
+        );
+        const end = Math.min(file.size, ifd + 2 + count * 12);
+        if (end <= prefix.length) tags.push(...tiffOrientationTags(prefix));
+        else {
+          const directory = new Uint8Array(await file.slice(ifd, end).arrayBuffer());
+          const compact = new Uint8Array(8 + directory.length);
+          compact.set(prefix.subarray(0, 8));
+          new DataView(compact.buffer).setUint32(4, 8, little);
+          compact.set(directory, 8);
+          tags.push(
+            ...tiffOrientationTags(compact).map((tag) => ({
+              ...tag,
+              offset: tag.offset + ifd - 8,
+            })),
+          );
+        }
+      }
+    }
+  }
+  if (!tags.length) return { blob: file, orientation: null };
+  const parts: BlobPart[] = [];
+  let cursor = 0;
+  for (const tag of tags) {
+    parts.push(file.slice(cursor, tag.offset), new Uint8Array(tag.little ? [1, 0] : [0, 1]));
+    cursor = tag.offset + 2;
+  }
+  parts.push(file.slice(cursor));
+  return { blob: new Blob(parts, { type: file.type }), orientation: tags[0]!.value };
 }
 
 /** Bake an EXIF orientation into pixels so every downstream step sees it upright. */
@@ -174,19 +262,30 @@ async function applyOrientation(bitmap: ImageBitmap, orientation: number): Promi
   const swap = orientation >= 5;
   const w = swap ? bitmap.height : bitmap.width;
   const h = swap ? bitmap.width : bitmap.height;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d")!;
+  const { canvas, ctx } = scratchCanvas(w, h);
 
   switch (orientation) {
-    case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
-    case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
-    case 4: ctx.transform(1, 0, 0, -1, 0, h); break;
-    case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
-    case 6: ctx.transform(0, 1, -1, 0, w, 0); break;
-    case 7: ctx.transform(0, -1, -1, 0, w, h); break;
-    case 8: ctx.transform(0, -1, 1, 0, 0, h); break;
+    case 2:
+      ctx.transform(-1, 0, 0, 1, w, 0);
+      break;
+    case 3:
+      ctx.transform(-1, 0, 0, -1, w, h);
+      break;
+    case 4:
+      ctx.transform(1, 0, 0, -1, 0, h);
+      break;
+    case 5:
+      ctx.transform(0, 1, 1, 0, 0, 0);
+      break;
+    case 6:
+      ctx.transform(0, 1, -1, 0, w, 0);
+      break;
+    case 7:
+      ctx.transform(0, -1, -1, 0, w, h);
+      break;
+    case 8:
+      ctx.transform(0, -1, 1, 0, 0, h);
+      break;
   }
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
@@ -221,24 +320,35 @@ export async function decodeFile(file: File, maxEdge?: number): Promise<ImageBit
   if (isRawFile(file)) {
     const jpeg = await extractEmbeddedJpeg(file);
     if (!jpeg) throw new Error("No embedded preview found in this RAW file");
-    let orientation = readExifOrientation(await headerBytes(jpeg, 128 * 1024));
-    // Most RAW previews carry no EXIF of their own — fall back to the container's.
-    if (orientation === 1) orientation = readExifOrientation(await headerBytes(file));
-    const bitmap = await createImageBitmap(jpeg, { imageOrientation: "none" });
+    const source = await orientationDecodeSource(jpeg);
+    // An explicit upright preview must not inherit the container's rotation.
+    const orientation =
+      source.orientation ?? (await orientationDecodeSource(file)).orientation ?? 1;
+    const bitmap = await createImageBitmap(source.blob, { imageOrientation: "from-image" });
     return applyOrientation(await shrink(bitmap, maxEdge), orientation);
   }
 
-  const orientation = readExifOrientation(await headerBytes(file));
-  const bitmap = await createImageBitmap(file, { imageOrientation: "none" });
-  return applyOrientation(await shrink(bitmap, maxEdge), orientation);
+  const source = await orientationDecodeSource(file);
+  const bitmap = await createImageBitmap(source.blob, { imageOrientation: "from-image" });
+  return applyOrientation(await shrink(bitmap, maxEdge), source.orientation ?? 1);
 }
 
-
 function scratchCanvas(w: number, h: number) {
+  // The worker uses the same drawing/measurement code without touching the DOM.
+  if (typeof document === "undefined") {
+    if (typeof OffscreenCanvas === "undefined") {
+      throw new Error("This browser does not support offscreen image analysis.");
+    }
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Could not create an image analysis canvas.");
+    return { canvas, ctx };
+  }
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Could not create an image analysis canvas.");
   return { canvas, ctx };
 }
 
@@ -276,6 +386,51 @@ export interface Analysis {
   clippedShadows: number;
   hash: string;
   tone: ToneStats;
+}
+
+export interface FileAnalysisPreview {
+  width: number;
+  height: number;
+  analysis: Analysis;
+  previewBlob: Blob;
+  faceDetectionAvailable: boolean;
+}
+
+/** Shared worker/fallback pipeline. The original file is never uploaded or modified. */
+export async function analyseFilePreview(file: File): Promise<FileAnalysisPreview> {
+  const bitmap = await decodeFile(file, 1280);
+  try {
+    const analysis = analyseBitmap(bitmap);
+    analysis.faces = await analyseFaces(bitmap);
+    const scale = Math.min(1, 480 / Math.max(bitmap.width, bitmap.height));
+    const { canvas, ctx } = scratchCanvas(
+      Math.max(1, Math.round(bitmap.width * scale)),
+      Math.max(1, Math.round(bitmap.height * scale)),
+    );
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const previewBlob =
+      "convertToBlob" in canvas
+        ? await canvas.convertToBlob({ type: "image/jpeg", quality: 0.72 })
+        : await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+              (blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error("Could not create the photo preview."));
+              },
+              "image/jpeg",
+              0.72,
+            );
+          });
+    return {
+      width: bitmap.width,
+      height: bitmap.height,
+      analysis,
+      previewBlob,
+      faceDetectionAvailable: faceDetectionAvailable(),
+    };
+  } finally {
+    bitmap.close();
+  }
 }
 
 /** Laplacian variance for focus, histogram stats for exposure, aHash for dupes. */
@@ -342,8 +497,7 @@ export function analyseBitmap(bitmap: ImageBitmap): Analysis {
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const i = y * w + x;
-      const v =
-        4 * gray[i]! - gray[i - 1]! - gray[i + 1]! - gray[i - w]! - gray[i + w]!;
+      const v = 4 * gray[i]! - gray[i - 1]! - gray[i + 1]! - gray[i - w]! - gray[i + w]!;
       lapSum += v;
       lapSq += v * v;
       count++;
@@ -419,7 +573,6 @@ export function autoRefine(tone: ToneStats, base: Edits = DEFAULT_EDITS): Edits 
   };
 }
 
-
 export function hamming(a: string, b: string) {
   let d = 0;
   for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) d++;
@@ -464,11 +617,15 @@ let detector: { detect: (s: CanvasImageSource) => Promise<DetectedFace[]> } | nu
 function getDetector() {
   if (detector !== undefined) return detector;
   const Ctor = (globalThis as unknown as { FaceDetector?: new (o: object) => never }).FaceDetector;
-  detector = Ctor
-    ? (new Ctor({ fastMode: true, maxDetectedFaces: 12 }) as unknown as {
-        detect: (s: CanvasImageSource) => Promise<DetectedFace[]>;
-      })
-    : null;
+  try {
+    detector = Ctor
+      ? (new Ctor({ fastMode: true, maxDetectedFaces: 12 }) as unknown as {
+          detect: (s: CanvasImageSource) => Promise<DetectedFace[]>;
+        })
+      : null;
+  } catch {
+    detector = null;
+  }
   return detector;
 }
 
@@ -517,7 +674,9 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
   if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null, center: undefined };
 
   const biggest = faces.reduce((a, b) =>
-    a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b,
+    a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height
+      ? a
+      : b,
   );
   const box = biggest.boundingBox;
   const bw = Math.max(8, Math.round(box.width));
@@ -709,12 +868,14 @@ export async function exportShot(
   const blob: Blob | null = await new Promise((res) =>
     canvas.toBlob((b) => res(b), "image/jpeg", 0.92),
   );
-  if (!blob) return;
+  if (!blob) throw new Error("Could not render the JPEG export.");
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = `${name.replace(/\.[^.]+$/, "")}_lensos.jpg`;
+  document.body.appendChild(a);
   a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 

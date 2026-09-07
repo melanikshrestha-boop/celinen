@@ -1,0 +1,438 @@
+.account-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  border-radius: 10px;
+  color: var(--wb-text);
+}
+.account-trigger:hover {
+  background: var(--wb-surface);
+}
+.account-trigger > span:nth-child(2),
+.account-menu-identity > span:last-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.account-trigger small,
+.account-menu-identity small {
+  display: block;
+  margin-top: 2px;
+  color: var(--moss);
+  font-size: 12px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-avatar {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #b2a57e;
+  color: #171713;
+  font-size: 11px;
+  font-weight: 600;
+}
+.account-avatar.large {
+  width: 48px;
+  height: 48px;
+  font-size: 17px;
+}
+.account-menu {
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  padding: 8px;
+  border: 1px solid var(--input);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px #00000018;
+}
+.account-menu-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 16px;
+}
+.account-menu [role="menuitem"] {
+  min-height: 42px;
+  padding: 8px;
+  gap: 10px;
+  font-size: 14px;
+  border-radius: 7px;
+}
+.account-menu kbd {
+  margin-left: auto;
+  color: var(--moss);
+  font-size: 12px;
+}
+.account-inline-error {
+  padding: 8px 10px;
+  color: var(--destructive);
+  font-size: 12px;
+}
+.account-confirm {
+  border-radius: 16px;
+}
+.workbench-nav-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chat-recents {
+  margin-top: 28px;
+  min-height: 0;
+}
+.chat-recents-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--wb-muted);
+  padding: 0 12px 10px;
+  font-size: 12px;
+}
+.chat-recents-heading > span {
+  flex: 1;
+}
+.chat-recents-heading button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+}
+.chat-recents-heading button:hover {
+  color: var(--wb-text);
+  background: var(--wb-surface);
+}
+.chat-recents > p {
+  font-size: 12px;
+  padding: 6px 12px;
+  line-height: 1.5;
+  color: var(--wb-muted);
+}
+.chat-recents > input {
+  width: calc(100% - 20px);
+  margin: 0 10px 8px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--input);
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.chat-recent {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-radius: 8px;
+}
+.chat-recent:hover,
+.chat-recent.is-active {
+  background: var(--wb-surface);
+}
+.chat-recent > button:first-child {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  font-size: 13px;
+}
+.chat-recent > button:last-child {
+  flex-shrink: 0;
+  padding: 8px;
+  color: var(--wb-muted);
+}
+.chat-recent button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.chat-rename-input {
+  width: 100%;
+  margin-bottom: 16px;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 16px;
+}
+.chat-save-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding: 4px 0 12px;
+  color: var(--wb-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.chat-save-status button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 5px;
+  border-radius: 5px;
+}
+.chat-save-status button:hover {
+  color: var(--wb-text);
+  background: var(--wb-surface);
+}
+.workbench-panels.is-settings {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.workbench-panels.is-settings > .workbench-conversation {
+  display: none;
+}
+.account-settings {
+  max-width: 1030px;
+  padding: 38px clamp(20px, 4vw, 60px);
+  margin: 0 auto;
+  color: var(--ink);
+  font-size: 16px;
+}
+.settings-header {
+  margin-bottom: 36px;
+}
+.settings-header h1 {
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+}
+.settings-header p {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--moss);
+}
+.settings-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 60px);
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.settings-nav button {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: left;
+  color: var(--moss);
+  white-space: nowrap;
+}
+.settings-nav button:hover,
+.settings-nav button[aria-current="page"] {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+.settings-detail {
+  min-width: 0;
+}
+.settings-detail h2 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 6px 0 26px;
+}
+.settings-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 30px;
+}
+.settings-profile strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.settings-profile p {
+  color: var(--moss);
+  font-size: 13px;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.settings-label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 9px;
+}
+.settings-name-field {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.settings-name-field input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 16px;
+}
+.settings-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 13px;
+  min-height: 38px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.settings-button:hover {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.settings-button.primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.account-settings button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  align-items: center;
+  padding: 19px 0;
+}
+.settings-row h3 {
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-row p,
+.settings-intro,
+.settings-footnote {
+  font-size: 13px;
+  color: var(--moss);
+  line-height: 1.6;
+  margin-top: 5px;
+}
+.settings-footnote {
+  margin-top: 16px;
+}
+.settings-control {
+  flex-shrink: 0;
+  max-width: 45%;
+  font-size: 13px;
+}
+.settings-control [role="combobox"] {
+  min-width: 130px;
+  box-shadow: none;
+  border-radius: 8px;
+}
+.settings-email {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.settings-fixed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--moss);
+}
+.settings-text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-top: 20px;
+  color: var(--moss);
+  text-underline-offset: 4px;
+}
+.settings-text-action:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.settings-shortcuts > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0;
+  font-size: 14px;
+}
+.settings-shortcuts kbd {
+  font-size: 12px;
+  color: var(--moss);
+}
+.settings-feedback {
+  min-height: 44px;
+  padding-top: 20px;
+  font-size: 13px;
+  color: var(--moss);
+}
+.settings-feedback p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-feedback [role="alert"] {
+  color: var(--destructive);
+}
+html[data-reduce-motion="true"] .photo-workbench *,
+html[data-reduce-motion="true"] [data-radix-popper-content-wrapper] * {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+html[data-chat-text="large"] .workbench-message,
+html[data-chat-text="large"] .workbench-message.assistant p,
+html[data-chat-text="large"] .workbench-message.user > span,
+html[data-chat-text="large"] .workbench-composer textarea {
+  font-size: 18px !important;
+  line-height: 1.65;
+}
+@media (max-width: 650px) {
+  .account-settings {
+    padding: 22px 18px;
+  }
+  .settings-header {
+    margin-bottom: 20px;
+  }
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .settings-nav button {
+    padding: 9px 11px;
+  }
+  .settings-detail h2 {
+    margin-bottom: 18px;
+  }
+  .settings-row {
+    gap: 12px;
+  }
+  .settings-control {
+    max-width: 48%;
+  }
+  .settings-row p {
+    font-size: 13px;
+  }
+}
