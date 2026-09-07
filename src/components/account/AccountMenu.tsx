@@ -46,7 +46,7 @@ export function AccountMenu() {
             <span className="account-avatar">{accountInitials(account.name)}</span>
             <span>
               {account.name}
-              <small>{account.local ? "On this device" : "Personal workspace"}</small>
+              <small title={account.workspaceName}>{account.workspaceName}</small>
             </span>
             <ChevronUp size={15} />
           </button>
