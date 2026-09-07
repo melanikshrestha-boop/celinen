@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { preferencesSchema, readPreferences } from "../src/lib/account-preferences";
+import {
+  DEFAULT_PREFERENCES,
+  preferencesSchema,
+  readPreferences,
+} from "../src/lib/account-preferences";
 import { restorableTabs } from "../src/lib/workbench-tabs";
 import {
   addWorkbenchTab,
@@ -24,6 +28,7 @@ describe("Black and Light appearance", () => {
         }),
       ),
     ).toEqual({
+      ...DEFAULT_PREFERENCES,
       theme: "dark",
       textSize: "large",
       reduceMotion: true,

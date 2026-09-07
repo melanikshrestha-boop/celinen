@@ -5,6 +5,15 @@ User authorized a separate no-sign-in development workspace and a day of competi
 implementation, testing, and deployment. The first three hours prioritize understanding actual
 Aftershoot and Pixieset workflows. This is a bounded sprint, not a claim of full product parity.
 
+## Latest user priority: Codex-style Settings
+
+The user subsequently requested the Settings layout from their Codex screenshots, adapted to
+photography, with a **Celine Nova development persona only**. Implemented locally on the existing
+8085 server; real account authentication and the public signup design are unchanged. Do not
+revert this work during the competitor sprint. See `docs/SETTINGS-WORKSPACE.md` for controls,
+verification, and explicit native/cloud limitations. Changes in this pass have not been published
+to production. Keep the separate local development link available for the user.
+
 ## Working link and isolation
 
 - **http://127.0.0.1:8085/workspace** is the actual LensLabs application, not a QA HTML mockup.
@@ -111,6 +120,51 @@ No competitor account created, no trial purchased, no customer photos uploaded.
   direct fetch failed. Await accessible video/transcript before deriving additional claims.
 
 ## Prioritized next passes (do not mark done without evidence)
+
+### Pass 2: review metadata and handoff research (September 7, 2026)
+
+Source-based findings, not hands-on competitor claims:
+
+| Workflow | Evidence | LensLabs implication |
+| --- | --- | --- |
+| Existing photographer ratings | [Aftershoot's XMP handoff guide](https://support.aftershoot.com/en/articles/9190048-how-do-i-keep-my-stars-colors-when-i-bring-my-images-from-lightroom-or-capture-one) requires metadata writes before transfer and re-reads afterward. | Keep source stars/labels independent of analysis scores and culling picks. |
+| Independent manual selection | [Aftershoot Flags and Linear Culling](https://support.aftershoot.com/en/articles/11533864-faq-flags-linear-culling-what-changed), dated May 22, 2026, describes manual flags, export by flags, and combined review filters. | An explicit reject must outrank a high source star rating; first-pass proposals must protect it. |
+| Creative blur | [Aftershoot blur settings](https://support.aftershoot.com/en/articles/6508135-get-the-correct-blur-settings) distinguishes lenient, moderate and strict preferences for different photographic intent. | Do not infer creative intent from sharpness alone. Existing protected picks remain protected; a validated intent-specific mode remains open work. |
+| Client selections into an editor | [Pixieset Lightroom Copy List](https://help.pixieset.com/hc/en-us/articles/115003505192-Viewing-Client-Favorites-in-Lightroom) documents partial-filename matches and virtual-copy caveats. | Audit exact source IDs/version mapping before adding copy lists; basename-only matching can choose the wrong frame. |
+
+- Adobe's [XMP Basic namespace](https://developer.adobe.com/xmp/docs/xmp-namespaces/xmp/) defines
+  ratings as -1 (rejected) or 0–5 (0 unrated). LensLabs now validates that range. Rejection is
+  exported through the separate pick flag; -1 is not sent into Lightroom's catalog star field.
+- A newer [Aftershoot walkthrough](https://www.youtube.com/watch?v=pbuyqWMyb9A), indexed as June 25,
+  2026, was discovered; direct video open failed. No watched-video claim. The [Pixieset Lightroom
+  Favorites video page](https://help.pixieset.com/hc/en-us/articles/4407465609613-How-do-I-view-my-client-s-Favorites-in-Lightroom-Tutorial-Video)
+  was read but did not yield a transcript. Existing gated public demos were not repeatedly retried.
+
+Implemented in this slice:
+
+- Corrected import precedence: an explicit rejected pick no longer becomes a keeper because it
+  has 3–5 stars. Applied to both XMP ingest and the existing Lightroom bridge.
+- Exported stars come from imported review metadata, not the machine score. Unrated stays zero.
+  A rescued XMP rejection exports as an un-rejected zero-star pick instead of conflicting flags.
+- Canonical Adobe attribute/element ratings and picks accept single quotes and whitespace;
+  invalid/out-of-range scalars do not become picks. Source color labels survive and XML-escape.
+- Existing first-pass, proposal, reconnect, original-byte, account and Studio layout behavior
+  is preserved. No new UI panel, authentication change or pixel-processing implementation.
+- Scope caveats: this remains the existing limited Adobe-sidecar importer/exporter, not a lossless
+  general XMP editor. Unrecognized edit fields and namespace aliases are not newly supported.
+  Export status warns to back up existing sidecars before replacing them with this limited output.
+  Real Lightroom/Capture One application roundtrips remain untested.
+
+Validation: 831 tests pass, 0 failures across 48 files; 186,029 assertions. TypeScript, changed-source
+lint and production build pass. Sixteen new tests cover rejection precedence, source ratings,
+labels/escaping, malformed scalars, proposals and reconnect. Actual isolated-browser import of
+the generated lens JPEG plus a synthetic 5-star/rejected XMP showed Reject selected, 5★ and the
+custom label, all preserved after reload. QA shoot `36688a73-3ed0-4f51-ba3d-913630423c03`;
+no user/client photos used. Browser evidence: `/private/tmp/lenslabs-metadata-reject-qa.png`.
+
+Next risk to close: sidecar export collisions across nested camera-card folders, and basename-only
+Lightroom bridge matching. The current source/version-aware delivery handoff should be compared
+with those paths before any filename-list feature is presented as exact matching.
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact
    interactions tried; inspect available video/transcripts. Create a workflow comparison, not an

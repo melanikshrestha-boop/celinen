@@ -4,6 +4,7 @@ import { externalSearchHref, type WebResult } from "@/lib/connections/research";
 import { searchWorkspaceWeb, webSearchReadiness } from "@/lib/connections/research.functions";
 import { useWorkbench } from "./context";
 import { workspaceToolText } from "@/lib/workbench-projects";
+import { useAccount } from "@/components/account/AccountProvider";
 
 export function ResearchPanel({
   href,
@@ -15,6 +16,8 @@ export function ResearchPanel({
   onRequestConsumed?: (href: string) => void;
 }) {
   const setToolTitle = useWorkbench()?.setToolTitle;
+  const account = useAccount();
+  const target = account?.preferences.openSources === "same-tab" ? "_self" : "_blank";
   const initial = workspaceToolText(href, "q") ?? "";
   const [query, setQuery] = useState(initial);
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -28,6 +31,10 @@ export function ResearchPanel({
   useEffect(() => {
     const requestRun = run;
     alive.current = true;
+    if (account?.local) {
+      setConfigured(false);
+      return;
+    }
     void webSearchReadiness()
       .then((state) => {
         if (alive.current) setConfigured(state.configured);
@@ -42,7 +49,7 @@ export function ResearchPanel({
       alive.current = false;
       requestRun.current++;
     };
-  }, []);
+  }, [account?.local]);
   const search = useCallback(
     async (text: string) => {
       if (text.trim().length < 2) return;
@@ -100,7 +107,7 @@ export function ResearchPanel({
           <p>In-app results need the search provider connected in hosting settings.</p>
           <p>You can still run this search in your browser.</p>
           {query.trim() && (
-            <a href={externalSearchHref(query)} target="_blank" rel="noopener noreferrer">
+            <a href={externalSearchHref(query)} target={target} rel="noopener noreferrer">
               Search on the web <ArrowUpRight size={14} />
             </a>
           )}
@@ -112,7 +119,7 @@ export function ResearchPanel({
           {configured && query.trim() && (
             <>
               {" "}
-              <a href={externalSearchHref(query)} target="_blank" rel="noopener noreferrer">
+              <a href={externalSearchHref(query)} target={target} rel="noopener noreferrer">
                 Search on the web ↗
               </a>
             </>
@@ -127,7 +134,7 @@ export function ResearchPanel({
         {results?.map((result) => (
           <article key={result.url}>
             <span>{result.domain}</span>
-            <a href={result.url} target="_blank" rel="noopener noreferrer">
+            <a href={result.url} target={target} rel="noopener noreferrer">
               {result.title}
               <ArrowUpRight size={15} />
             </a>

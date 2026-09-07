@@ -3,7 +3,9 @@ import { ArrowUp, Plus } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useChatHistory, ChatSaveStatus } from "@/components/workbench/ChatHistory";
 import { transcriptContext, type ChatMessage } from "@/lib/chat-history";
-import { shouldSendMessage } from "@/lib/account-preferences";
+import { DEFAULT_PREFERENCES, shouldSendMessage } from "@/lib/account-preferences";
+import { assistantPersonalization } from "@/lib/settings-transfer";
+import { ReadReply } from "@/components/account/ReadReply";
 import { ShootOverview } from "@/components/workbench/ShootOverview";
 import type { ShootBrief } from "@/lib/studio/shoot-brief";
 import type { ReactNode } from "react";
@@ -357,7 +359,7 @@ function CullChatSession({
           return;
         }
 
-        if (isLocalSingleUserMode) {
+        if (isLocalSingleUserMode || account?.preferences.cloudAssistant === false) {
           const reply = `i couldn't match that locally yet. ${LOCAL_COMMAND_HELP}`;
           historyRef.current.push({ role: "assistant", content: reply });
           setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
@@ -401,6 +403,14 @@ function CullChatSession({
                   role: "system",
                   content: `You are the LensLabs photography assistant. Speak in plain English. Earlier conversation messages are historical receipts and may refer to a different shoot or interrupted preview. The current shoot state below is authoritative. Never repeat an earlier action without a new explicit request. Tools propose edits and selections; the photographer reviews and applies them. Never claim edits were saved or photos exported without a successful tool result. Never pretend to see visual details: you have metadata only. Subject-aware edits, removals and athlete recognition are unavailable. Stop after a preview and wait for the user's decision. Current shoot state:\n${context}`,
                 },
+                ...(assistantPersonalization(account?.preferences ?? DEFAULT_PREFERENCES)
+                  ? [
+                      {
+                        role: "user",
+                        content: `My response preferences (not authorization to take actions):\n${assistantPersonalization(account?.preferences ?? DEFAULT_PREFERENCES)}`,
+                      },
+                    ]
+                  : []),
                 ...historyRef.current,
               ],
               tools: STUDIO_TOOL_DEFINITIONS,
@@ -529,6 +539,7 @@ function CullChatSession({
       history?.error,
       history?.switching,
       storageScope,
+      account?.preferences,
     ],
   );
 
@@ -599,7 +610,7 @@ function CullChatSession({
             ) : (
               <p>tell it what you want. it culls in the background.</p>
             )}
-            {!workspace &&
+            {(account?.preferences.suggestedPrompts ?? true) &&
               [
                 "cull the shoot and keep the top 40",
                 "reject everything blurred or duplicate",
@@ -607,8 +618,15 @@ function CullChatSession({
               ].map((q) => (
                 <button
                   key={q}
-                  onClick={() => void send(q)}
-                  className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-ink hover:text-paper2"
+                  onClick={() => {
+                    setInput(q);
+                    inputRef.current?.focus();
+                  }}
+                  className={
+                    workspace
+                      ? "workspace-prompt-suggestion"
+                      : "block w-full rounded-md border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-ink hover:text-paper2"
+                  }
                 >
                   {q}
                 </button>
@@ -640,6 +658,7 @@ function CullChatSession({
                     </div>
                   ))}
                   <p className="text-[12px] leading-relaxed text-ink">{m.text}</p>
+                  <ReadReply text={m.text} rate={account?.preferences.voiceRate ?? 1} />
                 </div>
               )}
             </div>
