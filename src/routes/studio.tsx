@@ -7,6 +7,9 @@ import { resolveWorkspaceBinding } from "@/lib/workbench-projects";
 import { EditSlider } from "@/components/studio/Slider";
 import { CullChat, type ToolCall } from "@/components/studio/CullChat";
 import { useAccount } from "@/components/account/AccountProvider";
+import { useProcessingWakeLock } from "@/components/account/WorkspacePreferences";
+import { DEFAULT_PREFERENCES } from "@/lib/account-preferences";
+import { importLanes } from "@/lib/settings-transfer";
 import { Filmstrip } from "@/components/studio/Filmstrip";
 import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
@@ -22,6 +25,7 @@ import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
+import { exportedReviewMetadata, importedReviewVerdict } from "@/lib/studio/review-metadata";
 import type { AdobeSettingsPastePlan } from "@/lib/studio/adobe-paste";
 import { applyCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
 import {
@@ -271,7 +275,10 @@ export function Studio({
   const [dropActive, setDropActive] = useState(false);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [chatHasContent, setChatHasContent] = useState(false);
-  const registerAccountLeave = useAccount()?.registerLeaveGuard;
+  const identity = useAccount();
+  const registerAccountLeave = identity?.registerLeaveGuard;
+  const preferences = identity?.preferences ?? DEFAULT_PREFERENCES;
+  useProcessingWakeLock(preferences.keepAwake, Boolean(progress || busy));
   const [burstOpen, setBurstOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineCount, setDeadlineCount] = useState(20);
@@ -758,7 +765,9 @@ export function Studio({
       setProgress({ done: 0, total: uniquePhotos(files).length });
       // Lightroom folders carry .xmp sidecars next to the negatives.
       const sidecars = new Map<string, string>();
-      const sidecarFiles = files.filter((f) => f.name.toLowerCase().endsWith(".xmp"));
+      const sidecarFiles = preferences.importSidecars
+        ? files.filter((f) => f.name.toLowerCase().endsWith(".xmp"))
+        : [];
       for (const f of sidecarFiles) {
         if (!mountedRef.current || importRunRef.current !== importRun) return;
         try {
@@ -864,12 +873,7 @@ export function Studio({
             tone: analysis.tone,
             score,
             flags,
-            verdict:
-              parsed?.pick === 1 || (parsed?.rating ?? 0) >= 3
-                ? "keep"
-                : parsed?.pick === -1
-                  ? "reject"
-                  : "undecided",
+            verdict: importedReviewVerdict(parsed),
             edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
             faces: faces ?? undefined,
             develop: parsed
@@ -877,6 +881,7 @@ export function Studio({
                   origin: "sidecar",
                   at: Date.now(),
                   rating: parsed.rating ?? undefined,
+                  label: parsed.label,
                 }
               : undefined,
           };
@@ -917,9 +922,11 @@ export function Studio({
       };
 
       // RAW decoders are memory-heavy, so keep those shoots deliberately narrow.
-      const lanes = files.some(isRawFile)
-        ? 2
-        : Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4));
+      const lanes = importLanes(
+        files.some(isRawFile),
+        navigator.hardwareConcurrency,
+        preferences.processingSpeed,
+      );
       let cursor = 0;
       await Promise.all(
         Array.from({ length: Math.min(lanes, files.length) }, async () => {
@@ -972,7 +979,7 @@ export function Studio({
         }
       }
     },
-    [selectShot, stageCull, updateShots],
+    [selectShot, stageCull, updateShots, preferences.importSidecars, preferences.processingSpeed],
   );
 
   /* ---------------- Lightroom live bridge ---------------- */
@@ -1005,12 +1012,7 @@ export function Studio({
                 ? { temp: Math.max(-100, Math.min(100, ((d.temperature - 5500) / 4500) * 100)) }
                 : {}),
             },
-            verdict:
-              frame.pick === 1 || (frame.rating ?? 0) >= 3
-                ? "keep"
-                : frame.pick === -1
-                  ? "reject"
-                  : s.verdict,
+            verdict: importedReviewVerdict(frame, s.verdict),
             develop: {
               origin: "lightroom",
               at: Date.now(),
@@ -1068,8 +1070,7 @@ export function Studio({
         file: s.name,
         verdict: s.verdict,
         score: s.score,
-        rating: s.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(s.score / 20))),
-        label: s.verdict === "keep" ? "Green" : s.verdict === "reject" ? "Red" : null,
+        ...exportedReviewMetadata(s),
         develop: {
           exposure: s.edits.exposure / 20,
           contrast: s.edits.contrast,
@@ -1510,9 +1511,8 @@ export function Studio({
     }
     const done = latestShotsRef.current.filter((s) => s.verdict !== "undecided" && !s.error);
     for (const shot of done) {
-      const rating =
-        shot.verdict === "reject" ? 0 : Math.max(1, Math.min(5, Math.round(shot.score / 20)));
-      const xml = buildXmpSidecar(shot.edits, shot.verdict, rating);
+      const metadata = exportedReviewMetadata(shot);
+      const xml = buildXmpSidecar(shot.edits, shot.verdict, metadata.rating, metadata.label);
       const url = URL.createObjectURL(new Blob([xml], { type: "application/rdf+xml" }));
       const a = document.createElement("a");
       a.href = url;
@@ -1523,7 +1523,7 @@ export function Studio({
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
     setSyncNote(
-      `Requested ${done.length} sidecar download${done.length === 1 ? "" : "s"}. Check your browser downloads, then re-read metadata in Lightroom to sync.`,
+      `Requested ${done.length} sidecar download${done.length === 1 ? "" : "s"}. Only supported settings are included; back up existing sidecars before replacing them. Check your downloads, then re-read metadata in Lightroom.`,
     );
     return done.length;
   };

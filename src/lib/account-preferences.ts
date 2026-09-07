@@ -23,6 +23,21 @@ export const preferencesSchema = z
     textSize: z.enum(["default", "large"]).default("default"),
     reduceMotion: z.boolean().default(false),
     sidebarOpen: z.boolean().default(true),
+    cloudAssistant: z.boolean().default(true),
+    suggestedPrompts: z.boolean().default(true),
+    keepAwake: z.boolean().default(false),
+    importSidecars: z.boolean().default(true),
+    processingSpeed: z.enum(["balanced", "gentle"]).default("balanced"),
+    pointerCursors: z.boolean().default(true),
+    showPet: z.boolean().default(false),
+    pet: z.enum(["cat", "dog"]).default("cat"),
+    openSources: z.enum(["new-tab", "same-tab"]).default("new-tab"),
+    personality: z.enum(["none", "friendly", "concise"]).default("none"),
+    customInstructions: z.string().trim().max(2000).default(""),
+    voiceRate: z
+      .number()
+      .refine((value) => [0.75, 1, 1.25, 1.5, 2].includes(value))
+      .default(1),
   })
   .strict();
 export type AccountPreferences = z.infer<typeof preferencesSchema>;

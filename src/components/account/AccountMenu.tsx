@@ -1,5 +1,13 @@
-import { useEffect, useState } from "react";
-import { ChevronUp, LogOut, Settings, UserRound } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { ChevronUp, LogOut, Settings, Gauge, Cat, Send } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,16 +35,14 @@ export function AccountMenu() {
   const workbench = useWorkbench();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
-        event.preventDefault();
-        void workbench?.openTool("/settings");
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [workbench]);
+  const navigate = useNavigate();
+  const [invite, setInvite] = useState(false);
+  const [inviteNote, setInviteNote] = useState("");
+  const [preferenceError, setPreferenceError] = useState("");
+  const openSection = async (hash: string) => {
+    if (await workbench?.openTool("/settings"))
+      await navigate({ search: true, hash, replace: true });
+  };
   if (!account) return null;
   return (
     <>
@@ -63,15 +69,38 @@ export function AccountMenu() {
           </DropdownMenuLabel>
           <DropdownMenuItem
             onSelect={() => {
-              void workbench?.openTool("/settings");
+              void openSection("usage");
             }}
           >
-            <UserRound size={17} />
-            Your profile
+            <Gauge size={17} />
+            Usage <kbd>{account.local ? "Local" : "Storage"}</kbd>
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
-              void workbench?.openTool("/settings");
+              try {
+                account.savePreferences({ showPet: !account.preferences.showPet });
+                setPreferenceError("");
+              } catch {
+                setPreferenceError("Could not save the pet preference.");
+              }
+            }}
+          >
+            <Cat size={17} />
+            {account.preferences.showPet ? "Hide pet" : "Show pet"}
+            <kbd>⌃Space</kbd>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              setInvite(true);
+              setInviteNote("");
+            }}
+          >
+            <Send size={17} />
+            Invite a friend
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              void openSection("general");
             }}
           >
             <Settings size={17} />
@@ -83,6 +112,40 @@ export function AccountMenu() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {preferenceError && (
+        <p role="alert" className="account-inline-error">
+          {preferenceError}
+        </p>
+      )}
+      <Dialog open={invite} onOpenChange={setInvite}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite a friend</DialogTitle>
+            <DialogDescription>
+              Share LensLabs. This link opens the public website, not your private shoots.
+            </DialogDescription>
+          </DialogHeader>
+          <input
+            aria-label="LensLabs invitation link"
+            value="https://lenslab.dev/"
+            readOnly
+            onFocus={(event) => event.target.select()}
+            className="settings-shortcut-search"
+          />
+          <button
+            className="settings-button primary"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText("https://lenslab.dev/")
+                .then(() => setInviteNote("Link copied"))
+                .catch(() => setInviteNote("Select the link above and copy it manually."));
+            }}
+          >
+            Copy link
+          </button>
+          <p role="status">{inviteNote}</p>
+        </DialogContent>
+      </Dialog>
       {account.error && (
         <p className="account-inline-error" role="alert">
           {account.error}

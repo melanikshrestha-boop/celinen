@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
+import { WorkspacePreferences } from "@/components/account/WorkspacePreferences";
 import { AccountSetup } from "@/components/account/AccountSetup";
 import { LogoMark } from "@/components/lensos/Logo";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
@@ -106,7 +107,7 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider
       key={account}
-      className="photo-workbench"
+      className={`photo-workbench ${new URL(href, "https://workspace.invalid").pathname === "/settings" ? "settings-mode" : ""}`}
       open={sidebarOpen}
       onOpenChange={(sidebarOpen) => {
         setSidebarOpen(sidebarOpen);
@@ -333,6 +334,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   return (
     <ChatHistoryProvider scope={account} project={projectScope(activeBinding)}>
       <WorkbenchContext.Provider value={context}>
+        <WorkspacePreferences />
         <Sidebar className="workbench-sidebar">
           <SidebarHeader className="workbench-sidebar-top">
             <a

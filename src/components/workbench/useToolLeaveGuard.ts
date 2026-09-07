@@ -18,6 +18,7 @@ export function useToolLeaveGuard(risk: string | null, beforeLeave?: () => Promi
   useBlocker({
     shouldBlockFn: async ({ current, next }) => {
       if (
+        !risk &&
         current.pathname === next.pathname &&
         JSON.stringify(current.search) === JSON.stringify(next.search)
       )

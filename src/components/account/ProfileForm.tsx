@@ -113,7 +113,7 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
         <span role="status">
           {saved && (
             <>
-              <Check size={14} /> Saved to your account
+              <Check size={14} /> {account.local ? "Saved on this device" : "Saved to your account"}
             </>
           )}
         </span>

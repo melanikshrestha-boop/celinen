@@ -2,6 +2,7 @@
  * LensLabs imaging core.
  * Runs entirely in the browser: decode, analyse, score, edit, export.
  */
+import { validReviewRating } from "./studio/review-metadata";
 
 export const RAW_EXTENSIONS = [
   "nef",
@@ -900,6 +901,54 @@ export interface SidecarSettings {
   rating: number | null;
   /** Lightroom pick flag: 1 = flagged/pick, -1 = rejected */
   pick: number | null;
+  /** Preserve user-defined labels independently of LensLabs keep/reject decisions. */
+  label?: string;
+}
+
+/** Read the canonical Adobe scalar forms without evaluating entities or fetching any resources. */
+function sidecarValue(xml: string, key: string): string | undefined {
+  const clean = xml.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g, "");
+  const attr = new RegExp(`(?:^|\\s)${key}\\s*=\\s*(["'])([\\s\\S]*?)\\1`).exec(clean);
+  return attr?.[2] ?? new RegExp(`<${key}\\s*>([^<]*)</${key}\\s*>`).exec(clean)?.[1];
+}
+
+function sidecarNumber(raw: string | undefined): number | null {
+  if (raw === undefined || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw.trim())) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function decodeSidecarText(raw: string): string {
+  return raw.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (match, entity: string) => {
+    const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+    if (named[entity]) return named[entity];
+    const code = entity.startsWith("#x") ? parseInt(entity.slice(2), 16) : Number(entity.slice(1));
+    return code === 9 ||
+      code === 10 ||
+      code === 13 ||
+      (code >= 32 && code <= 0xd7ff) ||
+      (code >= 0xe000 && code <= 0xfffd) ||
+      (code >= 0x10000 && code <= 0x10ffff)
+      ? String.fromCodePoint(code)
+      : match;
+  });
+}
+
+function encodeSidecarText(value: string): string {
+  return value.replace(
+    /[&<>"'\t\r\n]/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&apos;",
+        "\t": "&#9;",
+        "\r": "&#13;",
+        "\n": "&#10;",
+      })[char]!,
+  );
 }
 
 function num(xml: string, key: string): number | null {
@@ -928,25 +977,32 @@ export function parseXmpSidecar(xml: string): SidecarSettings {
     edits.temp = Math.max(-100, Math.min(100, ((temp - 5500) / 4500) * 100));
   }
 
-  const ratingRaw =
-    /xmp:Rating="(-?\d+)"/.exec(xml)?.[1] ?? /<xmp:Rating>(-?\d+)<\/xmp:Rating>/.exec(xml)?.[1];
-  const pickRaw = /crs:Pick="(-?\d+)"/.exec(xml)?.[1];
+  const rating = sidecarNumber(sidecarValue(xml, "xmp:Rating"));
+  const pick = sidecarNumber(sidecarValue(xml, "crs:Pick"));
+  const label = sidecarValue(xml, "xmp:Label");
   return {
     edits,
-    rating: ratingRaw === undefined ? null : Number(ratingRaw),
-    pick: pickRaw === undefined ? null : Number(pickRaw),
+    rating: validReviewRating(rating) ? rating : null,
+    pick: pick === -1 || pick === 0 || pick === 1 ? pick : null,
+    ...(label !== undefined ? { label: decodeSidecarText(label) } : {}),
   };
 }
 
 /** Write a Lightroom-readable .xmp sidecar from LensLabs edits. */
-export function buildXmpSidecar(edits: Edits, verdict: Verdict, rating: number) {
+export function buildXmpSidecar(
+  edits: Edits,
+  verdict: Verdict,
+  rating: number,
+  label?: string | null,
+) {
   const kelvin = Math.round(5500 + (edits.temp / 100) * 4500);
   return `<x:xmpmeta xmlns:x="adobe:ns:meta/">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
   <rdf:Description rdf:about=""
     xmlns:xmp="http://ns.adobe.com/xap/1.0/"
     xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
-    xmp:Rating="${rating}"
+    xmp:Rating="${validReviewRating(rating) && rating >= 0 ? rating : 0}"
+    ${typeof label === "string" ? `xmp:Label="${encodeSidecarText(label)}"` : ""}
     crs:Pick="${verdict === "keep" ? 1 : verdict === "reject" ? -1 : 0}"
     crs:Exposure2012="${(edits.exposure / 20).toFixed(2)}"
     crs:Contrast2012="${Math.round(edits.contrast)}"

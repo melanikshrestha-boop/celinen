@@ -15,8 +15,8 @@ type Account = NonNullable<ReturnType<typeof realUseAccount>>;
 const scope = "device-local";
 const profileKey = "lenslabs.development-lab.profile.v1";
 const initialProfile = {
-  name: "Development workspace",
-  workspaceName: "Local development · cloud off",
+  name: "Celine Nova",
+  workspaceName: "Development workspace",
 };
 const AccountContext = createContext<Account | null>(null);
 // eslint-disable-next-line react-refresh/only-export-components
@@ -35,7 +35,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const parsed = profileInputSchema.safeParse(
           JSON.parse(localStorage.getItem(profileKey) ?? "null"),
         );
-        setProfile(parsed.success ? parsed.data : initialProfile);
+        setProfile(
+          parsed.success && parsed.data.name !== "Development workspace"
+            ? parsed.data
+            : initialProfile,
+        );
         setPreferences(readPreferences(localStorage.getItem(preferenceKey(scope))));
         setError(null);
       } catch {
