@@ -22,7 +22,9 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as MailRouteImport } from './routes/mail'
 import { Route as MetadataRouteImport } from './routes/metadata'
+import { Route as NetworkRouteImport } from './routes/network'
 import { Route as PackagesRouteImport } from './routes/packages'
+import { Route as PhotographersRouteImport } from './routes/photographers'
 import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
@@ -34,6 +36,7 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
+import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as VideoRouteImport } from './routes/video'
@@ -113,9 +116,19 @@ const MetadataRoute = MetadataRouteImport.update({
   path: '/metadata',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NetworkRoute = NetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PackagesRoute = PackagesRouteImport.update({
   id: '/packages',
   path: '/packages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhotographersRoute = PhotographersRouteImport.update({
+  id: '/photographers',
+  path: '/photographers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PickRoute = PickRouteImport.update({
@@ -171,6 +184,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ShootRoute = ShootRouteImport.update({
   id: '/shoot',
   path: '/shoot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShopRoute = ShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -255,7 +273,9 @@ export interface FileRoutesByFullPath {
   '/earnings': typeof EarningsRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
+  '/network': typeof NetworkRoute
   '/packages': typeof PackagesRoute
+  '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
@@ -267,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/video': typeof VideoRoute
@@ -295,7 +316,9 @@ export interface FileRoutesByTo {
   '/earnings': typeof EarningsRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
+  '/network': typeof NetworkRoute
   '/packages': typeof PackagesRoute
+  '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
@@ -307,6 +330,7 @@ export interface FileRoutesByTo {
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/video': typeof VideoRoute
@@ -336,7 +360,9 @@ export interface FileRoutesById {
   '/earnings': typeof EarningsRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
+  '/network': typeof NetworkRoute
   '/packages': typeof PackagesRoute
+  '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
@@ -348,6 +374,7 @@ export interface FileRoutesById {
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/video': typeof VideoRoute
@@ -378,7 +405,9 @@ export interface FileRouteTypes {
     | '/earnings'
     | '/mail'
     | '/metadata'
+    | '/network'
     | '/packages'
+    | '/photographers'
     | '/pick'
     | '/portal'
     | '/portfolio'
@@ -390,6 +419,7 @@ export interface FileRouteTypes {
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shop'
     | '/signup'
     | '/studio'
     | '/video'
@@ -418,7 +448,9 @@ export interface FileRouteTypes {
     | '/earnings'
     | '/mail'
     | '/metadata'
+    | '/network'
     | '/packages'
+    | '/photographers'
     | '/pick'
     | '/portal'
     | '/portfolio'
@@ -430,6 +462,7 @@ export interface FileRouteTypes {
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shop'
     | '/signup'
     | '/studio'
     | '/video'
@@ -458,7 +491,9 @@ export interface FileRouteTypes {
     | '/earnings'
     | '/mail'
     | '/metadata'
+    | '/network'
     | '/packages'
+    | '/photographers'
     | '/pick'
     | '/portal'
     | '/portfolio'
@@ -470,6 +505,7 @@ export interface FileRouteTypes {
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shop'
     | '/signup'
     | '/studio'
     | '/video'
@@ -499,7 +535,9 @@ export interface RootRouteChildren {
   EarningsRoute: typeof EarningsRoute
   MailRoute: typeof MailRoute
   MetadataRoute: typeof MetadataRoute
+  NetworkRoute: typeof NetworkRoute
   PackagesRoute: typeof PackagesRoute
+  PhotographersRoute: typeof PhotographersRoute
   PickRoute: typeof PickRoute
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
@@ -511,6 +549,7 @@ export interface RootRouteChildren {
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
+  ShopRoute: typeof ShopRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   VideoRoute: typeof VideoRoute
@@ -619,11 +658,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MetadataRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/network': {
+      id: '/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/packages': {
       id: '/packages'
       path: '/packages'
       fullPath: '/packages'
       preLoaderRoute: typeof PackagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/photographers': {
+      id: '/photographers'
+      path: '/photographers'
+      fullPath: '/photographers'
+      preLoaderRoute: typeof PhotographersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pick': {
@@ -701,6 +754,13 @@ declare module '@tanstack/react-router' {
       path: '/shoot'
       fullPath: '/shoot'
       preLoaderRoute: typeof ShootRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shop': {
+      id: '/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof ShopRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -811,7 +871,9 @@ const rootRouteChildren: RootRouteChildren = {
   EarningsRoute: EarningsRoute,
   MailRoute: MailRoute,
   MetadataRoute: MetadataRoute,
+  NetworkRoute: NetworkRoute,
   PackagesRoute: PackagesRoute,
+  PhotographersRoute: PhotographersRoute,
   PickRoute: PickRoute,
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
@@ -823,6 +885,7 @@ const rootRouteChildren: RootRouteChildren = {
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
+  ShopRoute: ShopRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   VideoRoute: VideoRoute,
