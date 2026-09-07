@@ -234,18 +234,24 @@ function AccountDeliveryWorkspace({
         if (alive) setDrafts(saved);
       })
       .catch((e) => setError(messageOf(e)));
-    void checkPrivateDelivery()
-      .then((value) => {
-        if (alive) {
-          setReady(value.ready);
-          setSetupNote(value.reason);
-        }
-      })
-      .catch(() =>
-        setSetupNote(
-          "Private delivery is unavailable. You can still prepare a draft on this device.",
-        ),
-      );
+    // Device-local drafts do not need a cloud-readiness request or a cloud account.
+    if (!ownerId) {
+      setReady(false);
+      setSetupNote("Sign in to connect this draft to your private online gallery.");
+    } else
+      void checkPrivateDelivery()
+        .then((value) => {
+          if (alive) {
+            setReady(value.ready);
+            setSetupNote(value.reason);
+          }
+        })
+        .catch(() => {
+          if (alive)
+            setSetupNote(
+              "Private delivery is unavailable. You can still prepare a draft on this device.",
+            );
+        });
     return () => {
       alive = false;
     };
@@ -723,7 +729,19 @@ function AccountDeliveryWorkspace({
             ) : (
               <>
                 <div className="delivery-room-heading">
-                  {!local && room.state.released.length > 0 && <button className="delivery-quiet" disabled={busy} onClick={() => { const href = `/publish?gallery=${room.id}`; if (workbench) void workbench.openTool(href); else window.location.assign(href); }}>Share finals to portfolio & Instagram <ArrowRight size={16} /></button>}
+                  {!local && room.state.released.length > 0 && (
+                    <button
+                      className="delivery-quiet"
+                      disabled={busy}
+                      onClick={() => {
+                        const href = `/publish?gallery=${room.id}`;
+                        if (workbench) void workbench.openTool(href);
+                        else window.location.assign(href);
+                      }}
+                    >
+                      Share finals to portfolio & Instagram <ArrowRight size={16} />
+                    </button>
+                  )}
                   <div>
                     <h2>{room.state.title}</h2>
                     <p>

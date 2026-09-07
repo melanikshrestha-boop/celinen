@@ -190,7 +190,9 @@ describe("public marketing gates", () => {
     expect(cipher).not.toContain("test-secret");
     expect(openToken(cipher, "owner-a", key)).toBe("test-secret");
     expect(() => openToken(cipher, "owner-b", key)).toThrow();
-    expect(() => openToken(cipher.slice(0, 10) + "Z" + cipher.slice(11), "owner-a", key)).toThrow();
+    // The nonce is random; replacing a character with Z was occasionally a no-op.
+    const changed = cipher[10] === "Z" ? "A" : "Z";
+    expect(() => openToken(cipher.slice(0, 10) + changed + cipher.slice(11), "owner-a", key)).toThrow();
   });
   test("provider errors do not expose tokens or raw upstream response", async () => {
     const request = async (url: unknown, init?: RequestInit) => {
