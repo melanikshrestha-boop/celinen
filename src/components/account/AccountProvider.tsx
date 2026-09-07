@@ -12,6 +12,7 @@ import {
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { verifiedSessionReceiver } from "@/lib/account-access";
+import { profileInputSchema, readAccountProfile, type ProfileInput } from "@/lib/account-profile";
 import {
   accountName,
   DEFAULT_PREFERENCES,
@@ -28,9 +29,12 @@ type Account = {
   user: User | null;
   local: boolean;
   name: string;
+  workspaceName: string;
+  setupComplete: boolean;
   error: string | null;
   preferences: AccountPreferences;
   saveName: (name: string) => Promise<void>;
+  saveProfile: (profile: ProfileInput) => Promise<void>;
   savePreferences: (patch: Partial<AccountPreferences>) => void;
   signOut: () => Promise<boolean>;
   registerLeaveGuard: (guard: () => Promise<boolean>) => () => void;
@@ -50,17 +54,33 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
   const identityEpoch = useRef(0);
   const profileEpoch = useRef(0);
+  const confirmedProfile = useRef<{ owner: string; metadata: Record<string, unknown> } | null>(
+    null,
+  );
   const scope = status === "in" ? (user?.id ?? null) : null;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   useEffect(() => {
     const receiver = verifiedSessionReceiver(
       async (token) => {
+        const startedAt = profileEpoch.current;
         const { data, error } = await supabase.auth.getUser(token);
         if (error) throw error;
+        // A verification begun before a completed profile save must not reopen setup
+        // (and unmount the shoot) with its older metadata. Identity still comes from Auth.
+        if (
+          data.user &&
+          startedAt !== profileEpoch.current &&
+          confirmedProfile.current?.owner === data.user.id
+        )
+          return {
+            ...data.user,
+            user_metadata: { ...data.user.user_metadata, ...confirmedProfile.current.metadata },
+          };
         return data.user;
       },
       (verified) => {
+        if (confirmedProfile.current?.owner !== verified?.id) confirmedProfile.current = null;
         identityEpoch.current++;
         setUser(verified);
         setStatus(verified ? "in" : "out");
@@ -213,6 +233,32 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       signingOut.current = false;
     }
   }, []);
+  const saveProfile = useCallback(
+    async (input: ProfileInput) => {
+      const profile = profileInputSchema.parse(input);
+      if (!scope) throw new Error("Sign in first.");
+      const epoch = identityEpoch.current;
+      const operation = ++profileEpoch.current;
+      const { saveAccountProfile } = await import("@/lib/account.functions");
+      const metadata = await saveAccountProfile({ data: { ...profile, expectedOwner: scope } });
+      if (
+        scopeRef.current !== scope ||
+        identityEpoch.current !== epoch ||
+        profileEpoch.current !== operation
+      )
+        throw new Error(
+          "Your account changed while saving. Reopen settings to check your profile.",
+        );
+      confirmedProfile.current = { owner: scope, metadata };
+      profileEpoch.current++;
+      setUser((current) =>
+        current?.id === scope
+          ? { ...current, user_metadata: { ...current.user_metadata, ...metadata } }
+          : current,
+      );
+    },
+    [scope],
+  );
   const value = useMemo<Account>(
     () => ({
       status,
@@ -220,9 +266,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       user,
       local: false,
       name: accountName(user?.user_metadata, user?.email),
+      ...readAccountProfile(user?.user_metadata),
       error,
       preferences,
       saveName,
+      saveProfile,
       savePreferences,
       signOut,
       registerLeaveGuard,
@@ -234,6 +282,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       error,
       preferences,
       saveName,
+      saveProfile,
       savePreferences,
       signOut,
       registerLeaveGuard,

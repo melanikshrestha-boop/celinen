@@ -11,12 +11,12 @@ import {
   UserRound,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { ProfileForm } from "@/components/account/ProfileForm";
 import { useWorkbench } from "@/components/workbench/context";
 import { useGmail } from "@/components/workbench/GmailConnection";
 import {
   accountInitials,
   DEFAULT_PREFERENCES,
-  displayNameSchema,
   type AccountPreferences,
 } from "@/lib/account-preferences";
 import { Switch } from "@/components/ui/switch";
@@ -81,12 +81,11 @@ function Choice({
   );
 }
 
-function Settings() {
+export function Settings() {
   const account = useAccount();
   const workbench = useWorkbench();
   const [section, setSection] = useState<Section>("account");
-  const [name, setName] = useState(account?.name ?? "");
-  const [saving, setSaving] = useState(false);
+  const [shortcutQuery, setShortcutQuery] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [storage, setStorage] = useState<{
@@ -94,9 +93,12 @@ function Settings() {
     quota?: number;
     persisted: boolean;
   } | null>(null);
-  useEffect(() => {
-    setName(account?.name ?? "");
-  }, [account?.name]);
+  const changeSection = (value: string) => {
+    if (!SECTIONS.some(([id]) => id === value)) return;
+    setSection(value as Section);
+    setNote("");
+    setError("");
+  };
   const save = (patch: Partial<AccountPreferences>) => {
     try {
       account?.savePreferences(patch);
@@ -126,114 +128,75 @@ function Settings() {
   }, [section]);
   if (!account || account.status !== "in") return null;
   const prefs = account.preferences;
+  const shortcuts = [
+    ["⌘ / Ctrl + K", "Open tools"],
+    ["⌘ / Ctrl + ,", "Open settings"],
+    ["⌘ / Ctrl + B", "Toggle sidebar"],
+    [prefs.sendKey === "enter" ? "Enter" : "⌘ / Ctrl + Enter", "Send chat message"],
+    ["Shift + Enter", "New line in chat"],
+    ["K", "Keep the selected photo"],
+    ["X", "Soft reject"],
+    ["U", "Mark undecided"],
+    ["← / →", "Previous / next photo"],
+    ["⌘ / Ctrl + Z", "Undo photo change"],
+  ].filter((entry) => entry.join(" ").toLowerCase().includes(shortcutQuery.trim().toLowerCase()));
   return (
     <section className="account-settings" aria-label="Settings">
       <header className="settings-header">
         <h1>Settings</h1>
-        <p>Make room for the way you work.</p>
       </header>
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Settings sections">
-          {SECTIONS.map(([id, label, Icon]) => (
-            <button
-              key={id}
-              aria-current={section === id ? "page" : undefined}
-              onClick={() => {
-                setSection(id);
-                setNote("");
-                setError("");
-              }}
-            >
-              <Icon size={17} />
-              {label}
-            </button>
-          ))}
-        </nav>
+        <div className="settings-navigation">
+          <nav className="settings-nav" aria-label="Settings sections">
+            {SECTIONS.map(([id, label, Icon]) => (
+              <button
+                key={id}
+                aria-current={section === id ? "page" : undefined}
+                onClick={() => changeSection(id)}
+              >
+                <Icon size={17} />
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="settings-section-picker">
+            <Choice
+              label="Settings section"
+              value={section}
+              values={SECTIONS.map(([id, label]) => [id, label])}
+              onChange={changeSection}
+            />
+          </div>
+        </div>
         <div className="settings-detail">
           <h2>{SECTIONS.find(([id]) => id === section)?.[1]}</h2>
-          {section === "account" && (
-            <>
-              <div className="settings-profile">
-                <span className="account-avatar large">{accountInitials(account.name)}</span>
-                <div>
-                  <strong>{account.name}</strong>
-                  <p>{account.local ? "Local profile · this device only" : account.user?.email}</p>
-                </div>
+          <div hidden={section !== "account"}>
+            <div className="settings-profile">
+              <span className="account-avatar large">{accountInitials(account.name)}</span>
+              <div>
+                <strong>{account.name}</strong>
+                <p>{account.local ? "Local profile · this device only" : account.user?.email}</p>
               </div>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const parsed = displayNameSchema.safeParse(name);
-                  if (!parsed.success) {
-                    setError(parsed.error.issues[0]?.message ?? "Check your name.");
-                    return;
-                  }
-                  setSaving(true);
-                  setError("");
-                  setNote("");
-                  void account
-                    .saveName(parsed.data)
-                    .then(() =>
-                      setNote(
-                        account.local
-                          ? "Profile saved on this device."
-                          : "Profile saved to your account.",
-                      ),
-                    )
-                    .catch((error: unknown) =>
-                      setError(
-                        error instanceof Error ? error.message : "Profile could not be saved.",
-                      ),
-                    )
-                    .finally(() => setSaving(false));
-                }}
-              >
-                <label className="settings-label" htmlFor="profile-display-name">
-                  Display name
-                </label>
-                <div className="settings-name-field">
-                  <input
-                    id="profile-display-name"
-                    autoComplete="name"
-                    maxLength={80}
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    disabled={saving}
-                  />
-                  <button
-                    className="settings-button primary"
-                    type="submit"
-                    disabled={saving || name.trim() === account.name || !name.trim()}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                </div>
-              </form>
-              <Row
-                title={account.local ? "Local workspace" : "Remembered sign-in"}
-                note={
-                  account.local
-                    ? "This development profile is not a cloud account or a security lock. Your saved shoot stays here when you close it."
-                    : "This browser restores your session and refreshes it automatically. Log out from the profile menu when you're done on a shared computer."
-                }
-              >
-                <Check size={17} />
-              </Row>
-              {!account.local && (
-                <Row
-                  title="Email address"
-                  note="Your sign-in address. Changing a display name does not change it."
-                >
-                  <span className="settings-email">{account.user?.email}</span>
-                </Row>
-              )}
-              <p className="settings-footnote">
-                {account.local
-                  ? "Cloud accounts require the hosted sign-in flow. Local photos are never silently assigned to another account."
-                  : "A revoked or expired session, browser data clearing, or your account's security policy can require signing in again."}
-              </p>
-            </>
-          )}
+            </div>
+            <ProfileForm key={account.scope} />
+            <Row
+              title="Stay signed in"
+              note="Your session restores automatically. Log out on shared computers."
+            >
+              <span className="settings-fixed">
+                <Check size={15} /> Enabled
+              </span>
+            </Row>
+            <Row title="Sign-in method" note="Use your original method when signing in again.">
+              <span>
+                {account.user?.app_metadata?.["provider"] === "google" ? "Google" : "Email"}
+              </span>
+            </Row>
+            <p className="settings-footnote">
+              Your sign-in email is shown above and cannot be changed here. Session expiry or
+              clearing browser data may require signing in again.
+            </p>
+          </div>
           {section === "appearance" && (
             <>
               <p className="settings-intro">
@@ -320,8 +283,8 @@ function Settings() {
                 </span>
               </Row>
               <Row
-                title="New chat keeps your shoot"
-                note="Conversations are separate from photos. Starting a new chat doesn't delete your pictures or undo history."
+                title="New chats start fresh"
+                note="Previous photos stay in Recent Shoots. Open a shoot to continue its conversations and edits."
               >
                 <Check size={17} />
               </Row>
@@ -412,23 +375,25 @@ function Settings() {
           )}
           {section === "shortcuts" && (
             <div className="settings-shortcuts">
-              {[
-                ["⌘ / Ctrl + K", "Open tools"],
-                ["⌘ / Ctrl + ,", "Open settings"],
-                ["⌘ / Ctrl + B", "Toggle sidebar"],
-                [prefs.sendKey === "enter" ? "Enter" : "⌘ / Ctrl + Enter", "Send chat message"],
-                ["Shift + Enter", "New line in chat"],
-                ["K", "Keep the selected photo"],
-                ["X", "Soft reject"],
-                ["U", "Mark undecided"],
-                ["← / →", "Previous / next photo"],
-                ["⌘ / Ctrl + Z", "Undo photo change"],
-              ].map(([key, description]) => (
+              <input
+                className="settings-shortcut-search"
+                aria-label="Search keyboard shortcuts"
+                type="search"
+                placeholder="Find a shortcut…"
+                value={shortcutQuery}
+                onChange={(event) => setShortcutQuery(event.target.value)}
+              />
+              {shortcuts.map(([key, description]) => (
                 <div key={key}>
                   <span>{description}</span>
                   <kbd>{key}</kbd>
                 </div>
               ))}
+              {shortcuts.length === 0 && (
+                <p role="status" className="settings-footnote">
+                  No shortcuts match “{shortcutQuery}”.
+                </p>
+              )}
               <p className="settings-footnote">
                 Photo shortcuts work when the Studio pane is focused, not while typing.
               </p>
@@ -518,6 +483,14 @@ function Connections() {
       >
         <button className="settings-button" onClick={() => void workbench?.openTool("/adobe")}>
           Open Adobe <ArrowUpRight size={14} />
+        </button>
+      </Row>
+      <Row
+        title="Instagram & portfolio"
+        note="Connect a professional Instagram account and prepare posts. Nothing publishes without your review."
+      >
+        <button className="settings-button" onClick={() => void workbench?.openTool("/publish")}>
+          Open publishing <ArrowUpRight size={14} />
         </button>
       </Row>
       <p className="settings-footnote">

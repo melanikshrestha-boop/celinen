@@ -3,6 +3,8 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { displayNameSchema } from "./account-preferences";
+import { profileInputSchema, profileMetadata } from "./account-profile";
+import { persistProfileMetadata } from "./account-profile.server";
 
 /** Update metadata with a captured bearer, never with SDK updateUser's session rewrite. */
 export const saveAccountName = createServerFn({ method: "POST" })
@@ -27,4 +29,20 @@ export const saveAccountName = createServerFn({ method: "POST" })
     if (user.id !== context.userId)
       throw new Error("The profile response did not match your account.");
     return { name: data.name };
+  });
+
+export const saveAccountProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(profileInputSchema.extend({ expectedOwner: z.string().uuid() }).strict())
+  .handler(async ({ data, context }) => {
+    const metadata = profileMetadata({ name: data.name, workspaceName: data.workspaceName });
+    await persistProfileMetadata({
+      owner: context.userId,
+      expectedOwner: data.expectedOwner,
+      authUrl: process.env["SUPABASE_URL"]!,
+      publishableKey: process.env["SUPABASE_PUBLISHABLE_KEY"]!,
+      authorization: getRequest().headers.get("authorization")!,
+      metadata,
+    });
+    return metadata;
   });

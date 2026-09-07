@@ -438,10 +438,16 @@ export function NewChatButton({
     <button
       className={`workbench-nav-item ${active ? "is-active" : ""}`}
       disabled={
-        !history?.ready || history.locked || history.switching || history.pending || !!history.error
+        !camera &&
+        (!history?.ready ||
+          history.locked ||
+          history.switching ||
+          history.pending ||
+          !!history.error)
       }
       onClick={() => {
-        if (workbench?.newShoot) void workbench.newShoot();
+        if (camera) void workbench?.openTool("/workspace");
+        else if (workbench?.newShoot) void workbench.newShoot();
         else void history?.select();
       }}
     >

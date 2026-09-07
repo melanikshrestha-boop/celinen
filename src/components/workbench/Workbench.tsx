@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
+import { AccountSetup } from "@/components/account/AccountSetup";
 import { LogoMark } from "@/components/lensos/Logo";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import {
@@ -70,9 +71,16 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
   const identity = useAccount();
   const navigate = useNavigate();
   const account = identity?.scope;
+  const [sidebarOpen, setSidebarOpen] = useState(identity?.preferences.sidebarOpen ?? true);
+  useEffect(() => {
+    setSidebarOpen(identity?.preferences.sidebarOpen ?? true);
+  }, [account, identity?.preferences.sidebarOpen]);
   const href = useRouterState({ select: (state) => state.location.href });
   useEffect(() => {
-    if (identity?.status === "out" && new URL(href, "https://workspace.invalid").pathname !== "/auth")
+    if (
+      identity?.status === "out" &&
+      new URL(href, "https://workspace.invalid").pathname !== "/auth"
+    )
       void navigate({ to: "/auth", search: { next: safeSignInPath(href) }, replace: true });
   }, [identity?.status, href, navigate]);
   if (!account)
@@ -94,16 +102,18 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
         )}
       </main>
     );
+  if (identity && !identity.setupComplete) return <AccountSetup key={account} />;
   return (
     <SidebarProvider
       key={account}
       className="photo-workbench"
-      open={identity?.preferences.sidebarOpen ?? true}
+      open={sidebarOpen}
       onOpenChange={(sidebarOpen) => {
+        setSidebarOpen(sidebarOpen);
         try {
           identity?.savePreferences({ sidebarOpen });
         } catch {
-          /* Sidebar remains open if storage is blocked. */
+          /* Navigation remains usable when this browser refuses preference storage. */
         }
       }}
       style={{ "--sidebar-width": "224px" } as React.CSSProperties}
