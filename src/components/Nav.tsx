@@ -1,3 +1,5 @@
+import { useAccount } from "@/components/account/AccountProvider";
+import { publicEntry } from "@/lib/public-entry";
 import { Link } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { LogoMark } from "@/components/lensos/Logo";
@@ -21,6 +23,9 @@ const LINKS: { to: string; label: string; exact?: boolean }[] = [
 ];
 
 export function Nav() {
+  const account = useAccount();
+  const entry = publicEntry(account?.status);
+
   return (
     <div className="sticky top-4 z-50 px-4">
       <header className="mx-auto grid w-full max-w-[1240px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
@@ -65,17 +70,16 @@ export function Nav() {
           </DropdownMenu>
 
           <Link
-            to="/auth"
-            search={{ next: "/shoot", mode: "signup" as const }}
+            to={entry.to}
+            search={entry.search}
             className="shrink-0 whitespace-nowrap rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
           >
-            Get started →
+            {entry.label} →
           </Link>
         </div>
       </header>
     </div>
   );
 }
-
 
 export const Footer = SiteFooter;

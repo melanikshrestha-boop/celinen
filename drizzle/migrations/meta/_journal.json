@@ -99,6 +99,35 @@
       "when": 1788520019592,
       "tag": "0013_gallery_photos_passcode_gate",
       "breakpoints": true
-    }
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788558000000,
+      "tag": "0014_proof_to_final_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788560000000,
+      "tag": "0015_delivery_launch_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788660000000,
+      "tag": "0016_workspace_search_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788735000000,
+      "tag": "0017_private_workspace_chats",
+      "breakpoints": true
+    },
+    { "idx": 18, "version": "7", "when": 1788745000000, "tag": "0018_business_publishing", "breakpoints": true }
   ]
 }

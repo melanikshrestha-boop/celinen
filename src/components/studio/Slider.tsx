@@ -2,12 +2,21 @@ interface Props {
   label: string;
   value: number;
   onChange: (v: number) => void;
+  onChangeStart?: () => void;
   min?: number;
   max?: number;
   suffix?: string;
 }
 
-export function EditSlider({ label, value, onChange, min = -100, max = 100, suffix = "" }: Props) {
+export function EditSlider({
+  label,
+  value,
+  onChange,
+  onChangeStart,
+  min = -100,
+  max = 100,
+  suffix = "",
+}: Props) {
   return (
     <label className="block">
       <span className="flex justify-between font-mono text-[10px] uppercase tracking-wider">
@@ -23,6 +32,14 @@ export function EditSlider({ label, value, onChange, min = -100, max = 100, suff
         min={min}
         max={max}
         value={value}
+        onPointerDown={onChangeStart}
+        onKeyDown={(event) => {
+          if (
+            ["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key)
+          ) {
+            onChangeStart?.();
+          }
+        }}
         onChange={(e) => onChange(Number(e.target.value))}
         className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink/15 accent-rust"
       />

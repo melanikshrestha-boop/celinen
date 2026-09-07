@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
 import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
+import { useAccount } from "@/components/account/AccountProvider";
+import { safeSignInPath as safePath } from "@/lib/workbench";
+import { isGalleryAcquisition } from "@/lib/delivery/experience";
+import { authReturnUrl, isLocalAuthOrigin, parseAuthSearch } from "@/lib/auth-flow";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -22,23 +26,16 @@ export const Route = createFileRoute("/auth")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { next: string; mode?: "signin" | "signup" } => ({
-    next: typeof search['next'] === "string" ? (search['next'] as string) : "/shoot",
-    ...(search['mode'] === "signup" ? { mode: "signup" as const } : {}),
-  }),
+  validateSearch: parseAuthSearch,
   component: AuthPage,
 });
 
-function safePath(p: string) {
-  return p.startsWith("/") && !p.startsWith("//") ? p : "/shoot";
-}
-
 function AuthPage() {
-  const { next, mode } = Route.useSearch();
+  const account = useAccount();
+  const { next, mode, source } = Route.useSearch();
   const navigate = useNavigate();
   const signup = mode === "signup";
+  const fromGallery = isGalleryAcquisition(source);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -51,24 +48,30 @@ function AuthPage() {
   useEffect(() => setReady(true), []);
 
   useEffect(() => {
-    let alive = true;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (alive && data.user) void navigate({ to: safePath(next), replace: true });
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") void navigate({ to: safePath(next), replace: true });
-    });
-    return () => {
-      alive = false;
-      sub.subscription.unsubscribe();
-    };
-  }, [navigate, next]);
+    if (account?.status === "in") void navigate({ href: safePath(next), replace: true });
+  }, [navigate, next, account?.status]);
+
+  const recoverAuth = async (action: () => Promise<void>) => {
+    try {
+      await action();
+    } catch {
+      setError("Unable to connect. Check your connection and try again.");
+      setBusy(null);
+    }
+  };
 
   const google = async () => {
     setError(null);
     setBusy("google");
+    if (isLocalAuthOrigin(window.location.origin)) {
+      setError(
+        "Google sign-in is available on lenslab.dev. This local preview needs separate Google OAuth credentials; use email and password here.",
+      );
+      setBusy(null);
+      return;
+    }
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: authReturnUrl(window.location.origin, next, fromGallery),
     });
     if (result.error) {
       setError(result.error.message ?? "Google sign-in failed.");
@@ -76,7 +79,7 @@ function AuthPage() {
       return;
     }
     if (result.redirected) return;
-    void navigate({ to: safePath(next), replace: true });
+    void navigate({ href: safePath(next), replace: true });
   };
 
   const magicLink = async (e?: React.SyntheticEvent) => {
@@ -118,7 +121,7 @@ function AuthPage() {
         return;
       }
       if (res.session) {
-        void navigate({ to: safePath(next), replace: true });
+        void navigate({ href: safePath(next), replace: true });
         return;
       }
       setNote(`Account created for ${email.trim()}. Confirm the email we just sent.`);
@@ -132,7 +135,7 @@ function AuthPage() {
     if (err)
       setError(
         err.message.toLowerCase().includes("invalid login")
-          ? "That email and password don't match an account. Create one on the Sign up tab."
+          ? "That email and password don't match an account. New here? Choose Create one below."
           : err.message,
       );
   };
@@ -144,17 +147,23 @@ function AuthPage() {
           <div className="flex flex-col items-center text-center">
             <LogoMark className="text-ink" />
             <h1 className="mt-5 font-display text-[26px] font-semibold tracking-tight">
-              {signup ? "Create your account" : "Welcome back"}
+              {fromGallery
+                ? "Deliver your next shoot"
+                : signup
+                  ? "Create your account"
+                  : "Welcome back"}
             </h1>
             <p className="mt-1.5 text-[13px] text-moss">
-              One account for every LensLabs shoot. Go create more.
+              {fromGallery
+                ? "A photographer workspace for private galleries, photo-specific feedback, and approved finals."
+                : "One account for every LensLabs shoot. Go create more."}
             </p>
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
             <Link
               to="/auth"
-              search={{ next, mode: "signin" }}
+              search={{ next, mode: "signin", ...(source ? { source } : {}) }}
               className={`rounded-md py-1.5 text-center text-[13px] font-medium transition-colors ${
                 signup ? "text-moss hover:text-ink" : "bg-card text-ink shadow-sm"
               }`}
@@ -163,7 +172,7 @@ function AuthPage() {
             </Link>
             <Link
               to="/auth"
-              search={{ next, mode: "signup" }}
+              search={{ next, mode: "signup", ...(source ? { source } : {}) }}
               className={`rounded-md py-1.5 text-center text-[13px] font-medium transition-colors ${
                 signup ? "bg-card text-ink shadow-sm" : "text-moss hover:text-ink"
               }`}
@@ -173,7 +182,7 @@ function AuthPage() {
           </div>
 
           <button
-            onClick={() => void google()}
+            onClick={() => void recoverAuth(google)}
             disabled={busy !== null}
             className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-lg border border-input px-4 py-2.5 text-[14px] font-medium transition-colors hover:bg-muted disabled:opacity-50"
           >
@@ -187,7 +196,7 @@ function AuthPage() {
             <span className="h-px flex-1 bg-border" />
           </div>
 
-          <form onSubmit={(e) => void withPassword(e)} className="space-y-3">
+          <form onSubmit={(e) => void recoverAuth(() => withPassword(e))} className="space-y-3">
             {signup && (
               <label className="block">
                 <span className="text-[13px] font-medium">Name</span>
@@ -250,7 +259,7 @@ function AuthPage() {
           </form>
 
           <button
-            onClick={(e) => void magicLink(e)}
+            onClick={(e) => void recoverAuth(() => magicLink(e))}
             disabled={busy !== null || !email.trim()}
             className="mt-3 w-full text-center text-[13px] text-moss underline underline-offset-4 hover:text-ink disabled:opacity-50"
           >
@@ -261,14 +270,21 @@ function AuthPage() {
           {error && <p className="mt-4 text-center text-[13px] text-rust">{error}</p>}
 
           <p className="mt-5 text-center text-[12px] text-moss">
-            Not a photographer?{" "}
-            <Link to="/portal" className="text-rust hover:underline">
-              Client login
-            </Link>
+            {fromGallery ? (
+              "Just here for your photos? Your private gallery is still open in the original tab. You don’t need this account to receive them."
+            ) : (
+              <>
+                Not a photographer?{" "}
+                <Link to="/portal" className="text-rust hover:underline">
+                  Client login
+                </Link>
+              </>
+            )}
           </p>
 
           <p className="mt-4 text-center text-[12px] leading-relaxed text-moss">
-            By continuing you agree to the beta terms. Your photos never leave your machine.
+            Studio originals stay on your device. Publishing a gallery uploads prepared copies for
+            private client access.
           </p>
         </div>
 
@@ -276,7 +292,7 @@ function AuthPage() {
           {signup ? "Already have an account? " : "New to LensLabs? "}
           <Link
             to="/auth"
-            search={{ next, mode: signup ? "signin" : "signup" }}
+            search={{ next, mode: signup ? "signin" : "signup", ...(source ? { source } : {}) }}
             className="text-rust hover:underline"
           >
             {signup ? "Sign in" : "Create one"}

@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.gstack/
+
+# Local browser fixtures and verification artifacts are not application releases.
+output/

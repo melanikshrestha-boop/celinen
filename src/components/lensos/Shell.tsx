@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/lensos/Theme";
 import { Footer } from "@/components/lensos/Footer";
 import { LogoMark } from "@/components/lensos/Logo";
 import { useSessionState } from "@/lib/use-session";
+import { useWorkbench } from "@/components/workbench/context";
 
 /** Every workspace screen is private — nothing renders until a studio is signed in. */
 function Locked({ loading }: { loading: boolean }) {
@@ -52,6 +53,7 @@ function Locked({ loading }: { loading: boolean }) {
 
 
 const NAV = [
+  { to: "/projects", label: "Projects" },
   { to: "/desk", label: "Event Desk" },
   { to: "/pick", label: "Pick" },
   { to: "/metadata", label: "Metadata" },
@@ -250,14 +252,22 @@ export function EventHeader({ onAddSource }: { onAddSource?: (() => void) | unde
   );
 }
 
-export function Shell({
+export function Shell(props: { children: React.ReactNode; onAddSource?: (() => void) | undefined; hideEventHeader?: boolean | undefined; quietWorkspace?: boolean }) {
+  const workbench = useWorkbench();
+  if (workbench) return <div className="workbench-tool-content">{!props.hideEventHeader && <EventHeader onAddSource={props.onAddSource} />}{props.children}</div>;
+  return <StandaloneShell {...props} />;
+}
+
+function StandaloneShell({
   children,
   onAddSource,
   hideEventHeader,
+  quietWorkspace = false,
 }: {
   children: React.ReactNode;
   onAddSource?: (() => void) | undefined;
   hideEventHeader?: boolean | undefined;
+  quietWorkspace?: boolean;
 }) {
   const [palette, setPalette] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -280,7 +290,7 @@ export function Shell({
   return (
     <div className="min-h-screen text-ink">
 
-      <div className="sticky top-0 z-50 border-b border-border bg-card/85 backdrop-blur">
+      <div className={quietWorkspace ? "sticky top-0 z-50 bg-paper/95" : "sticky top-0 z-50 border-b border-border bg-card/85 backdrop-blur"}>
         <div className="mx-auto flex w-full max-w-[1240px] items-center gap-3 px-6 py-3">
           <Link to="/" className="flex shrink-0 items-center gap-2">
             <LogoMark className="text-ink" />
@@ -288,7 +298,11 @@ export function Shell({
           </Link>
 
           <nav className="flex flex-1 flex-wrap items-center gap-0.5 text-[13px] text-moss">
-            {NAV.map((n) => (
+            {(quietWorkspace ? [
+              { to: "/studio", label: "Studio" },
+              { to: "/projects", label: "Shoots" },
+              { to: "/clients", label: "Clients" },
+            ] as const : NAV).map((n) => (
               <Link
                 key={n.to}
                 to={n.to}
@@ -302,13 +316,14 @@ export function Shell({
             ))}
           </nav>
 
-          <ThemeToggle />
+          <ThemeToggle className={quietWorkspace ? "!border-0" : undefined} />
 
           <button
             onClick={() => setPalette(true)}
-            className="hidden shrink-0 items-center gap-2 rounded-lg border border-input px-2.5 py-1.5 font-mono text-[11px] text-moss transition-colors hover:text-ink md:flex"
+            aria-label="Open workspace navigation"
+            className={quietWorkspace ? "shrink-0 px-2 py-2 text-sm text-moss hover:text-ink" : "hidden shrink-0 items-center gap-2 rounded-lg border border-input px-2.5 py-1.5 font-mono text-[11px] text-moss transition-colors hover:text-ink md:flex"}
           >
-            ⌘K
+            {quietWorkspace ? "More" : "⌘K"}
           </button>
         </div>
       </div>
@@ -316,7 +331,7 @@ export function Shell({
       {!hideEventHeader && <EventHeader onAddSource={onAddSource} />}
 
       <main className="mx-auto w-full max-w-[1240px] px-6 py-10">{children}</main>
-      <Footer />
+      {!quietWorkspace && <Footer />}
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
     </div>
   );

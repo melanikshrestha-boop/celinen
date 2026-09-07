@@ -4,7 +4,9 @@ import { CullChat, type ToolCall } from "@/components/studio/CullChat";
 import { LogoMark } from "@/components/lensos/Logo";
 import { bridgeFetch } from "@/lib/bridge-client";
 import { bridgeEndpoint } from "@/lib/lightroom-plugin";
+import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkbench } from "@/components/workbench/context";
 import {
   DEFAULT_EDITS,
   type Flag,
@@ -55,6 +57,16 @@ const FLAG_LABEL: Record<Flag, string> = {
 };
 
 function ShootPage() {
+  const workbench = useWorkbench();
+  const inWorkbench = !!workbench;
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (inWorkbench) void navigate({ to: "/workspace", replace: true });
+  }, [inWorkbench, navigate]);
+  return workbench ? null : <LegacyShootPage />;
+}
+
+function LegacyShootPage() {
   const navigate = useNavigate();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
@@ -67,6 +79,11 @@ function ShootPage() {
 
   /* ---------------- beta gate ---------------- */
   useEffect(() => {
+    if (isLocalSingleUserMode) {
+      setAuthed(true);
+      return;
+    }
+
     let alive = true;
     void supabase.auth.getUser().then(({ data }) => {
       if (!alive) return;
@@ -112,9 +129,7 @@ function ShootPage() {
         thumb.width = tw;
         thumb.height = th;
         thumb.getContext("2d")!.drawImage(bitmap, 0, 0, tw, th);
-        const blob = await new Promise<Blob | null>((res) =>
-          thumb.toBlob(res, "image/jpeg", 0.72),
-        );
+        const blob = await new Promise<Blob | null>((res) => thumb.toBlob(res, "image/jpeg", 0.72));
 
         added[i] = {
           id,
@@ -347,7 +362,11 @@ function ShootPage() {
     for (const s of shots) for (const f of s.flags) flagCount[f] = (flagCount[f] ?? 0) + 1;
     return [
       `${counts.all} frames · ${counts.keepers} keepers · ${counts.rejected} rejected · ${counts.todo} undecided`,
-      `flags: ${Object.entries(flagCount).map(([f, n]) => `${f} ${n}`).join(", ") || "none"}`,
+      `flags: ${
+        Object.entries(flagCount)
+          .map(([f, n]) => `${f} ${n}`)
+          .join(", ") || "none"
+      }`,
       `showing: ${filter}`,
     ].join("\n");
   }, [shots, counts, filter]);
@@ -361,13 +380,13 @@ function ShootPage() {
           return "file picker open";
         case "cull": {
           const { kept, cut } = autoCull(
-            typeof a['min_score'] === "number" ? (a['min_score'] as number) : 45,
-            typeof a['keep_score'] === "number" ? (a['keep_score'] as number) : 70,
+            typeof a["min_score"] === "number" ? (a["min_score"] as number) : 45,
+            typeof a["keep_score"] === "number" ? (a["keep_score"] as number) : 70,
           );
           return `culled — ${kept} kept, ${cut} rejected`;
         }
         case "keep_top": {
-          const n = Math.max(0, Number(a['n'] ?? 0));
+          const n = Math.max(0, Number(a["n"] ?? 0));
           const order = [...shots].filter((s) => !s.error).sort((x, y) => y.score - x.score);
           const keepIds = new Set(order.slice(0, n).map((s) => s.id));
           setShots((prev) =>
@@ -378,7 +397,7 @@ function ShootPage() {
           return `kept top ${keepIds.size}`;
         }
         case "reject_flagged": {
-          const flags = (a['flags'] as Flag[]) ?? [];
+          const flags = (a["flags"] as Flag[]) ?? [];
           let n = 0;
           setShots((prev) =>
             prev.map((s) => {
@@ -390,8 +409,8 @@ function ShootPage() {
           return `rejected ${n} flagged frames`;
         }
         case "set_filter":
-          setFilter((a['filter'] as Filter) ?? "all");
-          return `showing ${a['filter']}`;
+          setFilter((a["filter"] as Filter) ?? "all");
+          return `showing ${a["filter"]}`;
         case "write_xmp":
           return `${await writeXmp()} frames sent to Lightroom`;
         case "export_keepers":

@@ -49,7 +49,18 @@ export default {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const normalized = await normalizeCatastrophicSsrResponse(response);
+      // Private gallery pages and RPC responses must never be cached by intermediaries.
+      const path = new URL(request.url).pathname;
+      if (path.startsWith("/review/") || path.startsWith("/_serverFn/") || path.startsWith("/p/") || path.startsWith("/photographer/") || path === "/publish") {
+        const headers = new Headers(normalized.headers);
+        headers.set("Cache-Control", "private, no-store");
+        headers.set("Referrer-Policy", "no-referrer");
+        headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+        headers.set("X-Content-Type-Options", "nosniff");
+        return new Response(normalized.body, { status: normalized.status, statusText: normalized.statusText, headers });
+      }
+      return normalized;
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {
