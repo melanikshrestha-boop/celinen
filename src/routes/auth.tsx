@@ -203,7 +203,7 @@ function AuthPage() {
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ada Lovelace"
+                  placeholder="Vincent Van Gogh"
                   className="mt-1.5 w-full rounded-lg border border-input bg-paper2 px-3.5 py-2.5 text-[14px] outline-none placeholder:text-moss focus:border-rust/50"
                 />
               </label>
@@ -216,7 +216,7 @@ function AuthPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@studio.com"
+                placeholder="picasso@studio.com"
                 className="mt-1.5 w-full rounded-lg border border-input bg-paper2 px-3.5 py-2.5 text-[14px] outline-none placeholder:text-moss focus:border-rust/50"
               />
             </label>
