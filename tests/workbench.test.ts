@@ -38,7 +38,7 @@ describe("chat-first workspace boundaries", () => {
       "/deliver",
       "/clients",
     ]);
-    expect(WORKBENCH_TOOLS).toHaveLength(19);
+    expect(WORKBENCH_TOOLS).toHaveLength(21);
     expect(new Set(WORKBENCH_TOOLS.map((tool) => tool.path)).size).toBe(WORKBENCH_TOOLS.length);
     for (const tool of WORKBENCH_TOOLS) {
       expect(workbenchTab(tool.path)?.path).toBe(tool.path);

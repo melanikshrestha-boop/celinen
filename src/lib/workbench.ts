@@ -6,6 +6,8 @@ export const WORKBENCH_TOOLS = [
   { path: "/deliver", label: "Delivery", group: "Workspace" },
   { path: "/clients", label: "Clients", group: "Workspace" },
   { path: "/publish", label: "Publish", group: "Workspace" },
+  { path: "/shop", label: "Print shop", group: "Business" },
+  { path: "/network", label: "Photographer network", group: "Business" },
   { path: "/video", label: "Video", group: "Workspace" },
   { path: "/mail", label: "Gmail", group: "Connections" },
   { path: "/research", label: "Web research", group: "Connections" },
@@ -177,6 +179,9 @@ export function workbenchNavigation(text: string): string | null {
     return "/deliver?workflow=1";
   if (name === "deliver") return "/deliver";
   if (["social", "social media", "instagram", "publishing"].includes(name)) return "/publish";
+  if (["shop", "store", "prints", "domains", "shopify"].includes(name)) return "/shop";
+  if (["network", "marketplace", "photographers", "collaborations"].includes(name))
+    return "/network";
   return WORKBENCH_TOOLS.find((t) => t.label.toLowerCase() === name)?.path ?? null;
 }
 export function safeSignInPath(path: string) {
