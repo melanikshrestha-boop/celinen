@@ -19,7 +19,12 @@ const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")
 const galleryId = id(1),
   key = "lenslabs.synthetic-delivery-recovery.room.v1";
 const at = () => new Date().toISOString();
-const metadata = { bytes: 500, sha256: "a".repeat(64), width: 1200, height: 800 };
+const metadata = {
+  bytes: 385875,
+  sha256: "6902c502ba620578dbc22a959c3a75f63adb5bfa182cd31fce6c0dda199cc372",
+  width: 1200,
+  height: 755,
+};
 function version(n: number, photoId: string): VersionInput {
   return {
     id: id(n),
@@ -97,6 +102,19 @@ Object.assign(window, {
         role: "owner",
         text: "Private invitation replaced; previous link revoked",
       });
+      sessionStorage.setItem(key, JSON.stringify(authoritative));
+      publishView(authoritative);
+    },
+    releaseFinals: () => {
+      if (!authoritative.approvals.some((approval) => !approval.revokedAt)) {
+        for (const versionId of [id(4), id(5)])
+          authoritative = apply(authoritative, { type: "approve", versionId }, "client");
+      }
+      const unreleased = [id(4), id(5)].filter(
+        (versionId) => !authoritative.released.includes(versionId),
+      );
+      if (unreleased.length)
+        authoritative = apply(authoritative, { type: "release", versionIds: unreleased });
       sessionStorage.setItem(key, JSON.stringify(authoritative));
       publishView(authoritative);
     },

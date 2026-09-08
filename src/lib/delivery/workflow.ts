@@ -157,6 +157,14 @@ export const commandSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("release"), versionIds: z.array(deliveryId).min(1).max(3000) })
     .strict(),
+  z
+    .object({
+      type: z.literal("downloadHandoff"),
+      versionIds: z.array(deliveryId).min(1).max(30),
+      kind: z.enum(["phone", "full"]),
+      container: z.enum(["file", "zip"]),
+    })
+    .strict(),
 ]);
 export type DeliveryCommand = z.infer<typeof commandSchema>;
 export type Actor = "owner" | "client";
@@ -171,7 +179,7 @@ const ownerCommands = new Set([
   "release",
   "complete",
 ]);
-const clientCommands = new Set(["pick", "submit", "approve"]);
+const clientCommands = new Set(["pick", "submit", "approve", "downloadHandoff"]);
 
 export function publishedVersion(photo: DeliveryPhoto): DeliveryVersion | undefined {
   return photo.versions.find((v) => v.id === photo.published && v.ready);
@@ -421,6 +429,21 @@ export function transition(
       state.released = [...new Set([...state.released, ...command.versionIds])];
       state.releases.push({ id: operationId, at: now, versionIds: [...command.versionIds] });
       text = `${command.versionIds.length} approved finals released`;
+      break;
+    }
+    case "downloadHandoff": {
+      if (command.container === "file" && command.versionIds.length !== 1)
+        throw new Error("An individual browser handoff must contain exactly one file.");
+      if (new Set(command.versionIds).size !== command.versionIds.length)
+        throw new Error("Duplicate versions cannot share a browser handoff receipt.");
+      for (const versionId of command.versionIds) {
+        if (!downloadable(state, versionId, now))
+          throw new Error("Only currently released finals can record a browser handoff.");
+      }
+      const format = command.kind === "full" ? "high-resolution" : "phone";
+      const noun = command.versionIds.length === 1 ? "copy" : "files";
+      const container = command.container === "zip" ? " in a ZIP part" : "";
+      text = `Browser handoff recorded: ${command.versionIds.length} ${format} ${noun}${container}; final save location not verified`;
       break;
     }
   }

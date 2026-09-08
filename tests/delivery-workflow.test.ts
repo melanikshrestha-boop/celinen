@@ -222,6 +222,69 @@ describe("proof-to-final delivery state machine", () => {
     expect(() => transition(next, cmd, "client", id, "b", later)).toThrow("different request");
     expect(next.comments).toHaveLength(1);
   });
+  test("browser handoff receipts are client-only, idempotent, and never claim a completed save", () => {
+    const { state, v } = released();
+    const operation = uuid();
+    const command = commandSchema.parse({
+      type: "downloadHandoff",
+      versionIds: [v.id],
+      kind: "full",
+      container: "file",
+    });
+    expect(() => transition(state, command, "owner", operation, "same", time)).toThrow("client");
+    const recorded = transition(state, command, "client", operation, "same", time);
+    expect(recorded.events.at(-1)?.text).toBe(
+      "Browser handoff recorded: 1 high-resolution copy; final save location not verified",
+    );
+    expect(recorded.events.at(-1)?.text.toLowerCase()).not.toContain("download completed");
+    expect(transition(recorded, command, "client", operation, "same", later)).toBe(recorded);
+    expect(() => transition(recorded, command, "client", operation, "different", later)).toThrow(
+      "different request",
+    );
+  });
+  test("browser handoff receipts reject stale access, unreleased versions, duplicates, and invalid file batches", () => {
+    const { state, v } = released();
+    expect(() =>
+      apply(
+        state,
+        {
+          type: "downloadHandoff",
+          versionIds: [v.id, v.id],
+          kind: "phone",
+          container: "zip",
+        },
+        "client",
+      ),
+    ).toThrow("Duplicate");
+    expect(() =>
+      apply(
+        state,
+        {
+          type: "downloadHandoff",
+          versionIds: [v.id, uuid()],
+          kind: "phone",
+          container: "file",
+        },
+        "client",
+      ),
+    ).toThrow("exactly one file");
+    const reopened = apply(state, { type: "reopenSelections" });
+    expect(() =>
+      apply(
+        reopened,
+        { type: "downloadHandoff", versionIds: [v.id], kind: "phone", container: "file" },
+        "client",
+      ),
+    ).toThrow("released finals");
+    expect(() =>
+      apply(
+        state,
+        { type: "downloadHandoff", versionIds: [v.id], kind: "phone", container: "file" },
+        "client",
+        "2026-10-04T12:00:00.000Z",
+      ),
+    ).toThrow("unavailable");
+  });
   test("foreign versions and ambiguous publish/release lists fail", () => {
     const { state, v } = released();
     expect(() => findVersion(state, uuid())).toThrow("not found");
@@ -297,13 +360,19 @@ describe("proof-to-final delivery state machine", () => {
         "photographer",
       );
     });
-  for (const type of ["pick", "submit", "approve"] as const)
+  for (const type of ["pick", "submit", "approve", "downloadHandoff"] as const)
     test(`photographers cannot impersonate client ${type}`, () => {
       const { state, v } = live();
       const commands = {
         pick: { type, photoId: v.photoId, on: true },
         submit: { type, photoIds: [v.photoId] },
         approve: { type, versionId: v.id },
+        downloadHandoff: {
+          type,
+          versionIds: [v.id],
+          kind: "phone",
+          container: "file",
+        },
       };
       expect(() => apply(state, commands[type] as DeliveryCommand)).toThrow("client");
     });

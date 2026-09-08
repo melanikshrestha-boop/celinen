@@ -344,6 +344,34 @@ describe("private delivery server boundaries with an isolated fake Supabase tran
       act(r.id, null, r.token, saved.revision, op, { ...cmd, body: "Changed" }),
     ).rejects.toThrow("conflict");
   });
+  test("verified browser handoff activity survives a stale revision retry exactly once", async () => {
+    const r = await liveRoom();
+    await clientAct(r.id, r.token, { type: "pick", photoId: r.v.photoId, on: true });
+    await clientAct(r.id, r.token, { type: "submit", photoIds: [r.v.photoId] });
+    await clientAct(r.id, r.token, { type: "approve", versionId: r.v.id });
+    await ownerAct(r.id, { type: "release", versionIds: [r.v.id] });
+    const before = rows.get(r.id)!.revision;
+    const operation = uid();
+    const command: DeliveryCommand = {
+      type: "downloadHandoff",
+      versionIds: [r.v.id],
+      kind: "phone",
+      container: "file",
+    };
+    conflictOnce = true;
+    await expect(act(r.id, null, r.token, before, operation, command)).rejects.toThrow(
+      "Another change",
+    );
+    expect(rows.get(r.id)!.state.events.some((event) => event.id === operation)).toBe(false);
+    const saved = await act(r.id, null, r.token, rows.get(r.id)!.revision, operation, command);
+    const retry = await act(r.id, null, r.token, before, operation, command);
+    expect(retry.revision).toBe(saved.revision);
+    expect(saved.state.events.filter((event) => event.id === operation)).toHaveLength(1);
+    expect(saved.state.events.find((event) => event.id === operation)?.text).toContain(
+      "final save location not verified",
+    );
+    expect(JSON.stringify(saved.state.events)).not.toContain(r.token);
+  });
   test("a reloaded note retries the committed server receipt without creating another revision", async () => {
     const r = await liveRoom(),
       cached = new Map<string, string>();

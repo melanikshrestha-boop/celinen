@@ -2,22 +2,30 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { downloadBatch, downloadBatches, offerDownload } from "@/lib/delivery/downloads";
-import type { DeliveryVersion } from "@/lib/delivery/workflow";
+import type { DeliveryCommand, DeliveryVersion } from "@/lib/delivery/workflow";
 import { messageOf, sizeLabel, type MediaReader } from "./presentation";
 
 export function FinalDownloads({
   versions,
   media,
+  run,
 }: {
   versions: DeliveryVersion[];
   media: MediaReader;
+  run: (command: DeliveryCommand, operationId?: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false),
     [kind, setKind] = useState<"phone" | "full">("phone");
   const [active, setActive] = useState<number | null>(null),
     [count, setCount] = useState(0),
     [error, setError] = useState("");
-  const [prepared, setPrepared] = useState<{ blob: Blob; part: number; kind: string } | null>(null);
+  const [prepared, setPrepared] = useState<{
+    blob: Blob;
+    part: number;
+    kind: "phone" | "full";
+    versionIds: string[];
+  } | null>(null);
+  const [handoffNote, setHandoffNote] = useState("");
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const batches = downloadBatches(versions, kind);
@@ -82,6 +90,7 @@ export function FinalDownloads({
                     setActive(index);
                     setCount(0);
                     setError("");
+                    setHandoffNote("");
                     setPrepared(null);
                     const abort = new AbortController();
                     controller.current = abort;
@@ -97,7 +106,13 @@ export function FinalDownloads({
                         setCount,
                         abort.signal,
                       );
-                      if (!abort.signal.aborted) setPrepared({ blob, part: index + 1, kind });
+                      if (!abort.signal.aborted)
+                        setPrepared({
+                          blob,
+                          part: index + 1,
+                          kind,
+                          versionIds: batch.versions.map((version) => version.id),
+                        });
                     } catch (e) {
                       if (!abort.signal.aborted) setError(messageOf(e));
                     } finally {
@@ -118,18 +133,36 @@ export function FinalDownloads({
           {prepared && (
             <button
               className="delivery-primary"
-              onClick={() =>
-                offerDownload(prepared.blob, `finals-${prepared.kind}-part-${prepared.part}.zip`)
-              }
+              onClick={async () => {
+                setError("");
+                setHandoffNote("");
+                offerDownload(prepared.blob, `finals-${prepared.kind}-part-${prepared.part}.zip`);
+                try {
+                  await run({
+                    type: "downloadHandoff",
+                    versionIds: prepared.versionIds,
+                    kind: prepared.kind,
+                    container: "zip",
+                  });
+                  setHandoffNote(
+                    "ZIP handed to your browser and recorded in Activity. The browser’s final save location cannot be verified.",
+                  );
+                } catch (e) {
+                  setError(
+                    `ZIP handed to your browser, but Activity was not updated. ${messageOf(e)}`,
+                  );
+                }
+              }}
             >
               <ArrowDown size={16} />
               Save checked ZIP · {sizeLabel(prepared.blob.size)}
             </button>
           )}
           <p className="delivery-meta">
-            {prepared
-              ? "Every file in this part passed its checksum. Tap Save checked ZIP; then check your browser’s Downloads. Preparing a ZIP is not proof that it was saved."
-              : "Nothing is marked downloaded automatically. Keep a copy of your finals before this gallery expires."}
+            {handoffNote ||
+              (prepared
+                ? "Every file in this part passed its checksum. Tap Save checked ZIP; then check your browser’s Downloads. Preparing a ZIP is not proof that it was saved."
+                : "Nothing is marked downloaded automatically. Keep a copy of your finals before this gallery expires.")}
           </p>
           {error && (
             <p className="delivery-error" role="alert">

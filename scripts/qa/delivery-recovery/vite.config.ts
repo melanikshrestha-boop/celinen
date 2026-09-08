@@ -7,6 +7,19 @@ export default defineConfig({
   root: import.meta.dirname,
   plugins: [react(), tailwind()],
   resolve: { alias: { "@": resolve(root, "src") } },
+  // This isolated browser fixture imports no TanStack Start server entrypoints. Disable HTML-wide
+  // dependency discovery so the QA server cannot accidentally optimize the main app's server graph.
+  optimizeDeps: {
+    noDiscovery: true,
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "lucide-react",
+      "zod",
+      "@radix-ui/react-dialog",
+    ],
+  },
   server: {
     host: "127.0.0.1",
     port: 8086,

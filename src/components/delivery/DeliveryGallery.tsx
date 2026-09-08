@@ -25,6 +25,7 @@ import "./delivery.css";
 import { FinalDownloads } from "./FinalDownloads";
 import { currentVersion, messageOf, sizeLabel, type MediaReader } from "./presentation";
 import { useCommentDrafts } from "./useCommentDrafts";
+import { offerDownload } from "@/lib/delivery/downloads";
 const stamp = (date: string) =>
   new Date(date).toLocaleString(undefined, {
     month: "short",
@@ -167,16 +168,20 @@ export function DeliveryGallery({
       const { hashBlob } = await import("@/lib/projects/archive");
       if ((await hashBlob(blob)) !== v.variants[kind].sha256)
         throw new Error("Download integrity check failed. Please retry.");
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${v.filename.replace(/\.jpg$/i, "")}-v${v.number}-${kind === "full" ? "high-res" : "phone"}.jpg`;
-      document.body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      offerDownload(
+        blob,
+        `${v.filename.replace(/\.jpg$/i, "")}-v${v.number}-${kind === "full" ? "high-res" : "phone"}.jpg`,
+      );
+      const recorded = await act({
+        type: "downloadHandoff",
+        versionIds: [v.id],
+        kind,
+        container: "file",
+      });
       setDownloadNote(
-        "Download handed to your browser. On iPhone, check Files → Downloads, then use Share → Save Image for Photos.",
+        recorded
+          ? "Download handed to your browser and recorded in Activity. The browser’s final save location cannot be verified."
+          : "Download handed to your browser, but Activity was not updated. Refresh, then tap Download again to retry the receipt.",
       );
     } catch (error) {
       setActionError(messageOf(error));
@@ -247,6 +252,7 @@ export function DeliveryGallery({
                 : [],
             )}
             media={media}
+            run={run}
           />
         )}
         <button
