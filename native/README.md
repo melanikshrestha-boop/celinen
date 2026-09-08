@@ -1,5 +1,36 @@
 # LensLabs C++ native preview engine
 
+**FOTO Photo Lab Develop update:** the dedicated `/develop` page now uses the
+additional `lenslabs-develop` C++20 operator for editing and JPEG export. The
+existing Studio/culling descriptions below still apply to Studio; they do not
+describe this new sensor-RAW path. See [Develop sprint status and exact
+limitations](../docs/FOTO-DEVELOP-SPRINT.md).
+
+On a fresh macOS checkout, build the pinned native dependency and executables
+before opening Develop:
+
+```sh
+npm i
+sh native/bootstrap-libraw.sh
+make -C native -j4
+npm run dev:lab
+```
+
+Open `http://127.0.0.1:8085/develop`. Existing project/shoot query parameters can
+be retained when navigating from the workspace. The separate lab command keeps
+local development identity out of the production configuration. Native binaries,
+original photos and local environment files are not part of the Git handoff.
+
+Develop provides exposure/color/presence, a master point curve, HSL, tonal color
+grading, deterministic film effects, detail, crop/straighten/rotate/flip, and
+manual radial/linear masks. Recipes, snapshots and history are kept separately
+from originals. `GET /__develop/status` and protected `POST /__develop/render`
+are loopback development routes, not a hosted production API. Source RAW export
+uses LibRaw sensor demosaic; embedded-preview export is separately labeled.
+Current output is JPEG/sRGB up to a 4,096px long edge, not a complete 16-bit or
+full-resolution Lightroom pipeline. Other operating systems still require a
+decoder/encoder adapter.
+
 Original C++20 implementation with pinned LibRaw 0.22.2 for embedded RAW JPEG previews. No Python, Rust, Node runtime or downloaded AI model is required by this executable. macOS builds link Apple's installed ImageIO, CoreGraphics and CoreFoundation frameworks for bounded raster decoding and sRGB JPEG output.
 
 **Status:** the C++ engine is connected to the existing local Studio for import previews, analysis and conservative burst review. The React interface is retained; it is not a native desktop rewrite or full RapidRAW replacement. This connection is **development-only on loopback**, not a deployed native service. Deadline JPEG export deliberately retains the existing browser renderer for current edit compatibility. See the [RapidRAW audit and migration gates](../docs/RAPIDRAW-CPP-PLAN.md).

@@ -6,14 +6,14 @@ LIBRAW_ROOT = build/deps/libraw-0.22.2
 LIBRAW = $(LIBRAW_ROOT)/lib/libraw_r.a
 CPPFLAGS += -I$(LIBRAW_ROOT)/include
 FRAMEWORKS = -framework ImageIO -framework CoreGraphics -framework CoreFoundation
-HEADERS = include/lenslabs/engine.hpp include/lenslabs/pipeline.hpp include/lenslabs/worker.hpp include/lenslabs/bursts.hpp
+HEADERS = include/lenslabs/engine.hpp include/lenslabs/pipeline.hpp include/lenslabs/worker.hpp include/lenslabs/bursts.hpp include/lenslabs/develop.hpp
 CORE = $(BUILD_DIR)/analysis.o
 DECODER = $(BUILD_DIR)/decode_mac.o
 PIPELINE = $(BUILD_DIR)/pipeline.o
 WORKER = $(BUILD_DIR)/worker.o
 
 .PHONY: all test sanitize
-all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-social
+all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -54,13 +54,20 @@ $(BUILD_DIR)/lenslabs-social: $(BUILD_DIR)/social_main.o $(BUILD_DIR)/social.o $
 $(BUILD_DIR)/social-tests: tests/social_tests.cpp $(BUILD_DIR)/social.o include/lenslabs/social.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/social.o -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/social-tests
+$(BUILD_DIR)/lenslabs-develop: $(BUILD_DIR)/develop_main.o $(BUILD_DIR)/develop.o $(BUILD_DIR)/develop_raw.o $(DECODER) $(LIBRAW)
+	$(CXX) $(CXXFLAGS) $^ $(FRAMEWORKS) -o $@
+
+$(BUILD_DIR)/develop-tests: tests/develop_tests.cpp $(BUILD_DIR)/develop.o include/lenslabs/develop.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/develop.o -o $@
+
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
 	$(BUILD_DIR)/worker-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/burst-tests
 	$(BUILD_DIR)/social-tests
+	$(BUILD_DIR)/develop-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test

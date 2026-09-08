@@ -19,6 +19,7 @@ import {
   Search,
   Users,
   Wallet,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Sidebar,
@@ -418,8 +419,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   const openedTabs = current ? addWorkbenchTab(tabs, current) : tabs;
   const projectTabs = openedTabs.filter(
     (tab) =>
-      tab.href === current?.href ||
-      tabProjectScope(tab.href) === projectScope(activeBinding),
+      tab.href === current?.href || tabProjectScope(tab.href) === projectScope(activeBinding),
   );
   const connectionTabs = projectTabs.filter(
     (tab) => tab.path === "/research" || tab.path === "/mail",
@@ -524,12 +524,16 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             >
               <Search size={20} />
             </button>
-            <button className="workbench-nav-item workbench-new-project" onClick={() => void newShoot()}>
+            <button
+              className="workbench-nav-item workbench-new-project"
+              onClick={() => void newShoot()}
+            >
               <FolderPlus size={16} />
               {t("New project")}
             </button>
-            <nav className="workbench-business-nav" aria-label="Business tools">
+            <nav className="workbench-business-nav" aria-label="Photo and business tools">
               {[
+                { path: "/develop", label: "Develop", Icon: SlidersHorizontal },
                 { path: "/clients", label: "Clients", Icon: Users },
                 { path: "/earnings", label: "Earnings", Icon: Wallet },
               ].map(({ path, label, Icon }) => (
@@ -618,7 +622,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             </div>
           </header>
           <div
-            className={`workbench-panels ${showTool ? "has-tool" : ""} ${current?.path === "/studio" ? "is-studio" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" ? "is-earnings" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
+            className={`workbench-panels ${showTool ? "has-tool" : ""} ${current?.path === "/studio" ? "is-studio" : ""} ${current?.path === "/develop" ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" ? "is-earnings" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
             data-mobile-pane={showTool ? mobilePane : "chat"}
           >
             <main
@@ -629,6 +633,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 ((compact && mobilePane === "tool") ||
                   (!compact &&
                     (current?.path === "/earnings" ||
+                      current?.path === "/develop" ||
                       current?.path === "/clients" ||
                       current?.path === "/studio")))
               }
@@ -658,8 +663,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             <section
               className="workbench-tool-pane"
               hidden={
-                !showTool ||
-                (compact && mobilePane === "chat" && current?.path !== "/studio")
+                !showTool || (compact && mobilePane === "chat" && current?.path !== "/studio")
               }
               aria-label="Open tools"
             >

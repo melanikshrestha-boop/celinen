@@ -6,9 +6,10 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { nativeStudioPlugin } from "./src/server/native-studio-plugin";
+import { nativeDevelopPlugin } from "./src/server/native-develop";
 
 export default defineConfig({
-  vite: { plugins: [nativeStudioPlugin()] },
+  vite: { plugins: [nativeStudioPlugin(), nativeDevelopPlugin()] },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

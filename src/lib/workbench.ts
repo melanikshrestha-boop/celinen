@@ -4,6 +4,7 @@ import { isSettingsPath } from "./settings-catalog";
 
 export const WORKBENCH_TOOLS = [
   { path: "/studio", label: "Studio", group: "Workspace" },
+  { path: "/develop", label: "Develop", group: "Workspace" },
   { path: "/projects", label: "Projects", group: "Workspace" },
   { path: "/deliver", label: "Delivery", group: "Workspace" },
   { path: "/clients", label: "Clients", group: "Business" },
@@ -27,7 +28,7 @@ export const WORKBENCH_TOOLS = [
 ] as const;
 /** Keep everyday navigation small; the complete catalogue remains in the command menu. */
 export const WORKBENCH_PRIMARY_TOOLS = WORKBENCH_TOOLS.filter((tool) =>
-  (["/studio", "/deliver", "/clients"] as readonly string[]).includes(tool.path),
+  (["/studio", "/develop", "/deliver", "/clients"] as readonly string[]).includes(tool.path),
 );
 export type WorkbenchTab = { href: string; label: string; path: string };
 const unsafeUrlCharacters = (value: string) =>
