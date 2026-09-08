@@ -77,15 +77,16 @@ export function encodeDevelopRequest(
 
 // Only a definite worker-busy response may be replayed. The total scheduled
 // wait is at most four seconds, independent of the one token-renewal attempt.
-const busyRetryLimit = 8;
-const busyRetryDelayMs = 500;
-function waitForDevelopWorker(signal?: AbortSignal): Promise<void> {
+// A cancelled child usually releases its lane quickly. Retry that handoff early,
+// then back off while real work is still running. Never increase native lanes.
+const busyRetryDelaysMs = [100, 200, 300, 400, 600, 700, 800, 900] as const;
+function waitForDevelopWorker(delayMs: number, signal?: AbortSignal): Promise<void> {
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       signal?.removeEventListener("abort", abort);
       resolve();
-    }, busyRetryDelayMs);
+    }, delayMs);
     function abort() {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
@@ -141,9 +142,8 @@ export async function renderDevelop(
       refreshStatus = true;
       continue;
     }
-    if (response.status === 429 && busyRetries < busyRetryLimit) {
-      busyRetries++;
-      await waitForDevelopWorker(signal);
+    if (response.status === 429 && busyRetries < busyRetryDelaysMs.length) {
+      await waitForDevelopWorker(busyRetryDelaysMs[busyRetries++]!, signal);
       continue;
     }
     if (!response.ok) {

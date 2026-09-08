@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { developEngineStatus, renderDevelop } from "../src/lib/develop/client";
 import { defaultDevelopSettings } from "../src/lib/develop/contract";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const originalFetch = globalThis.fetch;
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -44,6 +46,32 @@ async function decodedRequest(
   };
 }
 
+// Observe the production timer requests without making a clock-speed assertion
+// about a loaded test machine. Native/HTTP timing is measured separately.
+async function withImmediateRetryClock(
+  run: (waits: number[]) => Promise<void>,
+  afterTimerFires?: () => void,
+) {
+  const originalSetTimeout = globalThis.setTimeout;
+  const waits: number[] = [];
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  globalThis.setTimeout = ((callback: () => void, delay?: number) => {
+    waits.push(Number(delay));
+    const timer = originalSetTimeout(() => {
+      callback();
+      afterTimerFires?.();
+    }, 0);
+    timers.push(timer);
+    return timer;
+  }) as typeof setTimeout;
+  try {
+    await run(waits);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    for (const timer of timers) clearTimeout(timer);
+  }
+}
+
 beforeEach(async () => {
   statusCalls = 0;
   renderCalls = [];
@@ -72,6 +100,84 @@ afterEach(() => {
 });
 
 describe("Develop busy-worker retry", () => {
+  test("a newly available worker is retried after 100ms instead of an unconditional half-second", async () => {
+    await withImmediateRetryClock(async (waits) => {
+      respond = (_, count) => (count === 1 ? errorResponse(429) : imageResponse());
+      expect(new Uint8Array(await (await renderDevelop(source)).arrayBuffer())).toEqual(jpeg);
+      expect(waits).toEqual([100]);
+      expect(renderCalls).toHaveLength(2);
+      expect(renderCalls[1]!.body).toBe(renderCalls[0]!.body);
+      expect(statusCalls).toBe(1);
+    });
+  });
+
+  test("gradual waits retain eight retries and exactly four seconds of scheduled backoff", async () => {
+    await withImmediateRetryClock(async (waits) => {
+      respond = () => errorResponse(429);
+      await expect(renderDevelop(source)).rejects.toThrow("429");
+      expect(waits).toEqual([100, 200, 300, 400, 600, 700, 800, 900]);
+      expect(waits.reduce((sum, delay) => sum + delay, 0)).toBe(4000);
+      expect(renderCalls).toHaveLength(9);
+      expect(statusCalls).toBe(1);
+    });
+  });
+
+  test("one token renewal at every busy boundary preserves the same remaining schedule", async () => {
+    for (let renewalAt = 1; renewalAt <= 9; renewalAt++) {
+      renderCalls = [];
+      statusCalls = 0;
+      await developEngineStatus(true);
+      await withImmediateRetryClock(async (waits) => {
+        respond = (_, count) => errorResponse(count === renewalAt ? 403 : 429);
+        await expect(renderDevelop(source)).rejects.toThrow("429");
+        expect(waits).toEqual([100, 200, 300, 400, 600, 700, 800, 900]);
+        expect(renderCalls).toHaveLength(10);
+        expect(statusCalls).toBe(2);
+        for (const request of renderCalls) expect(request.body).toBe(renderCalls[0]!.body);
+      });
+    }
+  });
+
+  test("cancellation after the fast timer fires but before its continuation never posts again", async () => {
+    const controller = new AbortController();
+    await withImmediateRetryClock(
+      async (waits) => {
+        respond = () => errorResponse(429);
+        await expect(
+          renderDevelop(source, undefined, { signal: controller.signal }),
+        ).rejects.toMatchObject({ name: "AbortError" });
+        expect(waits).toEqual([100]);
+        expect(renderCalls).toHaveLength(1);
+      },
+      () => controller.abort(),
+    );
+  });
+
+  test("overlapping photos own independent waits and cancelling one never shortens the other's budget", async () => {
+    const controller = new AbortController();
+    const attempts = new Map<BodyInit | null | undefined, number>();
+    await withImmediateRetryClock(
+      async (waits) => {
+        respond = (init) => {
+          attempts.set(init.body, (attempts.get(init.body) ?? 0) + 1);
+          return errorResponse(429);
+        };
+        const old = renderDevelop(source, undefined, { signal: controller.signal }).catch(
+          (error: unknown) => error,
+        );
+        const next = renderDevelop(new Blob(["next photo"])).catch((error: unknown) => error);
+        expect(await old).toMatchObject({ name: "AbortError" });
+        expect(await next).toMatchObject({ message: "Native test error 429" });
+        expect([...attempts.values()]).toEqual([1, 9]);
+        expect(waits).toEqual([100, 100, 200, 300, 400, 600, 700, 800, 900]);
+        expect(statusCalls).toBe(1);
+        expect(renderCalls[0]!.signal).toBe(controller.signal);
+        expect(renderCalls.slice(1).every((request) => !request.signal)).toBe(true);
+      },
+      () => controller.abort(),
+    );
+  });
+
   test("retries an explicit 429 without refreshing the token or changing the request", async () => {
     respond = (_, count) => (count === 1 ? errorResponse(429) : imageResponse());
     expect(new Uint8Array(await (await renderDevelop(source)).arrayBuffer())).toEqual(jpeg);
@@ -244,3 +350,51 @@ describe("Develop busy-worker retry", () => {
     expect(renderCalls).toHaveLength(2);
   });
 });
+
+test.skipIf(
+  process.platform !== "darwin" ||
+    !process.env["LENSLABS_RAW_FIXTURES"] ||
+    !existsSync("native/build/lenslabs-develop"),
+)(
+  "real Node/native cancellation releases its lane before the unchanged next-photo pixels return",
+  async () => {
+    const child = Bun.spawn(
+      [
+        "node",
+        "--import",
+        "tsx",
+        fileURLToPath(new URL("./develop-retry-handoff.fixture.ts", import.meta.url)),
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const watchdog = setTimeout(() => child.kill("SIGTERM"), 22000);
+    try {
+      const [output, errors, code] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      expect(errors).toBe("");
+      expect(code).toBe(0);
+      const results = JSON.parse(output.trim().replace(/^FOTO_RETRY_HANDOFF /, "")) as Array<{
+        statuses: number[];
+        serverCloseAfterCancelMs: number;
+        handlerSettledAfterCancelMs: number;
+      }>;
+      expect(results).toHaveLength(3);
+      for (const result of results) {
+        expect(result.statuses[0]).toBe(429);
+        expect(result.statuses.at(-1)).toBe(200);
+        expect(result.serverCloseAfterCancelMs).toBeGreaterThanOrEqual(0);
+        expect(result.handlerSettledAfterCancelMs).toBeGreaterThanOrEqual(
+          result.serverCloseAfterCancelMs,
+        );
+      }
+    } finally {
+      clearTimeout(watchdog);
+      if (child.exitCode === null) child.kill("SIGKILL");
+      await child.exited;
+    }
+  },
+  30000,
+);
