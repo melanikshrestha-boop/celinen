@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { galleryPresentationSchema, type GalleryPresentation } from "./gallery-presentation";
+import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 
 // Workflow metadata only. Media processing stays in the existing renderer/native pipeline.
 export const deliveryId = z.string().uuid();
@@ -36,7 +37,7 @@ export const versionInput = z
     source: z
       .object({
         projectId: deliveryId,
-        frameId: z.string().min(1).max(2000),
+        frameId: z.string().min(1).max(PHOTO_ID_MAX_LENGTH),
         editVersionId: z.string().min(1).max(2000),
         originalSha256: hash,
       })

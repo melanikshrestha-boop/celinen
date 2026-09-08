@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Pencil } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, Pencil } from "lucide-react";
 import {
   listRecentShoots,
   rememberShoot,
@@ -10,16 +10,19 @@ import {
   type RecentShoot,
 } from "@/lib/studio/shoot-directory";
 import { inspectPreviousShoot, copyPreviousShoot } from "@/lib/studio/session";
+import { projectDisplayTitle } from "@/lib/workspace-labels";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export function RecentShoots({
   scope,
   activeId,
   open,
+  children,
 }: {
   scope: string;
   activeId: string | null;
   open: (href: string) => Promise<boolean>;
+  children?: ReactNode;
 }) {
   const [rows, setRows] = useState<RecentShoot[]>([]);
   const [previous, setPrevious] = useState(false);
@@ -27,6 +30,8 @@ export function RecentShoots({
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => setExpanded(true), [activeId]);
   const alive = useRef(true);
   const recoveryTarget = useRef<string | null>(null);
   const refresh = useCallback(async () => {
@@ -69,51 +74,64 @@ export function RecentShoots({
     setName(title);
     setError("");
   };
+  const displayRows =
+    activeId && !rows.some((row) => row.id === activeId)
+      ? [{ id: activeId, title: "Untitled shoot", recoveryPending: false }, ...rows]
+      : rows;
   return (
-    <section className="chat-recents" aria-label="Recent Shoots">
+    <section className="chat-recents" aria-label="Recent projects">
       <div className="chat-recents-heading">
-        <span>Recent Shoots</span>
+        <span>Recent projects</span>
       </div>
-      {rows.map((row) => (
-        <div key={row.id} className="recent-shoot-row">
-          <button
-            className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
-            onClick={() =>
-              row.recoveryPending
-                ? edit("recover-device", row.title, row.id)
-                : void open(shootHref(row.id))
-            }
-          >
-            <Camera size={16} />
-            <span>{row.title}</span>
-          </button>
-          <button
-            className="recent-shoot-rename"
-            aria-label={`Rename ${row.title}`}
-            onClick={() =>
-              row.recoveryPending
-                ? edit("recover-device", row.title, row.id)
-                : edit(row.id, row.title)
-            }
-          >
-            <Pencil size={14} />
-          </button>
+      {displayRows.map((row) => (
+        <div key={row.id} className="recent-shoot-item" data-shoot-id={row.id}>
+          <div className={`recent-shoot-row ${activeId === row.id ? "is-active" : ""}`}>
+            <button
+              className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
+              onClick={() =>
+                row.recoveryPending
+                  ? edit("recover-device", row.title, row.id)
+                  : void open(shootHref(row.id))
+              }
+            >
+              <span>{projectDisplayTitle(row)}</span>
+            </button>
+            {activeId === row.id && (
+              <button
+                className="recent-shoot-expand"
+                aria-label={`Shoots in ${projectDisplayTitle(row)}`}
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                <ChevronRight size={16} />
+              </button>
+            )}
+            <button
+              className="recent-shoot-rename"
+              aria-label={`Rename ${projectDisplayTitle(row)}`}
+              onClick={() =>
+                row.recoveryPending
+                  ? edit("recover-device", row.title, row.id)
+                  : edit(row.id, row.title)
+              }
+            >
+              <Pencil size={14} />
+            </button>
+          </div>
+          {activeId === row.id && (
+            <div className="recent-shoot-conversations" hidden={!expanded}>
+              {children}
+            </div>
+          )}
         </div>
       ))}
-      {!rows.length && <p className="recent-shoot-empty">Your imported shoots will appear here.</p>}
-      {activeId && !rows.some((row) => row.id === activeId) && (
-        <button className="workbench-nav-item" onClick={() => edit(activeId, "")}>
-          <Camera size={16} />
-          Name this shoot
-        </button>
-      )}
+      {!activeId && <div className="recent-shoot-conversations">{children}</div>}
       {previous && (
         <button
           className="workbench-nav-item"
           onClick={() => edit("recover-device", "Lunara Glow Shoot")}
         >
-          <Camera size={16} />
-          Recover previous device shoot
+          Recover previous device project
         </button>
       )}
       {error && (
@@ -129,12 +147,12 @@ export function RecentShoots({
       >
         <DialogContent>
           <DialogTitle>
-            {editing === "recover-device" ? "Bring back your saved shoot" : "Name this shoot"}
+            {editing === "recover-device" ? "Bring back your saved project" : "Rename project"}
           </DialogTitle>
           <DialogDescription>
             {editing === "recover-device"
               ? "Copy the previous device’s previews, picks, and applied edits into this account. The old shoot stays untouched. Reconnect the source folder for original files."
-              : "Use a name you’ll recognize, like Lunara Glow Shoot or Real Estate Shoot."}
+              : "Choose a project name."}
           </DialogDescription>
           <form
             className="space-y-4"
@@ -172,7 +190,7 @@ export function RecentShoots({
             }}
           >
             <label className="block text-sm">
-              Shoot name
+              Project name
               <input
                 autoFocus
                 required

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { downloadable, type DeliveryState, type DeliveryVersion } from "../delivery/workflow";
+import { socialFrameSchema } from "../social-frame";
 
 export const publicationInput = z
   .object({
@@ -9,11 +10,21 @@ export const publicationInput = z
     caption: z.string().max(2200),
     versionIds: z.array(z.string().uuid()).min(1).max(10),
     instagram: z.boolean(),
+    instagramStory: z.boolean().optional(),
+    facebookStory: z.boolean().optional(),
+    frame: socialFrameSchema.optional(),
     portfolio: z.boolean(),
     permission: z.literal(true),
   })
   .strict()
-  .refine((v) => v.instagram || v.portfolio, "Choose at least one destination.")
+  .refine(
+    (v) => v.instagram || v.portfolio || v.instagramStory || v.facebookStory,
+    "Choose at least one destination.",
+  )
+  .refine(
+    (v) => !(v.instagramStory || v.facebookStory) || v.versionIds.length === 1,
+    "Choose one photo for a Story publication.",
+  )
   .refine((v) => new Set(v.versionIds).size === v.versionIds.length, "Remove duplicate photos.");
 export type PublicationInput = z.infer<typeof publicationInput>;
 export type Destination = {
@@ -29,7 +40,17 @@ export type Publication = PublicationInput & {
   containerId?: string;
   childContainers?: string[];
   instagramAccountId?: string;
-  destinations: { instagram: Destination; portfolio: Destination };
+  facebookPageId?: string;
+  instagramPaths?: string[];
+  storyPath?: string;
+  storyContainerId?: string;
+  facebookPhotoId?: string;
+  destinations: {
+    instagram: Destination;
+    portfolio: Destination;
+    instagramStory?: Destination;
+    facebookStory?: Destination;
+  };
 };
 export function eligibleVersions(
   state: DeliveryState,
@@ -67,6 +88,8 @@ export function newPublication(input: PublicationInput, accountId?: string): Pub
     destinations: {
       instagram: { status: input.instagram ? "pending" : "off", note: "" },
       portfolio: { status: input.portfolio ? "pending" : "off", note: "" },
+      ...(input.instagramStory ? { instagramStory: { status: "pending" as const, note: "" } } : {}),
+      ...(input.facebookStory ? { facebookStory: { status: "pending" as const, note: "" } } : {}),
     },
   };
 }

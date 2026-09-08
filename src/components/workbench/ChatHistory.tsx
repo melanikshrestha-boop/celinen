@@ -12,17 +12,9 @@ import {
 import { useBlocker, defaultStringifySearch } from "@tanstack/react-router";
 import { explicitWorkspaceBinding, projectScope } from "@/lib/workbench-projects";
 import { isWorkbenchRoute } from "@/lib/workbench";
-import {
-  Archive,
-  Camera,
-  ArchiveRestore,
-  Download,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  Search,
-} from "lucide-react";
+import { MessageSquare, Download, SquarePen } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { useWorkspaceText } from "@/components/account/useWorkspaceText";
 import { useWorkbench } from "./context";
 import {
   chatSchema,
@@ -36,19 +28,6 @@ import {
   type ChatRepository,
   type ChatSummary,
 } from "@/lib/chat-history";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 
 type History = {
   active: ChatRecord | null;
@@ -59,11 +38,18 @@ type History = {
   switching: boolean;
   error: string;
   local: boolean;
+  temporary: boolean;
   snapshot: (messages: ChatMessage[], draft: string) => void;
   setLocked: (value: boolean) => void;
-  select: (id?: string) => Promise<boolean>;
+  select: (id?: string, temporary?: boolean) => Promise<boolean>;
   rename: (id: string, title: string) => Promise<void>;
   archive: (id: string, archived: boolean) => Promise<void>;
+  update: (
+    id: string,
+    patch: Partial<Pick<ChatRecord, "pinned" | "section" | "unread">>,
+  ) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  read: (id: string) => Promise<ChatRecord>;
   exportChat: () => void;
   retry: () => void;
 };
@@ -119,12 +105,19 @@ function HistorySession({
               (await import("@/lib/chat-history.functions")).saveWorkspaceChat({
                 data: { record: { ...record, draft: "" }, expectedOwner: scope },
               }),
+            remove: async (id, project, revision) => {
+              await (
+                await import("@/lib/chat-history.functions")
+              ).deleteWorkspaceChat({ data: { id, project, revision, expectedOwner: scope } });
+            },
           },
     [scope, local],
   );
   const [active, setActive] = useState<ChatRecord | null>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
+  const [temporary, setTemporary] = useState(false);
+  const temporaryId = useRef<string | null>(null);
   const [rows, setRows] = useState<ChatSummary[]>([]);
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
@@ -149,7 +142,9 @@ function HistorySession({
     void repository
       .list(project)
       .then(async (list) => {
-        const recent = list.find((row) => !row.archived);
+        const requested = new URL(window.location.href).searchParams.get("chat");
+        const recent =
+          list.find((row) => row.id === requested) ?? list.find((row) => !row.archived);
         const record = recent ? await repository.read(recent.id) : newChat(project);
         if (cancelled) return;
         if (record.project !== project)
@@ -175,6 +170,7 @@ function HistorySession({
   }, [repository, project, attempt]);
   const persist = useCallback(
     (record: ChatRecord) => {
+      if (record.id === temporaryId.current) return Promise.resolve();
       if (failure.current) return Promise.reject(new Error(failure.current));
       setPending(true);
       const task = queue.current.then(async () => {
@@ -209,7 +205,7 @@ function HistorySession({
     (messages: ChatMessage[], draft: string) => {
       const current = activeRef.current;
       if (!current) return;
-      if (!local) drafts.current.set(current.id, draft);
+      if (!local && current.id !== temporaryId.current) drafts.current.set(current.id, draft);
       let safe: ChatMessage[];
       try {
         safe = storedMessages(messages);
@@ -271,6 +267,12 @@ function HistorySession({
         const before = activeRef.current;
         await flush();
         if (before !== activeRef.current) return true;
+        if (
+          temporaryId.current &&
+          (before?.messages.length || before?.draft) &&
+          !window.confirm("Discard this temporary chat? It is not saved in history.")
+        )
+          return true;
         return (
           !local &&
           [...drafts.current.values()].some((draft) => draft.trim()) &&
@@ -288,6 +290,7 @@ function HistorySession({
     enableBeforeUnload: () =>
       Boolean(
         failure.current ||
+        (temporaryId.current && (activeRef.current?.messages.length || activeRef.current?.draft)) ||
         lockedRef.current ||
         [...drafts.current.values()].some((draft) => draft.trim()),
       ),
@@ -296,6 +299,12 @@ function HistorySession({
     () =>
       registerLeaveGuard?.(async () => {
         await flush();
+        if (
+          temporaryId.current &&
+          (activeRef.current?.messages.length || activeRef.current?.draft) &&
+          !window.confirm("Discard this temporary chat and log out?")
+        )
+          return false;
         if (
           !local &&
           [...drafts.current.values()].some((draft) => draft.trim()) &&
@@ -310,7 +319,12 @@ function HistorySession({
   );
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (failure.current || lockedRef.current || pending) {
+      if (
+        failure.current ||
+        lockedRef.current ||
+        pending ||
+        (temporaryId.current && (activeRef.current?.messages.length || activeRef.current?.draft))
+      ) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -319,13 +333,19 @@ function HistorySession({
     return () => window.removeEventListener("beforeunload", warn);
   }, [pending]);
   const select = useCallback(
-    async (id?: string) => {
+    async (id?: string, ephemeral = false) => {
       if (transition.current) return false;
       transition.current = true;
       setSwitching(true);
       const before = activeRef.current;
       try {
         await flush();
+        if (
+          temporaryId.current &&
+          (before?.messages.length || before?.draft) &&
+          !window.confirm("Discard this temporary chat? It is not saved in history.")
+        )
+          return false;
         const next = id ? await repository.read(id) : newChat(project);
         if (!local) next.draft = drafts.current.get(next.id) ?? "";
         if (!alive.current || activeRef.current !== before)
@@ -334,6 +354,12 @@ function HistorySession({
         if (next.project !== project)
           throw new Error("Open the matching shoot before reading this conversation.");
         revisions.current.set(next.id, next.revision);
+        if ((!id && !ephemeral) || next.unread) {
+          next.unread = false;
+          await persist(next);
+        }
+        temporaryId.current = ephemeral && !id ? next.id : null;
+        setTemporary(!!temporaryId.current);
         activeRef.current = next;
         setActive(next);
         return true;
@@ -345,15 +371,24 @@ function HistorySession({
         if (alive.current) setSwitching(false);
       }
     },
-    [flush, repository, project, local],
+    [flush, repository, project, local, persist],
   );
   const change = useCallback(
-    async (id: string, patch: Partial<Pick<ChatRecord, "title" | "named" | "archived">>) => {
+    async (
+      id: string,
+      patch: Partial<
+        Pick<ChatRecord, "title" | "named" | "archived" | "pinned" | "section" | "unread">
+      >,
+    ) => {
       if (transition.current) throw new Error("Wait for the current chat change.");
       transition.current = true;
       setSwitching(true);
       try {
         await flush();
+        if (id === temporaryId.current)
+          throw new Error(
+            "Temporary chats are not saved in history. Start a regular chat to organize it.",
+          );
         const record = activeRef.current?.id === id ? activeRef.current : await repository.read(id);
         if (record.project !== project) throw new Error("Wrong shoot.");
         revisions.current.set(record.id, revisions.current.get(record.id) ?? record.revision);
@@ -370,6 +405,37 @@ function HistorySession({
       }
     },
     [flush, repository, project, persist],
+  );
+  const read = useCallback(
+    async (id: string) => {
+      await flush();
+      const record = activeRef.current?.id === id ? activeRef.current : await repository.read(id);
+      if (record.project !== project) throw new Error("Open the matching shoot first.");
+      return chatSchema.parse(record);
+    },
+    [flush, repository, project],
+  );
+  const remove = useCallback(
+    async (id: string) => {
+      if (transition.current) throw new Error("Wait for the current chat change.");
+      transition.current = true;
+      setSwitching(true);
+      try {
+        const record = await read(id);
+        await repository.remove(id, project, revisions.current.get(id) ?? record.revision);
+        drafts.current.delete(id);
+        revisions.current.delete(id);
+        setRows((rows) => rows.filter((row) => row.id !== id));
+        if (activeRef.current?.id === id) {
+          activeRef.current = newChat(project);
+          setActive(activeRef.current);
+        }
+      } finally {
+        transition.current = false;
+        if (alive.current) setSwitching(false);
+      }
+    },
+    [read, repository, project],
   );
   const exportChat = useCallback(() => {
     const record = activeRef.current;
@@ -412,11 +478,15 @@ function HistorySession({
     switching,
     error,
     local,
+    temporary,
     snapshot,
     setLocked: lock,
     select,
     rename: (id, title) => change(id, { title, named: true }),
     archive: (id, archived) => change(id, { archived }),
+    update: (id, patch) => change(id, patch),
+    read,
+    remove,
     exportChat,
     retry: () => {
       if (!ready) setAttempt((value) => value + 1);
@@ -434,6 +504,7 @@ export function NewChatButton({
 }) {
   const history = useChatHistory();
   const workbench = useWorkbench();
+  const t = useWorkspaceText();
   return (
     <button
       className={`workbench-nav-item ${active ? "is-active" : ""}`}
@@ -447,158 +518,18 @@ export function NewChatButton({
       }
       onClick={() => {
         if (camera) void workbench?.openTool("/workspace");
-        else if (workbench?.newShoot) void workbench.newShoot();
-        else void history?.select();
+        else
+          void history?.select().then(async (opened) => {
+            if (opened) await workbench?.openTool("/workspace");
+          });
       }}
     >
-      {camera ? <Camera size={17} /> : <Plus size={17} />}
-      {camera ? "Chat" : "New chat"}
+      {camera ? <MessageSquare size={20} /> : <SquarePen size={20} />}
+      {t(camera ? "Shoot" : "New shoot")}
     </button>
   );
 }
-export function ChatRecents() {
-  const history = useChatHistory();
-  const workbench = useWorkbench();
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [archived, setArchived] = useState(false);
-  const [rename, setRename] = useState<ChatSummary | null>(null);
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
-  if (!history) return null;
-  const rows = history.rows.filter(
-    (row) =>
-      row.archived === archived &&
-      row.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
-  );
-  const disabled =
-    !history.ready || history.locked || history.switching || history.pending || !!history.error;
-  return (
-    <section className="chat-recents" aria-label="Chat history">
-      <div className="chat-recents-heading">
-        <span>{archived ? "Archived chats" : "Recent chats"}</span>
-        <button aria-label="Search chats" onClick={() => setSearching(!searching)}>
-          <Search size={14} />
-        </button>
-        <button
-          aria-label={archived ? "Show recent chats" : "Show archived chats"}
-          onClick={() => setArchived(!archived)}
-        >
-          <Archive size={14} />
-        </button>
-      </div>
-      {searching && (
-        <input
-          aria-label="Search chat titles"
-          placeholder="Search chats…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          autoFocus
-        />
-      )}
-      {!history.ready && <p>{history.error ? "History unavailable" : "Opening history…"}</p>}
-      {history.ready && !rows.length && (
-        <p>
-          {query
-            ? "No matching chats"
-            : archived
-              ? "No archived chats"
-              : "Your conversations will appear here."}
-        </p>
-      )}
-      {rows.map((row) => (
-        <div
-          className={`chat-recent ${history.active?.id === row.id ? "is-active" : ""}`}
-          key={row.id}
-        >
-          <button
-            disabled={disabled || archived}
-            aria-current={history.active?.id === row.id ? "true" : undefined}
-            title={row.title}
-            onClick={() => {
-              void history.select(row.id).then((opened) => {
-                if (opened) void workbench?.openTool("/workspace");
-              });
-            }}
-          >
-            {row.title}
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button disabled={disabled} aria-label={`Options for ${row.title}`}>
-                <MoreHorizontal size={15} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                onSelect={() => {
-                  setRename(row);
-                  setTitle(row.title);
-                  setNote("");
-                }}
-              >
-                <Pencil size={14} />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  void history
-                    .archive(row.id, !row.archived)
-                    .catch((error: unknown) =>
-                      setNote(error instanceof Error ? error.message : "Couldn't update chat."),
-                    );
-                }}
-              >
-                {row.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                {row.archived ? "Restore" : "Archive"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ))}
-      {note && <p role="alert">{note}</p>}
-      <Dialog
-        open={!!rename}
-        onOpenChange={(open) => {
-          if (!open) setRename(null);
-        }}
-      >
-        <DialogContent className="account-confirm">
-          <DialogHeader>
-            <DialogTitle>Rename chat</DialogTitle>
-            <DialogDescription>
-              Only the conversation name changes. Your shoot stays untouched.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (rename && title.trim())
-                void history
-                  .rename(rename.id, title.trim())
-                  .then(() => setRename(null))
-                  .catch((error: unknown) =>
-                    setNote(error instanceof Error ? error.message : "Rename failed."),
-                  );
-            }}
-          >
-            <input
-              aria-label="Chat title"
-              maxLength={80}
-              className="chat-rename-input"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-            <button className="settings-button primary" disabled={!title.trim()}>
-              Save name
-            </button>
-            {note && <p role="alert">{note}</p>}
-          </form>
-        </DialogContent>
-      </Dialog>
-    </section>
-  );
-}
+export { ChatRecents } from "./ChatRecents";
 export function ChatSaveStatus() {
   const history = useChatHistory();
   if (!history) return null;
@@ -621,15 +552,17 @@ export function ChatSaveStatus() {
           <span>
             {history.pending
               ? "Saving chat…"
-              : !history.local && history.active?.draft
-                ? "Draft stays in this tab"
-                : history.active && (history.active.messages.length || history.active.draft)
-                  ? history.local
-                    ? "Saved on this device"
-                    : "Saved to your account"
-                  : history.local
-                    ? "On this device"
-                    : "Private chat"}
+              : history.temporary
+                ? "Temporary chat · not saved in history"
+                : !history.local && history.active?.draft
+                  ? "Draft stays in this tab"
+                  : history.active && (history.active.messages.length || history.active.draft)
+                    ? history.local
+                      ? "Saved on this device"
+                      : "Saved to your account"
+                    : history.local
+                      ? "On this device"
+                      : "Private chat"}
           </span>
           {history.active?.messages.length ? (
             <button

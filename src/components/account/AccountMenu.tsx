@@ -1,13 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useRef, useState } from "react";
 import { ChevronUp, LogOut, Settings, Gauge, Cat, Send } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +20,8 @@ import {
 import { useWorkbench } from "@/components/workbench/context";
 import { accountInitials } from "@/lib/account-preferences";
 import { useAccount } from "./AccountProvider";
+import { settingsPath, settingsSection } from "@/lib/settings-catalog";
+import { InviteFriendDialog } from "./InviteFriendDialog";
 import "./account.css";
 
 export function AccountMenu() {
@@ -35,21 +29,25 @@ export function AccountMenu() {
   const workbench = useWorkbench();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
   const [invite, setInvite] = useState(false);
-  const [inviteNote, setInviteNote] = useState("");
+  const accountTrigger = useRef<HTMLButtonElement>(null);
   const [preferenceError, setPreferenceError] = useState("");
   const openSection = async (hash: string) => {
-    if (await workbench?.openTool("/settings"))
-      await navigate({ search: true, hash, replace: true });
+    await workbench?.openTool(settingsPath(settingsSection(hash)));
   };
   if (!account) return null;
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="account-trigger" aria-label={`Account menu for ${account.name}`}>
-            <span className="account-avatar">{accountInitials(account.name)}</span>
+          <button
+            ref={accountTrigger}
+            className="account-trigger"
+            aria-label={`Account menu for ${account.name}`}
+          >
+            <span className="account-avatar">
+              {account.avatar ? <img src={account.avatar} alt="" /> : accountInitials(account.name)}
+            </span>
             <span>
               {account.name}
               <small title={account.workspaceName}>{account.workspaceName}</small>
@@ -59,7 +57,9 @@ export function AccountMenu() {
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start" sideOffset={8} className="account-menu">
           <DropdownMenuLabel className="account-menu-identity">
-            <span className="account-avatar">{accountInitials(account.name)}</span>
+            <span className="account-avatar">
+              {account.avatar ? <img src={account.avatar} alt="" /> : accountInitials(account.name)}
+            </span>
             <span>
               {account.name}
               <small>
@@ -92,7 +92,6 @@ export function AccountMenu() {
           <DropdownMenuItem
             onSelect={() => {
               setInvite(true);
-              setInviteNote("");
             }}
           >
             <Send size={17} />
@@ -117,35 +116,7 @@ export function AccountMenu() {
           {preferenceError}
         </p>
       )}
-      <Dialog open={invite} onOpenChange={setInvite}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invite a friend</DialogTitle>
-            <DialogDescription>
-              Share LensLabs. This link opens the public website, not your private shoots.
-            </DialogDescription>
-          </DialogHeader>
-          <input
-            aria-label="LensLabs invitation link"
-            value="https://lenslab.dev/"
-            readOnly
-            onFocus={(event) => event.target.select()}
-            className="settings-shortcut-search"
-          />
-          <button
-            className="settings-button primary"
-            onClick={() => {
-              void navigator.clipboard
-                .writeText("https://lenslab.dev/")
-                .then(() => setInviteNote("Link copied"))
-                .catch(() => setInviteNote("Select the link above and copy it manually."));
-            }}
-          >
-            Copy link
-          </button>
-          <p role="status">{inviteNote}</p>
-        </DialogContent>
-      </Dialog>
+      <InviteFriendDialog open={invite} onOpenChange={setInvite} returnFocus={accountTrigger} />
       {account.error && (
         <p className="account-inline-error" role="alert">
           {account.error}

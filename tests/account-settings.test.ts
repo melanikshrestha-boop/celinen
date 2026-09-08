@@ -38,8 +38,11 @@ describe("real account identity and device preferences", () => {
   });
   test("settings are bounded and restored without trusting malformed browser storage", () => {
     expect(readPreferences(null)).toEqual(DEFAULT_PREFERENCES);
-    expect(readPreferences("not json")).toEqual(DEFAULT_PREFERENCES);
-    expect(readPreferences('{"theme":"pink"}')).toEqual(DEFAULT_PREFERENCES);
+    expect(readPreferences("not json")).toEqual({ ...DEFAULT_PREFERENCES, cloudAssistant: false });
+    expect(readPreferences('{"theme":"pink"}')).toEqual({
+      ...DEFAULT_PREFERENCES,
+      cloudAssistant: false,
+    });
     expect(readPreferences('{"theme":"light","reduceMotion":true}').theme).toBe("light");
     expect(preferencesSchema.safeParse({ admin: true }).success).toBe(false);
   });

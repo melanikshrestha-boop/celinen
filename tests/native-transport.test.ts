@@ -15,6 +15,8 @@ import {
   nativeStudioPlugin,
 } from "../src/server/native-studio-plugin";
 import { decodeNativeFrame } from "../src/lib/studio/native-client";
+import { DEFAULT_SOCIAL_FRAME } from "../src/lib/social-frame";
+import { jpegDimensions } from "../src/lib/delivery/media-integrity";
 
 const token = "a".repeat(64);
 const binary = resolve("native/build/lenslabs-native");
@@ -432,6 +434,73 @@ describe.skipIf(!hasNative)("local HTTP bridge", () => {
         })
       ).status,
     ).toBe(400);
+  });
+  test("social export requires the same local authorization and a bounded recipe", async () => {
+    const endpoint = origin + "/__native/social-frame";
+    const headers = {
+      ...auth,
+      "content-type": "application/octet-stream",
+      "x-lenslabs-frame": JSON.stringify(DEFAULT_SOCIAL_FRAME),
+    };
+    for (const patch of [{ origin: "https://evil.example" }, { "x-lenslabs-token": "invalid" }]) {
+      expect(
+        (await fetch(endpoint, { method: "POST", headers: { ...headers, ...patch }, body: "x" }))
+          .status,
+      ).toBe(403);
+    }
+    expect(
+      (
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(415);
+    for (const frame of [
+      "not-json",
+      JSON.stringify({ ...DEFAULT_SOCIAL_FRAME, source: good }),
+      JSON.stringify({ ...DEFAULT_SOCIAL_FRAME, zoom: 100 }),
+    ]) {
+      expect(
+        (
+          await fetch(endpoint, {
+            method: "POST",
+            headers: { ...headers, "x-lenslabs-frame": frame },
+            body: "x",
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect((await fetch(endpoint, { method: "POST", headers, body: "" })).status).toBe(400);
+  });
+  test("social HTTP output is a C++ JPEG, excludes paths, and preserves original bytes", async () => {
+    const before = await readFile(good);
+    for (const [format, height] of [
+      ["portrait", 1350],
+      ["square", 1080],
+      ["story", 1920],
+    ] as const) {
+      const result = await fetch(origin + "/__native/social-frame?path=/etc/passwd", {
+        method: "POST",
+        headers: {
+          ...auth,
+          "content-type": "application/octet-stream",
+          "x-lenslabs-frame": JSON.stringify({ ...DEFAULT_SOCIAL_FRAME, format }),
+        },
+        body: before,
+        signal: AbortSignal.timeout(5000),
+      });
+      expect(result.status).toBe(200);
+      expect(result.headers.get("x-lenslabs-engine")).toBe("cpp");
+      expect(result.headers.get("content-type")).toBe("image/jpeg");
+      expect(result.headers.get("cache-control")).toBe("no-store");
+      expect(jpegDimensions(new Uint8Array(await result.arrayBuffer()))).toEqual({
+        width: 1080,
+        height,
+      });
+    }
+    expect(await readFile(good)).toEqual(before);
   });
   test("oversized Content-Length fails before the body is received", async () => {
     const status = await new Promise<number>((done, reject) => {

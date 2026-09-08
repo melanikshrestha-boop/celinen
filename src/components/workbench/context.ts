@@ -6,6 +6,8 @@ export type WorkbenchContextValue = {
   storageScope: string;
   workspaceProjectId: string | null;
   newShoot?: () => Promise<boolean>;
+  openQuickChat?: () => Promise<void>;
+  closeQuickChat?: () => void;
   setToolTitle: (href: string, title: string) => void;
   openWorkspaceRequest: (request: {
     path: "/research" | "/mail";

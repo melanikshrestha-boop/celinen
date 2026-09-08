@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { applicationOrigin } from "./application-origin";
 
 /**
  * Direct Stripe client for the PLATFORM account.
@@ -20,7 +21,9 @@ export function connectClientId(): string {
   return id;
 }
 
-export const SITE_URL = "https://lenslab.dev";
+export const SITE_URL = applicationOrigin(
+  process.env["APP_ORIGIN"] ?? process.env["VITE_APP_ORIGIN"],
+);
 
 export function connectRedirectUri() {
   return `${SITE_URL}/api/public/stripe/connect-callback`;

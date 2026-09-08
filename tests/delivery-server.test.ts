@@ -14,6 +14,13 @@ import {
 } from "../src/lib/delivery/remote.server";
 import { jpegDimensions } from "../src/lib/delivery/media-integrity";
 import {
+  commentDraftScope,
+  readCommentDrafts,
+  reconcileCommentDrafts,
+  saveCommentDrafts,
+  updateCommentDraft,
+} from "../src/lib/delivery/comment-drafts";
+import {
   objectPath,
   variantNames,
   type DeliveryCommand,
@@ -336,6 +343,51 @@ describe("private delivery server boundaries with an isolated fake Supabase tran
     await expect(
       act(r.id, null, r.token, saved.revision, op, { ...cmd, body: "Changed" }),
     ).rejects.toThrow("conflict");
+  });
+  test("a reloaded note retries the committed server receipt without creating another revision", async () => {
+    const r = await liveRoom(),
+      cached = new Map<string, string>();
+    const tab = {
+      getItem: (key: string) => cached.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        cached.set(key, value);
+      },
+      removeItem: (key: string) => {
+        cached.delete(key);
+      },
+    };
+    const scope = commentDraftScope(r.id, uid());
+    const drafts = updateCommentDraft({}, r.v.id, r.v.photoId, {
+      body: "Warmer, please — 東京",
+      revision: true,
+    });
+    saveCommentDrafts(tab, scope, drafts);
+    const before = rows.get(r.id)!.revision,
+      sent = drafts[r.v.id]!;
+    const command: DeliveryCommand = {
+      type: "comment",
+      versionId: r.v.id,
+      body: sent.body.trim(),
+      revision: sent.revision,
+    };
+    // Commit happened, but its response was lost before the browser could acknowledge it.
+    await act(r.id, null, r.token, before, sent.operationId, command);
+    const restored = readCommentDrafts(tab, scope),
+      retry = restored[r.v.id]!;
+    const result = await act(r.id, null, r.token, before, retry.operationId, {
+      type: "comment",
+      versionId: r.v.id,
+      body: retry.body.trim(),
+      revision: retry.revision,
+    });
+    expect(result.state.comments).toHaveLength(1);
+    expect(result.state.comments[0]!.revision).toBe(true);
+    expect(result.state.comments[0]!.versionId).toBe(r.v.id);
+    expect(result.state.approvals).toEqual([]);
+    expect(result.state.released).toEqual([]);
+    const reconciled = reconcileCommentDrafts(restored, result.state.comments, "client");
+    saveCommentDrafts(tab, scope, reconciled);
+    expect(readCommentDrafts(tab, scope)).toEqual({});
   });
   test("client sees proofs but cannot obtain finals until exact-version release", async () => {
     const r = await liveRoom();

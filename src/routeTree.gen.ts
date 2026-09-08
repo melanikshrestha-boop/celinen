@@ -19,7 +19,9 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as HelpRouteImport } from './routes/help'
 import { Route as MailRouteImport } from './routes/mail'
 import { Route as MetadataRouteImport } from './routes/metadata'
 import { Route as NetworkRouteImport } from './routes/network'
@@ -29,27 +31,34 @@ import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as RatesRouteImport } from './routes/rates'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as DocsPermissionsRouteImport } from './routes/docs_.permissions'
+import { Route as DocsSettingsRouteImport } from './routes/docs_.settings'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as PPostIdRouteImport } from './routes/p.$postId'
 import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$ownerId'
 import { Route as ReviewIdRouteImport } from './routes/review.$id'
 import { Route as STokenRouteImport } from './routes/s.$token'
+import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
 import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
+import { Route as ApiPublicStoriesPostIdCoverRouteImport } from './routes/api/public/stories/$postId/cover'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -101,9 +110,19 @@ const DeskRoute = DeskRouteImport.update({
   path: '/desk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EarningsRoute = EarningsRouteImport.update({
   id: '/earnings',
   path: '/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MailRoute = MailRouteImport.update({
@@ -151,6 +170,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -169,6 +193,11 @@ const RatesRoute = RatesRouteImport.update({
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SendRoute = SendRouteImport.update({
@@ -201,6 +230,11 @@ const StudioRoute = StudioRouteImport.update({
   path: '/studio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VideoRoute = VideoRouteImport.update({
   id: '/video',
   path: '/video',
@@ -214,6 +248,16 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsPermissionsRoute = DocsPermissionsRouteImport.update({
+  id: '/docs_/permissions',
+  path: '/docs/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsSettingsRoute = DocsSettingsRouteImport.update({
+  id: '/docs_/settings',
+  path: '/docs/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GSlugRoute = GSlugRouteImport.update({
@@ -241,6 +285,11 @@ const STokenRoute = STokenRouteImport.update({
   path: '/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsSectionRoute = SettingsSectionRouteImport.update({
+  id: '/settings_/$section',
+  path: '/settings/$section',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
@@ -258,6 +307,12 @@ const ApiPublicStripeConnectWebhookRoute =
     path: '/api/public/stripe/connect-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicStoriesPostIdCoverRoute =
+  ApiPublicStoriesPostIdCoverRouteImport.update({
+    id: '/api/public/stories/$postId/cover',
+    path: '/api/public/stories/$postId/cover',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -270,7 +325,9 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/help': typeof HelpRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/network': typeof NetworkRoute
@@ -280,27 +337,34 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
   '/research': typeof ResearchRoute
+  '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/terms': typeof TermsRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/docs/permissions': typeof DocsPermissionsRoute
+  '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
+  '/settings/$section': typeof SettingsSectionRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
+  '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -313,7 +377,9 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/help': typeof HelpRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/network': typeof NetworkRoute
@@ -323,27 +389,34 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
   '/research': typeof ResearchRoute
+  '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/terms': typeof TermsRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/docs/permissions': typeof DocsPermissionsRoute
+  '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
+  '/settings/$section': typeof SettingsSectionRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
+  '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -357,7 +430,9 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/help': typeof HelpRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/network': typeof NetworkRoute
@@ -367,27 +442,34 @@ export interface FileRoutesById {
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
   '/research': typeof ResearchRoute
+  '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/terms': typeof TermsRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/docs_/permissions': typeof DocsPermissionsRoute
+  '/docs_/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
+  '/settings_/$section': typeof SettingsSectionRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
+  '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -402,7 +484,9 @@ export interface FileRouteTypes {
     | '/community'
     | '/deliver'
     | '/desk'
+    | '/docs'
     | '/earnings'
+    | '/help'
     | '/mail'
     | '/metadata'
     | '/network'
@@ -412,27 +496,34 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/privacy'
     | '/projects'
     | '/publish'
     | '/rates'
     | '/research'
+    | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/shop'
     | '/signup'
     | '/studio'
+    | '/terms'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/docs/permissions'
+    | '/docs/settings'
     | '/g/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
+    | '/settings/$section'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
+    | '/api/public/stories/$postId/cover'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -445,7 +536,9 @@ export interface FileRouteTypes {
     | '/community'
     | '/deliver'
     | '/desk'
+    | '/docs'
     | '/earnings'
+    | '/help'
     | '/mail'
     | '/metadata'
     | '/network'
@@ -455,27 +548,34 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/privacy'
     | '/projects'
     | '/publish'
     | '/rates'
     | '/research'
+    | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/shop'
     | '/signup'
     | '/studio'
+    | '/terms'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/docs/permissions'
+    | '/docs/settings'
     | '/g/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
+    | '/settings/$section'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
+    | '/api/public/stories/$postId/cover'
   id:
     | '__root__'
     | '/'
@@ -488,7 +588,9 @@ export interface FileRouteTypes {
     | '/community'
     | '/deliver'
     | '/desk'
+    | '/docs'
     | '/earnings'
+    | '/help'
     | '/mail'
     | '/metadata'
     | '/network'
@@ -498,27 +600,34 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/privacy'
     | '/projects'
     | '/publish'
     | '/rates'
     | '/research'
+    | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/shop'
     | '/signup'
     | '/studio'
+    | '/terms'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/docs_/permissions'
+    | '/docs_/settings'
     | '/g/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
+    | '/settings_/$section'
     | '/api/public/lightroom'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
+    | '/api/public/stories/$postId/cover'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -532,7 +641,9 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
+  DocsRoute: typeof DocsRoute
   EarningsRoute: typeof EarningsRoute
+  HelpRoute: typeof HelpRoute
   MailRoute: typeof MailRoute
   MetadataRoute: typeof MetadataRoute
   NetworkRoute: typeof NetworkRoute
@@ -542,27 +653,34 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProjectsRoute: typeof ProjectsRoute
   PublishRoute: typeof PublishRoute
   RatesRoute: typeof RatesRoute
   ResearchRoute: typeof ResearchRoute
+  SecurityRoute: typeof SecurityRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
   ShopRoute: typeof ShopRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
+  TermsRoute: typeof TermsRoute
   VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
+  DocsPermissionsRoute: typeof DocsPermissionsRoute
+  DocsSettingsRoute: typeof DocsSettingsRoute
   GSlugRoute: typeof GSlugRoute
   PPostIdRoute: typeof PPostIdRoute
   PhotographerOwnerIdRoute: typeof PhotographerOwnerIdRoute
   ReviewIdRoute: typeof ReviewIdRoute
   STokenRoute: typeof STokenRoute
+  SettingsSectionRoute: typeof SettingsSectionRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
+  ApiPublicStoriesPostIdCoverRoute: typeof ApiPublicStoriesPostIdCoverRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -637,11 +755,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/earnings': {
       id: '/earnings'
       path: '/earnings'
       fullPath: '/earnings'
       preLoaderRoute: typeof EarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mail': {
@@ -707,6 +839,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects': {
       id: '/projects'
       path: '/projects'
@@ -733,6 +872,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof ResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/send': {
@@ -777,6 +923,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/video': {
       id: '/video'
       path: '/video'
@@ -796,6 +949,20 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs_/permissions': {
+      id: '/docs_/permissions'
+      path: '/docs/permissions'
+      fullPath: '/docs/permissions'
+      preLoaderRoute: typeof DocsPermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs_/settings': {
+      id: '/docs_/settings'
+      path: '/docs/settings'
+      fullPath: '/docs/settings'
+      preLoaderRoute: typeof DocsSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/g/$slug': {
@@ -833,6 +1000,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/$section': {
+      id: '/settings_/$section'
+      path: '/settings/$section'
+      fullPath: '/settings/$section'
+      preLoaderRoute: typeof SettingsSectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
@@ -854,6 +1028,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeConnectWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stories/$postId/cover': {
+      id: '/api/public/stories/$postId/cover'
+      path: '/api/public/stories/$postId/cover'
+      fullPath: '/api/public/stories/$postId/cover'
+      preLoaderRoute: typeof ApiPublicStoriesPostIdCoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -868,7 +1049,9 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
+  DocsRoute: DocsRoute,
   EarningsRoute: EarningsRoute,
+  HelpRoute: HelpRoute,
   MailRoute: MailRoute,
   MetadataRoute: MetadataRoute,
   NetworkRoute: NetworkRoute,
@@ -878,27 +1061,34 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
   ProjectsRoute: ProjectsRoute,
   PublishRoute: PublishRoute,
   RatesRoute: RatesRoute,
   ResearchRoute: ResearchRoute,
+  SecurityRoute: SecurityRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
   ShopRoute: ShopRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
+  TermsRoute: TermsRoute,
   VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
+  DocsPermissionsRoute: DocsPermissionsRoute,
+  DocsSettingsRoute: DocsSettingsRoute,
   GSlugRoute: GSlugRoute,
   PPostIdRoute: PPostIdRoute,
   PhotographerOwnerIdRoute: PhotographerOwnerIdRoute,
   ReviewIdRoute: ReviewIdRoute,
   STokenRoute: STokenRoute,
+  SettingsSectionRoute: SettingsSectionRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
+  ApiPublicStoriesPostIdCoverRoute: ApiPublicStoriesPostIdCoverRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

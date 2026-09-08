@@ -58,7 +58,7 @@ function abortIfNeeded(signal?: AbortSignal): void {
 }
 
 export function deadlinePrefix(value: string): string {
-  // ASCII-only flat names also avoid the legacy ZIP helper's missing UTF-8 flag.
+  // Keep generated deadline filenames short and portable across client devices.
   return (
     value
       .normalize("NFKD")

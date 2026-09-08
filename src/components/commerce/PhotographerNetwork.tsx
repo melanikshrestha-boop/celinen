@@ -12,6 +12,7 @@ import {
   inquirySchema,
   type DirectoryEntry,
   type Inquiry,
+  type Photographer,
 } from "@/lib/commerce/model";
 import {
   findPhotographers,
@@ -21,6 +22,7 @@ import {
   sendPhotographerRequest,
 } from "@/lib/commerce/functions";
 import "./commerce.css";
+import { creatorInquiryPath } from "@/lib/business/story-sharing";
 
 const defaultAPI = {
   findPhotographers,
@@ -33,18 +35,22 @@ type API = typeof defaultAPI;
 export function PhotographerDirectory({
   api = defaultAPI,
   onSent,
+  featured,
 }: {
   api?: API;
   onSent?: () => void;
+  featured?: (Photographer & { owner: string }) | undefined;
 }) {
   const account = useAccount();
-  const [rows, setRows] = useState<DirectoryEntry[]>([]),
+  const [rows, setRows] = useState<(DirectoryEntry | (Photographer & { owner: string }))[]>(
+      featured ? [featured] : [],
+    ),
     [query, setQuery] = useState(""),
     [applied, setApplied] = useState("");
   const [page, setPage] = useState(0),
-    [loading, setLoading] = useState(true),
+    [loading, setLoading] = useState(!featured),
     [error, setError] = useState("");
-  const [target, setTarget] = useState<DirectoryEntry | null>(null),
+  const [target, setTarget] = useState<(Photographer & { owner: string }) | null>(null),
     [kind, setKind] = useState<"booking" | "collaboration">("booking");
   const [message, setMessage] = useState(""),
     [sending, setSending] = useState(false),
@@ -81,7 +87,7 @@ export function PhotographerDirectory({
   }
   useEffect(() => {
     alive.current = true;
-    void search("", 0);
+    if (!featured) void search("", 0);
     return () => {
       alive.current = false;
     };
@@ -142,32 +148,36 @@ export function PhotographerDirectory({
   };
   return (
     <section>
-      <form
-        className="commerce-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void search(query, 0);
-        }}
-      >
-        <label style={{ flex: 1, margin: 0 }}>
-          Find a photographer
-          <input
-            type="search"
-            maxLength={80}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="City, country, specialty or language"
-          />
-        </label>
-        <button className="commerce-primary" disabled={loading} type="submit">
-          <Search size={16} />
-          <span className="sr-only">Search photographers</span>
-        </button>
-      </form>
-      <p className="commerce-caption">
-        Sorted by verified-booking reputation, with review count taken into account. New
-        photographers show “No verified reviews,” not an invented score.
-      </p>
+      {!featured && (
+        <form
+          className="commerce-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void search(query, 0);
+          }}
+        >
+          <label style={{ flex: 1, margin: 0 }}>
+            Find a photographer
+            <input
+              type="search"
+              maxLength={80}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="City, country, specialty or language"
+            />
+          </label>
+          <button className="commerce-primary" disabled={loading} type="submit">
+            <Search size={16} />
+            <span className="sr-only">Search photographers</span>
+          </button>
+        </form>
+      )}
+      {!featured && (
+        <p className="commerce-caption">
+          Sorted by verified-booking reputation, with review count taken into account. New
+          photographers show “No verified reviews,” not an invented score.
+        </p>
+      )}
       {notice && <p role="status">{notice}</p>}
       {loading && <p role="status">Finding photographers…</p>}
       {error && (
@@ -191,11 +201,13 @@ export function PhotographerDirectory({
                       "Location not listed"}{" "}
                     · {person.specialties.join(" · ")}
                   </p>
-                  <p className="network-rating">
-                    {person.rating === null
-                      ? "No verified reviews yet"
-                      : `${person.rating.toFixed(1)} / 5 · ${person.reviewCount} verified booking reviews`}
-                  </p>
+                  {"rating" in person && (
+                    <p className="network-rating">
+                      {person.rating === null
+                        ? "No verified reviews yet"
+                        : `${person.rating.toFixed(1)} / 5 · ${person.reviewCount} verified booking reviews`}
+                    </p>
+                  )}
                   {person.bio && <p>{person.bio}</p>}
                   {person.languages && <p>Languages: {person.languages}</p>}
                   <div className="network-actions">
@@ -226,7 +238,7 @@ export function PhotographerDirectory({
                           </button>
                         </>
                       ) : (
-                        <Link to="/auth" search={{ next: "/network" }}>
+                        <Link to="/auth" search={{ next: creatorInquiryPath(person.owner) }}>
                           Sign in to get in touch
                         </Link>
                       ))}
@@ -243,21 +255,23 @@ export function PhotographerDirectory({
                 : "Be part of the first wave. Photographers appear here only after choosing to publish a profile."}
             </p>
           )}
-          <div className="commerce-row">
-            <button
-              disabled={page === 0}
-              onClick={() => void search(applied, Math.max(0, page - 25))}
-            >
-              Previous
-            </button>
-            <span>Page {page / 25 + 1}</span>
-            <button
-              disabled={rows.length < 25 || page >= 10000}
-              onClick={() => void search(applied, page + 25)}
-            >
-              Next
-            </button>
-          </div>
+          {!featured && (
+            <div className="commerce-row">
+              <button
+                disabled={page === 0}
+                onClick={() => void search(applied, Math.max(0, page - 25))}
+              >
+                Previous
+              </button>
+              <span>Page {page / 25 + 1}</span>
+              <button
+                disabled={rows.length < 25 || page >= 10000}
+                onClick={() => void search(applied, page + 25)}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </>
       )}
       <Dialog

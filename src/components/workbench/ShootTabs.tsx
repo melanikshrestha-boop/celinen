@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
-import { Camera, Plus, X } from "lucide-react";
+import { MessageSquare, Plus, X } from "lucide-react";
 import type { WorkbenchTab } from "@/lib/workbench";
+import { useChatHistory } from "./ChatHistory";
+import { shootDisplayTitle } from "@/lib/workspace-labels";
 
 /** Navigation tabs share one shoot controller; closing a tool never clears the shoot. */
 export function ShootTabs({
@@ -20,6 +22,11 @@ export function ShootTabs({
   onClose: (tab: WorkbenchTab) => Promise<boolean>;
   onNew: () => void;
 }) {
+  const activeChat = useChatHistory()?.active;
+  const chatTitle =
+    activeChat && (activeChat.named || activeChat.messages.length)
+      ? shootDisplayTitle(activeChat)
+      : "Shoot";
   const active = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     active.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -46,13 +53,13 @@ export function ShootTabs({
     </a>
   );
   return (
-    <nav className="workbench-tabs" aria-label="Tabs in this shoot">
+    <nav className="workbench-tabs" aria-label="Tabs in this project">
       <div className={`workbench-tab ${!currentHref ? "is-active" : ""}`}>
         {link(
           chatHref,
           <>
-            <Camera size={15} aria-hidden="true" />
-            Chat
+            <MessageSquare size={16} aria-hidden="true" />
+            <span title={chatTitle}>{chatTitle}</span>
           </>,
           !currentHref,
         )}
@@ -76,7 +83,7 @@ export function ShootTabs({
       ))}
       <button
         className="workbench-new-tab"
-        aria-label="Open a new tab in this shoot"
+        aria-label="Open a new tab in this project"
         title="New tab"
         onClick={onNew}
       >

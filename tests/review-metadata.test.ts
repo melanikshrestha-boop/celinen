@@ -131,9 +131,22 @@ describe("photographer review metadata", () => {
   test("both live import/export and sidecar import/export use the shared preservation policy", () => {
     const source = readFileSync(new URL("../src/routes/studio.tsx", import.meta.url), "utf8");
     expect(source).toContain("importedReviewVerdict(parsed)");
-    expect(source).toContain("importedReviewVerdict(frame, s.verdict)");
-    expect(source).toContain("...exportedReviewMetadata(s)");
-    expect(source).toContain("exportedReviewMetadata(shot)");
+    expect(source).toContain(
+      "mergeLightroomFrames(latestShotsRef.current, state.frames, Date.now())",
+    );
+    expect(source).toContain("createLightroomVerdicts(latestShotsRef.current)");
+    const bridgeSource = readFileSync(
+      new URL("../src/lib/lightroom-matching.ts", import.meta.url),
+      "utf8",
+    );
+    expect(bridgeSource).toContain("importedReviewVerdict(frame, shot.verdict)");
+    expect(bridgeSource).toContain("...exportedReviewMetadata(shot)");
+    expect(source).toContain("createSidecarArchive(latestShotsRef.current)");
+    const exportSource = readFileSync(
+      new URL("../src/lib/studio/sidecar-export.ts", import.meta.url),
+      "utf8",
+    );
+    expect(exportSource).toContain("exportedReviewMetadata(shot)");
     expect(source).not.toContain("Math.round(s.score / 20)");
     expect(source).not.toContain("Math.round(shot.score / 20)");
   });

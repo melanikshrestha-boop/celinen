@@ -2,6 +2,9 @@ CXX = clang++
 BUILD_DIR ?= build
 CXXFLAGS ?= -std=c++20 -O3 -DNDEBUG -Wall -Wextra -Wpedantic -pthread
 CPPFLAGS += -Iinclude
+LIBRAW_ROOT = build/deps/libraw-0.22.2
+LIBRAW = $(LIBRAW_ROOT)/lib/libraw_r.a
+CPPFLAGS += -I$(LIBRAW_ROOT)/include
 FRAMEWORKS = -framework ImageIO -framework CoreGraphics -framework CoreFoundation
 HEADERS = include/lenslabs/engine.hpp include/lenslabs/pipeline.hpp include/lenslabs/worker.hpp include/lenslabs/bursts.hpp
 CORE = $(BUILD_DIR)/analysis.o
@@ -10,28 +13,34 @@ PIPELINE = $(BUILD_DIR)/pipeline.o
 WORKER = $(BUILD_DIR)/worker.o
 
 .PHONY: all test sanitize
-all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts
+all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-social
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
+$(LIBRAW):
+	@echo "Missing pinned LibRaw. Run: sh native/bootstrap-libraw.sh (from the repository root)" >&2
+	@exit 1
+
+$(BUILD_DIR)/decode_mac.o: $(LIBRAW)
+
 $(BUILD_DIR)/%.o: src/%.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD_DIR)/lenslabs-native: $(BUILD_DIR)/main.o $(CORE) $(DECODER) $(PIPELINE) $(WORKER)
+$(BUILD_DIR)/lenslabs-native: $(BUILD_DIR)/main.o $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(LIBRAW)
 	$(CXX) $(CXXFLAGS) $^ $(FRAMEWORKS) -o $@
 
 $(BUILD_DIR)/core-tests: tests/core_tests.cpp $(CORE) $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) -o $@
 
 $(BUILD_DIR)/decoder-tests: tests/decoder_tests.cpp $(DECODER) $(HEADERS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(DECODER) $(FRAMEWORKS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(DECODER) $(LIBRAW) $(FRAMEWORKS) -o $@
 
 $(BUILD_DIR)/pipeline-tests: tests/pipeline_tests.cpp $(CORE) $(PIPELINE) $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) $(PIPELINE) -o $@
 
 $(BUILD_DIR)/worker-tests: tests/worker_tests.cpp $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(HEADERS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(FRAMEWORKS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(LIBRAW) $(FRAMEWORKS) -o $@
 
 $(BUILD_DIR)/lenslabs-bursts: $(BUILD_DIR)/bursts_main.o $(BUILD_DIR)/bursts.o
 	$(CXX) $(CXXFLAGS) $^ -o $@
@@ -39,12 +48,19 @@ $(BUILD_DIR)/lenslabs-bursts: $(BUILD_DIR)/bursts_main.o $(BUILD_DIR)/bursts.o
 $(BUILD_DIR)/burst-tests: tests/bursts_tests.cpp $(BUILD_DIR)/bursts.o $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/bursts.o -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests
+$(BUILD_DIR)/lenslabs-social: $(BUILD_DIR)/social_main.o $(BUILD_DIR)/social.o $(DECODER) $(LIBRAW)
+	$(CXX) $(CXXFLAGS) $^ $(FRAMEWORKS) -o $@
+
+$(BUILD_DIR)/social-tests: tests/social_tests.cpp $(BUILD_DIR)/social.o include/lenslabs/social.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/social.o -o $@
+
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/social-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
 	$(BUILD_DIR)/worker-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/burst-tests
+	$(BUILD_DIR)/social-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test

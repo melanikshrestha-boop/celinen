@@ -3,12 +3,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkbench } from "@/components/workbench/context";
 import { isWorkbenchRoute, studioBindingKey } from "@/lib/workbench";
+import { readStudioHandoff, type DeliveryFocus } from "@/lib/delivery/studio-handoff";
+import {
+  DeliveryReference,
+  type DeliveryReferenceValue,
+} from "@/components/studio/DeliveryReference";
 import { resolveWorkspaceBinding } from "@/lib/workbench-projects";
 import { EditSlider } from "@/components/studio/Slider";
-import { CullChat, type ToolCall } from "@/components/studio/CullChat";
+import { CullChat, type ToolCall, type ImportAttachment } from "@/components/studio/CullChat";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useProcessingWakeLock } from "@/components/account/WorkspacePreferences";
 import { DEFAULT_PREFERENCES } from "@/lib/account-preferences";
+import { matchesShortcut } from "@/lib/shortcuts";
 import { importLanes } from "@/lib/settings-transfer";
 import { Filmstrip } from "@/components/studio/Filmstrip";
 import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
@@ -18,14 +24,22 @@ import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
 import { listRecentShoots, rememberShoot, studioDatabaseKey } from "@/lib/studio/shoot-directory";
 import { rememberStudioRuntime, restoreStudioRuntime } from "@/lib/studio/runtime";
+import { StudioSaveBoundary } from "@/lib/studio/save-boundary";
 import { BurstReview } from "@/components/studio/BurstReview";
 import { DeadlineExport } from "@/components/studio/DeadlineExport";
+import { SocialExport } from "@/components/studio/SocialExport";
 import type { StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
-import { exportedReviewMetadata, importedReviewVerdict } from "@/lib/studio/review-metadata";
+import { importedReviewVerdict } from "@/lib/studio/review-metadata";
+import {
+  createLightroomVerdicts,
+  mergeLightroomFrames,
+  LIGHTROOM_MATCHING,
+} from "@/lib/lightroom-matching";
+import { createSidecarArchive } from "@/lib/studio/sidecar-export";
 import type { AdobeSettingsPastePlan } from "@/lib/studio/adobe-paste";
 import { applyCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
 import {
@@ -42,8 +56,6 @@ import {
   type Shot,
   type Verdict,
   autoRefine,
-  baseName,
-  buildXmpSidecar,
   decodeFile,
   faceDetectionAvailable,
   parseXmpSidecar,
@@ -64,40 +76,81 @@ import {
 } from "@/lib/studio/session";
 import { bridgeCredentials, bridgeFetch } from "@/lib/bridge-client";
 import { indexDuplicateFrames } from "@/lib/studio/culling-index";
-import { mergeIngestedShots, sidecarKey, uniquePhotos } from "@/lib/studio/ingest";
+import {
+  mergeIngestedShots,
+  sidecarKey,
+  uniquePhotos,
+  readImportSidecars,
+  sidecarReadNotice,
+  createIngestResolver,
+  SourceReconnectError,
+} from "@/lib/studio/ingest";
 import { analyseFile, disposeAnalysisWorkers } from "@/lib/studio/analysis-client";
 import { bridgeEndpoint, downloadLightroomPlugin, type BridgeState } from "@/lib/lightroom-plugin";
 
 export const Route = createFileRoute("/studio")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { project?: string; shoot?: string; deliveryFrame?: string; deliveryVersion?: string } => {
+  ): {
+    project?: string;
+    shoot?: string;
+    deliveryFrame?: string;
+    deliveryVersion?: string;
+    deliveryHandoff?: string;
+  } => {
     if (search["shoot"] !== undefined) {
       if (
         typeof search["shoot"] !== "string" ||
         !/^(?:legacy|[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})$/i.test(search["shoot"]) ||
-        search["project"] !== undefined
+        [
+          "project",
+          "deliveryFrame",
+          "deliveryVersion",
+          "deliveryHandoff",
+          "workspaceProject",
+          "workspaceFrame",
+          "workspaceVersion",
+          "workspaceHandoff",
+        ].some((key) => search[key] !== undefined)
       )
         throw new Error("Invalid shoot link.");
       return { shoot: search["shoot"] };
     }
-    if (search["project"] === undefined) return {};
+    if (search["project"] === undefined) {
+      if (
+        ["deliveryFrame", "deliveryVersion", "deliveryHandoff"].some(
+          (key) => search[key] !== undefined,
+        )
+      )
+        throw new Error("Invalid delivery source reference.");
+      return {};
+    }
     if (typeof search["project"] !== "string" || !/^[a-f0-9-]{36}$/i.test(search["project"]))
       throw new Error("Invalid project identifier.");
-    if (search["deliveryFrame"] !== undefined || search["deliveryVersion"] !== undefined) {
+    if (
+      ["deliveryFrame", "deliveryVersion", "deliveryHandoff"].some(
+        (key) => search[key] !== undefined,
+      )
+    ) {
       if (
         typeof search["deliveryFrame"] !== "string" ||
         !search["deliveryFrame"] ||
         search["deliveryFrame"].length > 2000 ||
         typeof search["deliveryVersion"] !== "string" ||
         !search["deliveryVersion"] ||
-        search["deliveryVersion"].length > 2000
+        search["deliveryVersion"].length > 2000 ||
+        (search["deliveryHandoff"] !== undefined &&
+          (typeof search["deliveryHandoff"] !== "string" ||
+            !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(search["deliveryHandoff"])))
       )
         throw new Error("Invalid delivery source reference.");
       return {
         project: search["project"],
         deliveryFrame: search["deliveryFrame"],
         deliveryVersion: search["deliveryVersion"],
+        ...(typeof search["deliveryHandoff"] === "string"
+          ? { deliveryHandoff: search["deliveryHandoff"] }
+          : {}),
       };
     }
     return { project: search["project"] };
@@ -124,7 +177,7 @@ export const Route = createFileRoute("/studio")({
 
 function StudioRoute() {
   const workbench = useWorkbench();
-  const { project, deliveryFrame, deliveryVersion } = Route.useSearch();
+  const { project, deliveryFrame, deliveryVersion, deliveryHandoff } = Route.useSearch();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   // The root workspace owns one persistent controller across tool navigation.
@@ -139,10 +192,16 @@ function StudioRoute() {
     );
   return (
     <Studio
-      key={`${project ?? "legacy"}:${deliveryFrame ?? ""}`}
+      key={JSON.stringify([project, deliveryFrame, deliveryVersion, deliveryHandoff])}
       projectId={project ?? null}
       {...(deliveryFrame && deliveryVersion
-        ? { deliveryFocus: { frameId: deliveryFrame, versionId: deliveryVersion } }
+        ? {
+            deliveryFocus: {
+              frameId: deliveryFrame,
+              versionId: deliveryVersion,
+              ...(deliveryHandoff ? { handoffId: deliveryHandoff } : {}),
+            },
+          }
         : {})}
     />
   );
@@ -187,7 +246,7 @@ export function Studio({
   shootId,
 }: {
   projectId: string | null;
-  deliveryFocus?: { frameId: string; versionId: string };
+  deliveryFocus?: DeliveryFocus;
   storageScope?: string;
   shootId?: string;
 }) {
@@ -197,28 +256,58 @@ export function Studio({
   const [projectSession] = useState(() =>
     projectId ? new ProjectStudioSession(projectId, deliveryFocus) : null,
   );
+  const [saveBoundary] = useState(() => new StudioSaveBoundary());
   const loadStoredSession = useCallback(
     () => (projectSession ? projectSession.load() : loadStudioSession(storageScope, shootId)),
     [projectSession, storageScope, shootId],
   );
   const saveStoredSession = useCallback(
     async (frames: Shot[], selected: string | null, scope: StudioFilter) => {
-      if (projectSession) return projectSession.save(frames, selected, scope);
-      await saveStudioSession(frames, selected, scope, storageScope, shootId);
-      if (frames.length)
-        await rememberShoot(
-          storageScope,
-          shootId ?? "legacy",
-          frames.length,
-          describeShoot(frames, selected).title,
-        );
+      const acknowledge = saveBoundary.begin({
+        shots: frames,
+        selectedId: selected,
+        filter: scope,
+      });
+      if (projectSession) await projectSession.save(frames, selected, scope);
+      else {
+        await saveStudioSession(frames, selected, scope, storageScope, shootId);
+        if (frames.length)
+          await rememberShoot(
+            storageScope,
+            shootId ?? "legacy",
+            frames.length,
+            describeShoot(frames, selected).title,
+          );
+      }
+      acknowledge();
     },
-    [projectSession, storageScope, shootId],
+    [projectSession, storageScope, shootId, saveBoundary],
   );
   const [shots, setShots] = useState<Shot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [sessionStatus, setSessionStatus] = useState<StudioHydrationState>("loading");
+  const [deliveryReference, setDeliveryReference] = useState<DeliveryReferenceValue | null>(null);
+  const [deliveryReferenceError, setDeliveryReferenceError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deliveryFocus?.handoffId || !projectSession || sessionStatus !== "ready") return;
+    try {
+      const reference = readStudioHandoff(
+        window.sessionStorage,
+        storageScope,
+        deliveryFocus.handoffId,
+      );
+      setDeliveryReference(projectSession.deliveryReference(reference));
+      setDeliveryReferenceError(null);
+    } catch (error) {
+      setDeliveryReference(null);
+      setDeliveryReferenceError(
+        error instanceof Error
+          ? error.message
+          : "Reopen this photo from Delivery to refresh its feedback.",
+      );
+    }
+  }, [deliveryFocus?.handoffId, projectSession, sessionStatus, storageScope]);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const recoveryReloadRef = useRef(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -273,6 +362,7 @@ export function Studio({
   const recipeRef = useRef<EditRecipe | null>(null);
   const [compareBefore, setCompareBefore] = useState(false);
   const [dropActive, setDropActive] = useState(false);
+  const [importAttachment, setImportAttachment] = useState<ImportAttachment | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [chatHasContent, setChatHasContent] = useState(false);
   const identity = useAccount();
@@ -281,6 +371,7 @@ export function Studio({
   useProcessingWakeLock(preferences.keepAwake, Boolean(progress || busy));
   const [burstOpen, setBurstOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
   const [deadlineCount, setDeadlineCount] = useState(20);
   const folderAbortRef = useRef<AbortController | null>(null);
   useBlocker({
@@ -340,6 +431,11 @@ export function Studio({
       !recoveryReloadRef.current &&
       Boolean(
         sessionStatusRef.current === "conflicted" ||
+        saveBoundary.pending({
+          shots: latestShotsRef.current,
+          selectedId: latestSelectedIdRef.current,
+          filter: latestFilterRef.current,
+        }) ||
         (workbench && (progress || folderStatus || busy || proposal || chatHasContent)),
       ),
   });
@@ -759,28 +855,59 @@ export function Studio({
         return;
       }
       importingRef.current = true;
+      const selectedPhotos = uniquePhotos(files);
+      const folderName = files[0]?.webkitRelativePath.split("/").slice(0, -1)[0];
+      setImportAttachment({
+        name:
+          folderName ||
+          (files.length === 1 ? files[0]!.name : `${files.length.toLocaleString()} selected files`),
+        kind: folderName ? "folder" : "files",
+        count: selectedPhotos.length,
+        ...(!folderName &&
+        selectedPhotos.length === 1 &&
+        /^image\/(jpeg|png|webp|gif|avif)$/.test(selectedPhotos[0]!.type)
+          ? { preview: selectedPhotos[0] }
+          : {}),
+      });
       const abortController = new AbortController();
       importAbortRef.current = abortController;
       const importRun = ++importRunRef.current;
       setProgress({ done: 0, total: uniquePhotos(files).length });
       // Lightroom folders carry .xmp sidecars next to the negatives.
-      const sidecars = new Map<string, string>();
       const sidecarFiles = preferences.importSidecars
         ? files.filter((f) => f.name.toLowerCase().endsWith(".xmp"))
         : [];
-      for (const f of sidecarFiles) {
-        if (!mountedRef.current || importRunRef.current !== importRun) return;
-        try {
-          sidecars.set(sidecarKey(f), await f.text());
-        } catch {
-          /* unreadable sidecar is simply skipped */
+      let sidecarResult: Awaited<ReturnType<typeof readImportSidecars>>;
+      try {
+        sidecarResult = await readImportSidecars(sidecarFiles, abortController.signal);
+      } catch {
+        if (mountedRef.current && importRunRef.current === importRun) {
+          importingRef.current = false;
+          importAbortRef.current = null;
+          setProgress(null);
+          setSyncNote("Sidecar import stopped. Existing photos and decisions are unchanged.");
         }
+        return;
       }
+      const sidecars = sidecarResult.values;
+      let sidecarNotice = sidecarReadNotice(sidecarResult, files);
       files = uniquePhotos(files);
+      const identities = createIngestResolver(files, latestShotsRef.current);
+      let ambiguousSourceSidecars = 0;
+      for (const key of identities.ambiguousSidecarKeys) {
+        if (sidecars.delete(key)) ambiguousSourceSidecars++;
+      }
+      if (ambiguousSourceSidecars)
+        sidecarNotice = [
+          sidecarNotice,
+          `${ambiguousSourceSidecars} sidecar target${ambiguousSourceSidecars === 1 ? "" : "s"} shared by colliding photo names skipped; their metadata was not applied`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
       if (!mountedRef.current || importRunRef.current !== importRun) return;
-      if (sidecars.size) {
+      if (sidecars.size || sidecarNotice) {
         setSyncNote(
-          `${sidecars.size} Lightroom sidecar${sidecars.size === 1 ? "" : "s"} read — develop settings and picks applied.`,
+          `${sidecars.size} sidecar${sidecars.size === 1 ? "" : "s"} read for exact folder/name matching${sidecarNotice ? ` · ${sidecarNotice}` : ""}.`,
         );
       }
       if (!files.length) {
@@ -788,7 +915,7 @@ export function Studio({
         importAbortRef.current = null;
         setProgress(null);
         setSyncNote(
-          "No supported photos found. Choose RAW, JPEG, or other browser-readable images.",
+          `No supported photos found. Choose RAW, JPEG, or other browser-readable images.${sidecarNotice ? ` ${sidecarNotice}.` : ""}`,
         );
         return;
       }
@@ -800,6 +927,10 @@ export function Studio({
       let lastPublishedAt = 0;
       let nativeFrames = 0;
       let nativeCacheHits = 0;
+      let skippedReconnects = 0;
+      let legacyReconnects = 0;
+      let verifiedRepeatInputs = 0;
+      let unverifiedCollisionInputs = 0;
       const pending = new Map<string, Shot>();
 
       const publishPreviews = () => {
@@ -807,9 +938,17 @@ export function Studio({
         const batch = [...pending.values()];
         pending.clear();
         const prior = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
+        updateShots((previous) => mergeIngestedShots(previous, batch));
+        const accepted = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
         for (const shot of batch) {
           const old = prior.get(shot.id);
-          if (shot.error && old && !old.error && old.previewUrl) continue;
+          if (accepted.get(shot.id)?.file !== shot.file || accepted.get(shot.id) === old) {
+            if (shot.previewUrl && shot.previewUrl !== old?.previewUrl) {
+              URL.revokeObjectURL(shot.previewUrl);
+              previewUrlsRef.current.delete(shot.previewUrl);
+            }
+            continue;
+          }
           if (old?.previewUrl && old.previewUrl !== shot.previewUrl) {
             URL.revokeObjectURL(old.previewUrl);
             previewUrlsRef.current.delete(old.previewUrl);
@@ -818,7 +957,6 @@ export function Studio({
           bitmapCache.current.delete(shot.id);
           bitmapPromisesRef.current.delete(shot.id);
         }
-        updateShots((previous) => mergeIngestedShots(previous, batch));
         if (!latestSelectedIdRef.current) selectShot(batch[0]?.id ?? null);
         if (firstPreviewMs === null && batch.some((shot) => shot.previewUrl)) {
           firstPreviewMs = performance.now() - started;
@@ -829,9 +967,18 @@ export function Studio({
       const one = async (i: number) => {
         if (!mountedRef.current || importRunRef.current !== importRun) return;
         const file = files[i]!;
-        const id = stableShotId(file);
+        let id = stableShotId(file);
         const raw = isRawFile(file);
+        let sourceDigest: string | undefined;
         try {
+          const prepared = await identities.prepare(file, abortController.signal);
+          if (!prepared) {
+            verifiedRepeatInputs++;
+            return;
+          }
+          id = prepared.id;
+          sourceDigest = prepared.sourceDigest;
+          if (!mountedRef.current || importRunRef.current !== importRun) return;
           const result = await analyseFile(file, { signal: abortController.signal });
           if (!mountedRef.current || importRunRef.current !== importRun) return;
           const { analysis } = result;
@@ -862,6 +1009,7 @@ export function Studio({
             previewUrl: url,
             previewBlob: blob ?? undefined,
             sourceAvailable: true,
+            sourceDigest,
             width: result.width,
             height: result.height,
             sizeMb: file.size / 1e6,
@@ -888,6 +1036,17 @@ export function Studio({
           if (url) previewUrlsRef.current.add(url);
         } catch (err) {
           if (!mountedRef.current || importRunRef.current !== importRun) return;
+          if (err instanceof SourceReconnectError || identities.hasExisting(file)) {
+            skippedReconnects++;
+            if (err instanceof SourceReconnectError && err.reason === "unverified")
+              legacyReconnects++;
+            return;
+          }
+          if (!sourceDigest && identities.hasCollision(file)) {
+            // No trustworthy ID can be assigned to unreadable colliding sources.
+            unverifiedCollisionInputs++;
+            return;
+          }
           added[i] = {
             id,
             file,
@@ -897,6 +1056,7 @@ export function Studio({
             isRaw: raw,
             previewUrl: null,
             sourceAvailable: true,
+            sourceDigest,
             width: 0,
             height: 0,
             sizeMb: file.size / 1e6,
@@ -964,7 +1124,9 @@ export function Studio({
       const secs = (performance.now() - started) / 1000;
       const successes = batch.filter((shot) => !shot.error).length;
       const summary = `${successes} frame${successes === 1 ? "" : "s"} read in ${secs.toFixed(1)}s · ${Math.round(successes / Math.max(secs, 0.001))}/sec${firstPreviewMs === null ? "" : ` · first preview ${(firstPreviewMs / 1000).toFixed(2)}s`}${nativeFrames ? ` · C++ ${nativeFrames}${nativeCacheHits ? ` (${nativeCacheHits} cached)` : ""}` : " · browser engine"}${successes < batch.length ? ` · ${batch.length - successes} unreadable; retained for review` : ""}`;
-      setSyncNote(summary);
+      setSyncNote(
+        `${summary}${sidecarNotice ? ` · ${sidecarNotice}` : ""}${verifiedRepeatInputs ? ` · ${verifiedRepeatInputs} repeated input${verifiedRepeatInputs === 1 ? "" : "s"} verified byte-for-byte` : ""}${unverifiedCollisionInputs ? ` · ${unverifiedCollisionInputs} same-name source${unverifiedCollisionInputs === 1 ? "" : "s"} could not be verified; skipped without changing originals` : ""}${skippedReconnects ? ` · ${skippedReconnects} source reconnect${skippedReconnects === 1 ? "" : "s"} could not be verified; saved photos, picks and edits preserved` : ""}${legacyReconnects ? ` · ${legacyReconnects} older preview${legacyReconnects === 1 ? " has" : "s have"} no original fingerprint; import into a separate shoot to review` : ""}`,
+      );
       // Import starts the mechanical first pass, but never accepts it for the
       // photographer or displaces a preview they are already working on.
       if (!proposalRef.current && batch.some((shot) => !shot.error)) {
@@ -987,46 +1149,9 @@ export function Studio({
 
   const mergeBridge = useCallback(
     (state: BridgeState) => {
-      if (!state?.frames?.length) return 0;
-      let touched = 0;
-      updateShots((prev) =>
-        prev.map((s) => {
-          const frame = state.frames.find(
-            (f) => baseName(f.file ?? "").toLowerCase() === baseName(s.name).toLowerCase(),
-          );
-          if (!frame) return s;
-          touched++;
-          const d = frame.develop ?? {};
-          const next: Shot = {
-            ...s,
-            edits: {
-              ...s.edits,
-              ...(d.exposure !== undefined
-                ? { exposure: Math.max(-100, Math.min(100, d.exposure * 20)) }
-                : {}),
-              ...(d.contrast !== undefined ? { contrast: d.contrast } : {}),
-              ...(d.highlights !== undefined ? { highlights: d.highlights } : {}),
-              ...(d.shadows !== undefined ? { shadows: d.shadows } : {}),
-              ...(d.saturation !== undefined ? { saturation: d.saturation } : {}),
-              ...(d.temperature !== undefined
-                ? { temp: Math.max(-100, Math.min(100, ((d.temperature - 5500) / 4500) * 100)) }
-                : {}),
-            },
-            verdict: importedReviewVerdict(frame, s.verdict),
-            develop: {
-              origin: "lightroom",
-              at: Date.now(),
-              rating: frame.rating,
-              label: frame.label ?? null,
-              caption: frame.iptc?.caption,
-              cropped: d.cropped,
-              processVersion: d.processVersion,
-            },
-          };
-          return next;
-        }),
-      );
-      return touched;
+      const result = mergeLightroomFrames(latestShotsRef.current, state.frames, Date.now());
+      if (result.matched) updateShots(() => result.shots);
+      return result;
     },
     [updateShots],
   );
@@ -1034,18 +1159,37 @@ export function Studio({
   const pullFromLightroom = useCallback(
     async (quiet = false) => {
       if (!canPersistStudioSession(sessionStatusRef.current)) return;
+      if (proposalRef.current) {
+        if (!quiet) setSyncNote("Apply or discard the preview before syncing from Lightroom.");
+        return;
+      }
+      const snapshot = latestShotsRef.current;
       try {
         const res = await bridgeFetch(`${bridgeEndpoint()}?side=studio`, { cache: "no-store" });
+        if (!res.ok) throw new Error("The Lightroom bridge did not accept the request.");
         const state = (await res.json()) as BridgeState;
-        if (!state.at || state.at === lastBridgeAt.current) return;
-        lastBridgeAt.current = state.at;
-        const n = mergeBridge(state);
-        if (n)
+        if (!Number.isFinite(state.at) || state.at <= 0 || state.at === lastBridgeAt.current)
+          return;
+        // A pending request must not overwrite a newer edit, proposal or shoot.
+        if (
+          snapshot !== latestShotsRef.current ||
+          proposalRef.current ||
+          !canPersistStudioSession(sessionStatusRef.current)
+        )
+          return;
+        const result = mergeBridge(state);
+        if (result.matched) {
+          lastBridgeAt.current = state.at;
           setSyncNote(
-            `Lightroom pushed ${n} frame${n === 1 ? "" : "s"} · develop settings, rating and IPTC applied.`,
+            `Lightroom matched ${result.matched} photo${result.matched === 1 ? "" : "s"} by folder path; ${result.unmatched} unmatched. Develop settings, stars and IPTC applied.`,
           );
-      } catch {
-        if (!quiet) setSyncNote("LensLabs bridge unreachable — is the studio server running?");
+        } else if (state.frames.length)
+          setSyncNote(
+            "No matching Lightroom source paths. Import the matching folder; filenames alone are not used.",
+          );
+      } catch (error) {
+        if (error instanceof Error) setSyncNote(error.message);
+        else if (!quiet) setSyncNote("LensLabs bridge unreachable — is the studio server running?");
       }
     },
     [mergeBridge],
@@ -1064,50 +1208,36 @@ export function Studio({
       setSyncNote("Resolve the paused save before publishing changes to Lightroom.");
       return;
     }
-    const frames = shots
-      .filter((s) => !s.error)
-      .map((s) => ({
-        file: s.name,
-        verdict: s.verdict,
-        score: s.score,
-        ...exportedReviewMetadata(s),
-        develop: {
-          exposure: s.edits.exposure / 20,
-          contrast: s.edits.contrast,
-          highlights: s.edits.highlights,
-          shadows: s.edits.shadows,
-          saturation: s.edits.saturation,
-          temperature: Math.round(5500 + (s.edits.temp / 100) * 4500),
-        },
-      }));
+    if (proposalRef.current) {
+      setSyncNote("Apply or discard the preview before publishing changes to Lightroom.");
+      return;
+    }
     try {
+      const frames = createLightroomVerdicts(latestShotsRef.current);
       const res = await bridgeFetch(bridgeEndpoint(), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: "verdicts", direction: "to-lightroom", frames }),
+        body: JSON.stringify({
+          kind: `verdicts-${LIGHTROOM_MATCHING}`,
+          direction: "to-lightroom",
+          frames,
+        }),
       });
-      if (!res.ok) throw new Error();
-      updateShots((prev) =>
-        prev.map((s) =>
-          s.error
-            ? s
-            : {
-                ...s,
-                develop: {
-                  ...(s.develop ?? { origin: "lens os" as const }),
-                  origin: "lens os" as const,
-                  at: Date.now(),
-                },
-              },
-        ),
-      );
+      if (!res.ok)
+        throw new Error(
+          "Could not queue folder-matched verdicts. Check that the deployed bridge and Lightroom plug-in are updated.",
+        );
       setSyncNote(
-        `${frames.length} frames queued for Lightroom — run Plug-in Extras → “Pull LensLabs verdicts”.`,
+        `${frames.length} frames queued, not yet applied. In Lightroom plug-in 1.3 or newer, run Plug-in Extras → “Pull LensLabs verdicts”.`,
       );
-    } catch {
-      setSyncNote("Could not reach the LensLabs bridge to publish verdicts.");
+    } catch (error) {
+      setSyncNote(
+        error instanceof Error
+          ? error.message
+          : "Could not reach the LensLabs bridge to publish verdicts.",
+      );
     }
-  }, [shots, updateShots]);
+  }, []);
 
   /* ---------------- derived ---------------- */
   const visible = useMemo(() => {
@@ -1489,8 +1619,7 @@ export function Studio({
             return "failed: Apply or discard the preview before writing sidecars.";
           const n = currentShots().filter((s) => s.verdict !== "undecided" && !s.error).length;
           if (!n) return "failed: nothing decided yet";
-          const written = exportSidecars();
-          return `requested downloads for ${written} xmp sidecars`;
+          return exportSidecars();
         }
         case "undo_last":
           if (proposalRef.current) return discardProposal();
@@ -1502,33 +1631,96 @@ export function Studio({
     [discardProposal, selectFilter, selectShot, stageCull, stageRecipe, undoLast],
   );
 
-  /** Write .xmp sidecars Lightroom picks up on folder re-read. */
+  /** Download one validated archive; never flatten folders or overwrite originals. */
 
   const exportSidecars = () => {
     if (proposalRef.current) {
       setSyncNote("Apply or discard the preview before writing sidecars.");
-      return 0;
+      return "failed: Apply or discard the preview before writing sidecars.";
     }
-    const done = latestShotsRef.current.filter((s) => s.verdict !== "undecided" && !s.error);
-    for (const shot of done) {
-      const metadata = exportedReviewMetadata(shot);
-      const xml = buildXmpSidecar(shot.edits, shot.verdict, metadata.rating, metadata.label);
-      const url = URL.createObjectURL(new Blob([xml], { type: "application/rdf+xml" }));
+    try {
+      const { blob, sidecarCount, photoCount } = createSidecarArchive(latestShotsRef.current);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${baseName(shot.name)}.xmp`;
+      a.download = "LensLabs-sidecars.zip";
       document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      try {
+        a.click();
+      } finally {
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      const note = `Requested one ZIP download: ${sidecarCount} sidecar${sidecarCount === 1 ? "" : "s"} for ${photoCount} photo${photoCount === 1 ? "" : "s"}, with original folder paths. Extract separately and back up existing XMP before placing sidecars beside the matching originals. Only supported settings are included; then re-read metadata in your editor.`;
+      setSyncNote(note);
+      return note;
+    } catch (error) {
+      const note =
+        error instanceof Error
+          ? error.message
+          : "Sidecar export failed. Your originals are unchanged.";
+      setSyncNote(note);
+      return `failed: ${note}`;
     }
-    setSyncNote(
-      `Requested ${done.length} sidecar download${done.length === 1 ? "" : "s"}. Only supported settings are included; back up existing sidecars before replacing them. Check your downloads, then re-read metadata in Lightroom.`,
-    );
-    return done.length;
   };
 
   /* ---------------- keyboard ---------------- */
+  useEffect(() => {
+    const exportRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ project: string; respond: (note: string) => void }>)
+        .detail;
+      const expected = shootId === "legacy" ? "current" : (shootId ?? projectId ?? "current");
+      if (detail?.project !== expected || typeof detail.respond !== "function") return;
+      if (sessionStatusRef.current !== "ready" || importingRef.current) {
+        detail.respond("Wait for the shoot to finish loading or importing before exporting.");
+        return;
+      }
+      detail.respond(exportSidecars());
+    };
+    window.addEventListener("lenslabs:export-adobe", exportRequest);
+    return () => window.removeEventListener("lenslabs:export-adobe", exportRequest);
+  });
+  useEffect(() => {
+    const openFolder = (event: Event) => {
+      const detail = (event as CustomEvent<{ respond: (message: string) => void }>).detail;
+      if (typeof detail?.respond !== "function") return;
+      if (sessionStatusRef.current !== "ready" || importingRef.current || proposalRef.current) {
+        detail.respond("Finish loading, importing or reviewing the current preview first.");
+        return;
+      }
+      folderRef.current?.click();
+      detail.respond(
+        "Choose a folder to import. Only the files you select are read; originals stay untouched.",
+      );
+    };
+    window.addEventListener("lenslabs:open-folder", openFolder);
+    return () => window.removeEventListener("lenslabs:open-folder", openFolder);
+  }, []);
+  useEffect(() => {
+    const jump = (event: Event) => {
+      const detail = (event as CustomEvent<{ number: number; respond: (message: string) => void }>)
+        .detail;
+      if (typeof detail?.respond !== "function") return;
+      const frames = latestShotsRef.current;
+      if (sessionStatusRef.current !== "ready" || !frames.length) {
+        detail.respond("Import photos and wait for this shoot to load first.");
+        return;
+      }
+      if (
+        !Number.isSafeInteger(detail.number) ||
+        detail.number < 1 ||
+        detail.number > frames.length
+      ) {
+        detail.respond(`Enter a photo number from 1 to ${frames.length}.`);
+        return;
+      }
+      selectFilter("all");
+      selectShot(frames[detail.number - 1]!.id);
+      detail.respond("");
+    };
+    window.addEventListener("lenslabs:go-to-photo", jump);
+    return () => window.removeEventListener("lenslabs:go-to-photo", jump);
+  }, [selectFilter, selectShot]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -1564,13 +1756,14 @@ export function Studio({
       } else if (k === "arrowleft" || k === "arrowup") {
         e.preventDefault();
         step(-1);
-      } else if (k === "k") setVerdict(selectedId, "keep");
-      else if (k === "x") setVerdict(selectedId, "reject");
-      else if (k === "u") setVerdict(selectedId, "undecided", false);
-      else if (k === "r") {
+      } else if (matchesShortcut(e, preferences.shortcuts.keep)) setVerdict(selectedId, "keep");
+      else if (matchesShortcut(e, preferences.shortcuts.reject)) setVerdict(selectedId, "reject");
+      else if (matchesShortcut(e, preferences.shortcuts.undecided))
+        setVerdict(selectedId, "undecided", false);
+      else if (matchesShortcut(e, preferences.shortcuts.reset)) {
         checkpoint();
         updateEdits({ ...DEFAULT_EDITS });
-      } else if (k === "a") {
+      } else if (matchesShortcut(e, preferences.shortcuts.refine)) {
         checkpoint();
         autoRefineOne();
       }
@@ -1578,7 +1771,7 @@ export function Studio({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkpoint, selectedId, step, setVerdict, undoLast, workbench]);
+  }, [checkpoint, selectedId, step, setVerdict, undoLast, workbench, preferences.shortcuts]);
 
   const onDrop = (e: React.DragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes("Files")) return;
@@ -1591,6 +1784,20 @@ export function Studio({
     }
     const controller = new AbortController();
     folderAbortRef.current = controller;
+    const droppedEntries = Array.from(e.dataTransfer.items)
+      .map((item) => {
+        try {
+          return item.webkitGetAsEntry?.();
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    setImportAttachment({
+      name: droppedEntries.length === 1 ? droppedEntries[0]!.name : "Selected files",
+      kind: droppedEntries.some((entry) => entry?.isDirectory) ? "folder" : "files",
+      count: null,
+    });
     setFolderStatus("Opening folder…");
     // Capture directory entries while the drop event still grants access.
     void collectDroppedFiles(e.dataTransfer, {
@@ -1813,6 +2020,20 @@ export function Studio({
       shoot={shootBrief}
       paused={sessionStatus === "conflicted"}
       recovery={recovery}
+      deliveryReference={
+        <DeliveryReference
+          value={deliveryReference}
+          error={deliveryReferenceError}
+          source={shots.find((shot) => shot.id === deliveryFocus?.frameId)}
+          selectedId={selectedId}
+          onSelect={() => {
+            if (deliveryFocus) {
+              selectFilter("all");
+              selectShot(deliveryFocus.frameId);
+            }
+          }}
+        />
+      }
       onReviewShoot={() => {
         selectFilter(shootBrief.undecided ? "todo" : "all");
         selectShot(shootBrief.reviewId);
@@ -1825,13 +2046,13 @@ export function Studio({
       }}
       status={folderStatus ?? (syncNote?.startsWith("0 saved frames restored") ? null : syncNote)}
       importProgress={progress}
+      importAttachment={importAttachment}
+      dragActive={dropActive}
       importing={Boolean(progress || folderStatus)}
       onImportFolder={() => {
-        workbench?.showStudio();
         folderRef.current?.click();
       }}
       onImportFiles={() => {
-        workbench?.showStudio();
         inputRef.current?.click();
       }}
       onCancelImport={cancelImport}
@@ -1869,7 +2090,7 @@ export function Studio({
         setDropActive(false);
       }}
     >
-      {dropActive && (
+      {dropActive && !workbench && (
         <div
           className="pointer-events-none fixed inset-3 z-50 flex flex-col items-center justify-center gap-3 bg-paper/95 outline-2 outline-rust"
           role="status"
@@ -2002,6 +2223,11 @@ export function Studio({
                       "Prepare deadline set",
                       () => setSyncNote(openWorkflow({ kind: "deadline", count: 20 })),
                       !counts.keepers,
+                    ],
+                    [
+                      "Share to social",
+                      () => setSocialOpen(true),
+                      !selected || Boolean(progress || folderStatus),
                     ],
                     [
                       "New shoot",
@@ -2490,11 +2716,7 @@ export function Studio({
           createPortal(
             <div
               className="workbench-chat-root"
-              onDrop={(event) => {
-                const files = Array.from(event.dataTransfer.types).includes("Files");
-                onDrop(event);
-                if (files) workbench.showStudio();
-              }}
+              onDrop={onDrop}
               onDragOver={(event) => {
                 if (Array.from(event.dataTransfer.types).includes("Files")) {
                   event.preventDefault();
@@ -2537,6 +2759,7 @@ export function Studio({
         shots={shots}
         initialCount={deadlineCount}
       />
+      <SocialExport open={socialOpen} onOpenChange={setSocialOpen} shot={selected} />
     </div>
   );
 }

@@ -6,9 +6,11 @@
 #include <array>
 #include <cerrno>
 #include <cstring>
+#include <cstdlib>
 #include <fcntl.h>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -39,7 +41,7 @@ std::vector<std::uint8_t> read_bytes(const std::filesystem::path& path) {
   std::ifstream stream(path, std::ios::binary | std::ios::ate);
   if (!stream) throw std::runtime_error("Fixture could not be opened: " + path.string());
   const auto size = stream.tellg();
-  if (size < 0 || size > 16 * 1024 * 1024) throw std::runtime_error("Unexpected fixture size.");
+  if (size < 0 || size > 128 * 1024 * 1024) throw std::runtime_error("Unexpected fixture size.");
   std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
   stream.seekg(0);
   if (!stream.read(reinterpret_cast<char*>(bytes.data()), size))
@@ -228,6 +230,74 @@ void invalid_inputs(const std::filesystem::path& fixtures, TemporaryFiles& tempo
   rejects([&] { lenslabs::encode_jpeg({}); }, "dimensions");
 }
 
+void raw_previews(TemporaryFiles& temporary) {
+  const auto root = std::getenv("LENSLABS_RAW_FIXTURES");
+  if (!root) {
+    std::cout << "SKIP: optional CC0 Sony RAW fixtures (set LENSLABS_RAW_FIXTURES; see native/README.md)\n";
+    return;
+  }
+  for (const auto name : {"sony-a6000.ARW", "sony-a7iv-small.ARW"}) {
+    const auto path = std::filesystem::path(root) / name;
+    const auto before = read_bytes(path);
+    // Match the native pipeline's macOS worker stack, not only the larger main stack.
+    const auto preview = std::async(std::launch::async, [&] { return lenslabs::decode_preview(path, 1280); }).get();
+    require(preview.width > 100 && preview.height > 100 && preview.width <= 1280 && preview.height <= 1280,
+            "A real Sony RAW must provide a bounded, useful preview.");
+    require(preview.source_width > preview.width && preview.source_height > preview.height,
+            "RAW dimensions must come from the capture, not the JPEG thumbnail.");
+    // The loopback worker spools uploads without filename extensions.
+    const auto extensionless = temporary.write(name == std::string("sony-a6000.ARW") ? "sony-source-1" : "sony-source-2", before);
+    const auto spooled = lenslabs::decode_preview(extensionless, 1280);
+    require(spooled.rgba == preview.rgba, "Extensionless transport must decode identical RAW preview pixels.");
+    const auto jpeg = lenslabs::encode_jpeg(preview);
+    verify_encoded_metadata(jpeg);
+    const auto output = temporary.write(name == std::string("sony-a6000.ARW") ? "raw-export-1.jpg" : "raw-export-2.jpg", jpeg);
+    const auto reopened = lenslabs::decode_preview(output, 1280);
+    require(reopened.width == preview.width && reopened.height == preview.height,
+            "RAW preview export must reopen with the same upright geometry.");
+    require(read_bytes(path) == before, "RAW source bytes must stay unchanged.");
+    std::cout << name << ": source " << preview.source_width << 'x' << preview.source_height
+              << ", preview " << preview.width << 'x' << preview.height << ", original bytes unchanged\n";
+    // Rotate a disposable copy's TIFF orientation, not the fixture's source bytes.
+    // Both fixture containers are little-endian TIFF; keep the camera JPEG intact.
+    require(before[0] == 'I' && before[1] == 'I', "Expected the documented little-endian Sony fixtures.");
+    const auto u16 = [&](std::size_t i) { return static_cast<unsigned>(before.at(i)) | (before.at(i + 1) << 8); };
+    const auto u32 = [&](std::size_t i) { return u16(i) | (static_cast<std::uint32_t>(u16(i + 2)) << 16); };
+    const auto ifd = u32(4);
+    std::size_t orientation_value = 0;
+    for (unsigned entry = 0; entry < u16(ifd); ++entry) {
+      const auto offset = ifd + 2 + entry * 12;
+      if (u16(offset) == 274 && u16(offset + 2) == 3 && u32(offset + 4) == 1)
+        orientation_value = offset + 8;
+    }
+    require(orientation_value != 0 && u16(orientation_value) == 1, "Fixture must carry normal TIFF orientation.");
+    for (const unsigned rotation : {3, 6, 8}) {
+      auto rotated = before;
+      rotated[orientation_value] = static_cast<std::uint8_t>(rotation);
+      const auto filename = std::string(name) + "-rotation-" + std::to_string(rotation);
+      const auto frame = lenslabs::decode_preview(temporary.write(filename.c_str(), rotated), 1280);
+      const bool quarter_turn = rotation != 3;
+      require(frame.width == (quarter_turn ? preview.height : preview.width) &&
+              frame.height == (quarter_turn ? preview.width : preview.height),
+              "RAW preview must apply the container's orientation exactly once.");
+      require(frame.source_width == (quarter_turn ? preview.source_height : preview.source_width),
+              "RAW source dimensions must track its orientation.");
+      // The rotated upper-left pixel comes from the matching original corner.
+      const auto expected_pixel = rotation == 3 ? (preview.width * preview.height - 1) * 4 :
+          rotation == 6 ? ((preview.height - 1) * preview.width) * 4 : (preview.width - 1) * 4;
+      for (unsigned channel = 0; channel < 3; ++channel)
+        require(std::abs(static_cast<int>(frame.rgba[channel]) - preview.rgba[expected_pixel + channel]) <= 3,
+                "RAW orientation must rotate actual pixels, not only swap dimensions.");
+    }
+    auto truncated = before;
+    truncated.resize(256);
+    bool refused = false;
+    try { lenslabs::decode_preview(temporary.write(name == std::string("sony-a6000.ARW") ? "truncated-1.ARW" : "truncated-2.ARW", truncated)); }
+    catch (const std::exception&) { refused = true; }
+    require(refused, "Truncated RAW must fail, never fabricate a preview or score.");
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -237,6 +307,7 @@ int main(int argc, char** argv) {
     require(std::string(lenslabs::decoder_name()).find("ImageIO") != std::string::npos, "Decoder must identify its system adapter.");
     real_photographs(fixtures, temporary);
     encoding_pixels(temporary);
+    raw_previews(temporary);
     invalid_inputs(fixtures, temporary);
     std::cout << "PASS: " << assertions << " native decoder assertions\n";
     return 0;

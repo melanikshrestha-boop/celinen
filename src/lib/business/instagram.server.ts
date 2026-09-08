@@ -72,6 +72,7 @@ export async function instagramRequest(
     username?: unknown;
     status_code?: unknown;
     permalink?: unknown;
+    account_type?: unknown;
   };
 }
 export async function startInstagram(owner: string) {
