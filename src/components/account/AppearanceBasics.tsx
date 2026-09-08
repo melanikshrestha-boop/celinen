@@ -3,6 +3,8 @@ import {
   THEME_PRESETS,
   normalizeColor,
   validateAppearance,
+  resolvedAppearance,
+  withDefaultAccent,
   type Appearance,
 } from "@/lib/appearance";
 import type { AccountPreferences } from "@/lib/account-preferences";
@@ -22,6 +24,18 @@ export function AppearanceBasics({
   const [hex, setHex] = useState(prefs.appearance.accent);
   const [end, setEnd] = useState(prefs.appearance.accentEnd);
   const [error, setError] = useState("");
+  const [systemDark, setSystemDark] = useState(
+    () =>
+      typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const changed = () => setSystemDark(media.matches);
+    changed();
+    media.addEventListener("change", changed);
+    return () => media.removeEventListener("change", changed);
+  }, []);
+  const resolved = resolvedAppearance(prefs, systemDark).appearance;
   useEffect(() => setHex(prefs.appearance.accent), [prefs.appearance.accent]);
   useEffect(() => setEnd(prefs.appearance.accentEnd), [prefs.appearance.accentEnd]);
   const apply = (patch: Partial<Appearance>) => {
@@ -92,7 +106,21 @@ export function AppearanceBasics({
         />
       </Row>
       <Row title="Accent color">
-        <AccentColorPicker value={prefs.appearance.accent} change={(accent) => apply({ accent })} />
+        <AccentColorPicker
+          value={prefs.appearance.accent}
+          background={resolved.background}
+          change={(accent, option) => {
+            if (option !== "Default") {
+              apply({ accent });
+              return;
+            }
+            try {
+              if (save({ appearance: withDefaultAccent(prefs, systemDark) })) setError("");
+            } catch (error) {
+              setError(error instanceof Error ? error.message : "Invalid color.");
+            }
+          }}
+        />
       </Row>
       <Row
         title="Custom accent"

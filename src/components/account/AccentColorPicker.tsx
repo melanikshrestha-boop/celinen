@@ -5,26 +5,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ACCENT_COLORS, accentColorName } from "@/lib/appearance";
+import { ACCENT_COLORS, accentColorName, defaultAccentForBackground } from "@/lib/appearance";
 import { useWorkspaceText } from "./useWorkspaceText";
 import "./accent-color-picker.css";
 
 /** Screenshot-matched styling; the public Codex CLI repo does not contain this desktop menu. */
 export function AccentColorPicker({
   value,
+  background,
   change,
 }: {
   value: string;
-  change: (color: string) => void;
+  background: string;
+  change: (color: string, option: string) => void;
 }) {
   const t = useWorkspaceText();
   const name = accentColorName(value);
+  const options = ACCENT_COLORS.map(
+    ([label, color]) =>
+      [label, label === "Default" ? defaultAccentForBackground(background) : color] as const,
+  );
   return (
     <Select
       value={name}
       onValueChange={(next) => {
-        const option = ACCENT_COLORS.find(([label]) => label === next);
-        if (option) change(option[1]);
+        const option = options.find(([label]) => label === next);
+        if (option) change(option[1], option[0]);
       }}
     >
       <SelectTrigger className="settings-accent-trigger" aria-label="Accent color">
@@ -45,7 +51,7 @@ export function AccentColorPicker({
         sideOffset={6}
         collisionPadding={12}
       >
-        {ACCENT_COLORS.map(([label, color]) => (
+        {options.map(([label, color]) => (
           <SelectItem
             className="settings-accent-option"
             value={label}

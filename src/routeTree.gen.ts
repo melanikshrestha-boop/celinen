@@ -23,8 +23,11 @@ import { Route as DevelopRouteImport } from './routes/develop'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as HelpRouteImport } from './routes/help'
+import { Route as JobsRouteImport } from './routes/jobs'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MailRouteImport } from './routes/mail'
 import { Route as MetadataRouteImport } from './routes/metadata'
+import { Route as MoneyRouteImport } from './routes/money'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as OutboundRouteImport } from './routes/outbound'
 import { Route as PackagesRouteImport } from './routes/packages'
@@ -42,10 +45,12 @@ import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
+import { Route as ShootsRouteImport } from './routes/shoots'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TonightRouteImport } from './routes/tonight'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
@@ -57,7 +62,15 @@ import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$
 import { Route as ReviewIdRouteImport } from './routes/review.$id'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
+import { Route as ShootsIndexRouteImport } from './routes/shoots.index'
+import { Route as ShootsIdRouteImport } from './routes/shoots.$id'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
+import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
+import { Route as ShootsIdCullRouteImport } from './routes/shoots.$id.cull'
+import { Route as ShootsIdDevelopRouteImport } from './routes/shoots.$id.develop'
+import { Route as ShootsIdGalleryRouteImport } from './routes/shoots.$id.gallery'
+import { Route as ShootsIdSmartFileRouteImport } from './routes/shoots.$id.smart-file'
+import { Route as ShootsIdSocialRouteImport } from './routes/shoots.$id.social'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
 import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
 import { Route as ApiPublicStoriesPostIdCoverRouteImport } from './routes/api/public/stories/$postId/cover'
@@ -132,6 +145,16 @@ const HelpRoute = HelpRouteImport.update({
   path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MailRoute = MailRouteImport.update({
   id: '/mail',
   path: '/mail',
@@ -140,6 +163,11 @@ const MailRoute = MailRouteImport.update({
 const MetadataRoute = MetadataRouteImport.update({
   id: '/metadata',
   path: '/metadata',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoneyRoute = MoneyRouteImport.update({
+  id: '/money',
+  path: '/money',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NetworkRoute = NetworkRouteImport.update({
@@ -227,6 +255,11 @@ const ShootRoute = ShootRouteImport.update({
   path: '/shoot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShootsRoute = ShootsRouteImport.update({
+  id: '/shoots',
+  path: '/shoots',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopRoute = ShopRouteImport.update({
   id: '/shop',
   path: '/shop',
@@ -245,6 +278,11 @@ const StudioRoute = StudioRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TonightRoute = TonightRouteImport.update({
+  id: '/tonight',
+  path: '/tonight',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VideoRoute = VideoRouteImport.update({
@@ -302,10 +340,50 @@ const SettingsSectionRoute = SettingsSectionRouteImport.update({
   path: '/settings/$section',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShootsIndexRoute = ShootsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShootsRoute,
+} as any)
+const ShootsIdRoute = ShootsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ShootsRoute,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ShootsIdIndexRoute = ShootsIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdCullRoute = ShootsIdCullRouteImport.update({
+  id: '/cull',
+  path: '/cull',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdDevelopRoute = ShootsIdDevelopRouteImport.update({
+  id: '/develop',
+  path: '/develop',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdGalleryRoute = ShootsIdGalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdSmartFileRoute = ShootsIdSmartFileRouteImport.update({
+  id: '/smart-file',
+  path: '/smart-file',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdSocialRoute = ShootsIdSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => ShootsIdRoute,
 } as any)
 const ApiPublicStripeConnectCallbackRoute =
   ApiPublicStripeConnectCallbackRouteImport.update({
@@ -341,8 +419,11 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
   '/help': typeof HelpRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
+  '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
   '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
@@ -360,10 +441,12 @@ export interface FileRoutesByFullPath {
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shoots': typeof ShootsRouteWithChildren
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
+  '/tonight': typeof TonightRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
@@ -375,7 +458,15 @@ export interface FileRoutesByFullPath {
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
+  '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/shoots/$id/cull': typeof ShootsIdCullRoute
+  '/shoots/$id/develop': typeof ShootsIdDevelopRoute
+  '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
+  '/shoots/$id/smart-file': typeof ShootsIdSmartFileRoute
+  '/shoots/$id/social': typeof ShootsIdSocialRoute
+  '/shoots/$id/': typeof ShootsIdIndexRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
   '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
@@ -395,8 +486,11 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
   '/help': typeof HelpRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
+  '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
   '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
@@ -418,6 +512,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
+  '/tonight': typeof TonightRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
@@ -429,7 +524,14 @@ export interface FileRoutesByTo {
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
+  '/shoots': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/shoots/$id/cull': typeof ShootsIdCullRoute
+  '/shoots/$id/develop': typeof ShootsIdDevelopRoute
+  '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
+  '/shoots/$id/smart-file': typeof ShootsIdSmartFileRoute
+  '/shoots/$id/social': typeof ShootsIdSocialRoute
+  '/shoots/$id': typeof ShootsIdIndexRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
   '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
@@ -450,8 +552,11 @@ export interface FileRoutesById {
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
   '/help': typeof HelpRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
+  '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
   '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
@@ -469,10 +574,12 @@ export interface FileRoutesById {
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shoots': typeof ShootsRouteWithChildren
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
+  '/tonight': typeof TonightRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
@@ -484,7 +591,15 @@ export interface FileRoutesById {
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings_/$section': typeof SettingsSectionRoute
+  '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/shoots/$id/cull': typeof ShootsIdCullRoute
+  '/shoots/$id/develop': typeof ShootsIdDevelopRoute
+  '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
+  '/shoots/$id/smart-file': typeof ShootsIdSmartFileRoute
+  '/shoots/$id/social': typeof ShootsIdSocialRoute
+  '/shoots/$id/': typeof ShootsIdIndexRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
   '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
@@ -506,8 +621,11 @@ export interface FileRouteTypes {
     | '/docs'
     | '/earnings'
     | '/help'
+    | '/jobs'
+    | '/library'
     | '/mail'
     | '/metadata'
+    | '/money'
     | '/network'
     | '/outbound'
     | '/packages'
@@ -525,10 +643,12 @@ export interface FileRouteTypes {
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shoots'
     | '/shop'
     | '/signup'
     | '/studio'
     | '/terms'
+    | '/tonight'
     | '/video'
     | '/workspace'
     | '/api/chat'
@@ -540,7 +660,15 @@ export interface FileRouteTypes {
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
+    | '/shoots/$id'
+    | '/shoots/'
     | '/api/public/lightroom'
+    | '/shoots/$id/cull'
+    | '/shoots/$id/develop'
+    | '/shoots/$id/gallery'
+    | '/shoots/$id/smart-file'
+    | '/shoots/$id/social'
+    | '/shoots/$id/'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
     | '/api/public/stories/$postId/cover'
@@ -560,8 +688,11 @@ export interface FileRouteTypes {
     | '/docs'
     | '/earnings'
     | '/help'
+    | '/jobs'
+    | '/library'
     | '/mail'
     | '/metadata'
+    | '/money'
     | '/network'
     | '/outbound'
     | '/packages'
@@ -583,6 +714,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/studio'
     | '/terms'
+    | '/tonight'
     | '/video'
     | '/workspace'
     | '/api/chat'
@@ -594,7 +726,14 @@ export interface FileRouteTypes {
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
+    | '/shoots'
     | '/api/public/lightroom'
+    | '/shoots/$id/cull'
+    | '/shoots/$id/develop'
+    | '/shoots/$id/gallery'
+    | '/shoots/$id/smart-file'
+    | '/shoots/$id/social'
+    | '/shoots/$id'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
     | '/api/public/stories/$postId/cover'
@@ -614,8 +753,11 @@ export interface FileRouteTypes {
     | '/docs'
     | '/earnings'
     | '/help'
+    | '/jobs'
+    | '/library'
     | '/mail'
     | '/metadata'
+    | '/money'
     | '/network'
     | '/outbound'
     | '/packages'
@@ -633,10 +775,12 @@ export interface FileRouteTypes {
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shoots'
     | '/shop'
     | '/signup'
     | '/studio'
     | '/terms'
+    | '/tonight'
     | '/video'
     | '/workspace'
     | '/api/chat'
@@ -648,7 +792,15 @@ export interface FileRouteTypes {
     | '/review/$id'
     | '/s/$token'
     | '/settings_/$section'
+    | '/shoots/$id'
+    | '/shoots/'
     | '/api/public/lightroom'
+    | '/shoots/$id/cull'
+    | '/shoots/$id/develop'
+    | '/shoots/$id/gallery'
+    | '/shoots/$id/smart-file'
+    | '/shoots/$id/social'
+    | '/shoots/$id/'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
     | '/api/public/stories/$postId/cover'
@@ -669,8 +821,11 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute
   EarningsRoute: typeof EarningsRoute
   HelpRoute: typeof HelpRoute
+  JobsRoute: typeof JobsRoute
+  LibraryRoute: typeof LibraryRoute
   MailRoute: typeof MailRoute
   MetadataRoute: typeof MetadataRoute
+  MoneyRoute: typeof MoneyRoute
   NetworkRoute: typeof NetworkRoute
   OutboundRoute: typeof OutboundRoute
   PackagesRoute: typeof PackagesRoute
@@ -688,10 +843,12 @@ export interface RootRouteChildren {
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
+  ShootsRoute: typeof ShootsRouteWithChildren
   ShopRoute: typeof ShopRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
+  TonightRoute: typeof TonightRoute
   VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -809,6 +966,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mail': {
       id: '/mail'
       path: '/mail'
@@ -821,6 +992,13 @@ declare module '@tanstack/react-router' {
       path: '/metadata'
       fullPath: '/metadata'
       preLoaderRoute: typeof MetadataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/money': {
+      id: '/money'
+      path: '/money'
+      fullPath: '/money'
+      preLoaderRoute: typeof MoneyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/network': {
@@ -942,6 +1120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShootRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shoots': {
+      id: '/shoots'
+      path: '/shoots'
+      fullPath: '/shoots'
+      preLoaderRoute: typeof ShootsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop': {
       id: '/shop'
       path: '/shop'
@@ -968,6 +1153,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tonight': {
+      id: '/tonight'
+      path: '/tonight'
+      fullPath: '/tonight'
+      preLoaderRoute: typeof TonightRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/video': {
@@ -1047,12 +1239,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shoots/': {
+      id: '/shoots/'
+      path: '/'
+      fullPath: '/shoots/'
+      preLoaderRoute: typeof ShootsIndexRouteImport
+      parentRoute: typeof ShootsRoute
+    }
+    '/shoots/$id': {
+      id: '/shoots/$id'
+      path: '/$id'
+      fullPath: '/shoots/$id'
+      preLoaderRoute: typeof ShootsIdRouteImport
+      parentRoute: typeof ShootsRoute
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
       fullPath: '/api/public/lightroom'
       preLoaderRoute: typeof ApiPublicLightroomRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/shoots/$id/': {
+      id: '/shoots/$id/'
+      path: '/'
+      fullPath: '/shoots/$id/'
+      preLoaderRoute: typeof ShootsIdIndexRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/cull': {
+      id: '/shoots/$id/cull'
+      path: '/cull'
+      fullPath: '/shoots/$id/cull'
+      preLoaderRoute: typeof ShootsIdCullRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/develop': {
+      id: '/shoots/$id/develop'
+      path: '/develop'
+      fullPath: '/shoots/$id/develop'
+      preLoaderRoute: typeof ShootsIdDevelopRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/gallery': {
+      id: '/shoots/$id/gallery'
+      path: '/gallery'
+      fullPath: '/shoots/$id/gallery'
+      preLoaderRoute: typeof ShootsIdGalleryRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/smart-file': {
+      id: '/shoots/$id/smart-file'
+      path: '/smart-file'
+      fullPath: '/shoots/$id/smart-file'
+      preLoaderRoute: typeof ShootsIdSmartFileRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/social': {
+      id: '/shoots/$id/social'
+      path: '/social'
+      fullPath: '/shoots/$id/social'
+      preLoaderRoute: typeof ShootsIdSocialRouteImport
+      parentRoute: typeof ShootsIdRoute
     }
     '/api/public/stripe/connect-callback': {
       id: '/api/public/stripe/connect-callback'
@@ -1078,6 +1326,41 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ShootsIdRouteChildren {
+  ShootsIdCullRoute: typeof ShootsIdCullRoute
+  ShootsIdDevelopRoute: typeof ShootsIdDevelopRoute
+  ShootsIdGalleryRoute: typeof ShootsIdGalleryRoute
+  ShootsIdSmartFileRoute: typeof ShootsIdSmartFileRoute
+  ShootsIdSocialRoute: typeof ShootsIdSocialRoute
+  ShootsIdIndexRoute: typeof ShootsIdIndexRoute
+}
+
+const ShootsIdRouteChildren: ShootsIdRouteChildren = {
+  ShootsIdCullRoute: ShootsIdCullRoute,
+  ShootsIdDevelopRoute: ShootsIdDevelopRoute,
+  ShootsIdGalleryRoute: ShootsIdGalleryRoute,
+  ShootsIdSmartFileRoute: ShootsIdSmartFileRoute,
+  ShootsIdSocialRoute: ShootsIdSocialRoute,
+  ShootsIdIndexRoute: ShootsIdIndexRoute,
+}
+
+const ShootsIdRouteWithChildren = ShootsIdRoute._addFileChildren(
+  ShootsIdRouteChildren,
+)
+
+interface ShootsRouteChildren {
+  ShootsIdRoute: typeof ShootsIdRouteWithChildren
+  ShootsIndexRoute: typeof ShootsIndexRoute
+}
+
+const ShootsRouteChildren: ShootsRouteChildren = {
+  ShootsIdRoute: ShootsIdRouteWithChildren,
+  ShootsIndexRoute: ShootsIndexRoute,
+}
+
+const ShootsRouteWithChildren =
+  ShootsRoute._addFileChildren(ShootsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
@@ -1093,8 +1376,11 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   EarningsRoute: EarningsRoute,
   HelpRoute: HelpRoute,
+  JobsRoute: JobsRoute,
+  LibraryRoute: LibraryRoute,
   MailRoute: MailRoute,
   MetadataRoute: MetadataRoute,
+  MoneyRoute: MoneyRoute,
   NetworkRoute: NetworkRoute,
   OutboundRoute: OutboundRoute,
   PackagesRoute: PackagesRoute,
@@ -1112,10 +1398,12 @@ const rootRouteChildren: RootRouteChildren = {
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
+  ShootsRoute: ShootsRouteWithChildren,
   ShopRoute: ShopRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,
+  TonightRoute: TonightRoute,
   VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,

@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useLocation } from "@tanstack/react-router";
+import { OutboundWorkspace } from "./outbound";
+import { ShootLink } from "@/components/shoots/ShootsHub";
 import { APPLICATION_ORIGIN } from "@/lib/application-origin";
 import { DeliveryWorkspace } from "@/components/delivery/DeliveryWorkspace";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -32,17 +34,11 @@ import {
 } from "@/lib/delivery/local";
 
 export const Route = createFileRoute("/deliver")({
-  validateSearch: (search: Record<string, unknown>): { legacy?: boolean; workflow?: boolean } => ({
-    ...(search["legacy"] === "1" || search["legacy"] === 1 || search["legacy"] === true
-      ? { legacy: true }
-      : {}),
-    ...(search["workflow"] === "1" || search["workflow"] === 1 || search["workflow"] === true
-      ? { workflow: true }
-      : {}),
-  }),
+  // Source/query references survive old bookmarks and transitions between delivery desks.
+  validateSearch: (search: Record<string, unknown>) => search,
   head: () => ({
     meta: [
-      { title: "Delivery — LensLabs client galleries" },
+      { title: "Deliver — FOTO" },
       {
         name: "description",
         content:
@@ -112,9 +108,45 @@ function manifestFilename(title: string): string {
 }
 
 function Deliver() {
-  const { legacy, workflow } = Route.useSearch();
-  if (workflow && !legacy) return <DeliveryWorkspace />;
-  return <LegacyDeliver />;
+  const href = useLocation({ select: (location) => location.href });
+  const search = new URL(href, "https://workspace.invalid").searchParams;
+  const section =
+    search.get("desk") === "outbound"
+      ? "outbound"
+      : ["1", "true"].includes(search.get("legacy") ?? "")
+        ? "legacy"
+        : "galleries";
+  const sectionHref = (next: "galleries" | "legacy" | "outbound") => {
+    const url = new URL(href, "https://workspace.invalid");
+    for (const key of ["desk", "legacy", "workflow"]) url.searchParams.delete(key);
+    if (next === "outbound") url.searchParams.set("desk", "outbound");
+    if (next === "legacy") url.searchParams.set("legacy", "1");
+    return `/deliver${url.search}${url.hash}`;
+  };
+  return (
+    <>
+      <nav className="shoot-workflow-tabs" aria-label="Delivery desks">
+        <ShootLink href={sectionHref("galleries")} current={section === "galleries"}>
+          Galleries
+        </ShootLink>
+        <ShootLink href={sectionHref("legacy")} current={section === "legacy"}>
+          Saved galleries
+        </ShootLink>
+        {isLocalSingleUserMode && (
+          <ShootLink href={sectionHref("outbound")} current={section === "outbound"}>
+            Outreach drafts
+          </ShootLink>
+        )}
+      </nav>
+      {section === "outbound" ? (
+        <OutboundWorkspace />
+      ) : section === "legacy" ? (
+        <LegacyDeliver />
+      ) : (
+        <DeliveryWorkspace />
+      )}
+    </>
+  );
 }
 
 function ProofingEntry() {

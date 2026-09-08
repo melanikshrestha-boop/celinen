@@ -14,7 +14,7 @@ export const appearanceSchema = z
     uiSize: z.number().int().min(13).max(18).default(14),
     codeSize: z.number().int().min(12).max(20).default(13),
     density: z.enum(["compact", "comfortable"]).default("compact"),
-    translucentSidebar: z.boolean().default(false),
+    translucentSidebar: z.boolean().default(true),
     contrast: z.enum(["system", "standard", "more"]).default("system"),
     accentStyle: z.enum(["solid", "gradient"]).default("solid"),
     accentEnd: color.default("#b099f1"),
@@ -36,6 +36,8 @@ export const ACCENT_COLORS = [
 // Preserve labels for already-saved colors without rewriting anyone's preferences.
 const LEGACY_ACCENT_NAMES: Record<string, string> = {
   "#b4b4b4": "Default",
+  "#171717": "Default", // Built-in Paper / Light accent; not a custom palette.
+  "#000000": "Default", // Readable neutral fallback for middle-gray custom backgrounds.
   "#6b9fff": "Blue",
   "#75c588": "Green",
   "#eab74e": "Yellow",
@@ -123,21 +125,86 @@ export function importTheme(text: string) {
     .parse(JSON.parse(text));
   return validateAppearance(parsed.appearance);
 }
-/** Allowlisted values only; theme JSON is never interpreted as CSS or executable code. */
-export function applyAppearance(
-  prefs: { theme: "light" | "dark" | "system"; appearance: Appearance },
-  systemDark: boolean,
-) {
-  const root = document.documentElement;
+type ThemePreference = { theme: "light" | "dark" | "system"; appearance: Appearance };
+
+/** Resolve mode for display only. Never rewrite the user's saved theme or colors. */
+export function resolvedAppearance(prefs: ThemePreference, systemDark: boolean) {
   const dark = prefs.theme === "system" ? systemDark : prefs.theme === "dark";
+  let appearance = prefs.appearance;
+  if (!dark && appearance.preset === "lenslabs")
+    appearance = { ...appearance, preset: "paper", ...THEME_PRESETS.paper };
+  else if (dark && appearance.preset === "paper")
+    appearance = { ...appearance, preset: "lenslabs", ...THEME_PRESETS.lenslabs };
+  return { dark, appearance };
+}
+
+/** Default is a neutral that reads on this canvas, not a fixed gray swatch. */
+export function defaultAccentForBackground(background: string) {
+  const checked = color.parse(background);
+  return [THEME_PRESETS.lenslabs.accent, THEME_PRESETS.paper.accent, "#000000"].find(
+    (accent) => contrastRatio(accent, checked) >= 3,
+  )!;
+}
+
+/** An explicit Default action follows the visible mode without replacing custom palettes. */
+export function withDefaultAccent(prefs: ThemePreference, systemDark: boolean) {
+  const { appearance } = resolvedAppearance(prefs, systemDark);
+  return validateAppearance({
+    ...appearance,
+    accent: defaultAccentForBackground(appearance.background),
+  });
+}
+
+function mixHex(foreground: string, background: string, foregroundWeight: number) {
+  return `#${[1, 3, 5]
+    .map((offset) =>
+      Math.round(
+        parseInt(foreground.slice(offset, offset + 2), 16) * foregroundWeight +
+          parseInt(background.slice(offset, offset + 2), 16) * (1 - foregroundWeight),
+      )
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
+}
+function readableMuted(foreground: string, background: string) {
+  for (let step = 0; step <= 6; step++) {
+    const mixed = mixHex(foreground, background, 0.7 + step * 0.05);
+    if (contrastRatio(mixed, background) >= 4.5) return mixed;
+  }
+  return foreground;
+}
+
+/** Shared neutral surfaces for both navigation rails. No wallpaper or tinted underlay. */
+export function sidebarSurfaceTokens(appearance: Appearance, dark: boolean) {
+  const neutral = appearance.preset === "lenslabs" || appearance.preset === "paper";
+  const solid = neutral ? (dark ? "#242424" : "#f9f9f9") : appearance.background;
+  const text = neutral ? (dark ? "#f5f5f5" : "#202020") : appearance.foreground;
+  const muted = neutral ? (dark ? "#a3a3a3" : "#626262") : readableMuted(text, solid);
+  const translucent = appearance.translucentSidebar && appearance.contrast !== "more";
+  return {
+    "--foto-sidebar-material": translucent ? `${solid}${dark ? "99" : "e6"}` : solid,
+    "--foto-sidebar-solid": solid,
+    "--foto-sidebar-hover": `${text}0d`,
+    "--foto-sidebar-selected": `${text}18`,
+    "--foto-sidebar-text": text,
+    "--foto-sidebar-muted": muted,
+    "--foto-sidebar-filter": translucent ? "blur(30px)" : "none",
+    "--foto-settings-surface": neutral
+      ? dark
+        ? "#181818"
+        : "#fafafa"
+      : mixHex(text, appearance.background, 0.04),
+    "--foto-settings-border": `${text}14`,
+  };
+}
+/** Allowlisted values only; theme JSON is never interpreted as CSS or executable code. */
+export function applyAppearance(prefs: ThemePreference, systemDark: boolean) {
+  const root = document.documentElement;
+  const { dark, appearance: value } = resolvedAppearance(prefs, systemDark);
   root.classList.toggle("dark", dark);
-  // Light/Dark are presets. A theme-only toggle used to leave lenslabs black fill
-  // on the tab bar while the Clients pane went white.
-  let value = prefs.appearance;
-  if (!dark && value.preset === "lenslabs")
-    value = { ...value, preset: "paper", ...THEME_PRESETS.paper };
-  else if (dark && value.preset === "paper")
-    value = { ...value, preset: "lenslabs", ...THEME_PRESETS.lenslabs };
+  for (const [key, surface] of Object.entries(sidebarSurfaceTokens(value, dark)))
+    root.style.setProperty(key, surface);
   root.style.setProperty("--ll-settings-background", value.background);
   root.style.setProperty("--ll-settings-foreground", value.foreground);
   root.style.setProperty("--ll-settings-accent", value.accent);
@@ -151,9 +218,9 @@ export function applyAppearance(
   );
   root.style.setProperty(
     "--ll-readable-accent",
-    contrastRatio(value.accent, root.classList.contains("dark") ? "#000000" : "#ffffff") >= 3
+    contrastRatio(value.accent, value.background) >= 3
       ? value.accent
-      : "#555555",
+      : defaultAccentForBackground(value.background),
   );
   root.style.setProperty(
     "--ll-accent-ink",

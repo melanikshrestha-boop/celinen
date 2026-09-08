@@ -18,17 +18,24 @@ import {
 import { inspectPreviousShoot, copyPreviousShoot } from "@/lib/studio/session";
 import { projectDisplayTitle } from "@/lib/workspace-labels";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { shootPhotoCountLabel, shootUpdatedLabel } from "@/components/shoots/navigation";
 
 export function RecentShoots({
   scope,
   activeId,
   open,
   children,
+  hrefForShoot = shootHref,
+  heading = "Recent shoots",
+  showMetadata = false,
 }: {
   scope: string;
   activeId: string | null;
   open: (href: string) => Promise<boolean>;
   children?: ReactNode;
+  hrefForShoot?: (id: string) => string;
+  heading?: string;
+  showMetadata?: boolean;
 }) {
   const [rows, setRows] = useState<RecentShoot[]>([]);
   const [previous, setPrevious] = useState(false);
@@ -107,10 +114,10 @@ export function RecentShoots({
   const displayRows = rows;
   const showHistory = displayRows.some((row) => row.id === activeId);
   return (
-    <section className="chat-recents" aria-label="Recent projects">
+    <section className="chat-recents" aria-label={heading}>
       {displayRows.length > 0 && (
         <div className="chat-recents-heading">
-          <span>Recent projects</span>
+          <span>{heading}</span>
         </div>
       )}
       {displayRows.map((row) => (
@@ -148,9 +155,8 @@ export function RecentShoots({
                 className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
                 onClick={(event) => {
                   if (event.detail > 1) return;
-                  row.recoveryPending
-                    ? edit("recover-device", row.title, row.id)
-                    : void open(shootHref(row.id));
+                  if (row.recoveryPending) edit("recover-device", row.title, row.id);
+                  else void open(hrefForShoot(row.id));
                 }}
                 onDoubleClick={(event) => {
                   event.preventDefault();
@@ -159,9 +165,17 @@ export function RecentShoots({
                 }}
               >
                 <span>{projectDisplayTitle(row)}</span>
+                {showMetadata && (
+                  <small>
+                    {shootPhotoCountLabel("shoot", row.count) &&
+                      `${shootPhotoCountLabel("shoot", row.count)} · `}
+                    {shootUpdatedLabel(row.updatedAt)}
+                    {row.recoveryPending && " · Recovery unfinished"}
+                  </small>
+                )}
               </button>
             )}
-            {activeId === row.id && (
+            {activeId === row.id && children && (
               <button
                 className="recent-shoot-expand"
                 aria-label={`Shoots in ${projectDisplayTitle(row)}`}
@@ -194,22 +208,22 @@ export function RecentShoots({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {activeId === row.id && (
+          {activeId === row.id && children && (
             <div className="recent-shoot-conversations" hidden={!expanded}>
               {children}
             </div>
           )}
         </div>
       ))}
-      {!showHistory && !activeId && displayRows.length > 0 && (
+      {!showHistory && !activeId && displayRows.length > 0 && children && (
         <div className="recent-shoot-conversations">{children}</div>
       )}
       {previous && (
         <button
           className="workbench-nav-item"
-          onClick={() => edit("recover-device", "Lunara Glow Shoot")}
+          onClick={() => edit("recover-device", "Recovered shoot")}
         >
-          Recover previous device project
+          Recover previous device shoot
         </button>
       )}
       {error && (
@@ -225,12 +239,12 @@ export function RecentShoots({
       >
         <DialogContent>
           <DialogTitle>
-            {editing === "recover-device" ? "Bring back your saved project" : "Rename project"}
+            {editing === "recover-device" ? "Bring back your saved shoot" : "Rename shoot"}
           </DialogTitle>
           <DialogDescription>
             {editing === "recover-device"
               ? "Copy the previous device’s previews, picks, and applied edits into this account. The old shoot stays untouched. Reconnect the source folder for original files."
-              : "Choose a project name."}
+              : "Choose a shoot name."}
           </DialogDescription>
           <form
             className="space-y-4"
@@ -258,7 +272,7 @@ export function RecentShoots({
                 if (editing === "recover-device") setPrevious(false);
                 setEditing(null);
                 await refresh();
-                await open(shootHref(id));
+                await open(hrefForShoot(id));
               } catch (cause) {
                 if (alive.current)
                   setError(cause instanceof Error ? cause.message : "Could not save this shoot.");
@@ -268,14 +282,14 @@ export function RecentShoots({
             }}
           >
             <label className="block text-sm">
-              Project name
+              Shoot name
               <input
                 autoFocus
                 required
                 maxLength={200}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Lunara Glow Shoot"
+                placeholder="Recovered shoot"
                 className="mt-2 w-full rounded-md border border-input bg-transparent p-3"
               />
             </label>
