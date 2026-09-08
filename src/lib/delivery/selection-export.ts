@@ -10,6 +10,14 @@ export type SubmittedSelectionRow = {
   clientNotes: DeliveryComment[];
 };
 
+export type EditorLookupTarget = "lightroom" | "capture-one";
+
+export type SubmittedEditorLookup = {
+  target: EditorLookupTarget;
+  filenames: string[];
+  text: string;
+};
+
 function latestSubmission(state: DeliveryState) {
   const submission = state.submissions.at(-1);
   if (!submission) throw new Error("No submitted selection is available to export.");
@@ -108,4 +116,49 @@ export function submittedSelectionCsv(state: DeliveryState): string {
     .map(csvCell)
     .join(",")
     .concat("\r\n", rows.join("\r\n"), rows.length ? "\r\n" : "");
+}
+
+function normalizedFilename(filename: string): string {
+  return filename.normalize("NFC").toLocaleLowerCase("en-US");
+}
+
+/**
+ * Build a pasteable editor lookup from the immutable latest submission.
+ * LensLabs IDs in the CSV remain authoritative; this convenience list fails closed whenever an
+ * editor's filename-only lookup could select the wrong photo.
+ */
+export function submittedEditorLookup(
+  state: DeliveryState,
+  target: EditorLookupTarget,
+): SubmittedEditorLookup {
+  const filenames = submittedSelectionRows(state).map((row) => row.filename);
+  const normalized = filenames.map(normalizedFilename);
+  const duplicate = normalized.find((filename, index) => normalized.indexOf(filename) !== index);
+  if (duplicate)
+    throw new Error(
+      "Editor lookup blocked: duplicate filenames cannot identify the submitted photos safely. Use the LensLabs selection CSV instead.",
+    );
+
+  if (target === "lightroom") {
+    if (filenames.some((filename) => filename.includes(",")))
+      throw new Error(
+        "Lightroom lookup blocked: a filename contains a comma. Use the LensLabs selection CSV instead.",
+      );
+    const partialMatch = normalized.some((filename, index) =>
+      normalized.some(
+        (candidate, candidateIndex) => candidateIndex !== index && candidate.includes(filename),
+      ),
+    );
+    if (partialMatch)
+      throw new Error(
+        "Lightroom lookup blocked: one filename partially matches another. Use the LensLabs selection CSV instead.",
+      );
+    return { target, filenames: [...filenames], text: filenames.join(",") };
+  }
+
+  if (filenames.some((filename) => /\s/.test(filename)))
+    throw new Error(
+      "Capture One lookup blocked: a filename contains whitespace. Use the LensLabs selection CSV instead.",
+    );
+  return { target, filenames: [...filenames], text: filenames.join(" ") };
 }

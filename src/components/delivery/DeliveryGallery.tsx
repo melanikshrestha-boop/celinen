@@ -4,11 +4,19 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronDown,
+  Copy,
   Heart,
   MessageCircle,
   RefreshCw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   activityFilters,
   deliveryActivityCsv,
@@ -16,7 +24,11 @@ import {
   type DeliveryActivityFilter,
 } from "@/lib/delivery/activity";
 import { offerDownload } from "@/lib/delivery/downloads";
-import { submittedSelectionCsv } from "@/lib/delivery/selection-export";
+import {
+  submittedEditorLookup,
+  submittedSelectionCsv,
+  type EditorLookupTarget,
+} from "@/lib/delivery/selection-export";
 import {
   downloadable,
   isApproved,
@@ -77,6 +89,7 @@ export function DeliveryGallery({
   const [imageError, setImageError] = useState("");
   const [mediaRefresh, setMediaRefresh] = useState(0);
   const [actionError, setActionError] = useState("");
+  const [selectionNote, setSelectionNote] = useState("");
   const [downloadNote, setDownloadNote] = useState("");
   const [downloading, setDownloading] = useState(false);
   const notes = useCommentDrafts(preview ? undefined : draftScope, state.comments, actor);
@@ -196,6 +209,23 @@ export function DeliveryGallery({
       setActionError(messageOf(error));
     } finally {
       setDownloading(false);
+    }
+  }
+  async function copyEditorLookup(target: EditorLookupTarget) {
+    setActionError("");
+    setSelectionNote("");
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error(
+          "Clipboard access is unavailable. Download the LensLabs selection CSV instead.",
+        );
+      const lookup = submittedEditorLookup(state, target);
+      await navigator.clipboard.writeText(lookup.text);
+      setSelectionNote(
+        `Copied ${lookup.filenames.length} ${target === "lightroom" ? "Lightroom" : "Capture One"} filename${lookup.filenames.length === 1 ? "" : "s"}. The LensLabs CSV remains the exact selection record.`,
+      );
+    } catch (error) {
+      setActionError(messageOf(error));
     }
   }
   const navigation = (direction: number) => {
@@ -412,24 +442,50 @@ export function DeliveryGallery({
                 Latest submission · {submitted.items.length}{" "}
                 {submitted.items.length === 1 ? "photo" : "photos"}
               </p>
-              <button
-                className="delivery-quiet"
-                onClick={() => {
-                  setActionError("");
-                  try {
-                    offerDownload(
-                      new Blob([submittedSelectionCsv(state)], {
-                        type: "text/csv;charset=utf-8",
-                      }),
-                      "gallery-selection.csv",
-                    );
-                  } catch (error) {
-                    setActionError(messageOf(error));
-                  }
-                }}
-              >
-                <ArrowDown size={15} /> Export selection CSV
-              </button>
+              <div className="delivery-feedback-actions">
+                <button
+                  className="delivery-quiet"
+                  onClick={() => {
+                    setActionError("");
+                    setSelectionNote("");
+                    try {
+                      offerDownload(
+                        new Blob([submittedSelectionCsv(state)], {
+                          type: "text/csv;charset=utf-8",
+                        }),
+                        "gallery-selection.csv",
+                      );
+                      setSelectionNote(
+                        "Selection CSV handed to your browser with exact LensLabs photo and version IDs.",
+                      );
+                    } catch (error) {
+                      setActionError(messageOf(error));
+                    }
+                  }}
+                >
+                  <ArrowDown size={15} /> Export selection CSV
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="delivery-quiet" aria-label="Open editor lookup options">
+                      <Copy size={15} /> Editor lookup <ChevronDown size={14} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="delivery-editor-menu" sideOffset={6}>
+                    <DropdownMenuItem onSelect={() => void copyEditorLookup("lightroom")}>
+                      Copy Lightroom list
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void copyEditorLookup("capture-one")}>
+                      Copy Capture One list
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {selectionNote && (
+                <span className="delivery-selection-note" role="status">
+                  {selectionNote}
+                </span>
+              )}
             </div>
           )}
           <div className="delivery-feedback-list">

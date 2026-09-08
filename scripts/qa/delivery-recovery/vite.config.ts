@@ -18,6 +18,7 @@ export default defineConfig({
       "lucide-react",
       "zod",
       "@radix-ui/react-dialog",
+      "@radix-ui/react-dropdown-menu",
     ],
   },
   server: {

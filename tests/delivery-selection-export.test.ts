@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  submittedEditorLookup,
   submittedSelectionCsv,
   submittedSelectionRows,
 } from "../src/lib/delivery/selection-export";
@@ -155,5 +156,65 @@ describe("exact submitted selection export", () => {
     const duplicate = structuredClone(state);
     duplicate.submissions[0]!.items.push(duplicate.submissions[0]!.items[0]!);
     expect(() => submittedSelectionRows(duplicate)).toThrow("duplicate version");
+  });
+});
+
+describe("submitted editor lookup", () => {
+  function editorFixture() {
+    const state = fixture();
+    state.photos[0]!.versions[0]!.filename = "IMG_1001.JPG";
+    state.photos[1]!.versions[0]!.filename = "IMG_1002.JPG";
+    return state;
+  }
+
+  test("formats the immutable latest submission for Lightroom and Capture One", () => {
+    const state = editorFixture();
+    const before = structuredClone(state);
+    expect(submittedEditorLookup(state, "lightroom")).toEqual({
+      target: "lightroom",
+      filenames: ["IMG_1001.JPG", "IMG_1002.JPG"],
+      text: "IMG_1001.JPG,IMG_1002.JPG",
+    });
+    expect(submittedEditorLookup(state, "capture-one").text).toBe("IMG_1001.JPG IMG_1002.JPG");
+    expect(state).toEqual(before);
+  });
+
+  test("uses submitted versions instead of mutable picks or newer published versions", () => {
+    const state = editorFixture();
+    state.picks = [state.photos[1]!.id];
+    const newer = version(state.photos[0]!.id, id(90), 2);
+    newer.filename = "NEWER.JPG";
+    state.photos[0]!.versions.push(newer);
+    state.photos[0]!.published = newer.id;
+    expect(submittedEditorLookup(state, "lightroom").text).toBe("IMG_1001.JPG,IMG_1002.JPG");
+  });
+
+  test("blocks exact, case-only, and Unicode-normalized duplicate filenames", () => {
+    for (const [first, second] of [
+      ["same.jpg", "same.jpg"],
+      ["SAME.JPG", "same.jpg"],
+      ["Cafe\u0301.jpg", "Caf\u00e9.jpg"],
+    ]) {
+      const state = editorFixture();
+      state.photos[0]!.versions[0]!.filename = first;
+      state.photos[1]!.versions[0]!.filename = second;
+      expect(() => submittedEditorLookup(state, "lightroom")).toThrow("duplicate filenames");
+      expect(() => submittedEditorLookup(state, "capture-one")).toThrow("duplicate filenames");
+    }
+  });
+
+  test("blocks delimiters and Lightroom partial-name matches that could over-select", () => {
+    const comma = editorFixture();
+    comma.photos[0]!.versions[0]!.filename = "IMG,1001.JPG";
+    expect(() => submittedEditorLookup(comma, "lightroom")).toThrow("contains a comma");
+
+    const whitespace = editorFixture();
+    whitespace.photos[0]!.versions[0]!.filename = "IMG 1001.JPG";
+    expect(() => submittedEditorLookup(whitespace, "capture-one")).toThrow("contains whitespace");
+
+    const partial = editorFixture();
+    partial.photos[0]!.versions[0]!.filename = "1001.JPG";
+    partial.photos[1]!.versions[0]!.filename = "IMG_1001.JPG";
+    expect(() => submittedEditorLookup(partial, "lightroom")).toThrow("partially matches");
   });
 });
