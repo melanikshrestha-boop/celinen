@@ -91,6 +91,91 @@
 .foto-develop svg {
   flex-shrink: 0;
 }
+.develop-histogram-display {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 5px 0;
+}
+.develop-histogram-display select {
+  border: 0;
+  color: #bcbcbc;
+  background: transparent;
+  height: 23px;
+  padding: 2px 0;
+}
+.develop-photo-menu {
+  background: #292929;
+  color: #e5e5e5;
+  border-color: #454545;
+  font-family: var(--foto-font-sans);
+  min-width: 220px;
+}
+.develop-photo-menu [role="menuitem"]:focus {
+  background: #424242;
+  color: #fff;
+}
+.develop-preset-exchange fieldset {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.develop-preset-exchange :is(input, textarea, select),
+.develop-reference-dialog input {
+  width: 100%;
+}
+.develop-preset-exchange textarea {
+  background: #242424;
+  color: #ddd;
+  border: 1px solid #484848;
+  border-radius: 3px;
+  font: inherit;
+  padding: 6px;
+  min-height: 55px;
+  max-height: 180px;
+  resize: vertical;
+}
+.develop-reference-comparison {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.develop-auto-crop-preview {
+  display: block;
+  width: 100%;
+  max-height: 48vh;
+  object-fit: contain;
+  background: #1a1a1a;
+  margin-block: 12px;
+}
+.develop-reference-comparison figure {
+  margin: 0;
+  min-width: 0;
+}
+.develop-reference-comparison img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: contain;
+  background: #181818;
+}
+.develop-reference-comparison figcaption {
+  margin-top: 5px;
+  color: #aaa;
+}
+.develop-preset-exchange .develop-dialog-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 620px) {
+  .develop-reference-comparison {
+    grid-template-columns: 1fr;
+  }
+  .develop-reference-comparison img {
+    height: 150px;
+  }
+}
 .develop-topbar {
   height: 49px;
   flex-shrink: 0;
@@ -1024,6 +1109,10 @@
 }
 .develop-export-dialog {
   width: min(580px, 100%);
+}
+.develop-dialog:has(.develop-reference-dialog) {
+  width: min(1000px, 100%);
+  font-size: 13px;
 }
 .develop-export-settings {
   border: 0;

@@ -7,9 +7,18 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { nativeStudioPlugin } from "./src/server/native-studio-plugin";
 import { nativeDevelopPlugin } from "./src/server/native-develop";
+import { nativeReferencePlugin } from "./src/server/native-reference";
+import { nativeCropPlugin } from "./src/server/native-crop";
 
 export default defineConfig({
-  vite: { plugins: [nativeStudioPlugin(), nativeDevelopPlugin()] },
+  vite: {
+    plugins: [
+      nativeStudioPlugin(),
+      nativeDevelopPlugin(),
+      nativeReferencePlugin(),
+      nativeCropPlugin(),
+    ],
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

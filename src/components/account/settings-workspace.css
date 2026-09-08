@@ -8,7 +8,7 @@
 }
 .settings-shell {
   --settings-bg: var(--ll-settings-background, #fff);
-  --settings-rail: var(--foto-sidebar-material, #f9f9f9e6);
+  --settings-rail: var(--foto-sidebar-material, #f9f9f9cc);
   --settings-surface: var(--foto-settings-surface, #fafafa);
   --settings-hover: var(--foto-sidebar-hover, #2020200d);
   --settings-border: var(--foto-settings-border, #20202014);

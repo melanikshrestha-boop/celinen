@@ -344,6 +344,7 @@ export function DevelopControls({
   maskId,
   onMask,
   sourceAspect = 1.5,
+  onSuggestCrop,
 }: {
   value: DevelopSettings;
   change: DevelopChange;
@@ -353,6 +354,7 @@ export function DevelopControls({
   maskId: string | null;
   onMask: (id: string | null) => void;
   sourceAspect?: number;
+  onSuggestCrop?: () => void;
 }) {
   const [hslIndex, setHslIndex] = useState(0);
   const defaults = defaultDevelopSettings();
@@ -510,6 +512,7 @@ export function DevelopControls({
         <p className="develop-hint">Inspect at 100% for fine detail.</p>
       </Panel>
       <Panel title="Crop & Straighten" open={tool === "crop"}>
+        {onSuggestCrop && <button onClick={onSuggestCrop}>Automatic crop…</button>}
         <div className="develop-inline">
           <button
             aria-pressed={tool === "crop"}

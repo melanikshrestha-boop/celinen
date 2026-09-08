@@ -2,6 +2,14 @@ import { z } from "zod";
 import { cropRect, DEFAULT_EDITS, type Shot } from "../imaging";
 import { fingerprintSource } from "../studio/ingest";
 import {
+  assertPhotoNameAvailable,
+  normalizePhotoDisplayName,
+  renamedDevelopPhoto,
+  uniquePhotoDisplayName,
+  virtualCopyPhoto,
+} from "./photo-management";
+import { presetPackageMetadataSchema } from "./preset-package";
+import {
   cloneDevelopSettings,
   defaultDevelopSettings,
   developSettingsSchema,
@@ -86,6 +94,7 @@ const presetSchema = z
     settings: developSettingsSchema,
     revision: revisionSchema,
     updatedAt: z.number().finite().nonnegative(),
+    packageMetadata: presetPackageMetadataSchema.optional(),
   })
   .strict();
 
@@ -172,6 +181,23 @@ export function createDevelopDocument(
     snapshots: [],
     metadata: { rating: 0, flag: null, colorLabel: null },
     updatedAt: now,
+  });
+}
+export function createVirtualCopyDocument(
+  source: DevelopDocument,
+  photoId: string,
+  now = timestamp(),
+): DevelopDocument {
+  const document = documentCopy(source);
+  if (!photoId.startsWith("copy:") || photoId === document.photoId)
+    throw new Error("A virtual copy needs a new copy identity.");
+  return documentCopy({
+    ...document,
+    photoId,
+    revision: 1,
+    updatedAt: now,
+    history: document.history.map((entry) => ({ ...entry, id: uniqueId() })),
+    snapshots: document.snapshots.map((entry) => ({ ...entry, id: uniqueId() })),
   });
 }
 /** A transferred Studio treatment is undoable back to the untouched source. */
@@ -941,6 +967,101 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         );
         notify({ kind: "photos", ids: photos.map((photo) => photo.id) });
         return photos;
+      } finally {
+        db.close();
+      }
+    },
+    /** Display name only: original filename, digest, media, and edit history are immutable here. */
+    async renamePhoto(photoId: string, name: string, expectedName: string): Promise<DevelopPhoto> {
+      const normalized = normalizePhotoDisplayName(name);
+      nonempty.parse(expectedName);
+      const db = await database();
+      try {
+        const result = await transaction(db, [STORES.photos], "readwrite", async (tx) => {
+          const store = tx.objectStore(STORES.photos);
+          const records = (await requestResult(
+            store.index("namespace").getAll(namespace),
+          )) as PhotoRecord[];
+          const previous = records.find((record) => record.key === key(photoId));
+          if (!previous || previous.namespace !== namespace)
+            throw new Error("This photo is no longer available in this library.");
+          checkedPhoto(previous.value);
+          if (previous.value.id !== photoId) throw new Error("The saved photo index is invalid.");
+          if (previous.value.name !== expectedName) throw new DevelopSaveConflict(photoId);
+          if (previous.value.name === normalized) return previous.value;
+          assertPhotoNameAvailable(
+            normalized,
+            records
+              .filter((record) => record.value.id !== photoId)
+              .map((record) => record.value.name),
+          );
+          const value = renamedDevelopPhoto(previous.value, normalized);
+          store.put({ key: key(photoId), namespace, value } satisfies PhotoRecord);
+          return value;
+        });
+        notify({ kind: "photos", ids: [photoId] });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    /** One atomic local insert, using the saved source revision and never modifying its original. */
+    async createVirtualCopy(
+      sourcePhotoId: string,
+      expectedRevision: number,
+      name?: string,
+    ): Promise<{ photo: DevelopPhoto; document: DevelopDocument }> {
+      revisionSchema.parse(expectedRevision);
+      if (name !== undefined) normalizePhotoDisplayName(name);
+      const db = await database();
+      try {
+        const result = await transaction(
+          db,
+          [STORES.photos, STORES.documents],
+          "readwrite",
+          async (tx) => {
+            const photos = tx.objectStore(STORES.photos),
+              documents = tx.objectStore(STORES.documents);
+            const [records, sourceRecord] = await Promise.all([
+              requestResult(photos.index("namespace").getAll(namespace)) as Promise<PhotoRecord[]>,
+              requestResult(documents.get(key(sourcePhotoId))) as Promise<
+                DocumentRecord | undefined
+              >,
+            ]);
+            const photoRecord = records.find((record) => record.key === key(sourcePhotoId));
+            if (
+              !photoRecord ||
+              photoRecord.namespace !== namespace ||
+              !sourceRecord ||
+              sourceRecord.namespace !== namespace ||
+              sourceRecord.key !== key(sourcePhotoId)
+            )
+              throw new Error("This photo and its edits are no longer available in this library.");
+            checkedPhoto(photoRecord.value);
+            if (photoRecord.value.id !== sourcePhotoId)
+              throw new Error("The saved photo index is invalid.");
+            const sourceDocument = documentCopy(sourceRecord.value);
+            if (sourceDocument.photoId !== sourcePhotoId)
+              throw new Error("The saved edit index is invalid.");
+            if (sourceDocument.revision !== expectedRevision)
+              throw new DevelopSaveConflict(sourcePhotoId);
+            const names = records.map((record) => record.value.name);
+            const copyName =
+              name === undefined
+                ? uniquePhotoDisplayName(photoRecord.value.name, names)
+                : assertPhotoNameAvailable(name, names);
+            const now = timestamp(),
+              id = `copy:${uniqueId()}`;
+            const photo = virtualCopyPhoto(photoRecord.value, id, copyName, now);
+            checkedPhoto(photo);
+            const document = createVirtualCopyDocument(sourceDocument, id, now);
+            photos.add({ key: key(id), namespace, value: photo } satisfies PhotoRecord);
+            documents.add({ key: key(id), namespace, value: document } satisfies DocumentRecord);
+            return { photo, document };
+          },
+        );
+        notify({ kind: "photos", ids: [result.photo.id] });
+        return result;
       } finally {
         db.close();
       }

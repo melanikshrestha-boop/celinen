@@ -13,7 +13,7 @@ PIPELINE = $(BUILD_DIR)/pipeline.o
 WORKER = $(BUILD_DIR)/worker.o
 
 .PHONY: all test sanitize
-all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop
+all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop $(BUILD_DIR)/lenslabs-reference $(BUILD_DIR)/lenslabs-crop-suggest
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -60,7 +60,23 @@ $(BUILD_DIR)/lenslabs-develop: $(BUILD_DIR)/develop_main.o $(BUILD_DIR)/develop.
 $(BUILD_DIR)/develop-tests: tests/develop_tests.cpp $(BUILD_DIR)/develop.o include/lenslabs/develop.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/develop.o -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests
+$(BUILD_DIR)/reference.o $(BUILD_DIR)/reference_main.o: include/lenslabs/reference.hpp
+
+$(BUILD_DIR)/lenslabs-reference: $(BUILD_DIR)/reference_main.o $(BUILD_DIR)/reference.o $(BUILD_DIR)/develop.o
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(BUILD_DIR)/reference-tests: tests/reference_tests.cpp $(BUILD_DIR)/reference.o $(BUILD_DIR)/develop.o include/lenslabs/reference.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/reference.o $(BUILD_DIR)/develop.o -o $@
+
+$(BUILD_DIR)/crop_suggest.o $(BUILD_DIR)/crop_suggest_main.o: include/lenslabs/crop_suggest.hpp
+
+$(BUILD_DIR)/lenslabs-crop-suggest: $(BUILD_DIR)/crop_suggest_main.o $(BUILD_DIR)/crop_suggest.o
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(BUILD_DIR)/crop-suggest-tests: tests/crop_suggest_tests.cpp $(BUILD_DIR)/crop_suggest.o include/lenslabs/crop_suggest.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/crop_suggest.o -o $@
+
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
@@ -68,6 +84,8 @@ test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-t
 	$(BUILD_DIR)/burst-tests
 	$(BUILD_DIR)/social-tests
 	$(BUILD_DIR)/develop-tests
+	$(BUILD_DIR)/reference-tests
+	$(BUILD_DIR)/crop-suggest-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test

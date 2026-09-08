@@ -25,6 +25,7 @@ import {
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
+import { AutoCropDialog } from "./AutoCropDialog";
 import { runDevelopImport, type DevelopImportReport } from "@/lib/develop/import";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import {
@@ -44,7 +45,12 @@ import {
   type DevelopDocument,
   type DevelopPhoto,
   type DevelopLibrary,
+  type DevelopPreset,
 } from "@/lib/develop/store";
+import { photoExportFilename } from "@/lib/develop/photo-management";
+import { DevelopPhotoActions } from "./DevelopPhotoActions";
+import { PresetExchange } from "./PresetExchange";
+import { ReferencePresetDialog } from "./ReferencePresetDialog";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
 import { DevelopViewer } from "./DevelopViewer";
 import { DevelopHistogram } from "./DevelopHistogram";
@@ -105,9 +111,6 @@ function download(blob: Blob, name: string) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
-}
-function saveFilename(name: string, suffix: string) {
-  return `${name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]/g, "_")}${suffix}`;
 }
 function useBlobUrl(blob: Blob | null | undefined) {
   const [value, setValue] = useState<{ blob: Blob; url: string } | null>(null);
@@ -185,6 +188,7 @@ export function DevelopPage({
   const [filter, setFilter] = useState("all"),
     [clipboard, setClipboard] = useState<DevelopSettings | null>(null),
     [activePreset, setActivePreset] = useState("Original");
+  const [copiedPhoto, setCopiedPhoto] = useState<{ id: string; revision: number } | null>(null);
   const [renderBlob, setRenderBlob] = useState<Blob | null>(null),
     [neutralBlob, setNeutralBlob] = useState<Blob | null>(null),
     [rendering, setRendering] = useState(false),
@@ -202,7 +206,16 @@ export function DevelopPage({
     [],
   );
   const [dialog, setDialog] = useState<
-      "preset" | "snapshot" | "export" | "sync" | "recovery" | null
+      | "preset"
+      | "snapshot"
+      | "export"
+      | "sync"
+      | "recovery"
+      | "rename"
+      | "presets"
+      | "reference"
+      | "auto-crop"
+      | null
     >(null),
     [name, setName] = useState(""),
     [exportEdge, setExportEdge] = useState(4096),
@@ -359,6 +372,67 @@ export function DevelopPage({
     dialogOpener.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDialog(next);
+  }
+  async function savePortablePreset(preset: DevelopPreset) {
+    if (editsLocked()) throw new Error("Wait for the current operation to finish.");
+    operationLock.current = "dialog";
+    setBusy("Saving preset…");
+    try {
+      if (!(await flush())) throw new Error("Save the current edits before adding a preset.");
+      const saved = await store.savePreset(preset);
+      if (alive.current) setLibrary((old) => ({ ...old, presets: [...old.presets, saved] }));
+    } finally {
+      operationLock.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
+  async function copyPhoto() {
+    if (editsLocked() || !selectedRef.current) return;
+    const id = selectedRef.current;
+    operationLock.current = "dialog";
+    setBusy("Copying photo…");
+    try {
+      if (!(await flush())) return;
+      const current = docs.current[id];
+      if (current && alive.current) {
+        setCopiedPhoto({ id, revision: current.revision });
+        setNotice(
+          "Photo copied in FOTO. Paste creates an independent virtual copy; the original is untouched.",
+        );
+      }
+    } finally {
+      operationLock.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
+  async function duplicatePhoto(copied = false) {
+    if (editsLocked() || !selectedRef.current) return;
+    operationLock.current = "dialog";
+    setBusy("Creating virtual copy…");
+    try {
+      if (!(await flush())) return;
+      const id = copied ? copiedPhoto?.id : selectedRef.current;
+      const revision = copied ? copiedPhoto?.revision : id ? docs.current[id]?.revision : undefined;
+      if (!id || revision === undefined) throw new Error("Copy a photo first.");
+      const result = await store.createVirtualCopy(id, revision);
+      if (alive.current) {
+        setFilter("all");
+        adopt(
+          {
+            ...library,
+            photos: [...library.photos, result.photo],
+            documents: { ...docs.current, [result.photo.id]: result.document },
+          },
+          result.photo.id,
+        );
+        setNotice("Virtual copy created with its own edits and history. Original file untouched.");
+      }
+    } catch (cause) {
+      if (alive.current) setNotice(errorMessage(cause));
+    } finally {
+      operationLock.current = null;
+      if (alive.current) setBusy("");
+    }
   }
   async function openRecovery() {
     if (editsLocked()) return;
@@ -591,7 +665,7 @@ export function DevelopPage({
   function applyPreset(preset: { name: string; settings: DevelopSettings }) {
     change(
       { ...cloneDevelopSettings(preset.settings), crop: draft.crop, masks: draft.masks },
-      `Preset: ${preset.name}`,
+      `Preset: ${preset.name}`.slice(0, 100),
     );
     setActivePreset(preset.name);
   }
@@ -963,6 +1037,18 @@ export function DevelopPage({
           setNotice("Preset saved");
         }
       }
+      if (action === "rename") {
+        if (!photo || activeId !== photo.id)
+          throw new Error("Choose the photo again before renaming.");
+        const renamed = await store.renamePhoto(photo.id, name, photo.name);
+        if (alive.current) {
+          setLibrary((old) => ({
+            ...old,
+            photos: old.photos.map((item) => (item.id === renamed.id ? renamed : item)),
+          }));
+          setNotice("Library and export name updated. The original filename is unchanged.");
+        }
+      }
       if (action === "snapshot") {
         const current = activeId ? docs.current[activeId] : undefined;
         if (!current) throw new Error("Choose a photo first.");
@@ -1018,7 +1104,7 @@ export function DevelopPage({
         const size = `${bitmap.width} × ${bitmap.height}`;
         bitmap.close();
         if (alive.current && !controller.signal.aborted) {
-          download(blob, saveFilename(photo.name, "-foto.jpg"));
+          download(blob, photoExportFilename(photo.name));
           setNotice(
             `Exported ${size} JPEG${photo.isRaw ? (sourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}`,
           );
@@ -1337,6 +1423,16 @@ export function DevelopPage({
                 <Plus size={12} />
                 Create preset
               </button>
+              <button className="develop-wide develop-quiet" onClick={() => openDialog("presets")}>
+                Import / export presets…
+              </button>
+              <button
+                className="develop-wide develop-quiet"
+                disabled={!photo || !!saveError}
+                onClick={() => openDialog("reference")}
+              >
+                Match edited reference…
+              </button>
             </Panel>
             <Panel title="Snapshots">
               <button
@@ -1508,6 +1604,17 @@ export function DevelopPage({
             <>
               <div className="develop-view-toolbar">
                 <div>
+                  <DevelopPhotoActions
+                    disabled={!photo || !!saveError || !!busy}
+                    canPaste={!!copiedPhoto}
+                    rename={() => {
+                      setName(photo?.name ?? "");
+                      openDialog("rename");
+                    }}
+                    duplicate={() => void duplicatePhoto()}
+                    copy={() => void copyPhoto()}
+                    paste={() => void duplicatePhoto(true)}
+                  />
                   <button
                     aria-label="Undo"
                     disabled={!source || !doc || doc.cursor === 0 || !!saveError}
@@ -1730,6 +1837,7 @@ export function DevelopPage({
                 maskId={maskId}
                 onMask={setMaskId}
                 sourceAspect={sourceAspect}
+                onSuggestCrop={() => openDialog("auto-crop")}
               />
             </fieldset>
             <div className="develop-right-footer">
@@ -1871,7 +1979,7 @@ export function DevelopPage({
         >
           <section
             ref={dialogElement}
-            className={`develop-dialog${dialog === "export" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : ""}`}
+            className={`develop-dialog${dialog === "export" || dialog === "reference" || dialog === "auto-crop" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="develop-dialog-title"
@@ -1880,13 +1988,21 @@ export function DevelopPage({
             <h2 id="develop-dialog-title">
               {dialog === "preset"
                 ? "Create preset"
-                : dialog === "snapshot"
-                  ? "Save snapshot"
-                  : dialog === "sync"
-                    ? "Sync settings"
-                    : dialog === "recovery"
-                      ? "Recover saved edits"
-                      : "Export photograph"}
+                : dialog === "presets"
+                  ? "Portable presets"
+                  : dialog === "auto-crop"
+                    ? "Automatic crop"
+                    : dialog === "reference"
+                      ? "Match an edited reference"
+                      : dialog === "rename"
+                        ? "Rename photo"
+                        : dialog === "snapshot"
+                          ? "Save snapshot"
+                          : dialog === "sync"
+                            ? "Sync settings"
+                            : dialog === "recovery"
+                              ? "Recover saved edits"
+                              : "Export photograph"}
             </h2>
             {dialogError && <p role="alert">{dialogError}</p>}
             {dialog === "recovery" ? (
@@ -1913,12 +2029,69 @@ export function DevelopPage({
                   setBusy(value ? "Recovering edits…" : "");
                 }}
               />
-            ) : dialog === "preset" || dialog === "snapshot" ? (
+            ) : dialog === "presets" ? (
+              <PresetExchange
+                recipe={draft}
+                presets={library.presets}
+                save={savePortablePreset}
+                close={() => setDialog(null)}
+              />
+            ) : dialog === "auto-crop" ? (
+              <AutoCropDialog
+                current={draft}
+                getNeutral={async (signal) => {
+                  if (!previewSource) throw new Error("Choose a photo first.");
+                  if (!(await flush())) throw new Error("Save the current edits first.");
+                  return renderDevelop(previewSource, defaultDevelopSettings(), {
+                    edge: 1600,
+                    quality: 1,
+                    signal,
+                  });
+                }}
+                processing={(value) => {
+                  operationLock.current = value ? "dialog" : null;
+                  setBusy(value ? "Analyzing crop…" : "");
+                }}
+                apply={(crop) => {
+                  change({ ...draft, crop }, "Automatic crop");
+                  setDialog(null);
+                  changeTool("edit");
+                }}
+                close={() => setDialog(null)}
+              />
+            ) : dialog === "reference" ? (
+              <ReferencePresetDialog
+                current={draft}
+                sourceName={photo?.name ?? "Selected photo"}
+                getNeutral={async (signal) => {
+                  if (!previewSource || !photo) throw new Error("Choose an original photo first.");
+                  if (!(await flush())) throw new Error("Save the current edits first.");
+                  return renderDevelop(previewSource, defaultDevelopSettings(), {
+                    edge: 1600,
+                    quality: 1,
+                    signal,
+                    sourceMode: "preview",
+                  });
+                }}
+                processing={(value) => {
+                  operationLock.current = value ? "dialog" : null;
+                  setBusy(value ? "Matching reference…" : "");
+                }}
+                apply={(settings) => {
+                  change(settings, "Estimated reference look");
+                  setDialog(null);
+                }}
+                save={savePortablePreset}
+                close={() => setDialog(null)}
+              />
+            ) : dialog === "preset" || dialog === "snapshot" || dialog === "rename" ? (
               <label>
-                Name
+                {dialog === "rename"
+                  ? "Library and export name (original filename stays unchanged)"
+                  : "Name"}
                 <input
                   autoFocus
-                  maxLength={100}
+                  maxLength={dialog === "rename" ? 180 : 100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => {
@@ -2061,30 +2234,35 @@ export function DevelopPage({
                 )}
               </fieldset>
             )}
-            {dialog !== "recovery" && (
-              <div className="develop-dialog-actions">
-                {busy === "Rendering export preview…" && (
-                  <button onClick={() => exportAbort.current?.abort()}>Stop preview</button>
-                )}
-                <button disabled={!!busy} onClick={() => setDialog(null)}>
-                  Cancel
-                </button>
-                <button
-                  className="develop-primary"
-                  disabled={
-                    !!busy || ((dialog === "preset" || dialog === "snapshot") && !name.trim())
-                  }
-                  onClick={() => void confirmDialog()}
-                >
-                  {busy ||
-                    (dialog === "export"
-                      ? "Export JPEG"
-                      : dialog === "sync"
-                        ? "Sync settings"
-                        : "Save")}
-                </button>
-              </div>
-            )}
+            {dialog !== "recovery" &&
+              dialog !== "presets" &&
+              dialog !== "reference" &&
+              dialog !== "auto-crop" && (
+                <div className="develop-dialog-actions">
+                  {busy === "Rendering export preview…" && (
+                    <button onClick={() => exportAbort.current?.abort()}>Stop preview</button>
+                  )}
+                  <button disabled={!!busy} onClick={() => setDialog(null)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="develop-primary"
+                    disabled={
+                      !!busy ||
+                      ((dialog === "preset" || dialog === "snapshot" || dialog === "rename") &&
+                        !name.trim())
+                    }
+                    onClick={() => void confirmDialog()}
+                  >
+                    {busy ||
+                      (dialog === "export"
+                        ? "Export JPEG"
+                        : dialog === "sync"
+                          ? "Sync settings"
+                          : "Save")}
+                  </button>
+                </div>
+              )}
           </section>
         </div>
       )}

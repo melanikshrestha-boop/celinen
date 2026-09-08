@@ -45,11 +45,32 @@ function apply(
 }
 
 describe("Neutral sidebar theme surfaces", () => {
+  test("opacity is adjustable and higher by default without changing image or canvas colors", () => {
+    expect(DEFAULT_APPEARANCE.sidebarOpacity).toBe(80);
+    for (let opacity = 20; opacity <= 100; opacity += 5) {
+      const appearance = appearanceSchema.parse({ ...DEFAULT_APPEARANCE, sidebarOpacity: opacity });
+      const expected = Math.round((opacity * 255) / 100)
+        .toString(16)
+        .padStart(2, "0");
+      expect(sidebarSurfaceTokens(appearance, true)["--foto-sidebar-material"]).toBe(
+        `#242424${expected}`,
+      );
+      expect(appearance.background).toBe(DEFAULT_APPEARANCE.background);
+    }
+    expect(appearanceSchema.safeParse({ sidebarOpacity: 101 }).success).toBe(false);
+    expect(appearanceSchema.safeParse({ sidebarOpacity: -1 }).success).toBe(false);
+  });
+  test("header chrome cannot inherit an old blue-gray custom canvas", () => {
+    const sheet = css("components/workbench/workbench.css");
+    expect(sheet).toContain("html.dark .workbench-header {");
+    expect(sheet).toContain("--wb-bg: #161616;");
+    expect(sheet).toContain("--wb-text: #f5f5f5;");
+  });
   test("new workspaces default to dark with translucent navigation, not System or blue", () => {
     expect(DEFAULT_PREFERENCES.theme).toBe("dark");
     expect(DEFAULT_APPEARANCE.translucentSidebar).toBe(true);
     const tokens = sidebarSurfaceTokens(DEFAULT_APPEARANCE, true);
-    expect(tokens["--foto-sidebar-material"]).toBe("#24242499");
+    expect(tokens["--foto-sidebar-material"]).toBe("#242424cc");
     expect(tokens["--foto-sidebar-solid"]).toBe("#242424");
     expect(tokens["--foto-sidebar-text"]).toBe("#f5f5f5");
     expect(tokens["--foto-sidebar-muted"]).toBe("#a3a3a3");
@@ -66,7 +87,7 @@ describe("Neutral sidebar theme surfaces", () => {
         expect(result.dark).toBe(expectedDark);
         expect(result.appearance.background).toBe(expectedDark ? "#000000" : "#ffffff");
         const tokens = sidebarSurfaceTokens(result.appearance, result.dark);
-        expect(tokens["--foto-sidebar-material"]).toBe(expectedDark ? "#24242499" : "#f9f9f9e6");
+        expect(tokens["--foto-sidebar-material"]).toBe(expectedDark ? "#242424cc" : "#f9f9f9cc");
         expect(JSON.stringify(prefs)).toBe(before);
       }
     }
@@ -170,7 +191,7 @@ describe("Neutral sidebar theme surfaces", () => {
     for (const stale of ["#10141a", "#202226", "#171b21", "#2a2c30"])
       expect(settings).not.toContain(stale);
     expect(settings).toContain("--settings-surface: var(--foto-settings-surface, #fafafa)");
-    expect(settings).toContain("--settings-rail: var(--foto-sidebar-material, #f9f9f9e6)");
+    expect(settings).toContain("--settings-rail: var(--foto-sidebar-material, #f9f9f9cc)");
     expect(settings).toContain("-webkit-backdrop-filter: var(--foto-sidebar-filter, blur(30px))");
     expect(settings).toContain('html[data-settings-translucency="false"] .settings-rail');
     expect(settings).toContain("prefers-reduced-transparency: reduce");
