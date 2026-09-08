@@ -16,6 +16,7 @@ import {
   type DeliveryActivityFilter,
 } from "@/lib/delivery/activity";
 import { offerDownload } from "@/lib/delivery/downloads";
+import { submittedSelectionCsv } from "@/lib/delivery/selection-export";
 import {
   downloadable,
   isApproved,
@@ -204,6 +205,7 @@ export function DeliveryGallery({
   };
   const countChanges = state.comments.filter((c) => c.revision && !c.resolvedAt).length;
   const pickAction = actor === "client" && !preview && !selectionsLocked(state);
+  const submitted = state.submissions.at(-1);
 
   return (
     <section className="delivery-gallery">
@@ -403,40 +405,69 @@ export function DeliveryGallery({
         </>
       )}
       {tab === "feedback" && (
-        <div className="delivery-feedback-list">
-          {!state.comments.length && (
-            <div className="delivery-empty">
-              <p>A conversation, right beside the photo.</p>
-              <span>Open any image to ask for a change or leave a note.</span>
-            </div>
-          )}
-          {[...state.comments].reverse().map((comment) => (
-            <article key={comment.id}>
+        <>
+          {!preview && actor === "owner" && submitted && (
+            <div className="delivery-feedback-tools">
+              <p>
+                Latest submission · {submitted.items.length}{" "}
+                {submitted.items.length === 1 ? "photo" : "photos"}
+              </p>
               <button
                 className="delivery-quiet"
                 onClick={() => {
-                  setActive(comment.photoId);
                   setActionError("");
+                  try {
+                    offerDownload(
+                      new Blob([submittedSelectionCsv(state)], {
+                        type: "text/csv;charset=utf-8",
+                      }),
+                      "gallery-selection.csv",
+                    );
+                  } catch (error) {
+                    setActionError(messageOf(error));
+                  }
                 }}
               >
-                {photos
-                  .find((p) => p.id === comment.photoId)
-                  ?.versions.find((v) => v.id === comment.versionId)?.filename ??
-                  "Earlier photo version"}{" "}
-                <ArrowRight size={14} />
+                <ArrowDown size={15} /> Export selection CSV
               </button>
-              <p className="delivery-comment-body">{comment.body}</p>
-              <p className="delivery-meta">
-                {comment.role === "owner" ? "Photographer" : state.clientName} · {stamp(comment.at)}
-                {comment.revision
-                  ? comment.resolvedAt
-                    ? " · Addressed"
-                    : " · Change requested"
-                  : ""}
-              </p>
-            </article>
-          ))}
-        </div>
+            </div>
+          )}
+          <div className="delivery-feedback-list">
+            {!state.comments.length && (
+              <div className="delivery-empty">
+                <p>A conversation, right beside the photo.</p>
+                <span>Open any image to ask for a change or leave a note.</span>
+              </div>
+            )}
+            {[...state.comments].reverse().map((comment) => (
+              <article key={comment.id}>
+                <button
+                  className="delivery-quiet"
+                  onClick={() => {
+                    setActive(comment.photoId);
+                    setActionError("");
+                  }}
+                >
+                  {photos
+                    .find((p) => p.id === comment.photoId)
+                    ?.versions.find((v) => v.id === comment.versionId)?.filename ??
+                    "Earlier photo version"}{" "}
+                  <ArrowRight size={14} />
+                </button>
+                <p className="delivery-comment-body">{comment.body}</p>
+                <p className="delivery-meta">
+                  {comment.role === "owner" ? "Photographer" : state.clientName} ·{" "}
+                  {stamp(comment.at)}
+                  {comment.revision
+                    ? comment.resolvedAt
+                      ? " · Addressed"
+                      : " · Change requested"
+                    : ""}
+                </p>
+              </article>
+            ))}
+          </div>
+        </>
       )}
       {tab === "activity" && (
         <>

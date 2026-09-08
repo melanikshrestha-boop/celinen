@@ -313,6 +313,19 @@
 .delivery-feedback-list {
   max-width: 760px;
 }
+.delivery-feedback-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 760px;
+  padding-top: 12px;
+}
+.delivery-feedback-tools p {
+  color: var(--color-moss);
+  font-size: 11px;
+}
 .delivery-feedback-list article {
   padding: 24px 0;
 }
