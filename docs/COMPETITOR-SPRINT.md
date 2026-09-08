@@ -974,6 +974,47 @@ work breaks one accent contrast assertion, and concurrent chat-copy work changed
 composer placeholder. None was changed or hidden here. Next bounded item: return to culling review and
 close one measured creative-control or unreadable-file recovery gap without inventing quality claims.
 
+## Pass 19 — unreadable-frame triage in the filmstrip (2026-09-08 08:54 UTC heartbeat)
+
+Primary-source refresh, not competitor account or native-decoder testing:
+
+- [Aftershoot's importing/culling troubleshooting guide](https://support.aftershoot.com/en/articles/5353542-aftershoot-is-stuck-on-importing-images-culling)
+  documents stalled RAW reads as a recoverable workflow problem rather than evidence that a frame is
+  bad. Its current One-Click Cull and Edit FAQ says processing errors expose restart, support or cancel
+  choices instead of silently continuing.
+- [Pixieset's upload-processing troubleshooting guide](https://help.pixieset.com/hc/en-us/articles/115003776811-Troubleshooting-Upload-Errors-and-Processing-Issues)
+  documents showing helpful error information beside the affected files. LensLabs applies that
+  per-frame clarity to culling while keeping its existing local recovery guidance.
+
+Implemented in the existing virtualized Studio filmstrip without changing culling decisions:
+
+- Decode failures, previews still pending, disconnected sources and readable previews now have four
+  explicit states. An empty error string is still a failure state, matching the existing first-pass
+  safety rule.
+- An unreadable thumbnail says `unreadable · select to recover` and shows `review` instead of a fake
+  score of zero. It remains selectable so the existing Studio loupe can show the camera/converter
+  recovery guidance. The filmstrip's accessible name also reports how many frames need manual review.
+- A missing original says `source offline`; a not-yet-ready preview says `preview pending`; readable
+  frames retain their actual thumbnail and measured score. No state sets keep/reject, deletes a frame
+  or mutates the source shoot.
+
+Verification: **79 focused culling tests pass / 0 fail (2,685 assertions)** across availability,
+first-pass protection, proposals, 3,000-frame virtualization and similarity indexing. Three new domain
+tests cover state priority, empty decoder errors, recovery wording and source immutability. TypeScript,
+scoped ESLint (zero errors after the QA harness export), production build and whitespace checks pass.
+A synthetic 390x844 browser surface verified all four visible states, the manual-review count,
+selection of the unreadable frame, no horizontal overflow and no new non-font console errors.
+Screenshot inspected: `/private/tmp/lenslabs-filmstrip-recovery-mobile.png`.
+
+Limitations: browser QA used synthetic frame records and repository/public-domain media. It did not
+run the native C++ decoder, use `DSC6973.ARW`, reconnect a real source folder, open Aftershoot/Pixieset
+or touch a user shoot. The change makes failure triage truthful; it does not expand camera support or
+claim recovered pixels. The full concurrent suite reached **1,135 pass / 19 skip / 3 fail**. The same
+three unrelated failures remain: `EADDRINUSE` in the local HTTP bridge fixture, a concurrent Appearance
+contrast assertion and the concurrent chat placeholder expectation. None was changed or hidden here.
+Next bounded item: run the existing C++ decoder against a user-authorized failing RAW or add a licensed,
+redistributable unsupported-camera fixture; do not infer camera recovery from extension-only tests.
+
 ## Remaining sprint order
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact
