@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { normalizeColor, validateAppearance, type Appearance } from "@/lib/appearance";
+import {
+  THEME_PRESETS,
+  normalizeColor,
+  validateAppearance,
+  type Appearance,
+} from "@/lib/appearance";
 import type { AccountPreferences } from "@/lib/account-preferences";
 import { SettingsRow as Row, SettingsChoice as Choice } from "./SettingsPrimitives";
 import { Switch } from "@/components/ui/switch";
@@ -46,7 +51,28 @@ export function AppearanceBasics({
               ["dark", "Dark"],
               ["light", "Light"],
             ]}
-            change={(theme) => save({ theme: theme as AccountPreferences["theme"] })}
+            change={(theme) => {
+              const next = theme as AccountPreferences["theme"];
+              if (next === "light")
+                save({
+                  theme: next,
+                  appearance: validateAppearance({
+                    ...prefs.appearance,
+                    preset: "paper",
+                    ...THEME_PRESETS.paper,
+                  }),
+                });
+              else if (next === "dark")
+                save({
+                  theme: next,
+                  appearance: validateAppearance({
+                    ...prefs.appearance,
+                    preset: "lenslabs",
+                    ...THEME_PRESETS.lenslabs,
+                  }),
+                });
+              else save({ theme: next });
+            }}
           />
         </Row>
       )}

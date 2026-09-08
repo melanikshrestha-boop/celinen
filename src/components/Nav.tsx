@@ -3,6 +3,7 @@ import { publicEntry } from "@/lib/public-entry";
 import { Link } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/lensos/Theme";
 import { LogoMark } from "@/components/lensos/Logo";
+import { PRODUCT_NAME } from "@/lib/product";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
       <header className="mx-auto grid w-full max-w-[1240px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
         <Link to="/" className="flex shrink-0 items-center gap-2">
           <LogoMark className="text-ink" />
-          <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
+          <span className="font-display text-[15px] font-semibold tracking-tight">{PRODUCT_NAME}</span>
         </Link>
 
         <nav className="hidden min-w-0 items-center justify-center gap-1 whitespace-nowrap text-sm text-moss lg:flex">

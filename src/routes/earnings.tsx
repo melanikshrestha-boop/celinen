@@ -8,7 +8,12 @@ import { localDate } from "@/lib/business/reminders";
 import "@/components/lensos/business-workspace.css";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Btn, Card, Chip, SectionTitle, Shell } from "@/components/lensos/Shell";
+import { Btn, Card, Chip, Shell } from "@/components/lensos/Shell";
+import { PieBlock } from "@/components/earnings/PieBlock";
+import { isLoss, isProfit, money as pieMoney, moneySigned } from "@/components/earnings/money";
+import type { PieSlice } from "@/components/earnings/Pie";
+import { PRODUCT_NAME } from "@/lib/product";
+import "@/components/earnings/earnings-finances.css";
 import { useLens } from "@/lib/lensos-store";
 import { SEED_EVENTS } from "@/lib/lensos";
 import { InvoicePanel } from "@/components/lensos/InvoicePanel";
@@ -48,13 +53,13 @@ import {
 export const Route = createFileRoute("/earnings")({
   head: () => ({
     meta: [
-      { title: "Earnings — LensLabs" },
+      { title: `Earnings — ${PRODUCT_NAME}` },
       {
         name: "description",
         content:
           "Recorded income, expenses, invoice drafts, and bookkeeping exports for your photography business.",
       },
-      { property: "og:title", content: "Earnings — LensLabs" },
+      { property: "og:title", content: `Earnings — ${PRODUCT_NAME}` },
       {
         property: "og:description",
         content: "Keep income and expense records organized by calendar year.",
@@ -143,6 +148,69 @@ const sumMoney = (amounts: number[]) =>
 
 const DEMO_EVENT_IDS = new Set(SEED_EVENTS.map((event) => event.id));
 
+const SEED_LEDGER = [
+  {
+    id: "f1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1",
+    kind: "income" as const,
+    category: "Event coverage",
+    amount: "2400",
+    description: "Amara & James",
+    occurredOn: "2026-05-14",
+  },
+  {
+    id: "f1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a2",
+    kind: "income" as const,
+    category: "Print sales",
+    amount: "450",
+    description: "Elise Moreau prints",
+    occurredOn: "2026-06-02",
+  },
+  {
+    id: "f1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a3",
+    kind: "expense" as const,
+    category: "Equipment",
+    amount: "380",
+    description: "Lens rental",
+    occurredOn: "2026-05-10",
+  },
+  {
+    id: "f1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a4",
+    kind: "expense" as const,
+    category: "Software & subscriptions",
+    amount: "49",
+    description: "Adobe",
+    occurredOn: "2026-09-01",
+  },
+  {
+    id: "f1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a5",
+    kind: "expense" as const,
+    category: "Travel",
+    amount: "120",
+    description: "Napa",
+    occurredOn: "2026-05-14",
+  },
+];
+
+function seedLocalFinance(state: LocalFinanceState): LocalFinanceState {
+  if (state.entries.length > 0) return state;
+  let next = state;
+  for (const row of SEED_LEDGER) {
+    const built = buildLocalLedgerEntry(
+      {
+        kind: row.kind,
+        category: row.category,
+        description: row.description,
+        amount: row.amount,
+        occurredOn: row.occurredOn,
+        shootId: null,
+      },
+      { id: row.id, now: "2026-09-07T20:00:00.000Z" },
+    );
+    if (built.ok) next = upsertLocalLedgerEntry(next, built.value);
+  }
+  return next;
+}
+
 function Earnings() {
   const { events: allEvents, clients } = useLens();
 
@@ -187,9 +255,11 @@ function Earnings() {
     if (isLocalSingleUserMode) {
       const loaded = loadLocalFinanceState();
       setRuntimeMode("local");
-      setLocalFinance(loaded.state);
-      setEntries(loaded.state.entries.map(localToEntry));
-      setInvoiceDrafts(loaded.state.invoices);
+      const seeded = loaded.ok ? seedLocalFinance(loaded.state) : loaded.state;
+      setLocalFinance(seeded);
+      setEntries(seeded.entries.map(localToEntry));
+      setInvoiceDrafts(seeded.invoices);
+      if (loaded.ok && seeded !== loaded.state) void commitLocalFinanceState(seeded);
       setLocalFinanceWritable(loaded.ok);
       setDataError(loaded.warning);
       setLoading(false);
@@ -284,11 +354,11 @@ function Earnings() {
     await reload();
   };
 
-  const [kind, setKind] = useState<Kind>("expense");
+  const [kind, setKind] = useState<Kind>("income");
   const [form, setForm] = useState({
     date: "",
     label: "",
-    category: EXPENSE_CATEGORIES[0]!,
+    category: INCOME_CATEGORIES[0]!,
     amount: "",
     eventId: "",
   });
@@ -315,6 +385,20 @@ function Earnings() {
       .map(([category, amountCents]) => [category, amountCents / 100] as const)
       .sort((a, b) => b[1] - a[1]);
   }, [periodEntries]);
+
+  const pieSlices = (kind: Kind): PieSlice[] => {
+    const map = new Map<string, { amount: number; n: number }>();
+    for (const entry of periodEntries.filter((e) => e.kind === kind)) {
+      const cur = map.get(entry.category) ?? { amount: 0, n: 0 };
+      cur.amount += entry.amount;
+      cur.n += 1;
+      map.set(entry.category, cur);
+    }
+    return [...map.entries()].map(([label, row]) => ({ label, amount: row.amount, n: row.n }));
+  };
+  const incomeSlices = pieSlices("income");
+  const expenseSlices = pieSlices("expense");
+  const netTone = isProfit(totals.net) ? "is-profit" : isLoss(totals.net) ? "is-loss" : "";
 
   /* ---------- real shoot data wired into the ledger ---------- */
   const jobs = useMemo(
@@ -570,12 +654,11 @@ function Earnings() {
 
   return (
     <Shell hideEventHeader>
-      <div className="business-workspace">
-        <SectionTitle
-          kicker="Business"
-          title="Earnings so far"
-          sub="Your recorded income and expenses. Invoice drafts are not counted as earnings."
-        />
+      <div className="iris-finances">
+        <h1>Earnings</h1>
+        <p className="iris-finances-sub">
+          {periodEntries.length} · {runtimeMode === "local" ? "saved on this device" : "saved to your account"}
+        </p>
 
         {dataError && (
           <Card className="mb-4 border-destructive/40">
@@ -602,27 +685,53 @@ function Earnings() {
           <span>
             USD · {selectedYear === "all" ? "all recorded dates" : `calendar year ${selectedYear}`}
           </span>
-          <button
-            onClick={() =>
-              document.getElementById("tax-records")?.scrollIntoView({ block: "start" })
-            }
-          >
-            Tax records
-          </button>
         </div>
-        <div className="business-metrics" aria-label="Recorded earnings">
-          {[
-            ["Income received", money(totals.income), "Recorded income only"],
-            ["Expenses", money(totals.expense), "Recorded costs, before tax treatment"],
-            ["Net before tax", money(totals.net), "Income minus expenses"],
-          ].map(([label, value, note]) => (
-            <div key={label}>
-              <p>{label}</p>
-              <strong>{loading || dataError ? "—" : value}</strong>
-              <small>{note}</small>
+        {loading || dataError ? null : (
+          <>
+            <div className="bk-net-hero">
+              <span className="bk-net-hero-label">Net</span>
+              <strong className={`bk-net-hero-value ${netTone}`}>{moneySigned(totals.net)}</strong>
             </div>
-          ))}
-        </div>
+            <div className="bk-metrics" aria-label="Recorded earnings">
+              <div className="bk-metric">
+                <span className="bk-metric-label">Income</span>
+                <span className="bk-metric-value">{pieMoney(totals.income)}</span>
+              </div>
+              <div className="bk-metric">
+                <span className="bk-metric-label">Expenses</span>
+                <span className="bk-metric-value">{pieMoney(totals.expense)}</span>
+              </div>
+              <div className={`bk-metric ${netTone}`}>
+                <span className="bk-metric-label">Net</span>
+                <span className="bk-metric-value">{moneySigned(totals.net)}</span>
+              </div>
+            </div>
+            <div className="bk-pie-stack">
+              <div className="bk-pie-grid">
+                <PieBlock title="Income" slices={incomeSlices} palette="income" />
+                <PieBlock title="Expenses" slices={expenseSlices} palette="expense" />
+                <div className="bk-panel bk-panel-tight bk-net-summary">
+                  <h3 className="bk-panel-h">Net</h3>
+                  <p className={`bk-net-summary-main ${netTone}`}>{moneySigned(totals.net)}</p>
+                  <ul className="bk-net-summary-rows">
+                    <li>
+                      <span className="k">Income</span>
+                      <span className="v">{pieMoney(totals.income)}</span>
+                    </li>
+                    <li>
+                      <span className="k">Expenses</span>
+                      <span className="v">{pieMoney(totals.expense)}</span>
+                    </li>
+                    <li className={`is-remain ${netTone}`}>
+                      <span className="k">Net</span>
+                      <span className="v">{moneySigned(totals.net)}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {runtimeMode === "local" ? (
           <p className="business-local-note">Saved on this device. Payments are not connected.</p>
@@ -678,7 +787,7 @@ function Earnings() {
             <summary>
               Invoice drafts <span>{invoiceDrafts.length} · not sent</span>
             </summary>
-            <Card className="mt-4 p-0">
+            <div className="mt-4">
               <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
                 <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
                   Invoices
@@ -861,14 +970,14 @@ function Earnings() {
                   </div>
                 ))}
               </div>
-            </Card>
+            </div>
           </details>
         )}
 
         {runtimeMode === "remote" && <InvoicePanel />}
 
         {jobs.length > 0 && (
-          <Card className="mt-4 p-0">
+          <div className="mt-4">
             <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
               <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
                 Project activity · all dates
@@ -926,226 +1035,178 @@ function Earnings() {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </div>
         )}
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr_1fr]">
-          <Card className="p-0">
-            <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Ledger</p>
-              <Btn
-                className="ml-auto px-3 py-1.5 text-[13px]"
-                onClick={exportCsv}
-                disabled={!canExport}
-              >
-                Export CSV
-              </Btn>
-            </div>
-
-            <div className="flex flex-wrap gap-2 border-b border-border p-4">
-              <div className="flex overflow-hidden rounded-lg border border-input">
-                {(["expense", "income"] as Kind[]).map((k) => (
-                  <button
-                    key={k}
-                    onClick={() => {
-                      setKind(k);
-                      setForm((current) => ({
-                        ...current,
-                        category: (k === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES)[0]!,
-                      }));
-                    }}
-                    className={`px-3 py-1.5 text-[13px] ${kind === k ? "bg-ink text-paper2" : "text-moss"}`}
-                  >
-                    {k}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="date"
-                aria-label="Ledger date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
-              />
-              <input
-                value={form.label}
-                onChange={(e) => setForm({ ...form, label: e.target.value })}
-                placeholder="Description"
-                aria-label="Ledger description"
-                className="min-w-[160px] flex-1 rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
-              />
-              <select
-                aria-label="Ledger category"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
-              >
-                {(!cats.includes(form.category) ? [form.category, ...cats] : cats).map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-              <select
-                aria-label="Ledger project"
-                value={form.eventId}
-                onChange={(e) => setForm({ ...form, eventId: e.target.value })}
-                className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] outline-none"
-              >
-                <option value="">No event</option>
-                {events.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                placeholder="0.00"
-                inputMode="decimal"
-                aria-label="Ledger amount in USD"
-                className="w-24 rounded-lg border border-input bg-card px-3 py-1.5 text-right font-mono text-[13px] outline-none"
-              />
-              <Btn
-                variant="primary"
-                className="px-3 py-1.5 text-[13px]"
-                disabled={
-                  runtimeMode === "checking" || (runtimeMode === "local" && !localFinanceWritable)
-                }
-                onClick={() => void add()}
-              >
-                {editingEntryId ? "Save" : "Add"}
-              </Btn>
-              {editingEntryId && (
-                <Btn className="px-3 py-1.5 text-[13px]" onClick={cancelEntryEdit}>
-                  Cancel
-                </Btn>
-              )}
-            </div>
-
-            <div className="max-h-[420px] overflow-y-auto">
-              {periodEntries.length === 0 && !loading && localFinanceWritable && (
-                <p className="p-4 text-sm text-moss">No ledger entries in this period.</p>
-              )}
-              {runtimeMode === "local" && !localFinanceWritable && (
-                <p className="text-sm text-moss">
-                  Saved ledger data is still in browser storage, but it cannot be shown safely.
-                </p>
-              )}
-              {periodEntries.map((e) => (
-                <div
-                  key={e.id}
-                  className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 last:border-0"
-                >
-                  <span className="font-mono text-[11px] text-moss">{e.date}</span>
-                  <span className="text-sm">{e.label}</span>
-                  <Chip>{e.category}</Chip>
-                  {e.eventId && (
-                    <span className="text-[12px] text-moss">
-                      {events.find((v) => v.id === e.eventId)?.name}
-                    </span>
-                  )}
-                  <span
-                    className={`ml-auto font-mono text-[13px] ${e.kind === "income" ? "text-rust" : ""}`}
-                  >
-                    {e.kind === "income" ? "+" : "−"}
-                    {money(e.amount)}
-                  </span>
-                  {runtimeMode === "local" && (
-                    <button
-                      onClick={() => editLocalEntry(e)}
-                      className="font-mono text-[12px] text-moss hover:text-ink"
-                    >
-                      edit
-                    </button>
-                  )}
-                  {runtimeMode === "local" && confirmDeleteEntryId === e.id ? (
-                    <>
-                      <button
-                        onClick={() => void removeEntry(e.id)}
-                        className="font-mono text-[12px] text-destructive"
-                      >
-                        confirm delete
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteEntryId(null)}
-                        className="font-mono text-[12px] text-moss hover:text-ink"
-                      >
-                        cancel
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        runtimeMode === "local"
-                          ? setConfirmDeleteEntryId(e.id)
-                          : void removeEntry(e.id)
-                      }
-                      className="text-[12px] text-moss hover:text-ink"
-                      aria-label={runtimeMode === "local" ? `Delete ${e.label}` : undefined}
-                    >
-                      {runtimeMode === "local" ? "delete" : "✕"}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <div className="space-y-4">
-            <Card>
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
-                Expense categories · recorded amounts
-              </p>
-              <div className="mt-3 space-y-2">
-                {byCategory.map(([c, v]) => (
-                  <div key={c}>
-                    <div className="flex justify-between text-[13px]">
-                      <span className="text-moss">{c}</span>
-                      <span className="font-mono">{money(v)}</span>
-                    </div>
-                    <div className="mt-1 h-1 rounded-full bg-muted">
-                      <div
-                        className="h-1 rounded-full bg-ink"
-                        style={{ width: `${(v / (byCategory[0]?.[1] ?? 1)) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-                {byCategory.length === 0 && (
-                  <p className="text-sm text-moss">No expenses logged.</p>
-                )}
-              </div>
-            </Card>
-
-            <section
-              id="tax-records"
-              className="business-tax-records"
-              aria-labelledby="tax-records-title"
-            >
-              <h2 id="tax-records-title">Tax records</h2>
-              <p>
-                Export your ledger and category totals for your accountant. All amounts are USD;
-                expenses are exported in full without assuming deductibility.
-              </p>
-              <div className="business-export-actions">
-                <Btn variant="primary" disabled={!canExport} onClick={exportCsv}>
-                  Download ledger CSV
-                </Btn>
-                <Btn disabled={!canExport} onClick={() => exportRecords(true)}>
-                  Download category summary
-                </Btn>
-              </div>
-              <p className="business-export-note">
-                {periodEntries.length} record{periodEntries.length === 1 ? "" : "s"} ·{" "}
-                {selectedYear === "all" ? "All dates" : selectedYear} · USD
-              </p>
-              <p>
-                This prepares records, not a tax return. Keep the supporting receipts.
-                Country-specific tax calculations and filing are not enabled.
-              </p>
-            </section>
+        <section className="bk-ledger" aria-label="Ledger">
+          <div className="bk-ledger-h">
+            Ledger
+            <button type="button" onClick={exportCsv} disabled={!canExport}>
+              Export
+            </button>
           </div>
-        </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void add();
+            }}
+          >
+            <table className="bk-ledger-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Who</th>
+                  <th>Job</th>
+                  <th>Dir</th>
+                  <th>Category</th>
+                  <th className="amt">Amount</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {periodEntries.length === 0 && !loading && localFinanceWritable && (
+                  <tr>
+                    <td colSpan={7} className="bk-ledger-empty">
+                      No money movements for this period.
+                    </td>
+                  </tr>
+                )}
+                {periodEntries.map((e) => (
+                  <tr key={e.id}>
+                    <td>{e.date}</td>
+                    <td className="who">{e.label}</td>
+                    <td>{e.eventId ? (events.find((v) => v.id === e.eventId)?.name ?? "") : ""}</td>
+                    <td>{e.kind === "income" ? "In" : "Out"}</td>
+                    <td>{e.category}</td>
+                    <td className={`amt ${e.kind === "income" ? "is-in" : "is-out"}`}>
+                      {e.kind === "income" ? "+" : "−"}
+                      {money(e.amount)}
+                    </td>
+                    <td>
+                      {runtimeMode === "local" && (
+                        <button type="button" className="act" onClick={() => editLocalEntry(e)}>
+                          {editingEntryId === e.id ? "editing" : "edit"}
+                        </button>
+                      )}
+                      {runtimeMode === "local" && confirmDeleteEntryId === e.id ? (
+                        <>
+                          <button type="button" className="act" onClick={() => void removeEntry(e.id)}>
+                            confirm
+                          </button>
+                          <button
+                            type="button"
+                            className="act"
+                            onClick={() => setConfirmDeleteEntryId(null)}
+                          >
+                            cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="act"
+                          onClick={() =>
+                            runtimeMode === "local"
+                              ? setConfirmDeleteEntryId(e.id)
+                              : void removeEntry(e.id)
+                          }
+                        >
+                          delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="bk-ledger-new">
+                  <td>
+                    <input
+                      type="date"
+                      aria-label="Date"
+                      value={form.date}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    />
+                  </td>
+                  <td className="who">
+                    <input
+                      value={form.label}
+                      onChange={(e) => setForm({ ...form, label: e.target.value })}
+                      placeholder="Client or what"
+                      aria-label="Who"
+                    />
+                  </td>
+                  <td>
+                    <select
+                      aria-label="Job"
+                      value={form.eventId}
+                      onChange={(e) => setForm({ ...form, eventId: e.target.value })}
+                    >
+                      <option value="">Job</option>
+                      {events.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      aria-label="In or out"
+                      value={kind}
+                      onChange={(e) => {
+                        const next = e.target.value as Kind;
+                        setKind(next);
+                        setForm((current) => ({
+                          ...current,
+                          category: (next === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES)[0]!,
+                        }));
+                      }}
+                    >
+                      <option value="income">In</option>
+                      <option value="expense">Out</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      aria-label="Category"
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    >
+                      {(!cats.includes(form.category) ? [form.category, ...cats] : cats).map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="amt">
+                    <input
+                      value={form.amount}
+                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                      placeholder="Amount"
+                      inputMode="decimal"
+                      aria-label="Amount"
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="submit"
+                      className="act"
+                      disabled={
+                        runtimeMode === "checking" ||
+                        (runtimeMode === "local" && !localFinanceWritable)
+                      }
+                    >
+                      {editingEntryId ? "Save" : "Add"}
+                    </button>
+                    {editingEntryId ? (
+                      <button type="button" className="act" onClick={cancelEntryEdit}>
+                        Cancel
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </form>
+        </section>
       </div>
     </Shell>
   );

@@ -3,10 +3,12 @@ import { z } from "zod";
 const color = z.string().regex(/^#[0-9a-f]{6}$/i, "Use a six-digit hex color.");
 export const appearanceSchema = z
   .object({
-    preset: z.enum(["lenslabs", "midnight", "warm", "custom"]).default("lenslabs"),
+    preset: z.enum(["lenslabs", "paper", "midnight", "warm", "custom"]).default("lenslabs"),
     accent: color.default("#b4b4b4"),
-    background: color.default("#10141a"),
-    foreground: color.default("#e7e6e2"),
+    background: color.default("#000000"),
+    foreground: color.default("#f3f3f3"),
+    backgroundStyle: z.enum(["solid", "gradient"]).default("solid"),
+    backgroundEnd: color.default("#1a1a1a"),
     uiFont: z.enum(["system", "sans", "serif"]).default("system"),
     codeFont: z.enum(["mono", "system-mono"]).default("mono"),
     uiSize: z.number().int().min(13).max(18).default(14),
@@ -56,9 +58,20 @@ export function normalizeColor(value: string) {
     .toLowerCase();
 }
 export const THEME_PRESETS = {
-  lenslabs: { accent: "#b4b4b4", background: "#10141a", foreground: "#e7e6e2" },
-  midnight: { accent: "#94b5ef", background: "#111827", foreground: "#edf1f8" },
-  warm: { accent: "#d7ab73", background: "#211e1a", foreground: "#eee8de" },
+  lenslabs: {
+    accent: "#b4b4b4",
+    background: "#000000",
+    foreground: "#f3f3f3",
+    backgroundEnd: "#1a1a1a",
+  },
+  paper: {
+    accent: "#171717",
+    background: "#ffffff",
+    foreground: "#171717",
+    backgroundEnd: "#f4f4f4",
+  },
+  midnight: { accent: "#94b5ef", background: "#111827", foreground: "#edf1f8", backgroundEnd: "#0b1220" },
+  warm: { accent: "#d7ab73", background: "#211e1a", foreground: "#eee8de", backgroundEnd: "#161310" },
 } as const;
 export function contrastRatio(a: string, b: string) {
   const luminance = (hex: string) => {
@@ -76,19 +89,13 @@ export function validateAppearance(value: unknown) {
     throw new Error(
       "Text and background need at least 4.5:1 contrast. Choose more distinct colors.",
     );
+  if (
+    parsed.backgroundStyle === "gradient" &&
+    contrastRatio(parsed.backgroundEnd, parsed.foreground) < 4.5
+  )
+    throw new Error("Text still has to read on the gradient’s other end.");
   if (contrastRatio(parsed.background, parsed.accent) < 3)
     throw new Error("Accent and background need at least 3:1 contrast.");
-  if (
-    ["#171b21", "#202226", "#2a2c30"].some(
-      (surface) => contrastRatio(surface, parsed.foreground) < 4.5,
-    ) ||
-    contrastRatio(parsed.background, "#a5a5a2") < 4.5
-  )
-    throw new Error(
-      "Choose dark-theme colors that preserve readable text on panels and navigation.",
-    );
-  if (contrastRatio("#171b21", parsed.accent) < 3)
-    throw new Error("The accent needs at least 3:1 contrast against controls.");
   return parsed;
 }
 export function exportTheme(appearance: Appearance) {
@@ -112,11 +119,26 @@ export function applyAppearance(
   systemDark: boolean,
 ) {
   const root = document.documentElement;
-  root.classList.toggle("dark", prefs.theme === "system" ? systemDark : prefs.theme === "dark");
-  const value = prefs.appearance;
+  const dark = prefs.theme === "system" ? systemDark : prefs.theme === "dark";
+  root.classList.toggle("dark", dark);
+  // Light/Dark are presets. A theme-only toggle used to leave lenslabs black fill
+  // on the tab bar while the Clients pane went white.
+  let value = prefs.appearance;
+  if (!dark && value.preset === "lenslabs")
+    value = { ...value, preset: "paper", ...THEME_PRESETS.paper };
+  else if (dark && value.preset === "paper")
+    value = { ...value, preset: "lenslabs", ...THEME_PRESETS.lenslabs };
   root.style.setProperty("--ll-settings-background", value.background);
   root.style.setProperty("--ll-settings-foreground", value.foreground);
   root.style.setProperty("--ll-settings-accent", value.accent);
+  root.style.setProperty("--wb-user-bg", value.background);
+  root.style.setProperty("--wb-user-fg", value.foreground);
+  root.style.setProperty(
+    "--wb-bg-fill",
+    value.backgroundStyle === "gradient"
+      ? `linear-gradient(165deg, ${value.background}, ${value.backgroundEnd})`
+      : value.background,
+  );
   root.style.setProperty(
     "--ll-readable-accent",
     contrastRatio(value.accent, root.classList.contains("dark") ? "#000000" : "#ffffff") >= 3
@@ -137,13 +159,11 @@ export function applyAppearance(
     "--ll-ui-font",
     value.uiFont === "serif"
       ? "Georgia, serif"
-      : value.uiFont === "sans"
-        ? "'Helvetica Neue', Arial, sans-serif"
-        : "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+      : '"OpenAI Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   );
   root.style.setProperty(
     "--ll-code-font",
-    value.codeFont === "mono" ? "ui-monospace, monospace" : "Menlo, Consolas, monospace",
+    '"SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   );
   root.style.setProperty("--ll-ui-size", `${value.uiSize}px`);
   root.style.setProperty("--ll-code-size", `${value.codeSize}px`);

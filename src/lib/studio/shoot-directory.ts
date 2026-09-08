@@ -32,13 +32,19 @@ async function open(scope: string) {
   req.onupgradeneeded = () => req.result.createObjectStore("shoots", { keyPath: "id" });
   return request(req);
 }
+/** Empty Untitled leftovers from old auto-minted workspace IDs. Real Shoot #N rows stay. */
+export function isGhostShoot(row: Pick<RecentShoot, "title" | "count" | "recoveryPending">) {
+  if (row.recoveryPending || row.count > 0) return false;
+  return /^(untitled (shoot|project)|new chat)$/i.test(row.title.trim());
+}
+
 export async function listRecentShoots(scope: string): Promise<RecentShoot[]> {
   const db = await open(scope);
   try {
     const rows = await request(db.transaction("shoots").objectStore("shoots").getAll());
     return rows
       .map((row) => rowSchema.parse(row))
-      .filter((row) => row.count > 0 || row.named)
+      .filter((row) => (row.count > 0 || row.named) && !isGhostShoot(row))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   } finally {
     db.close();
@@ -95,6 +101,36 @@ export const rememberShoot = (scope: string, id: string, count: number, title: s
   update(scope, id, { count, title });
 /** Naming does not touch photo/session revisions, so active autosaves cannot conflict. */
 export const renameShoot = (scope: string, id: string, name: string) => update(scope, id, { name });
+
+const memorySeq = new Map<string, number>();
+const shootSeqKey = (scope: string) => {
+  try {
+    return workspaceStorageKey("foto.shoot-seq.v1", scope);
+  } catch {
+    return `foto.shoot-seq.v1:memory:${scope}`;
+  }
+};
+
+/** Spotify-style: Shoot #1, #2… the number is creation order, not the current title. */
+export function nextShootLabel(scope: string) {
+  const key = shootSeqKey(scope);
+  let n = memorySeq.get(key) ?? 0;
+  try {
+    const stored = Number(localStorage.getItem(key) ?? String(n));
+    if (Number.isFinite(stored) && stored > n) n = stored;
+  } catch {
+    /* Memory holds the counter if storage is blocked. */
+  }
+  if (!Number.isFinite(n) || n < 0) n = 0;
+  n += 1;
+  memorySeq.set(key, n);
+  try {
+    localStorage.setItem(key, String(n));
+  } catch {
+    /* Memory still advances in this tab. */
+  }
+  return `Shoot #${n}`;
+}
 export const markDeviceRecovery = (scope: string, id: string) =>
   update(scope, id, { recovered: true, recoveryPending: false });
 /** Register before copying media so interrupted recovery remains discoverable and retryable. */

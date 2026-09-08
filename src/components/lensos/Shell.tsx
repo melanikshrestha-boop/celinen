@@ -8,6 +8,7 @@ import { Footer } from "@/components/lensos/Footer";
 import { LogoMark } from "@/components/lensos/Logo";
 import { useSessionState } from "@/lib/use-session";
 import { useWorkbench } from "@/components/workbench/context";
+import { PRODUCT_NAME } from "@/lib/product";
 
 /** Every workspace screen is private — nothing renders until a studio is signed in. */
 function Locked({ loading }: { loading: boolean }) {
@@ -294,7 +295,7 @@ function StandaloneShell({
         <div className="mx-auto flex w-full max-w-[1240px] items-center gap-3 px-6 py-3">
           <Link to="/" className="flex shrink-0 items-center gap-2">
             <LogoMark className="text-ink" />
-            <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
+            <span className="font-display text-[15px] font-semibold tracking-tight">{PRODUCT_NAME}</span>
           </Link>
 
           <nav className="flex flex-1 flex-wrap items-center gap-0.5 text-[13px] text-moss">

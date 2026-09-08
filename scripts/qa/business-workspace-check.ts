@@ -60,13 +60,11 @@ check(
   Math.max(...alignment) - Math.min(...alignment) < 1,
 );
 check("Only one shoot group heading", js("!document.querySelector('.ll-chat-group h3')"));
-run("click", 'button.workbench-nav-item:has-text("New shoot")');
+run("click", '[aria-label="New shoot in this project"]');
 ready();
 check(
-  "New shoot remains inside its project",
-  js(
-    `new URL(location.href).searchParams.get('shoot')==='${project}'&&[...document.querySelectorAll('.ll-chat-title')].some(el=>el.textContent==='New shoot')`,
-  ),
+  "Nested conversation stays on this project",
+  js(`new URL(location.href).searchParams.get('shoot')==='${project}'`),
 );
 run("click", 'button.workbench-nav-item:has-text("New project")');
 ready();
@@ -74,47 +72,46 @@ const newId = wait(
   `new URL(location.href).searchParams.get('shoot')!=='${project}'&&new URL(location.href).searchParams.get('shoot')`,
 );
 wait(
-  `document.querySelector('[data-shoot-id="${newId}"]')?.textContent.includes('Untitled project')`,
+  `document.querySelector('[data-shoot-id="${newId}"]')?.textContent.includes('Shoot #')`,
 );
 run("reload");
 ready();
 check(
-  "New empty project is persisted to Recents",
+  "New empty project is persisted to Recents as Shoot #N",
   asyncJs(
-    `import('/src/lib/studio/shoot-directory.ts').then(async m=>(await m.listRecentShoots('device-local')).some(p=>p.id==='${newId}'&&p.title==='Untitled project'))`,
+    `import('/src/lib/studio/shoot-directory.ts').then(async m=>(await m.listRecentShoots('device-local')).some(p=>p.id==='${newId}'&&/^Shoot #\\d+$/.test(p.title)))`,
   ),
 );
-run("click", '.workbench-business-nav a:has-text("Client database")');
-run("wait", "#client-search");
+run("click", '.workbench-business-nav a:has-text("Clients")');
+run("wait", ".clients-title");
 wait(
-  "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Add client'&&!b.disabled)",
+  "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='New'&&!b.disabled)",
 );
 check(
-  "Client database loads local records without cloud authentication errors",
+  "Clients sheet loads local records without cloud authentication errors",
   js(
-    "document.querySelector('.business-workspace h1').textContent==='Client database'&&!document.querySelector('.business-workspace [role=alert]')",
+    "document.querySelector('.clients-title').textContent==='Clients'&&!document.body.innerText.includes('Client database')&&!document.querySelector('.clients-sheet [role=alert]')",
   ),
 );
-run("click", 'button:has-text("Add client")');
-run("fill", 'label:has-text("Name") input', `${tag} client`);
-run("fill", 'label:has-text("Email") input', "lenslabs-qa@example.com");
-run("click", 'button:has-text("Save client")');
-wait("document.body.textContent.includes('Saved on this device.')");
+run("click", 'button.clients-new');
+run("fill", '[aria-label="New client"]', `${tag} client`);
+run("press", "Enter");
+wait("document.querySelector('.clients-page-body h1')?.textContent.includes('" + tag + "')");
 run("reload");
-run("wait", "#client-search");
+run("wait", ".clients-title");
 run("fill", "#client-search", `${tag} client`);
 wait(`document.body.textContent.includes('${tag} client')`);
-run("click", `tbody button:has-text("${tag} client")`);
+run("click", `tr.clients-row:has-text("${tag} client")`);
 check(
   "Client save, search and reload preserve the contact",
   asyncJs(
-    `import('/src/lib/client-workspace.ts').then(m=>m.loadClientWorkspace().state.clients.some(c=>c.name==='${tag} client'&&c.email==='lenslabs-qa@example.com'))`,
+    `import('/src/lib/client-workspace.ts').then(m=>m.loadClientWorkspace().state.clients.some(c=>c.name==='${tag} client'))`,
   ),
 );
 check(
   "Client records use the full workspace without clipping",
   js(
-    "document.querySelector('.workbench-conversation').hidden&&document.querySelector('.workbench-tool-scroll').scrollWidth<=document.querySelector('.workbench-tool-scroll').clientWidth+1",
+    "document.querySelector('.workbench-tool-scroll').scrollWidth<=document.querySelector('.workbench-tool-scroll').clientWidth+1",
   ),
 );
 js("document.activeElement?.blur()");

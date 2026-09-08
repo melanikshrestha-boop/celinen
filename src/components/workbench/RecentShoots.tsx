@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, Pencil } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Pencil } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   listRecentShoots,
   rememberShoot,
@@ -26,6 +32,7 @@ export function RecentShoots({
 }) {
   const [rows, setRows] = useState<RecentShoot[]>([]);
   const [previous, setPrevious] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -34,6 +41,11 @@ export function RecentShoots({
   useEffect(() => setExpanded(true), [activeId]);
   const alive = useRef(true);
   const recoveryTarget = useRef<string | null>(null);
+  const renameInput = useRef<HTMLInputElement>(null);
+  const skipRenameBlur = useRef(false);
+  useEffect(() => {
+    if (renaming) renameInput.current?.select();
+  }, [renaming]);
   const refresh = useCallback(async () => {
     try {
       const next = await listRecentShoots(scope);
@@ -74,28 +86,81 @@ export function RecentShoots({
     setName(title);
     setError("");
   };
-  const displayRows =
-    activeId && !rows.some((row) => row.id === activeId)
-      ? [{ id: activeId, title: "Untitled shoot", recoveryPending: false }, ...rows]
-      : rows;
+  const startRename = (id: string, title: string) => {
+    skipRenameBlur.current = false;
+    setRenaming(id);
+    setName(title);
+  };
+  const commitRename = async (id: string) => {
+    const next = name.trim();
+    const current = rows.find((row) => row.id === id);
+    setRenaming(null);
+    if (!next || !current || next === current.title) return;
+    try {
+      await renameShoot(scope, id, next);
+      if (alive.current) await refresh();
+    } catch (cause) {
+      if (alive.current)
+        setError(cause instanceof Error ? cause.message : "Could not rename this shoot.");
+    }
+  };
+  const displayRows = rows;
+  const showHistory = displayRows.some((row) => row.id === activeId);
   return (
     <section className="chat-recents" aria-label="Recent projects">
-      <div className="chat-recents-heading">
-        <span>Recent projects</span>
-      </div>
+      {displayRows.length > 0 && (
+        <div className="chat-recents-heading">
+          <span>Recent projects</span>
+        </div>
+      )}
       {displayRows.map((row) => (
         <div key={row.id} className="recent-shoot-item" data-shoot-id={row.id}>
           <div className={`recent-shoot-row ${activeId === row.id ? "is-active" : ""}`}>
-            <button
-              className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
-              onClick={() =>
-                row.recoveryPending
-                  ? edit("recover-device", row.title, row.id)
-                  : void open(shootHref(row.id))
-              }
-            >
-              <span>{projectDisplayTitle(row)}</span>
-            </button>
+            {renaming === row.id ? (
+              <input
+                ref={renameInput}
+                className="recent-shoot-title-input"
+                value={name}
+                maxLength={200}
+                aria-label="Shoot name"
+                onChange={(event) => setName(event.target.value)}
+                onBlur={() => {
+                  if (skipRenameBlur.current) {
+                    skipRenameBlur.current = false;
+                    return;
+                  }
+                  void commitRename(row.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    (event.currentTarget as HTMLInputElement).blur();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipRenameBlur.current = true;
+                    setRenaming(null);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
+                onClick={(event) => {
+                  if (event.detail > 1) return;
+                  row.recoveryPending
+                    ? edit("recover-device", row.title, row.id)
+                    : void open(shootHref(row.id));
+                }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!row.recoveryPending) startRename(row.id, row.title);
+                }}
+              >
+                <span>{projectDisplayTitle(row)}</span>
+              </button>
+            )}
             {activeId === row.id && (
               <button
                 className="recent-shoot-expand"
@@ -106,17 +171,28 @@ export function RecentShoots({
                 <ChevronRight size={16} />
               </button>
             )}
-            <button
-              className="recent-shoot-rename"
-              aria-label={`Rename ${projectDisplayTitle(row)}`}
-              onClick={() =>
-                row.recoveryPending
-                  ? edit("recover-device", row.title, row.id)
-                  : edit(row.id, row.title)
-              }
-            >
-              <Pencil size={14} />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="recent-shoot-rename"
+                  aria-label={`More options for ${projectDisplayTitle(row)}`}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="ll-chat-menu">
+                <DropdownMenuItem
+                  onSelect={() =>
+                    row.recoveryPending
+                      ? edit("recover-device", row.title, row.id)
+                      : startRename(row.id, row.title)
+                  }
+                >
+                  <Pencil />
+                  Rename
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {activeId === row.id && (
             <div className="recent-shoot-conversations" hidden={!expanded}>
@@ -125,7 +201,9 @@ export function RecentShoots({
           )}
         </div>
       ))}
-      {!activeId && <div className="recent-shoot-conversations">{children}</div>}
+      {!showHistory && !activeId && displayRows.length > 0 && (
+        <div className="recent-shoot-conversations">{children}</div>
+      )}
       {previous && (
         <button
           className="workbench-nav-item"

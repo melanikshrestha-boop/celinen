@@ -12,10 +12,11 @@ interface FilmstripProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   compact?: boolean;
+  numbered?: boolean;
 }
 
 /** Virtualized contact sheet, or a single-row-height rail below the image in compact mode. */
-export function Filmstrip({ shots, selectedId, onSelect, compact = false }: FilmstripProps) {
+export function Filmstrip({ shots, selectedId, onSelect, compact = false, numbered = false }: FilmstripProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 520, columns: 4 });
@@ -122,17 +123,25 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false }: Film
               gridTemplateColumns: `repeat(${window.columns}, minmax(0, 1fr))`,
             }}
           >
-            {shots.slice(row * window.columns, (row + 1) * window.columns).map((shot, column) => (
+            {shots.slice(row * window.columns, (row + 1) * window.columns).map((shot, column) => {
+              const index = row * window.columns + column;
+              return (
               <div
                 key={shot.id}
                 role="listitem"
-                aria-posinset={row * window.columns + column + 1}
+                aria-posinset={index + 1}
                 aria-setsize={shots.length}
                 className="min-w-0"
               >
-                <FrameButton shot={shot} selected={shot.id === selectedId} onSelect={onSelect} />
+                <FrameButton
+                  shot={shot}
+                  selected={shot.id === selectedId}
+                  onSelect={onSelect}
+                  index={numbered ? index + 1 : null}
+                />
               </div>
-            ))}
+            );
+            })}
           </div>
         ))}
       </div>
@@ -144,10 +153,12 @@ const FrameButton = memo(function FrameButton({
   shot: s,
   selected,
   onSelect,
+  index,
 }: {
   shot: Shot;
   selected: boolean;
   onSelect: (id: string) => void;
+  index: number | null;
 }) {
   const availability = frameAvailability(s);
   const status = frameAvailabilityLabel(availability);
@@ -182,7 +193,11 @@ const FrameButton = memo(function FrameButton({
         </span>
       )}
       <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
-        {availability === "unreadable" ? "review" : s.score || "—"}
+        {index != null
+          ? String(index)
+          : availability === "unreadable"
+            ? "review"
+            : s.score || "—"}
       </span>
       {s.develop && (
         <span

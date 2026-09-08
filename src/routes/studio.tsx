@@ -10,6 +10,7 @@ import {
 } from "@/components/studio/DeliveryReference";
 import { resolveWorkspaceBinding } from "@/lib/workbench-projects";
 import { EditSlider } from "@/components/studio/Slider";
+import { DevelopDesk, type DevelopPane, type DevelopSection } from "@/components/studio/DevelopDesk";
 import { CullChat, type ToolCall, type ImportAttachment } from "@/components/studio/CullChat";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useProcessingWakeLock } from "@/components/account/WorkspacePreferences";
@@ -31,8 +32,22 @@ import { SocialExport } from "@/components/studio/SocialExport";
 import type { StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
+import { PRODUCT_NAME } from "@/lib/product";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
+import {
+  applyBurstCull,
+  formatCullCsv,
+  formatJobJson,
+  keeperPreviewFile,
+  keepersForDelivery,
+} from "@/lib/studio/cull-decision";
+import { createKeeperPackage, createOriginalKeeperZip } from "@/lib/studio/keeper-package";
+import {
+  addLocalDeliveryPhotos,
+  createLocalDeliveryGallery,
+  createLocalDeliveryPhotoDraft,
+} from "@/lib/delivery/local";
 import { importedReviewVerdict } from "@/lib/studio/review-metadata";
 import {
   createLightroomVerdicts,
@@ -158,13 +173,13 @@ export const Route = createFileRoute("/studio")({
   },
   head: () => ({
     meta: [
-      { title: "LensLabs Studio — Cull & Develop Your Shoot" },
+      { title: `${PRODUCT_NAME} Studio` },
       {
         name: "description",
         content:
           "Import a RAW or JPEG shoot, get every frame scored and flagged, keep or reject with one key, then develop and export your picks.",
       },
-      { property: "og:title", content: "LensLabs Studio — Cull & Develop Your Shoot" },
+      { property: "og:title", content: `${PRODUCT_NAME} Studio` },
       {
         property: "og:description",
         content: "The LensLabs culling bench: score, flag, keep, develop, export.",
@@ -363,6 +378,11 @@ export function Studio({
   const proposalRef = useRef<StudioProposal | null>(null);
   const recipeRef = useRef<EditRecipe | null>(null);
   const [compareBefore, setCompareBefore] = useState(false);
+  const [studioPane, setStudioPane] = useState<DevelopPane>("develop");
+  const [developSection, setDevelopSection] = useState<DevelopSection>("basic");
+  const [showBefore, setShowBefore] = useState(false);
+  const copiedEdits = useRef<Edits | null>(null);
+  const [hasCopied, setHasCopied] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [importAttachment, setImportAttachment] = useState<ImportAttachment | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
@@ -1143,7 +1163,7 @@ export function Studio({
           stageCull(
             firstPassVerdict,
             "First pass ready",
-            "Sharpness, exposure and similarity checked. Review these suggestions; your existing picks are protected.",
+            "First-pass suggestions only. Accept them, then Review bursts — keep one frame, reject the rest. Client favorites come later.",
           );
         } catch {
           /* No eligible change: imported photos remain available. */
@@ -1324,8 +1344,9 @@ export function Studio({
         const bmp = await getBitmap(selected);
         if (cancelled) return;
         const preview = proposalFrames.get(selected.id);
-        const edits =
-          preview && proposal?.kind === "edit"
+        const edits = showBefore
+          ? DEFAULT_EDITS
+          : preview && proposal?.kind === "edit"
             ? compareBefore
               ? preview.beforeEdits
               : preview.afterEdits
@@ -1345,7 +1366,7 @@ export function Studio({
     return () => {
       cancelled = true;
     };
-  }, [selected, getBitmap, proposalFrames, proposal, compareBefore]);
+  }, [selected, getBitmap, proposalFrames, proposal, compareBefore, showBefore, studioPane]);
 
   /* ---------------- actions ---------------- */
   const setVerdict = useCallback(
@@ -1359,6 +1380,21 @@ export function Studio({
       if (next) selectShot(next.id);
     },
     [checkpoint, selectShot, updateShots, visible],
+  );
+
+  const applyVerdicts = useCallback(
+    (changes: { id: string; verdict: Verdict }[]) => {
+      if (!changes.length || !canPersistStudioSession(sessionStatusRef.current)) return;
+      const next = new Map(changes.map((change) => [change.id, change.verdict]));
+      checkpoint();
+      updateShots((prev) =>
+        prev.map((shot) => {
+          const verdict = next.get(shot.id);
+          return verdict && shot.verdict !== verdict ? { ...shot, verdict } : shot;
+        }),
+      );
+    },
+    [checkpoint, updateShots],
   );
 
   const step = useCallback(
@@ -1481,6 +1517,38 @@ export function Studio({
       setBusy(null);
     }
     return exported;
+  };
+
+  const zipKeepers = async () => {
+    if (proposalRef.current) {
+      setSyncNote("Apply or discard the preview before zipping keepers.");
+      return;
+    }
+    setBusy("Packing keepers…");
+    try {
+      const pack = await createOriginalKeeperZip(
+        latestShotsRef.current,
+        shootTitle.trim() || "Untitled shoot",
+      );
+      const url = URL.createObjectURL(pack.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pack.filename;
+      document.body.appendChild(a);
+      try {
+        a.click();
+      } finally {
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      setBusy(null);
+      setSyncNote(`${pack.keepers} keepers zipped to Downloads.`);
+    } catch (error) {
+      setBusy(null);
+      setSyncNote(
+        error instanceof Error ? error.message : "ZIP failed. Cull first; originals are unchanged.",
+      );
+    }
   };
 
   /* ---------------- assistant ---------------- */
@@ -1674,6 +1742,110 @@ export function Studio({
     }
   };
 
+  const downloadText = (filename: string, text: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    try {
+      a.click();
+    } finally {
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+  };
+
+  const exportCullSheet = () => {
+    if (proposalRef.current) {
+      const note = "Apply or discard the preview before exporting the cull sheet.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+    try {
+      const frames = latestShotsRef.current;
+      if (!frames.length) throw new Error("Import a shoot before exporting a cull sheet.");
+      const job = shootTitle.trim() || "Untitled shoot";
+      downloadText("cull.csv", formatCullCsv(frames), "text/csv");
+      downloadText("job.json", formatJobJson(job, "studio", frames), "application/json");
+      const keepers = frames.filter((frame) => frame.verdict === "keep" && !frame.error).length;
+      const note = `Requested cull.csv and job.json for ${frames.length} frames · ${keepers} keepers. Originals were not copied.`;
+      setSyncNote(note);
+      return note;
+    } catch (error) {
+      const note =
+        error instanceof Error ? error.message : "Cull sheet export failed. Originals are unchanged.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+  };
+
+  const downloadKeeperPackage = async () => {
+    if (proposalRef.current) {
+      setSyncNote("Apply or discard the preview before downloading keepers.");
+      return;
+    }
+    setBusy("Preparing keepers package…");
+    try {
+      const pack = await createKeeperPackage(
+        latestShotsRef.current,
+        shootTitle.trim() || "Untitled shoot",
+        "studio",
+        {
+          onProgress: (done, total) => setBusy(`Rendering proofs ${done}/${total}…`),
+        },
+      );
+      const url = URL.createObjectURL(pack.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pack.filename;
+      document.body.appendChild(a);
+      try {
+        a.click();
+      } finally {
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+      setBusy(null);
+      setSyncNote(
+        `Requested ${pack.filename}: ${pack.keepers} keeper proofs, cull.csv, job.json. Originals were not copied.`,
+      );
+    } catch (error) {
+      setBusy(null);
+      setSyncNote(
+        error instanceof Error
+          ? error.message
+          : "Keeper package failed. Cull first; originals are unchanged.",
+      );
+    }
+  };
+
+  const sendKeepers = async () => {
+    if (proposalRef.current) {
+      setSyncNote("Apply or discard the preview before sending keepers.");
+      return;
+    }
+    setBusy("Preparing keepers…");
+    try {
+      const keepers = keepersForDelivery(latestShotsRef.current);
+      const drafts = [];
+      for (const shot of keepers) drafts.push(await createLocalDeliveryPhotoDraft(keeperPreviewFile(shot)));
+      const gallery = await createLocalDeliveryGallery({
+        title: shootTitle.trim() || "Keepers",
+      });
+      await addLocalDeliveryPhotos(gallery.id, drafts);
+      setBusy(null);
+      window.location.assign("/deliver");
+    } catch (error) {
+      setBusy(null);
+      setSyncNote(
+        error instanceof Error
+          ? error.message
+          : "Keepers were not sent. Cull first; originals are unchanged.",
+      );
+    }
+  };
+
   /* ---------------- keyboard ---------------- */
   useEffect(() => {
     const exportRequest = (event: Event) => {
@@ -1766,11 +1938,17 @@ export function Studio({
       } else if (k === "arrowleft" || k === "arrowup") {
         e.preventDefault();
         step(-1);
-      } else if (matchesShortcut(e, preferences.shortcuts.keep)) setVerdict(selectedId, "keep");
-      else if (matchesShortcut(e, preferences.shortcuts.reject)) setVerdict(selectedId, "reject");
-      else if (matchesShortcut(e, preferences.shortcuts.undecided))
+      } else if (matchesShortcut(e, preferences.shortcuts.keep) || k === "k")
+        setVerdict(selectedId, "keep");
+      else if (matchesShortcut(e, preferences.shortcuts.reject) || k === "x" || k === "r")
+        setVerdict(selectedId, "reject");
+      else if (e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        const current = latestShotsRef.current.find((s) => s.id === selectedId)?.verdict;
+        setVerdict(selectedId, current === "keep" ? "reject" : "keep");
+      } else if (matchesShortcut(e, preferences.shortcuts.undecided) || k === "u")
         setVerdict(selectedId, "undecided", false);
-      else if (matchesShortcut(e, preferences.shortcuts.reset)) {
+      else if (matchesShortcut(e, preferences.shortcuts.reset) && k !== "r") {
         checkpoint();
         updateEdits({ ...DEFAULT_EDITS });
       } else if (matchesShortcut(e, preferences.shortcuts.refine)) {
@@ -1956,7 +2134,7 @@ export function Studio({
       if (latestShotsRef.current.filter((shot) => !shot.error).length < 2)
         return "Import at least two readable photos to compare related frames.";
       setBurstOpen(true);
-      return "Opened burst review. Suggestions never reject alternatives or overwrite your picks.";
+      return "Opened burst review. Keeping one frame rejects the other unreviewed frames in that burst. Existing picks stay.";
     }
     if (!latestShotsRef.current.some((shot) => shot.verdict === "keep"))
       return "Keep the photos you want to deliver first. A deadline export never selects photos for you.";
@@ -2100,12 +2278,12 @@ export function Studio({
         setDropActive(false);
       }}
     >
-      {dropActive && !workbench && (
+      {dropActive && (
         <div
           className="pointer-events-none fixed inset-3 z-50 flex flex-col items-center justify-center gap-3 bg-paper/95 outline-2 outline-rust"
           role="status"
         >
-          <span className="font-display text-3xl tracking-tight">Drop your folder to start</span>
+          <span className="font-display text-3xl tracking-tight">Drop the shoot</span>
           <small className="text-sm text-moss">
             Photos stay on this device. Originals stay untouched.
           </small>
@@ -2119,7 +2297,7 @@ export function Studio({
                 <span className="grid size-6 place-items-center rounded-full bg-ink font-display text-[11px] font-bold text-paper2">
                   L
                 </span>
-                <span className="font-display text-sm font-semibold tracking-tight">LensLabs</span>
+                <span className="font-display text-sm font-semibold tracking-tight">{PRODUCT_NAME}</span>
               </Link>
             )}
             <span className="truncate font-mono text-[11px] text-moss">
@@ -2134,10 +2312,12 @@ export function Studio({
           <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px]">
             {!!counts.keepers && (
               <button
-                onClick={() => void exportKeepers()}
-                className="rounded-md px-2.5 py-1.5 text-moss transition-colors hover:bg-ink/5 hover:text-ink"
+                type="button"
+                onClick={() => void zipKeepers()}
+                disabled={Boolean(busy)}
+                className="rounded-md bg-ink px-2.5 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
               >
-                Export {counts.keepers}
+                {busy?.startsWith("Packing") ? "Packing keepers…" : `ZIP keepers (${counts.keepers})`}
               </button>
             )}
             {!workbench && (
@@ -2251,6 +2431,30 @@ export function Studio({
                       exportSidecars,
                       !shots.some((s) => s.verdict !== "undecided"),
                     ],
+                    [
+                      "Export cull.csv",
+                      exportCullSheet,
+                      !shots.length,
+                    ],
+                    [
+                      "ZIP keepers",
+                      () => void zipKeepers(),
+                      !counts.keepers,
+                    ],
+                    [
+                      "Download keepers package",
+                      () => void downloadKeeperPackage(),
+                      !counts.keepers,
+                    ],
+                    ...(isLocalSingleUserMode
+                      ? [
+                          [
+                            "Send keepers to gallery",
+                            () => void sendKeepers(),
+                            !counts.keepers,
+                          ],
+                        ]
+                      : []),
                     ["Publish verdicts to Lightroom", () => void pushToLightroom(), !shots.length],
                     [
                       "Download Lightroom plugin",
@@ -2296,6 +2500,7 @@ export function Studio({
           </div>
         )}
         <input
+          id="foto-folder"
           ref={folderRef}
           type="file"
           multiple
@@ -2310,6 +2515,7 @@ export function Studio({
           }}
         />
         <input
+          id="foto-files"
           ref={inputRef}
           type="file"
           multiple
@@ -2345,8 +2551,14 @@ export function Studio({
         </div>
       )}
 
-      <main className="mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="min-w-0 xl:order-2">
+      <main
+        className={
+          workbench
+            ? "grid min-h-0 flex-1 grid-cols-1"
+            : "mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]"
+        }
+      >
+        <div className={workbench ? "min-h-0 min-w-0" : "min-w-0 xl:order-2"}>
           {!shots.length && !progress ? (
             <div
               role="button"
@@ -2366,19 +2578,111 @@ export function Studio({
               }
             >
               <h1 className="font-display text-3xl font-semibold tracking-tight">
-                {workbench ? "Drop photos or a folder" : "Drop the shoot."}
+                Drop the shoot
               </h1>
               <p className="mt-2 font-mono text-[11px] text-moss">
-                {workbench
-                  ? "Or click to choose photos. Originals stay untouched."
-                  : "RAW or JPEG · stays on your machine · ⌘ nothing else to set up"}
+                Then K keep · R reject · ZIP keepers. Originals stay on this device.
               </p>
-              {!workbench && (
-                <p className="mt-10 font-mono text-[11px] text-moss">
-                  K keep · X reject · ← → move
-                </p>
-              )}
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    inputRef.current?.click();
+                  }}
+                >
+                  Choose files
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md px-3 py-1.5 font-mono text-[11px] text-ink ring-1 ring-border"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    folderRef.current?.click();
+                  }}
+                >
+                  Choose folder
+                </button>
+              </div>
             </div>
+          ) : studioPane === "develop" ? (
+            <DevelopDesk
+              pane={studioPane}
+              onPane={setStudioPane}
+              selected={selected}
+              visible={visible}
+              selectedId={selectedId}
+              onSelect={selectShot}
+              canvasRef={canvasRef}
+              loupeStatus={loupeStatus}
+              bins={bins}
+              section={developSection}
+              onSection={setDevelopSection}
+              showBefore={showBefore}
+              onBefore={setShowBefore}
+              onLook={(id) => {
+                if (!selected) return;
+                checkpoint();
+                if (id === "auto") {
+                  autoRefineOne();
+                  return;
+                }
+                const looks: Record<string, Partial<Edits>> = {
+                  original: DEFAULT_EDITS,
+                  warm: { temp: 28, saturation: 10 },
+                  cool: { temp: -24, saturation: 4 },
+                  contrast: { contrast: 26, highlights: -12, shadows: 10 },
+                  fade: { contrast: -16, shadows: 22, highlights: 8 },
+                  bw: { saturation: -100 },
+                };
+                const patch = looks[id];
+                if (!patch) return;
+                updateShots((prev) =>
+                  prev.map((shot) =>
+                    shot.id === selected.id
+                      ? { ...shot, edits: { ...DEFAULT_EDITS, ...patch } }
+                      : shot,
+                  ),
+                );
+              }}
+              onCopy={() => {
+                if (!selected) return;
+                copiedEdits.current = { ...selected.edits };
+                setHasCopied(true);
+              }}
+              onPaste={() => {
+                if (!selected || !copiedEdits.current) return;
+                checkpoint();
+                const next = copiedEdits.current;
+                updateShots((prev) =>
+                  prev.map((shot) => (shot.id === selected.id ? { ...shot, edits: { ...next } } : shot)),
+                );
+              }}
+              onPrevious={() => {
+                if (!selectedId) return;
+                const idx = visible.findIndex((shot) => shot.id === selectedId);
+                const prior = visible[idx - 1];
+                if (!prior || !selected) return;
+                checkpoint();
+                const next = { ...prior.edits };
+                updateShots((prev) =>
+                  prev.map((shot) => (shot.id === selected.id ? { ...shot, edits: next } : shot)),
+                );
+              }}
+              onReset={() => {
+                if (!selected) return;
+                checkpoint();
+                updateShots((prev) =>
+                  prev.map((shot) =>
+                    shot.id === selected.id ? { ...shot, edits: { ...DEFAULT_EDITS } } : shot,
+                  ),
+                );
+              }}
+              canPaste={hasCopied}
+              onEdit={(patch) => updateEdits(patch)}
+              onEditStart={checkpoint}
+            />
           ) : (
             <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
               {/* toolbar */}
@@ -2389,6 +2693,22 @@ export function Studio({
                     : "flex flex-wrap items-center gap-2 border-b border-border pb-5"
                 }
               >
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className={studioPane === "library" ? "rounded-md bg-ink px-2 py-1 text-paper2" : "rounded-md px-2 py-1"}
+                    onClick={() => setStudioPane("library")}
+                  >
+                    Library
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md px-2 py-1"
+                    onClick={() => setStudioPane("develop")}
+                  >
+                    Develop
+                  </button>
+                </div>
                 {workbench ? (
                   <StudioFilterMenu value={filter} counts={counts} onChange={selectFilter} />
                 ) : (
@@ -2431,7 +2751,7 @@ export function Studio({
                   </div>
                   <Filmstrip shots={visible} selectedId={selectedId} onSelect={selectShot} />
                   <p className="mt-3 font-mono text-[10px] text-moss">
-                    ← → browse · K keep · X reject · U clear pick · ⌘Z undo
+                    ← → browse · K keep · R/X reject · Space toggle · U clear · ⌘Z undo
                   </p>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
@@ -2763,14 +3083,17 @@ export function Studio({
         open={burstOpen}
         onOpenChange={setBurstOpen}
         shots={shots}
-        onKeep={(id) => {
-          const shot = latestShotsRef.current.find((frame) => frame.id === id);
-          if (
-            canPersistStudioSession(sessionStatusRef.current) &&
-            !proposalRef.current &&
-            shot?.verdict === "undecided"
-          )
-            setVerdict(id, "keep", false);
+        onCull={(id, groupIds) => {
+          if (!canPersistStudioSession(sessionStatusRef.current) || proposalRef.current) return;
+          try {
+            applyVerdicts(applyBurstCull(latestShotsRef.current, id, groupIds));
+          } catch (error) {
+            setSyncNote(
+              error instanceof Error
+                ? error.message
+                : "Burst cull failed. Existing picks are unchanged.",
+            );
+          }
         }}
       />
       <DeadlineExport

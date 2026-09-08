@@ -7,6 +7,7 @@ import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 import { authReturnUrl, isLocalAuthOrigin, type AuthSearch } from "@/lib/auth-flow";
 import { safeSignInPath } from "@/lib/workbench";
+import { PRODUCT_NAME } from "@/lib/product";
 import "./auth-screen.css";
 
 type Props = AuthSearch & { onAuthenticated: () => void };
@@ -145,15 +146,15 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
   return (
     <main className="auth-screen">
       <section className="auth-panel" aria-labelledby="auth-title">
-        <Link to="/" className="auth-brand" aria-label="LensLabs home">
+        <Link to="/" className="auth-brand" aria-label={`${PRODUCT_NAME} home`}>
           <LogoMark size={32} />
-          <span>LensLabs</span>
+          <span>{PRODUCT_NAME}</span>
         </Link>
         <header className="auth-heading">
-          <h1 id="auth-title">{signup ? "Create Your Account" : "Sign in to LensLabs"}</h1>
+          <h1 id="auth-title">{signup ? "Create Your Account" : `Sign in to ${PRODUCT_NAME}`}</h1>
           <p>Your shoots, galleries, and storefronts in one place.</p>
           <div className="auth-switch">
-            <span>{signup ? "Already have an account?" : "New to LensLabs?"}</span>
+            <span>{signup ? "Already have an account?" : `New to ${PRODUCT_NAME}?`}</span>
             <Link
               to="/auth"
               search={switchSearch}
@@ -280,7 +281,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           <LockKeyhole size={20} aria-hidden="true" />
           <div>
             <h2>Your originals stay local</h2>
-            <p>LensLabs only uploads prepared gallery copies when you publish.</p>
+            <p>{PRODUCT_NAME} only uploads prepared gallery copies when you publish.</p>
           </div>
         </div>
         <footer className="auth-footer">
@@ -299,7 +300,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           )}
         </footer>
         <noscript>
-          <p className="auth-error">Enable JavaScript to securely sign in to LensLabs.</p>
+          <p className="auth-error">Enable JavaScript to securely sign in to {PRODUCT_NAME}.</p>
         </noscript>
       </section>
     </main>

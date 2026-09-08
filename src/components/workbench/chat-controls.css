@@ -1,6 +1,7 @@
 .ll-chat-recents {
   min-width: 0;
   font-size: 13px;
+  line-height: 1.2;
 }
 .ll-chat-heading,
 .ll-chat-heading > div {
@@ -11,7 +12,10 @@
 .ll-chat-heading {
   justify-content: space-between;
   color: var(--muted-foreground);
-  padding: 8px 6px;
+  padding: 6px 10px 2px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 400;
 }
 .ll-chat-heading button,
 .ll-chat-hover {
@@ -23,10 +27,11 @@
   flex-shrink: 0;
 }
 .ll-chat-group h3 {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.2;
   color: var(--muted-foreground);
-  padding: 10px 8px 5px;
+  padding: 6px 10px 2px;
 }
 .ll-chat-row {
   display: flex;
@@ -54,6 +59,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ll-chat-title-input {
+  min-width: 0;
+  flex: 1;
+  height: 28px;
+  padding: 8px 5px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
 .ll-chat-title i {
   width: 6px;
   height: 6px;
@@ -80,10 +97,10 @@
 }
 .ll-chat-empty,
 .ll-chat-note {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.2;
   color: var(--muted-foreground);
-  padding: 6px;
+  padding: 4px 10px;
   overflow-wrap: anywhere;
 }
 .ll-chat-menu {

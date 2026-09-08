@@ -73,9 +73,9 @@ check(
   js("!document.querySelector('[aria-label=\"Search chats\"],.ll-chat-search')"),
 );
 check(
-  "Lens Lab has its aperture mark and no cloud icons",
+  "foto has its aperture mark and no cloud icons",
   js(
-    "document.querySelector('.workbench-brand').textContent.trim()==='Lens Lab'&&!!document.querySelector('.workbench-brand svg')&&!document.querySelector('.workbench-sidebar .lucide-cloud')",
+    "document.querySelector('.workbench-brand').textContent.trim()==='foto'&&!!document.querySelector('.workbench-brand svg')&&!document.querySelector('.workbench-sidebar .lucide-cloud')",
   ),
 );
 run("screenshot", `${root}/desktop-idle.png`, "--viewport");
@@ -179,7 +179,7 @@ waitFor("document.querySelectorAll('[role=option]').length>0");
 check(
   "Studio, Delivery, and Clients remain available in All tools",
   js(
-    "['Studio','Delivery','Client database'].every(label=>[...document.querySelectorAll('[role=option]')].some(el=>el.textContent===label))",
+    "['Studio','Delivery','Clients'].every(label=>[...document.querySelectorAll('[role=option]')].some(el=>el.textContent===label))",
   ),
 );
 run("click", '[role="option"]:has-text("Studio")');

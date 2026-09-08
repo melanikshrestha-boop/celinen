@@ -50,7 +50,11 @@ export function ChatRecents({
   const workbench = useWorkbench();
   const t = useWorkspaceText();
   const restoreFocus = useRef<HTMLElement | null>(null);
+  const renameInput = useRef<HTMLInputElement>(null);
+  const skipRenameBlur = useRef(false);
   const [archived, setArchived] = useState(archivedOnly);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState("");
   const [dialog, setDialog] = useState<{ action: Action; row: ChatSummary } | null>(null);
   const [text, setText] = useState("");
   const [shared, setShared] = useState<ChatRecord | null>(null);
@@ -85,6 +89,17 @@ export function ChatRecents({
       if (request === generation.current) setBusy(false);
     }
   };
+  const startRename = (row: ChatSummary) => {
+    skipRenameBlur.current = false;
+    setRenaming(row.id);
+    setRenameText(row.title);
+  };
+  const commitRename = (row: ChatSummary) => {
+    const next = renameText.trim();
+    setRenaming(null);
+    if (!history || !next || next === row.title) return;
+    void run(() => history.rename(row.id, next));
+  };
   const openDialog = (action: Action, row: ChatSummary) => {
     const rowButton = document.querySelector<HTMLElement>(
       `[data-chat-id="${row.id}"] [aria-label^="More options"]`,
@@ -108,19 +123,24 @@ export function ChatRecents({
     if (archivedOnly) return;
     const action = (event: Event) => {
       const detail = (event as CustomEvent<{ action: Action }>).detail;
-      if (
-        !disabled &&
-        history?.active &&
-        ["rename", "section", "delete", "share", "adobe"].includes(detail?.action)
-      )
+      if (disabled || !history?.active) return;
+      if (detail?.action === "rename") startRename(history.active);
+      else if (["section", "delete", "share", "adobe"].includes(detail?.action))
         openDialog(detail.action, history.active);
     };
     window.addEventListener("lenslabs:chat-dialog", action);
     return () => window.removeEventListener("lenslabs:chat-dialog", action);
   });
+  useEffect(() => {
+    if (renaming) renameInput.current?.select();
+  }, [renaming]);
   if (!history) return null;
   const sections = [...new Set(history.rows.map((row) => row.section).filter(Boolean))].sort();
-  const visible = history.rows.filter((row) => row.archived === (archivedOnly || archived));
+  const visible = history.rows.filter(
+    (row) =>
+      row.archived === (archivedOnly || archived) &&
+      (row.named || row.title !== "New chat"),
+  );
   const groups =
     archivedOnly || archived
       ? [{ id: "archive", name: "Archived shoots", rows: visible }]
@@ -188,16 +208,54 @@ export function ChatRecents({
                 className={`ll-chat-row ${history.active?.id === row.id ? "is-active" : ""}`}
                 data-chat-id={row.id}
               >
-                <button
-                  className="ll-chat-title"
-                  title={shootDisplayTitle(row)}
-                  aria-current={history.active?.id === row.id ? "true" : undefined}
-                  disabled={disabled}
-                  onClick={() => void open(row)}
-                >
-                  {row.unread && <i aria-label="Unread" />}
-                  <span>{shootDisplayTitle(row)}</span>
-                </button>
+                {renaming === row.id ? (
+                  <input
+                    ref={renameInput}
+                    className="ll-chat-title-input"
+                    value={renameText}
+                    maxLength={80}
+                    aria-label="Shoot name"
+                    disabled={disabled}
+                    onChange={(event) => setRenameText(event.target.value)}
+                    onBlur={() => {
+                      if (skipRenameBlur.current) {
+                        skipRenameBlur.current = false;
+                        return;
+                      }
+                      commitRename(row);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        (event.currentTarget as HTMLInputElement).blur();
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        skipRenameBlur.current = true;
+                        setRenaming(null);
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    className="ll-chat-title"
+                    title={shootDisplayTitle(row)}
+                    aria-current={history.active?.id === row.id ? "true" : undefined}
+                    disabled={disabled}
+                    onClick={(event) => {
+                      if (event.detail > 1) return;
+                      void open(row);
+                    }}
+                    onDoubleClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      startRename(row);
+                    }}
+                  >
+                    {row.unread && <i aria-label="Unread" />}
+                    <span>{shootDisplayTitle(row)}</span>
+                  </button>
+                )}
                 <button
                   className={`ll-chat-hover ${row.pinned ? "is-pinned" : ""}`}
                   title={row.pinned ? "Unpin shoot" : "Pin shoot"}
@@ -228,7 +286,7 @@ export function ChatRecents({
                       <Share />
                       {t("Share with client…")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => openDialog("rename", row)}>
+                    <DropdownMenuItem onSelect={() => startRename(row)}>
                       <Pencil />
                       {t("Rename")}
                     </DropdownMenuItem>
@@ -303,10 +361,8 @@ export function ChatRecents({
             ))}
           </div>
         ))}
-      {!visible.length && (
-        <p className="ll-chat-empty">
-          {archivedOnly || archived ? "No archived shoots." : "No shoots in this project yet."}
-        </p>
+      {!visible.length && (archivedOnly || archived) && (
+        <p className="ll-chat-empty">No archived shoots.</p>
       )}
       {note && !dialog && (
         <p role="alert" className="ll-chat-note">

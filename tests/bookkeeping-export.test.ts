@@ -22,11 +22,11 @@ const entry = (patch: Partial<BookkeepingEntry> = {}): BookkeepingEntry => ({
 });
 
 describe("project and shoot presentation", () => {
-  test("adapts only old unnamed defaults, never user-authored titles", () => {
-    expect(shootDisplayTitle({ title: "New chat", named: false })).toBe("New shoot");
-    expect(shootDisplayTitle({ title: "New chat", named: true })).toBe("New chat");
-    expect(projectDisplayTitle({ title: "Untitled shoot", named: false })).toBe("Untitled project");
-    expect(projectDisplayTitle({ title: "Untitled shoot", named: true })).toBe("Untitled shoot");
+  test("shows stored titles; Shoot #N is creation order, not a display remap", () => {
+    expect(shootDisplayTitle({ title: "Shoot #1", named: true })).toBe("Shoot #1");
+    expect(shootDisplayTitle({ title: "Napa wedding", named: true })).toBe("Napa wedding");
+    expect(projectDisplayTitle({ title: "Shoot #1" })).toBe("Shoot #1");
+    expect(projectDisplayTitle({ title: "Untitled shoot", named: false })).toBe("Untitled shoot");
     expect(projectDisplayTitle({ title: "Raw-Photos" })).toBe("Raw-Photos");
   });
 });

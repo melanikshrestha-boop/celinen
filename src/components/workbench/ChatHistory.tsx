@@ -502,29 +502,18 @@ export function NewChatButton({
   camera?: boolean;
   active?: boolean;
 }) {
-  const history = useChatHistory();
   const workbench = useWorkbench();
   const t = useWorkspaceText();
   return (
     <button
       className={`workbench-nav-item ${active ? "is-active" : ""}`}
-      disabled={
-        !camera &&
-        (!history?.ready ||
-          history.locked ||
-          history.switching ||
-          history.pending ||
-          !!history.error)
-      }
+      title={t(camera ? "Shoot" : "New shoot")}
       onClick={() => {
         if (camera) void workbench?.openTool("/workspace");
-        else
-          void history?.select().then(async (opened) => {
-            if (opened) await workbench?.openTool("/workspace");
-          });
+        else void workbench?.newShoot?.();
       }}
     >
-      {camera ? <MessageSquare size={20} /> : <SquarePen size={20} />}
+      {camera ? <MessageSquare size={16} /> : <SquarePen size={16} />}
       {t(camera ? "Shoot" : "New shoot")}
     </button>
   );

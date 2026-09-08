@@ -8,10 +8,10 @@ export const Route = createFileRoute("/pick")({
       { title: "Pick — LensLabs Cull Queue" },
       {
         name: "description",
-        content: "Open the existing LensLabs Pick studio and see the current cull queue counts.",
+        content: "Cull the card dump before a client ever sees a file.",
       },
       { property: "og:title", content: "Pick — LensLabs Cull Queue" },
-      { property: "og:description", content: "The existing cull studio, with queue counts." },
+      { property: "og:description", content: "Keep, reject, then send keepers only." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -28,8 +28,8 @@ function PickScreen() {
     <Shell>
       <SectionTitle
         kicker="Pick"
-        title="Pick studio (existing) · open current queue"
-        sub="The cull workspace is already shipped. This screen only hands you the queue."
+        title="Pick"
+        sub="Cull here. Client favorites come later, on keepers only."
       />
 
       <Card>

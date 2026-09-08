@@ -1,4 +1,5 @@
 import { LogoMark } from "@/components/lensos/Logo";
+import { PRODUCT_NAME } from "@/lib/product";
 import { useAccount } from "./AccountProvider";
 import { ProfileForm } from "./ProfileForm";
 import "./account.css";
@@ -9,8 +10,8 @@ export function AccountSetup() {
   return (
     <main className="workbench-lock account-setup">
       <div className="account-setup-content">
-        <a href="/" className="account-setup-brand" aria-label="LensLabs home">
-          <LogoMark size={28} /> LensLabs
+        <a href="/" className="account-setup-brand" aria-label={`${PRODUCT_NAME} home`}>
+          <LogoMark size={28} /> {PRODUCT_NAME}
         </a>
         <h1>Make yourself at home.</h1>
         <p className="account-setup-email">
