@@ -25,6 +25,25 @@ const errorText = (error: unknown) =>
   error instanceof Error ? error.message : "This photo could not be imported.";
 
 /**
+ * A viewable preview is not a complete import. Keep missing-source and missing-preview
+ * records eligible for exact content-ID enrichment by addPhotos, which preserves edits.
+ * This does not match legacy records by filename or authorize an original replacement.
+ */
+export function completeDevelopImportIds(
+  photos: readonly Pick<DevelopPhoto, "id" | "sourceBlob" | "previewBlob">[],
+): string[] {
+  return photos
+    .filter(
+      (photo) =>
+        photo.sourceBlob instanceof Blob &&
+        photo.sourceBlob.size > 0 &&
+        photo.previewBlob instanceof Blob &&
+        photo.previewBlob.size > 0,
+    )
+    .map((photo) => photo.id);
+}
+
+/**
  * Only successful save receipts count as imports. File/decode failures are isolated;
  * storage failures stop the batch because later writes must not hide a persistence fault.
  * Existing IDs are caller-selected complete sources, never filename-only legacy matches.

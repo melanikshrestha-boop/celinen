@@ -433,6 +433,54 @@ import → edit → export loop or silently broaden the current implementation s
 [adobe-panorama]: https://helpx.adobe.com/lightroom-classic/desktop/process-and-develop-photos/panorama.html
 [adobe-external]: https://helpx.adobe.com/lightroom-classic/desktop/work-with-external-editors/external-editing-preferences.html
 
+## Preview-only reimport repair, September 8
+
+Root cause: the duplicate list used the same predicate as the viewable filmstrip
+(original **or** preview). A content-addressed photo with a saved preview but no
+original was therefore skipped before its original could be restored. Only
+photos with both nonempty original and preview Blobs now qualify as complete
+duplicates. Source-only entries can regenerate missing previews as well.
+The existing merge-only store still preserves IDs, history, ratings and source
+bytes. This does not silently match the 337 historical Studio records by filename.
+
+Verification of this narrow repair:
+
+- The old predicate failed both a focused unit regression and the real browser
+  reimport check. The fixed import suite passed **20 tests / 4,088 assertions**.
+- `tests/develop-import-repair.browser.js` in reserved shoot081: **29 checks**
+  across empty-state, preview-only restoration, corrupt-first chooser import
+  (sidecar, public JPEG and Sony A7 IV RAW), corrupt-first PNG drop and reload.
+  All 337 synthetic legacy records and every pre-existing edit document remained
+  byte-identical. Four usable imported media entries appeared without 337 empty
+  filmstrip tiles. The eight reload/layout checks also passed at 390px width.
+- Full current working-tree suite: **1,626 passed, 20 skipped, zero failed**;
+  TypeScript, scoped lint and production build passed. The optional real-camera
+  unit fixture remains separately gated; the Sony fixture ran in the browser.
+  The isolated staged candidate also passed 63 import/store/UI-state tests,
+  TypeScript and production build without the other uncommitted features.
+- The current working-tree RAW editor/proof/download path was also exercised
+  after import: identical JPEG SHA-256
+  `43880e52e6b3a3414133bdc00baea2b302e8f8dcd39d6e19afa3644dfc9d5f53`.
+  This validates the adjacent local parity work, not an additional change in
+  this narrow duplicate-check repair or a claim of Adobe color equivalence.
+- User-browser inspection remains unavailable because the computer-use service
+  failed to start. The real 337-record library was not accessed or modified;
+  do not describe synthetic preservation as a readback of private originals.
+
+Reproduce with the local C++ engine running: open
+`/shoots/eeaf3000-1111-4222-8333-000000000081/develop` in an isolated test browser,
+run the browser script once to seed, reload, then run it again to verify repair.
+Upload a corrupt JPEG, an XMP sidecar, the repository CC0 volleyball JPEG and the
+checksum-verified `sony-a7iv-small.ARW` from `native/README.md` through the file
+input. Set `globalThis.fotoImportRepairAction` to `verify-upload`, then `drop`,
+then `reload` (after reloading), running the script at each step. Never seed a
+customer library or clear a database to prepare QA. Browser fixture directories
+and environment files are not part of the Git handoff.
+
+Still open: reviewed batch/folder relink UI, actual-original recovery, broader
+camera validation and the high-bit-depth/full-resolution pipeline. Keep this
+repair separate from those unimplemented capabilities and other local work.
+
 ## Handoff discipline
 
 Run focused tests, TypeScript and build, and live browser tests using disposable
