@@ -124,6 +124,7 @@ Object.assign(window, {
 export function App() {
   const [state, setState] = useState(authoritative),
     [busy, setBusy] = useState(false);
+  const ownerView = new URLSearchParams(location.search).get("actor") === "owner";
   publishView = setState;
   const scope = commentDraftScope(galleryId, invitationGeneration(state));
   return (
@@ -134,8 +135,12 @@ export function App() {
       <DeliveryGallery
         key={scope}
         draftScope={scope}
-        room={{ id: galleryId, revision: state.events.length, state: clientState(state) }}
-        actor="client"
+        room={{
+          id: galleryId,
+          revision: state.events.length,
+          state: ownerView ? state : clientState(state),
+        }}
+        actor={ownerView ? "owner" : "client"}
         busy={busy}
         localUrls={Object.fromEntries(
           state.photos.flatMap((p) => p.versions.map((v) => [v.id, fixture])),
@@ -148,7 +153,12 @@ export function App() {
           setBusy(true);
           try {
             if (offline) throw new Error("Simulated offline: note was not sent.");
-            authoritative = apply(authoritative, command, "client", operationId);
+            authoritative = apply(
+              authoritative,
+              command,
+              ownerView ? "owner" : "client",
+              operationId,
+            );
             sessionStorage.setItem(key, JSON.stringify(authoritative));
             if (loseResponse) {
               loseResponse = false;
