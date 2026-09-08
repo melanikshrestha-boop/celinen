@@ -12,7 +12,6 @@ import {
   Maximize,
   Plus,
   Redo2,
-  SlidersHorizontal,
   Star,
   Undo2,
 } from "lucide-react";
@@ -47,8 +46,15 @@ import {
   type DevelopLibrary,
 } from "@/lib/develop/store";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
-import { DevelopViewer, DevelopHistogram } from "./DevelopViewer";
+import { DevelopViewer } from "./DevelopViewer";
+import { DevelopHistogram } from "./DevelopHistogram";
+import {
+  analyzeDevelopPixels,
+  suggestDevelopTone,
+  type DevelopHistogramData,
+} from "@/lib/develop/histogram";
 import { DevelopRecoveryDialog } from "./DevelopRecoveryDialog";
+import { useDevelopPointer } from "./useDevelopPointer";
 import {
   currentDevelopRender,
   currentDevelopExportProof,
@@ -131,6 +137,7 @@ export function DevelopPage({
   shootId?: string;
 }) {
   const workbench = useWorkbench();
+  const pointerBoundary = useDevelopPointer();
   const store = useMemo(
     () =>
       createDevelopStore({
@@ -184,7 +191,10 @@ export function DevelopPage({
     [renderError, setRenderError] = useState("");
   const renderOwner = useRef<DevelopRenderOwner | null>(null),
     neutralOwner = useRef<{ id: string | null; source: Blob } | null>(null);
-  const [bins, setBins] = useState<number[][]>([]),
+  const [histogram, setHistogram] = useState<DevelopHistogramData | null>(null),
+    [sourceHistogram, setSourceHistogram] = useState<DevelopHistogramData | null>(null),
+    [adaptiveLooks, setAdaptiveLooks] = useState(true),
+    [clipping, setClipping] = useState({ shadows: false, highlights: false }),
     [dimensions, setDimensions] = useState({ width: 0, height: 0 }),
     [sourceAspect, setSourceAspect] = useState(1.5);
   const onDimensions = useCallback(
@@ -585,6 +595,38 @@ export function DevelopPage({
     );
     setActivePreset(preset.name);
   }
+  const sourceStatsReady =
+    sourceHistogram &&
+    neutralOwner.current?.id === selected &&
+    neutralOwner.current?.source === previewSource;
+  function autoTone() {
+    if (!sourceStatsReady || !sourceHistogram) return;
+    const suggestion = suggestDevelopTone(sourceHistogram);
+    if (!suggestion.applicable) {
+      setNotice(suggestion.reason);
+      return;
+    }
+    change({ ...draft, exposure: suggestion.exposure }, "Auto exposure · source luminance");
+    setNotice(
+      `Auto exposure ${suggestion.exposure > 0 ? "+" : ""}${suggestion.exposure} EV · ${suggestion.reason}. Review the preview; undo is available.`,
+    );
+  }
+  function applyBuiltin(preset: (typeof builtinPresets)[number]) {
+    if (preset.name === "Original") {
+      reset();
+      return;
+    }
+    const settings = { ...defaultDevelopSettings(), ...preset.patch };
+    if (adaptiveLooks && sourceStatsReady && sourceHistogram) {
+      const suggestion = suggestDevelopTone(sourceHistogram);
+      settings.exposure = suggestion.exposure;
+      if (settings.grain > 0) settings.grainLuminance = 100;
+      setNotice(
+        `${preset.name} · ${suggestion.exposure > 0 ? "+" : ""}${suggestion.exposure} EV · ${suggestion.reason}.`,
+      );
+    }
+    applyPreset({ name: preset.name, settings });
+  }
   function reset() {
     change(defaultDevelopSettings(), "Reset settings");
     setActivePreset("Original");
@@ -607,7 +649,9 @@ export function DevelopPage({
     setNeutralBlob(null);
     setRenderError("");
     setDimensions({ width: 0, height: 0 });
-    setBins([]);
+    setHistogram(null);
+    setSourceHistogram(null);
+    setClipping({ shadows: false, highlights: false });
     setSourceAspect(photo?.width && photo?.height ? photo.width / photo.height : 1.5);
     if (!previewSource) return;
     const controller = new AbortController();
@@ -617,6 +661,16 @@ export function DevelopPage({
         const bitmap = await createImageBitmap(blob);
         try {
           if (!controller.signal.aborted) {
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            const context = canvas.getContext("2d");
+            if (context) {
+              context.drawImage(bitmap, 0, 0);
+              setSourceHistogram(
+                analyzeDevelopPixels(context.getImageData(0, 0, canvas.width, canvas.height).data),
+              );
+            }
             neutralOwner.current = { id: selected, source: previewSource };
             setNeutralBlob(blob);
             setSourceAspect(bitmap.width / bitmap.height);
@@ -1054,6 +1108,7 @@ export function DevelopPage({
   if (!ready) return <div className="foto-develop develop-loading">Opening Develop…</div>;
   return (
     <section
+      {...pointerBoundary}
       className={`foto-develop${dragging ? " is-dragging" : ""}`}
       aria-label="FOTO Develop"
       onDragEnter={(event) => {
@@ -1230,20 +1285,29 @@ export function DevelopPage({
               </div>
             </Panel>
             <Panel title="Presets" open>
+              <label
+                className="develop-adaptive-toggle"
+                title="Normal-key starting point from the original sRGB preview, with a highlight guard. Does not change white balance or guess artistic intent."
+              >
+                <input
+                  type="checkbox"
+                  checked={adaptiveLooks}
+                  onChange={(e) => setAdaptiveLooks(e.target.checked)}
+                />
+                Adapt built-in looks to light
+              </label>
               <div className="develop-preset-list">
                 {builtinPresets.map((p) => (
                   <button
                     key={p.name}
-                    disabled={!source || !!saveError}
+                    disabled={
+                      !source ||
+                      !!saveError ||
+                      !!busy ||
+                      (p.name !== "Original" && adaptiveLooks && !sourceStatsReady)
+                    }
                     aria-pressed={activePreset === p.name}
-                    onClick={() => {
-                      if (p.name === "Original") reset();
-                      else
-                        applyPreset({
-                          name: p.name,
-                          settings: { ...defaultDevelopSettings(), ...p.patch },
-                        });
-                    }}
+                    onClick={() => applyBuiltin(p)}
                   >
                     <span style={{ background: p.color }} />
                     {p.name}
@@ -1540,7 +1604,8 @@ export function DevelopPage({
                   change={change}
                   maskId={maskId}
                   onDimensions={onDimensions}
-                  onHistogram={setBins}
+                  onHistogram={setHistogram}
+                  clipping={clipping}
                 />
               )}
               {renderError && (
@@ -1616,9 +1681,24 @@ export function DevelopPage({
             <div className="develop-histogram-wrap">
               <div className="develop-inline">
                 <span>Histogram</span>
-                <SlidersHorizontal size={12} />
+                <button
+                  type="button"
+                  disabled={!sourceStatsReady || !!saveError || !!busy}
+                  title="Suggest exposure from original preview luminance, protecting highlight headroom. A normal-key starting point, not an artistic decision."
+                  onClick={autoTone}
+                >
+                  Auto exposure
+                </button>
               </div>
-              <DevelopHistogram bins={bins} />
+              <DevelopHistogram
+                key={selected}
+                histogram={histogram}
+                value={draft}
+                change={change}
+                disabled={!url || !!saveError || !!busy || before || tool !== "edit"}
+                clipping={clipping}
+                onClipping={setClipping}
+              />
               <div className="develop-inline">
                 <span>
                   {!source

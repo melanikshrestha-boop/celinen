@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { type DevelopSettings } from "@/lib/develop/contract";
 import { type DevelopChange, type DevelopTool } from "./DevelopControls";
 import { developImageReady } from "./develop-state";
+import {
+  analyzeDevelopPixels,
+  clippingPixels,
+  type DevelopHistogramData,
+} from "@/lib/develop/histogram";
 
 export function DevelopViewer({
   url,
@@ -17,6 +22,7 @@ export function DevelopViewer({
   maskId,
   onDimensions,
   onHistogram,
+  clipping,
 }: {
   url: string | null;
   emptyLabel?: string;
@@ -30,17 +36,41 @@ export function DevelopViewer({
   change: DevelopChange;
   maskId: string | null;
   onDimensions: (w: number, h: number) => void;
-  onHistogram: (bins: number[][]) => void;
+  onHistogram: (histogram: DevelopHistogramData) => void;
+  clipping: { shadows: boolean; highlights: boolean };
 }) {
   const stage = useRef<HTMLDivElement>(null),
     gesture = useRef<{ x: number; y: number; settings: DevelopSettings } | null>(null);
   const latest = useRef(settings);
+  const clippingCanvas = useRef<HTMLCanvasElement>(null);
+  const [pixels, setPixels] = useState<{ url: string; image: ImageData } | null>(null);
   latest.current = settings;
   const [bounds, setBounds] = useState({ width: 640, height: 500 }),
     [imageSize, setImageSize] = useState({ width: 4, height: 3 }),
     [loadedUrl, setLoadedUrl] = useState<string | null>(null);
   const displayedUrl = before && beforeUrl ? beforeUrl : url,
     geometryReady = developImageReady(loadedUrl, displayedUrl);
+  useEffect(() => {
+    const canvas = clippingCanvas.current;
+    if (!canvas || !pixels || pixels.url !== displayedUrl) return;
+    canvas.width = pixels.image.width;
+    canvas.height = pixels.image.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    if (!clipping.shadows && !clipping.highlights) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    ctx.putImageData(
+      new ImageData(
+        clippingPixels(pixels.image.data, clipping.shadows, clipping.highlights),
+        pixels.image.width,
+        pixels.image.height,
+      ),
+      0,
+      0,
+    );
+  }, [pixels, clipping.shadows, clipping.highlights, displayedUrl]);
   useEffect(() => {
     const el = stage.current;
     if (!el) return;
@@ -86,18 +116,26 @@ export function DevelopViewer({
                 setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
                 setLoadedUrl(displayedUrl);
                 onDimensions(img.naturalWidth, img.naturalHeight);
-                const c = document.createElement("canvas"),
-                  sampleScale = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight));
-                c.width = Math.max(1, Math.round(img.naturalWidth * sampleScale));
-                c.height = Math.max(1, Math.round(img.naturalHeight * sampleScale));
+                const c = document.createElement("canvas");
+                c.width = img.naturalWidth;
+                c.height = img.naturalHeight;
                 const ctx = c.getContext("2d");
                 if (!ctx) return;
                 ctx.drawImage(img, 0, 0, c.width, c.height);
-                const data = ctx.getImageData(0, 0, c.width, c.height).data,
-                  bins = Array.from({ length: 3 }, () => Array<number>(64).fill(0));
-                for (let i = 0; i < data.length; i += 4)
-                  for (let ch = 0; ch < 3; ch++) bins[ch]![data[i + ch]! >> 2]!++;
-                onHistogram(bins);
+                const image = ctx.getImageData(0, 0, c.width, c.height);
+                setPixels({ url: displayedUrl!, image });
+                onHistogram(analyzeDevelopPixels(image.data));
+              }}
+            />
+            <canvas
+              ref={clippingCanvas}
+              className="develop-clipping-overlay"
+              aria-hidden="true"
+              style={{
+                display:
+                  pixels?.url === displayedUrl && (clipping.shadows || clipping.highlights)
+                    ? "block"
+                    : "none",
               }}
             />
             {compare && <span className="develop-image-label">After</span>}
@@ -233,22 +271,5 @@ export function DevelopViewer({
         <p className="develop-hint">{emptyLabel}</p>
       )}
     </div>
-  );
-}
-
-export function DevelopHistogram({ bins }: { bins: number[][] }) {
-  const max = Math.max(1, ...bins.flat());
-  return (
-    <svg className="develop-histogram" viewBox="0 0 256 74" role="img" aria-label="RGB histogram">
-      {bins.map((channel, i) => (
-        <path
-          key={i}
-          d={`M0 74 ${channel.map((n, j) => `L${j * 4} ${74 - Math.sqrt(n / max) * 70}`).join(" ")} L256 74Z`}
-          fill={["#c78383", "#84b49b", "#859bc7"][i]}
-          style={{ mixBlendMode: "screen" }}
-          opacity=".5"
-        />
-      ))}
-    </svg>
   );
 }

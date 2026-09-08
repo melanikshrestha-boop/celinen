@@ -450,6 +450,73 @@
   display: block;
   margin: 5px 0;
   box-shadow: inset 0 0 0 1px #181818;
+  position: relative;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.develop-histogram > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.develop-histogram.is-disabled {
+  cursor: default;
+}
+.develop-histogram-zones {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.develop-histogram-zones > div {
+  flex: 1;
+  min-width: 0;
+  outline-offset: -2px;
+}
+.develop-histogram-zones > div.is-hovered {
+  background: #ffffff0d;
+}
+.develop-histogram-zones > div:focus-visible {
+  outline: 1px solid #ddd;
+}
+.develop-histogram-clipping,
+.develop-histogram-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10px;
+  color: #aaa;
+}
+.develop-histogram-clipping button {
+  padding: 1px 5px;
+  min-height: 22px;
+}
+.develop-histogram-clipping button[aria-pressed="true"] {
+  background: #515151;
+  color: white;
+}
+.develop-histogram-stats {
+  margin-bottom: 6px;
+}
+.develop-clipping-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.develop-adaptive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 3px 10px;
+  font-size: 11px;
+  color: #bbb;
+}
+.develop-adaptive-toggle input {
+  width: 13px;
+  height: 13px;
+  accent-color: #c9c9c9;
 }
 .develop-right fieldset {
   border: 0;
@@ -626,14 +693,6 @@
 .develop-colors button[aria-pressed="true"] {
   outline: 1px solid #ddd;
   outline-offset: 3px;
-}
-.develop-grade-swatch {
-  width: 78px;
-  height: 78px;
-  border-radius: 50%;
-  margin: 15px auto;
-  border: 1px solid #555;
-  box-shadow: inset 0 0 25px #0005;
 }
 .develop-button-row {
   display: flex;
@@ -1145,11 +1204,9 @@
   }
   .develop-right {
     order: 1;
-    max-height: 380px;
+    max-height: none;
+    overflow: visible;
     border: 0;
-  }
-  .develop-histogram-wrap {
-    display: none;
   }
   .develop-filmstrip {
     height: 125px;

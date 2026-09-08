@@ -45,15 +45,19 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
 
 ## Acceptance matrix (update from actual results)
 
+Latest milestone: [working grading, histogram, adaptive film looks and evidence](FOTO-COLOR-GRADING-QA.md).
+
 These statuses describe tested subsets, not equivalence to Lightroom Classic.
-The import incident below takes precedence over historical passing smoke tests.
+The latest priority is working color grading, histogram interactions and adaptive
+film looks. The earlier import incident remains a required regression baseline.
 
 | Area | Status | Acceptance evidence required |
 | --- | --- | --- |
 | Dedicated route and reference layout | Implemented | Inspected desktop 1440×1000 and phone 390×844; no horizontal overflow; original Studio route retained |
 | Native basic/presence controls | Implemented | C++ neutral identity, actual pixel changes and original unchanged; UI exposure changes actual rendered pixels |
-| Curve, HSL, grading | Implemented subset | Master plus independent red/green/blue point curves, eight-channel HSL, three tonal grading ranges; native pixel and browser history checks; grading wheels remain |
-| Grain, vignette, fade, bloom, halation, film falloff | Implemented | Deterministic native effects and bounded outputs; falloff is a hue-preserving highlight shoulder, not a proprietary stock emulation |
+| Curve, HSL, grading | Implemented subset | Master plus independent RGB point curves; eight-channel HSL; interactive shadows/midtones/highlights/global wheels, numeric H/S/L, corrected new tonal model with explicit legacy compatibility; independent FOTO math, not Adobe algorithm parity |
+| Grain, vignette, fade, bloom, halation, film falloff | Implemented | Deterministic native effects, grain size and luminance shaping; optional source-derived exposure for built-in looks; not calibrated film-stock emulation |
+| Histogram and automatic exposure | Implemented subset | Actual rendered 256-bin RGB histogram, five draggable/keyboard tonal regions, clipping percentages and overlays; explicit bounded source-derived Auto exposure, not Adobe Auto Tone or sensor histogram |
 | Crop/straighten/rotate/flip | Implemented | Native geometry tests, square-crop UI/native output check; source-coordinate overlay |
 | Linear/radial masks | Implemented | Native feather/invert/enable/local adjustments, UI placement and saved mask history; no brush/AI masking |
 | Presets/history/snapshots | Implemented | Original + five look presets, custom presets, snapshots, undo/redo; per-photo IndexedDB history; merge-only reimports |
@@ -65,7 +69,7 @@ The import incident below takes precedence over historical passing smoke tests.
 | AI masks/healing/AI denoise | Not implemented | Requires real models; do not expose fake controls |
 | Lens profiles, HDR, soft proofing, full RAW workflow | Partial / gaps | LibRaw sensor decode exists; not a full high-bit-depth color-managed RAW workflow |
 
-## Current priority: import reliability, September 8
+## Earlier priority: import reliability, September 8
 
 Baseline inspected: `893730d`. The user reports that Develop cannot import photos,
 and the existing project has 337 legacy records without original bytes or saved

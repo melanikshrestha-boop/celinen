@@ -14,6 +14,7 @@ import {
   type DevelopSettings,
   type DevelopMask,
 } from "@/lib/develop/contract";
+import { ColorGrading } from "./ColorGrading";
 
 export type DevelopChange = (settings: DevelopSettings, label: string, commit?: boolean) => void;
 export type DevelopTool = "edit" | "crop" | "mask";
@@ -39,6 +40,7 @@ export function Panel({
 
 export function DevelopSlider({
   label,
+  displayLabel,
   value,
   min = -100,
   max = 100,
@@ -47,6 +49,7 @@ export function DevelopSlider({
   onChange,
 }: {
   label: string;
+  displayLabel?: string;
   value: number;
   min?: number;
   max?: number;
@@ -59,7 +62,7 @@ export function DevelopSlider({
   return (
     <div className="develop-slider">
       <label onDoubleClick={() => onChange(reset, true)} title="Double-click to reset">
-        {label}
+        {displayLabel ?? label}
       </label>
       <input
         type="range"
@@ -352,7 +355,6 @@ export function DevelopControls({
   sourceAspect?: number;
 }) {
   const [hslIndex, setHslIndex] = useState(0);
-  const [grade, setGrade] = useState<"shadows" | "midtones" | "highlights">("midtones");
   const defaults = defaultDevelopSettings();
   const scalar = (key: keyof DevelopSettings, label: string, min = -100, max = 100, step = 1) => (
     <DevelopSlider
@@ -489,59 +491,12 @@ export function DevelopControls({
         ))}
       </Panel>
       <Panel title="Color Grading">
-        <div className="develop-segment">
-          {(["shadows", "midtones", "highlights"] as const).map((g) => (
-            <button key={g} aria-pressed={grade === g} onClick={() => setGrade(g)}>
-              {g}
-            </button>
-          ))}
-        </div>
-        <div
-          className="develop-grade-swatch"
-          style={{
-            background: `hsl(${value.grading[grade].hue} ${value.grading[grade].saturation}% 55%)`,
-          }}
-          aria-hidden="true"
-        />
-        {(["hue", "saturation", "luminance"] as const).map((key) => (
-          <DevelopSlider
-            key={key}
-            label={`Grade ${key}`}
-            value={value.grading[grade][key]}
-            min={key === "luminance" ? -100 : 0}
-            max={key === "hue" ? 360 : 100}
-            onChange={(n, c) =>
-              change(
-                {
-                  ...value,
-                  grading: { ...value.grading, [grade]: { ...value.grading[grade], [key]: n } },
-                },
-                `${grade} ${key}`,
-                c,
-              )
-            }
-          />
-        ))}
-        <DevelopSlider
-          label="Blending"
-          value={value.grading.blending}
-          min={0}
-          reset={50}
-          onChange={(n, c) =>
-            change({ ...value, grading: { ...value.grading, blending: n } }, "Grading blending", c)
-          }
-        />
-        <DevelopSlider
-          label="Balance"
-          value={value.grading.balance}
-          onChange={(n, c) =>
-            change({ ...value, grading: { ...value.grading, balance: n } }, "Grading balance", c)
-          }
-        />
+        <ColorGrading key={photoId} value={value} change={change} Slider={DevelopSlider} />
       </Panel>
       <Panel title="Effects">
         {scalar("grain", "Grain", 0)}
         {scalar("grainSize", "Grain size", 0.5, 4, 0.1)}
+        {scalar("grainLuminance", "Grain luminance", 0)}
         {scalar("halation", "Halation", 0)}
         {scalar("bloom", "Bloom", 0)}
         {scalar("fade", "Fade", 0)}
