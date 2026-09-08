@@ -1,14 +1,5 @@
-.photo-workbench:has(.foto-develop) {
-  --workspace-ui-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-}
 .photo-workbench:has(.foto-develop) :is(.workbench-sidebar, .workbench-header) {
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Arial,
-    sans-serif;
+  font-family: var(--workspace-ui-font, var(--font-sans));
 }
 .workbench-panels.is-develop .workbench-tool-content {
   padding: 0;
@@ -26,13 +17,7 @@
   --dv-line: #191919;
   color: var(--dv-text);
   background: var(--dv-bg);
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Arial,
-    sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1.45;
   height: calc(100dvh - 92px);
@@ -797,6 +782,90 @@
   padding: 25px;
   gap: 0;
   color: #c5c5c5;
+}
+.develop-workspace.is-without-photo {
+  grid-template-columns: minmax(0, 1fr);
+  background: #202020;
+}
+.is-without-photo .develop-center {
+  background: #202020;
+  height: auto;
+  min-height: min(560px, 70dvh);
+  overflow: auto;
+}
+.develop-import-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.develop-import-actions > button {
+  min-height: 36px;
+  font-size: 12px;
+}
+.develop-missing-files {
+  margin-top: 32px;
+  max-width: 540px;
+  width: 100%;
+  font-size: 12px;
+  text-align: left;
+  color: var(--dv-muted);
+}
+.develop-missing-files summary {
+  text-align: center;
+  cursor: pointer;
+  padding: 8px;
+}
+.develop-missing-files p {
+  margin: 12px 0;
+}
+.develop-missing-files ul,
+.develop-import-report ul {
+  list-style: none;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+.develop-missing-files li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+.develop-missing-files li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.develop-missing-files li button {
+  flex-shrink: 0;
+}
+.develop-import-report {
+  padding: 6px 14px;
+  background: #292929;
+  flex-shrink: 0;
+}
+.develop-import-report summary {
+  cursor: pointer;
+}
+.develop-import-report li {
+  padding: 5px 0;
+}
+.develop-import-report li span {
+  display: block;
+  color: var(--dv-muted);
+}
+.develop-drop-overlay {
+  position: absolute;
+  inset: 8px;
+  background: #202020ed;
+  outline: 1px dashed #c5c5c5;
+  outline-offset: -14px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 10;
+  font-size: 18px;
 }
 .develop-empty h1 {
   font-size: 20px;

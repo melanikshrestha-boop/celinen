@@ -70,8 +70,18 @@ export const THEME_PRESETS = {
     foreground: "#171717",
     backgroundEnd: "#f4f4f4",
   },
-  midnight: { accent: "#94b5ef", background: "#111827", foreground: "#edf1f8", backgroundEnd: "#0b1220" },
-  warm: { accent: "#d7ab73", background: "#211e1a", foreground: "#eee8de", backgroundEnd: "#161310" },
+  midnight: {
+    accent: "#94b5ef",
+    background: "#111827",
+    foreground: "#edf1f8",
+    backgroundEnd: "#0b1220",
+  },
+  warm: {
+    accent: "#d7ab73",
+    background: "#211e1a",
+    foreground: "#eee8de",
+    backgroundEnd: "#161310",
+  },
 } as const;
 export function contrastRatio(a: string, b: string) {
   const luminance = (hex: string) => {
@@ -157,13 +167,13 @@ export function applyAppearance(
   );
   root.style.setProperty(
     "--ll-ui-font",
-    value.uiFont === "serif"
-      ? "Georgia, serif"
-      : '"OpenAI Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    value.uiFont === "serif" ? "Georgia, serif" : "var(--foto-font-sans)",
   );
   root.style.setProperty(
     "--ll-code-font",
-    '"SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    value.codeFont === "system-mono"
+      ? 'Menlo, Consolas, "Liberation Mono", monospace'
+      : "var(--foto-font-mono)",
   );
   root.style.setProperty("--ll-ui-size", `${value.uiSize}px`);
   root.style.setProperty("--ll-code-size", `${value.codeSize}px`);

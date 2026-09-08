@@ -112,7 +112,8 @@ describe("photo-first workspace", () => {
       <CullChat workspace context="fixture" execute={async () => "ok"} onImportFolder={noop} />,
     );
     expect(html).toContain('aria-label="Attach photos or a folder"');
-    expect(html).toContain('placeholder="Drop your shoot folder."');
+    expect(html).toContain('placeholder="Message your photo assistant"');
+    expect(html.match(/>Import folder<\/button>/g)).toHaveLength(1);
     expect(html).toContain('rows="1"');
     expect(html).not.toContain("Choose a folder");
     expect(html).not.toContain("workbench-chat-empty");

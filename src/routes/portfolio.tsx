@@ -44,7 +44,7 @@ const DEFAULT_THEME: ImportedTheme = {
 };
 
 const fontStack = (name: string, serif: boolean) =>
-  `${name ? `"${name}", ` : ""}${serif ? "Georgia, 'Times New Roman', serif" : "system-ui, -apple-system, 'Helvetica Neue', sans-serif"}`;
+  `${name ? `"${name}", ` : ""}${serif ? "Georgia, 'Times New Roman', serif" : "var(--font-sans)"}`;
 
 function Portfolio() {
   const [items, setItems] = useState<Item[]>([]);

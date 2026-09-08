@@ -206,6 +206,52 @@ try {
       module.currentRecipe(loaded.documents[previewOnly.id]).exposure === 0.5,
   );
 
+  const healingSource = await module.developPhotoFromFile(
+    new File(["QA exact hashed healing source"], "heal-original.ARW"),
+  );
+  await a.addPhotos([
+    {
+      ...healingSource,
+      sourceBlob: null,
+      previewBlob: null,
+      initialState: {
+        settings: { ...defaultDevelopSettings(), temperature: 22 },
+        metadata: { rating: 4, flag: "pick", colorLabel: "purple" },
+      },
+    },
+  ]);
+  loaded = await a.loadLibrary();
+  const beforeHealing = await a.saveDocument(changed(loaded.documents[healingSource.id], 1.25));
+  const countBeforeHealing = loaded.photos.length;
+  await a.addPhotos([
+    {
+      ...healingSource,
+      previewBlob: new Blob(["QA decoded healing preview"], { type: "image/jpeg" }),
+      previewOrigin: "raw-demosaic",
+      width: 60,
+      height: 40,
+      initialState: {
+        settings: { ...defaultDevelopSettings(), exposure: -5 },
+        metadata: { rating: 0, flag: "reject", colorLabel: "red" },
+      },
+    },
+  ]);
+  loaded = await b.loadLibrary();
+  const healed = loaded.photos.find((item) => item.id === healingSource.id);
+  check(
+    "reimporting exact hashed missing media heals in place without resetting history or review metadata",
+    loaded.photos.length === countBeforeHealing &&
+      healed.sourceAvailable &&
+      (await healed.sourceBlob.text()) === "QA exact hashed healing source" &&
+      (await healed.previewBlob.text()) === "QA decoded healing preview" &&
+      JSON.stringify(loaded.documents[healingSource.id]) === JSON.stringify(beforeHealing),
+  );
+  check(
+    "media healing does not enrich another account or project",
+    !(await otherProject.loadLibrary()).photos.some((item) => item.id === healingSource.id) &&
+      !(await otherScope.loadLibrary()).photos.some((item) => item.id === healingSource.id),
+  );
+
   const { fingerprintSource } = await import("/src/lib/studio/ingest.ts");
   const restoredReceipt = {
     ...previewOnly,
