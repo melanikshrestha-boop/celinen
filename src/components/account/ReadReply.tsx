@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Square, Volume2 } from "lucide-react";
-export function ReadReply({ text, rate }: { text: string; rate: number }) {
+import { findSpeechVoice } from "@/lib/speech-voice";
+export function ReadReply({
+  text,
+  rate,
+  voiceURI = "",
+}: {
+  text: string;
+  rate: number;
+  voiceURI?: string;
+}) {
   const [supported, setSupported] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
@@ -32,11 +41,14 @@ export function ReadReply({ text, rate }: { text: string; rate: number }) {
           const speech = new SpeechSynthesisUtterance(text.slice(0, 5000));
           utterance.current = speech;
           speech.rate = rate;
+          speech.voice = findSpeechVoice(window.speechSynthesis.getVoices(), voiceURI);
           speech.onend = () => {
+            if (utterance.current !== speech) return;
             setPlaying(false);
             utterance.current = null;
           };
           speech.onerror = (event) => {
+            if (utterance.current !== speech) return;
             setPlaying(false);
             utterance.current = null;
             if (!["canceled", "interrupted"].includes(event.error))

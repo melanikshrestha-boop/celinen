@@ -17,7 +17,7 @@ export function explicitWorkspaceBinding(
   if (url.searchParams.has("shoot")) return studioWorkbenchBinding(href, local);
   if (isStudio(url)) return studioWorkbenchBinding(href, local);
   if (
-    !["workspaceProject", "workspaceFrame", "workspaceVersion"].some((key) =>
+    !["workspaceProject", "workspaceFrame", "workspaceVersion", "workspaceHandoff"].some((key) =>
       url.searchParams.has(key),
     )
   )
@@ -26,7 +26,9 @@ export function explicitWorkspaceBinding(
   if (
     values.length !== 1 ||
     !idPattern.test(values[0]!) ||
-    ["workspaceFrame", "workspaceVersion"].some((key) => url.searchParams.getAll(key).length > 1)
+    ["workspaceFrame", "workspaceVersion", "workspaceHandoff"].some(
+      (key) => url.searchParams.getAll(key).length > 1,
+    )
   )
     return {
       kind: "blocked",
@@ -34,7 +36,7 @@ export function explicitWorkspaceBinding(
     };
   const search = defaultParseSearch(url.search) as Record<string, unknown>;
   return studioWorkbenchBinding(
-    `/studio${defaultStringifySearch({ project: values[0], ...(url.searchParams.has("workspaceFrame") ? { deliveryFrame: search["workspaceFrame"] } : {}), ...(url.searchParams.has("workspaceVersion") ? { deliveryVersion: search["workspaceVersion"] } : {}) })}`,
+    `/studio${defaultStringifySearch({ project: values[0], ...(url.searchParams.has("workspaceFrame") ? { deliveryFrame: search["workspaceFrame"] } : {}), ...(url.searchParams.has("workspaceVersion") ? { deliveryVersion: search["workspaceVersion"] } : {}), ...(url.searchParams.has("workspaceHandoff") ? { deliveryHandoff: search["workspaceHandoff"] } : {}) })}`,
     local,
   );
 }
@@ -88,7 +90,7 @@ export function scopeToolHref(href: string, binding: StudioWorkbenchBinding) {
   )
     return href;
   if (url.pathname !== "/workspace" && !workbenchTab(href)) return href;
-  return `${url.pathname}${defaultStringifySearch({ ...defaultParseSearch(url.search), workspaceProject: binding.projectId, ...(binding.deliveryFocus ? { workspaceFrame: binding.deliveryFocus.frameId, workspaceVersion: binding.deliveryFocus.versionId } : {}) })}`;
+  return `${url.pathname}${defaultStringifySearch({ ...defaultParseSearch(url.search), workspaceProject: binding.projectId, ...(binding.deliveryFocus ? { workspaceFrame: binding.deliveryFocus.frameId, workspaceVersion: binding.deliveryFocus.versionId, ...(binding.deliveryFocus.handoffId ? { workspaceHandoff: binding.deliveryFocus.handoffId } : {}) } : {}) })}`;
 }
 export function workspaceToolHref(
   path: "/research" | "/mail",

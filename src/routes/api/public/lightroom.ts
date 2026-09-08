@@ -1,4 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { LightroomRequestError, readLightroomPayload } from "@/lib/lightroom-request";
+import {
+  checkedLightroomFrames,
+  checkedLightroomVerdicts,
+  LIGHTROOM_MATCHING,
+} from "@/lib/lightroom-matching";
 
 /**
  * LensLabs ↔ Lightroom bridge (public endpoint — the LR plugin calls it directly).
@@ -11,19 +17,6 @@ import { createFileRoute } from "@tanstack/react-router";
  * State is persisted per workspace key so it survives restarts and works from
  * the published URL, not just localhost.
  */
-
-interface Frame {
-  file: string;
-  [key: string]: unknown;
-}
-
-interface Payload {
-  kind?: string;
-  at?: number;
-  frames?: Frame[];
-  direction?: "to-studio" | "to-lightroom";
-  workspace?: string;
-}
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -53,9 +46,7 @@ async function admin() {
  * client-supplied name alone.
  */
 async function authorize(request: Request, claimedWorkspace: string) {
-  const token = /^Bearer ([^\s,]+)$/
-    .exec(request.headers.get("authorization") ?? "")?.[1]
-    ?.trim();
+  const token = /^Bearer ([^\s,]+)$/.exec(request.headers.get("authorization") ?? "")?.[1]?.trim();
   if (!token || token.length < 20) return null;
 
   const db = await admin();
@@ -69,7 +60,6 @@ async function authorize(request: Request, claimedWorkspace: string) {
   return data.workspace;
 }
 
-
 export const Route = createFileRoute("/api/public/lightroom")({
   server: {
     handlers: {
@@ -77,10 +67,22 @@ export const Route = createFileRoute("/api/public/lightroom")({
 
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const workspace = await authorize(request, cleanWorkspace(url.searchParams.get("workspace")));
+        const workspace = await authorize(
+          request,
+          cleanWorkspace(url.searchParams.get("workspace")),
+        );
         if (!workspace) return json({ error: "unauthorized" }, 401);
-        const direction =
-          url.searchParams.get("side") === "studio" ? "to-studio" : "to-lightroom";
+        const direction = url.searchParams.get("side") === "studio" ? "to-studio" : "to-lightroom";
+        if (direction === "to-lightroom" && url.searchParams.get("matching") !== LIGHTROOM_MATCHING)
+          return json(
+            {
+              error: "Update the LensLabs Lightroom plug-in for folder-matched sync.",
+              kind: "upgrade-required",
+              at: 0,
+              frames: [],
+            },
+            409,
+          );
 
         const db = await admin();
         const { data, error } = await db
@@ -92,6 +94,16 @@ export const Route = createFileRoute("/api/public/lightroom")({
 
         if (error) return json({ error: error.message }, 500);
         if (!data) return json({ kind: "empty", at: 0, frames: [], workspace, direction });
+        if (direction === "to-lightroom" && data.kind !== `verdicts-${LIGHTROOM_MATCHING}`)
+          return json(
+            {
+              error: "Publish this batch again from the updated LensLabs Studio.",
+              kind: "upgrade-required",
+              at: 0,
+              frames: [],
+            },
+            409,
+          );
 
         return json({
           kind: data.kind,
@@ -103,22 +115,35 @@ export const Route = createFileRoute("/api/public/lightroom")({
       },
 
       POST: async ({ request }) => {
-        let body: Payload;
+        let body;
         try {
-          body = (await request.json()) as Payload;
-        } catch {
-          return json({ error: "invalid json" }, 400);
+          body = await readLightroomPayload(request);
+        } catch (error) {
+          return json(
+            { error: error instanceof LightroomRequestError ? error.message : "invalid json" },
+            error instanceof LightroomRequestError ? error.status : 400,
+          );
         }
 
         const workspace = await authorize(request, cleanWorkspace(body.workspace));
         if (!workspace) return json({ error: "unauthorized" }, 401);
 
-        const frames = Array.isArray(body.frames)
-          ? body.frames.filter((f) => f && typeof f.file === "string").slice(0, 5000)
-          : [];
         const direction = body.direction === "to-lightroom" ? "to-lightroom" : "to-studio";
+        if (direction === "to-lightroom" && body.kind !== `verdicts-${LIGHTROOM_MATCHING}`)
+          return json({ error: "Update Studio before publishing folder-matched verdicts." }, 409);
+        let frames;
+        try {
+          frames =
+            direction === "to-lightroom"
+              ? checkedLightroomVerdicts(body.frames)
+              : checkedLightroomFrames(body.frames);
+        } catch (error) {
+          return json(
+            { error: error instanceof Error ? error.message : "Invalid Lightroom batch" },
+            400,
+          );
+        }
         const at = new Date().toISOString();
-
 
         const db = await admin();
         const { error } = await db.from("lightroom_sync").upsert(

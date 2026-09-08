@@ -2,7 +2,7 @@
  * bun scripts/qa/settings-check.ts <browse-binary> <http://127.0.0.1:8085/settings?shoot=QA_UUID>
  */
 import { execFileSync } from "node:child_process";
-import { SETTINGS_SECTIONS } from "../../src/lib/settings-catalog";
+import { SETTINGS_SECTIONS, settingsPath } from "../../src/lib/settings-catalog";
 const [binary, href] = process.argv.slice(2);
 if (!binary || !href)
   throw new Error("Pass the existing browse executable and isolated QA settings URL.");
@@ -24,12 +24,12 @@ for (const section of SETTINGS_SECTIONS) {
   const result = JSON.parse(
     run(
       "js",
-      `({ heading:document.querySelector('.settings-content h1').textContent, hash:location.hash, shoot:new URL(location.href).searchParams.get('shoot'), overflow:document.querySelector('.settings-main').scrollWidth > document.querySelector('.settings-main').clientWidth })`,
+      `({ heading:document.querySelector('.settings-content h1').textContent, path:location.pathname, shoot:new URL(location.href).searchParams.get('shoot'), overflow:document.querySelector('.settings-main').scrollWidth > document.querySelector('.settings-main').clientWidth })`,
     ),
   );
   if (
     result.heading !== section.label ||
-    result.hash !== `#${section.id}` ||
+    result.path !== settingsPath(section.id) ||
     result.shoot !== url.searchParams.get("shoot") ||
     result.overflow
   )

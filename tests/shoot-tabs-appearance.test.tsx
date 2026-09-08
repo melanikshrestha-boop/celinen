@@ -15,8 +15,8 @@ import {
 import { projectScope, scopeToolHref, tabProjectScope } from "../src/lib/workbench-projects";
 import { ShootTabs } from "../src/components/workbench/ShootTabs";
 
-describe("Black and Light appearance", () => {
-  test("Black is the default and old System settings preserve other preferences", () => {
+describe("Dark, Light and System appearance", () => {
+  test("Dark is the default and System settings preserve other preferences", () => {
     expect(preferencesSchema.parse({}).theme).toBe("dark");
     expect(
       readPreferences(
@@ -29,7 +29,7 @@ describe("Black and Light appearance", () => {
       ),
     ).toEqual({
       ...DEFAULT_PREFERENCES,
-      theme: "dark",
+      theme: "system",
       textSize: "large",
       reduceMotion: true,
       sidebarOpen: false,
@@ -102,8 +102,8 @@ describe("tabs belong to a shoot", () => {
         onNew={() => {}}
       />,
     );
-    expect(html).toContain('aria-label="Tabs in this shoot"');
-    expect(html).toContain('aria-label="Open a new tab in this shoot"');
+    expect(html).toContain('aria-label="Tabs in this project"');
+    expect(html).toContain('aria-label="Open a new tab in this project"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain(`href="/workspace?shoot=${a}"`);
   });

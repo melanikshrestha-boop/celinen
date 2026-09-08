@@ -1,0 +1,335 @@
+/* Public marketing components. Tokens inherit from the landing-page shell. */
+.marketing-value,
+.marketing-workflow {
+  width: min(100% - 48px, var(--marketing-width, 1120px));
+  margin-inline: auto;
+  color: var(--marketing-text, #ecebe7);
+  font-family: var(--font-sans);
+}
+.marketing-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 64px;
+  padding-block: 64px;
+  scroll-margin-top: 88px;
+}
+.marketing-value__eyebrow {
+  color: var(--marketing-muted, #b4b5b6);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.marketing-value h2,
+.marketing-workflow h2,
+.marketing-workflow h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.marketing-value h2 {
+  margin-top: 16px;
+  max-width: 17ch;
+  font-size: clamp(32px, 3.4vw, 44px);
+  line-height: 1.12;
+}
+.marketing-value__lead {
+  max-width: 44ch;
+  margin-top: 16px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--marketing-muted);
+}
+.marketing-value__cta {
+  margin-top: 24px;
+}
+.marketing-value__note {
+  color: var(--marketing-muted);
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.marketing-value__calculator {
+  margin-top: 24px;
+}
+.marketing-value__calculator summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 16px;
+  font-weight: 600;
+}
+.marketing-value__calculator summary::-webkit-details-marker {
+  display: none;
+}
+.marketing-value__calculator[open] summary svg {
+  transform: rotate(180deg);
+}
+.marketing-value__fields {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.marketing-value__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  align-items: center;
+  column-gap: 16px;
+}
+.marketing-value__field label {
+  font-size: 16px;
+  line-height: 1.5;
+}
+.marketing-value__field input {
+  width: 100%;
+  min-height: 44px;
+  background: var(--marketing-surface);
+  border: 1px solid var(--marketing-control);
+  border-radius: var(--marketing-radius);
+  padding: 8px 12px;
+  color: var(--marketing-text);
+  font-size: 16px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+}
+.marketing-value__field input:focus {
+  outline: 2px solid var(--marketing-accent);
+  outline-offset: 2px;
+}
+.marketing-value__field input[aria-invalid="true"] {
+  border-color: #ffa6a6;
+}
+.marketing-value__error {
+  grid-column: 1 / -1;
+  color: #ffa6a6;
+  font-size: 14px;
+  margin-top: 4px;
+}
+.marketing-value__calculator-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  margin-top: 16px;
+}
+.marketing-value__calculator-footer button {
+  min-height: 44px;
+  padding-inline: 0;
+  background: transparent;
+  color: var(--marketing-muted);
+  border-radius: var(--marketing-radius);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.marketing-value__calculator-footer button:hover {
+  color: var(--marketing-text);
+  background: transparent;
+}
+.marketing-value__calculator-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--marketing-muted);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.marketing-value__calculator-footer a:visited {
+  color: #c5baca;
+}
+.marketing-value__results {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.marketing-value__estimate-label {
+  font-size: 14px;
+  color: var(--marketing-muted);
+  line-height: 1.5;
+}
+.marketing-value__metric {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  padding: 28px 32px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--marketing-surface);
+}
+.marketing-value__number {
+  font-size: clamp(40px, 4.4vw, 60px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.marketing-value__number span {
+  font-size: 0.55em;
+  margin-left: 0.15em;
+  letter-spacing: -0.015em;
+}
+.marketing-value__number[data-long="true"] {
+  font-size: clamp(30px, 3.1vw, 44px);
+}
+.marketing-value__period {
+  margin-top: 8px;
+  color: var(--marketing-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.marketing-value__explanation {
+  margin-top: 24px;
+  color: var(--marketing-muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.marketing-value__breakdown {
+  margin-top: 16px;
+  font-size: 14px;
+}
+.marketing-value__breakdown div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+}
+.marketing-value__breakdown dd {
+  text-align: right;
+  color: var(--marketing-text);
+  font-variant-numeric: tabular-nums;
+}
+.marketing-value__disclaimer,
+.marketing-value__math {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--marketing-muted);
+}
+.marketing-value__math summary {
+  display: list-item;
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+  color: var(--marketing-text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.marketing-value__math p {
+  margin-top: 8px;
+}
+.marketing-workflow {
+  padding-block: 64px;
+  scroll-margin-top: 88px;
+}
+.marketing-workflow h2 {
+  max-width: 720px;
+  margin-top: 16px;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.15;
+}
+.marketing-workflow__carousel {
+  margin-top: 32px;
+}
+.marketing-workflow__card {
+  height: 100%;
+  min-height: 264px;
+  padding: 24px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--marketing-surface);
+}
+.marketing-workflow__card > svg {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 24px;
+  color: var(--marketing-muted);
+}
+.marketing-workflow h3 {
+  font-size: 24px;
+  margin-top: 8px;
+  line-height: 1.2;
+}
+.marketing-workflow__card > p:not(.marketing-value__eyebrow) {
+  margin-top: 12px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--marketing-muted);
+}
+.marketing-workflow__card small {
+  display: block;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--marketing-muted);
+}
+.marketing-workflow__controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.marketing-workflow__controls button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--marketing-control);
+  border-radius: var(--marketing-radius);
+  background: transparent;
+  color: var(--marketing-text);
+  box-shadow: none;
+  transition: background-color 140ms ease;
+}
+.marketing-workflow__controls button:hover {
+  background: var(--marketing-surface);
+}
+.marketing-workflow__controls button:active {
+  background: #303234;
+}
+.marketing-workflow__controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+@media (max-width: 760px) {
+  .marketing-value {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: 48px;
+    gap: 32px;
+  }
+  .marketing-value h2 {
+    max-width: 18ch;
+  }
+  .marketing-value__metric {
+    min-height: 192px;
+    padding: 24px;
+  }
+  .marketing-value__number {
+    font-size: clamp(40px, 10vw, 56px);
+  }
+  .marketing-value__number[data-long="true"] {
+    font-size: clamp(28px, 8vw, 44px);
+  }
+  .marketing-value__lead {
+    max-width: 44ch;
+  }
+  .marketing-value__cta .marketing-action {
+    width: 100%;
+  }
+  .marketing-workflow {
+    padding-block: 48px;
+  }
+  .marketing-workflow__card {
+    padding: 24px;
+  }
+}
+@media (prefers-contrast: more) {
+  .marketing-page {
+    --marketing-muted: #dedede;
+    --marketing-control: #aaa;
+  }
+}

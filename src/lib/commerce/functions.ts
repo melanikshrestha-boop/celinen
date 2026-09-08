@@ -38,6 +38,9 @@ export const persistPhotographer = createServerFn({ method: "POST" })
       data.revision,
     );
   });
+export const readPublicPhotographer = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ owner: z.string().uuid() }).strict())
+  .handler(async ({ data }) => (await import("./service.server")).publicPhotographer(data.owner));
 export const findPhotographers = createServerFn({ method: "GET" })
   .inputValidator(
     z

@@ -9,19 +9,28 @@ import {
   type ReactNode,
 } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { Aperture, Image, PanelRightClose, PanelsTopLeft, Users } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  FolderPlus,
+  PanelLeft,
+  PanelRightClose,
+  PanelsTopLeft,
+  MoreHorizontal,
+  Users,
+  Wallet,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarProvider,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { WorkspacePreferences } from "@/components/account/WorkspacePreferences";
+import { useWorkspaceText } from "@/components/account/useWorkspaceText";
 import { AccountSetup } from "@/components/account/AccountSetup";
 import { LogoMark } from "@/components/lensos/Logo";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
@@ -34,7 +43,6 @@ import {
   studioBindingKey,
   studioWorkbenchBinding,
   workbenchTab,
-  WORKBENCH_PRIMARY_TOOLS,
   type WorkbenchTab,
   type StudioWorkbenchBinding,
 } from "@/lib/workbench";
@@ -52,10 +60,29 @@ import { GmailConnection } from "./GmailConnection";
 import { ResearchPanel } from "./ResearchPanel";
 import { MailPanel } from "./MailPanel";
 import { RecentShoots } from "./RecentShoots";
+import { renameShoot } from "@/lib/studio/shoot-directory";
+import { shootDisplayTitle } from "@/lib/workspace-labels";
 import { ToolPalette } from "./ToolPalette";
 import { ShootTabs } from "./ShootTabs";
-import { ChatHistoryProvider, ChatRecents, NewChatButton } from "./ChatHistory";
+import { SidebarHistoryControls } from "./SidebarHistoryControls";
+import { useSidebarHistory } from "./useSidebarHistory";
+import { ChatHistoryProvider, ChatRecents, NewChatButton, useChatHistory } from "./ChatHistory";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { readWorkbenchTabs, saveWorkbenchTabs } from "@/lib/workbench-tabs";
+import { isSettingsPath } from "@/lib/settings-catalog";
+import { matchesShortcut, DEFAULT_SHORTCUTS } from "@/lib/shortcuts";
 
 const StudioController = lazy(() =>
   import("@/routes/studio").then((module) => ({ default: module.Studio })),
@@ -70,6 +97,21 @@ export function WorkbenchBoundary({ children }: { children: ReactNode }) {
 }
 function AccountWorkbench({ children }: { children: ReactNode }) {
   const identity = useAccount();
+  const viewportRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const resize = () => {
+      const node = viewportRef.current;
+      if (!node) return;
+      if (window.innerWidth < 1024 && viewport.scale === 1)
+        node.style.setProperty("--workspace-viewport-height", `${viewport.height}px`);
+      else node.style.removeProperty("--workspace-viewport-height");
+    };
+    resize();
+    viewport.addEventListener("resize", resize);
+    return () => viewport.removeEventListener("resize", resize);
+  }, [identity?.scope]);
   const navigate = useNavigate();
   const account = identity?.scope;
   const [sidebarOpen, setSidebarOpen] = useState(identity?.preferences.sidebarOpen ?? true);
@@ -106,8 +148,9 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
   if (identity && !identity.setupComplete) return <AccountSetup key={account} />;
   return (
     <SidebarProvider
+      ref={viewportRef}
       key={account}
-      className={`photo-workbench ${new URL(href, "https://workspace.invalid").pathname === "/settings" ? "settings-mode" : ""}`}
+      className={`photo-workbench ${isSettingsPath(new URL(href, "https://workspace.invalid").pathname) ? "settings-mode" : ""}`}
       open={sidebarOpen}
       onOpenChange={(sidebarOpen) => {
         setSidebarOpen(sidebarOpen);
@@ -117,7 +160,7 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
           /* Navigation remains usable when this browser refuses preference storage. */
         }
       }}
-      style={{ "--sidebar-width": "224px" } as React.CSSProperties}
+      style={{ "--sidebar-width": "var(--workspace-sidebar-width)" } as React.CSSProperties}
     >
       <GmailConnection>
         <WorkbenchFrame account={account}>{children}</WorkbenchFrame>
@@ -126,6 +169,9 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
   );
 }
 function WorkbenchFrame({ children, account }: { children: ReactNode; account: string }) {
+  const sidebarHistory = useSidebarHistory();
+  const t = useWorkspaceText();
+  const shortcuts = useAccount()?.preferences.shortcuts ?? DEFAULT_SHORTCUTS;
   const navigate = useNavigate();
   const router = useRouter();
   const href = useRouterState({ select: (state) => state.location.href });
@@ -143,6 +189,18 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   const tabsRef = useRef(tabs);
   tabsRef.current = current ? addWorkbenchTab(tabs, current) : tabs;
   const [chatTarget, setChatTarget] = useState<HTMLDivElement | null>(null);
+  // Keep conversation actions mounted while the responsive drawer closes.
+  // Only their navigation host moves; dialogs and keyboard actions stay alive.
+  const [historyHost] = useState(() =>
+    typeof document === "undefined" ? null : document.createElement("div"),
+  );
+  const mountHistory = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node && historyHost) node.appendChild(historyHost);
+    },
+    [historyHost],
+  );
+  const [quickChat, setQuickChat] = useState(false);
   const [binding, setBinding] = useState<StudioWorkbenchBinding>(
     () =>
       explicitWorkspaceBinding(href, isLocalSingleUserMode) ??
@@ -167,7 +225,21 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   const setToolTitle = useCallback((tabHref: string, title: string) => {
     setTitles((old) => ({ ...old, [tabHref]: title.slice(0, 70) }));
   }, []);
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
+  const sidebarTriggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const changed = () => {
+      setNarrow(media.matches);
+      if (!media.matches) setOpenMobile(false);
+    };
+    changed();
+    media.addEventListener("change", changed);
+    return () => media.removeEventListener("change", changed);
+  }, [setOpenMobile]);
   const openExact = useCallback(
     async (destination: string) => {
       const tab = workbenchTab(destination);
@@ -190,13 +262,25 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
         (workbenchTab(router.state.location.href)?.href ?? router.state.location.href)
       )
         setMobilePane(tab ? "tool" : "chat");
-      await navigate({ href: tab?.href ?? destination });
+      if (
+        isSettingsPath(home.pathname) &&
+        !isSettingsPath(new URL(router.state.location.href, "https://workspace.invalid").pathname)
+      ) {
+        try {
+          sessionStorage.setItem(`lenslabs.settings-return:${account}`, router.state.location.href);
+        } catch {
+          /* Navigation works without session storage. */
+        }
+      }
+      await navigate({
+        href: isSettingsPath(home.pathname) ? destination : (tab?.href ?? destination),
+      });
       return (
         (workbenchTab(router.state.location.href)?.href ?? router.state.location.href) ===
         (tab?.href ?? destination)
       );
     },
-    [navigate, router, setOpenMobile],
+    [navigate, router, setOpenMobile, account],
   );
   const openTool = useCallback(
     (destination: string) =>
@@ -205,10 +289,18 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
       ),
     [openExact, binding],
   );
-  const newShoot = useCallback(
-    () => openExact(`/workspace?shoot=${crypto.randomUUID()}`),
-    [openExact],
-  );
+  const newShoot = useCallback(async () => {
+    const id = crypto.randomUUID();
+    if (!(await openExact(`/workspace?shoot=${id}`))) return false;
+    try {
+      await renameShoot(account, id, "Untitled project");
+    } catch {
+      setTabNote(
+        "The new project could not be added to Recents. Keep this tab open and try naming it again.",
+      );
+    }
+    return true;
+  }, [openExact, account]);
   useEffect(() => {
     if (
       new URL(href, "https://workspace.invalid").pathname === "/workspace" &&
@@ -251,18 +343,40 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   }, []);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if (matchesShortcut(event, shortcuts.tools)) {
         event.preventDefault();
         setSearchOpen((old) => !old);
       }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, []);
+  }, [shortcuts.tools]);
   // Bind during render on Studio navigation; no intermediate frame may edit the previous shoot.
   const activeBinding = resolveWorkspaceBinding(href, binding, isLocalSingleUserMode);
   const activeTool = !compact || mobilePane === "tool" ? (current?.path ?? null) : null;
   const studioVisible = activeTool === "/studio";
+  const openQuickChat = useCallback(async () => {
+    if (!current || current.path === "/settings") {
+      if (!(await openTool("/studio"))) return;
+    }
+    setQuickChat(true);
+    requestAnimationFrame(() =>
+      chatTarget?.querySelector<HTMLTextAreaElement>("textarea")?.focus(),
+    );
+  }, [current, openTool, chatTarget]);
+  const closeQuickChat = useCallback(() => setQuickChat(false), []);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (
+        event.key === "Escape" &&
+        !event.defaultPrevented &&
+        !(event.target as HTMLElement)?.closest("[role=dialog],[role=menu]")
+      )
+        setQuickChat(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, []);
   const context = useMemo(
     () => ({
       chatTarget,
@@ -273,6 +387,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
       storageScope: account,
       workspaceProjectId: activeBinding.kind === "ready" ? activeBinding.projectId : null,
       newShoot,
+      openQuickChat,
+      closeQuickChat,
       openWorkspaceRequest,
       setToolTitle,
     }),
@@ -285,6 +401,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
       account,
       activeBinding,
       newShoot,
+      openQuickChat,
+      closeQuickChat,
       openWorkspaceRequest,
       setToolTitle,
     ],
@@ -335,61 +453,70 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
     <ChatHistoryProvider scope={account} project={projectScope(activeBinding)}>
       <WorkbenchContext.Provider value={context}>
         <WorkspacePreferences />
-        <Sidebar className="workbench-sidebar">
+        <WorkspaceSidebar narrow={narrow} trigger={sidebarTriggerRef}>
           <SidebarHeader className="workbench-sidebar-top">
-            <a
-              href={scopeToolHref("/workspace", binding)}
-              onClick={(event) => {
-                if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-                  event.preventDefault();
-                  void openTool("/workspace");
-                }
-              }}
-              className="workbench-brand"
-            >
-              <LogoMark size={24} />
-              LensLabs
-            </a>
+            <div className="workbench-sidebar-toolbar">
+              <button
+                className="workbench-sidebar-toggle"
+                aria-label={narrow ? "Close sidebar" : "Collapse sidebar"}
+                onClick={() => (narrow ? setOpenMobile(false) : setSidebarOpen(false))}
+              >
+                <PanelLeft size={20} />
+              </button>
+              <SidebarHistoryControls navigation={sidebarHistory} />
+            </div>
+            <div className="workbench-brand-row">
+              <a
+                href={scopeToolHref("/workspace", binding)}
+                onClick={(event) => {
+                  if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                    event.preventDefault();
+                    void openTool("/workspace");
+                  }
+                }}
+                className="workbench-brand"
+              >
+                <LogoMark size={22} />
+                Lens Lab
+              </a>
+              <button
+                className="workbench-tools-button"
+                aria-label="All tools"
+                title="All tools (⌘K)"
+                onClick={() => setSearchOpen(true)}
+              >
+                <PanelsTopLeft size={19} />
+              </button>
+            </div>
           </SidebarHeader>
           <SidebarContent className="workbench-sidebar-content">
             <NewChatButton />
-            <NewChatButton camera active={!showTool} />
-            {WORKBENCH_PRIMARY_TOOLS.map((tool) => {
-              const Icon =
-                tool.path === "/studio" ? Aperture : tool.path === "/deliver" ? Image : Users;
-              return (
+            <button className="workbench-nav-item" onClick={() => void newShoot()}>
+              <FolderPlus size={20} />
+              {t("New project")}
+            </button>
+            <nav className="workbench-business-nav" aria-label="Business tools">
+              {[
+                { path: "/clients", label: "Client database", Icon: Users },
+                { path: "/earnings", label: "Earnings", Icon: Wallet },
+              ].map(({ path, label, Icon }) => (
                 <a
-                  key={tool.path}
-                  href={
-                    tool.path === "/studio"
-                      ? studioBindingHref(binding)
-                      : scopeToolHref(
-                          tool.path === "/deliver" ? "/deliver?workflow=1" : tool.path,
-                          binding,
-                        )
-                  }
+                  key={path}
+                  className={`workbench-nav-item ${current?.path === path ? "is-active" : ""}`}
+                  href={scopeToolHref(path, activeBinding)}
+                  aria-current={current?.path === path ? "page" : undefined}
                   onClick={(event) => {
                     if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                       event.preventDefault();
-                      if (tool.path === "/studio") showStudio();
-                      else newTool(tool.path);
+                      void openTool(path);
                     }
                   }}
-                  className={`workbench-nav-item ${current?.path === tool.path ? "is-active" : ""}`}
-                  aria-current={current?.path === tool.path ? "page" : undefined}
                 >
-                  <Icon size={16} />
-                  {tool.label}
+                  <Icon size={20} />
+                  <span>{t(label)}</span>
                 </a>
-              );
-            })}
-            <button
-              className={`workbench-nav-item workbench-tools-trigger ${current && !WORKBENCH_PRIMARY_TOOLS.some((tool) => tool.path === current.path) ? "is-active" : ""}`}
-              onClick={() => setSearchOpen(true)}
-            >
-              <PanelsTopLeft size={17} />
-              All tools<kbd>⌘K</kbd>
-            </button>
+              ))}
+            </nav>
             <RecentShoots
               scope={account}
               activeId={
@@ -398,20 +525,40 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                   : null
               }
               open={openExact}
-            />
-            <details className="recent-shoot-conversations">
-              <summary>Conversations in this shoot</summary>
-              <ChatRecents />
-            </details>
+            >
+              <div ref={mountHistory} />
+            </RecentShoots>
           </SidebarContent>
           <SidebarFooter className="workbench-sidebar-bottom">
             <AccountMenu />
           </SidebarFooter>
-        </Sidebar>
+        </WorkspaceSidebar>
+        {historyHost &&
+          createPortal(<ChatRecents menuSide={narrow ? "bottom" : "right"} />, historyHost)}
         <div className="workbench-body">
           <header className="workbench-header">
-            <SidebarTrigger />
-            <span>Photo assistant</span>
+            {(narrow || !sidebarOpen) && (
+              <button
+                ref={sidebarTriggerRef}
+                className="workbench-sidebar-toggle"
+                aria-label="Open sidebar"
+                onClick={() => (narrow ? setOpenMobile(true) : setSidebarOpen(true))}
+              >
+                <PanelLeft size={20} />
+              </button>
+            )}
+            {projectTabs.length === 0 && !showTool && <ConversationHeading />}
+            {(projectTabs.length > 0 || showTool) && (
+              <ShootTabs
+                tabs={projectTabs}
+                currentHref={current?.href ?? null}
+                chatHref={scopeToolHref("/workspace", activeBinding)}
+                titles={titles}
+                onOpen={openExact}
+                onClose={closeTab}
+                onNew={() => setSearchOpen(true)}
+              />
+            )}
             {tabNote && <span role="status">{tabNote}</span>}
             <div className="workbench-header-actions">
               {showTool && (
@@ -436,24 +583,38 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
               )}
             </div>
           </header>
-          <ShootTabs
-            tabs={projectTabs}
-            currentHref={current?.href ?? null}
-            chatHref={scopeToolHref("/workspace", activeBinding)}
-            titles={titles}
-            onOpen={openExact}
-            onClose={closeTab}
-            onNew={() => setSearchOpen(true)}
-          />
           <div
             className={`workbench-panels ${showTool ? "has-tool" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
             data-mobile-pane={showTool ? mobilePane : "chat"}
           >
             <main
-              className="workbench-conversation"
-              hidden={compact && showTool && mobilePane === "tool"}
+              className={`workbench-conversation ${quickChat ? "is-quick-chat" : ""}`}
+              hidden={
+                !quickChat &&
+                showTool &&
+                ((compact && mobilePane === "tool") ||
+                  (!compact && ["/clients", "/earnings"].includes(current?.path ?? "")))
+              }
               aria-label="Photography chat"
             >
+              {quickChat && (
+                <div className="ll-quick-header">
+                  <span>Quick Chat · current shoot</span>
+                  <div>
+                    <button
+                      onClick={() => {
+                        setQuickChat(false);
+                        void openTool("/workspace");
+                      }}
+                    >
+                      Expand
+                    </button>
+                    <button aria-label="Close Quick Chat" onClick={() => setQuickChat(false)}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
               <div ref={setChatTarget} className="workbench-chat-mount" />
               {activeBinding.kind === "blocked" && <p role="alert">{activeBinding.reason}</p>}
             </main>
@@ -546,5 +707,97 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
         />
       </WorkbenchContext.Provider>
     </ChatHistoryProvider>
+  );
+}
+
+/** The drawer is composed here so other uses of the shared Sidebar retain their breakpoint. */
+function WorkspaceSidebar({
+  narrow,
+  trigger,
+  children,
+}: {
+  narrow: boolean;
+  trigger: React.RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+}) {
+  const { openMobile, setOpenMobile } = useSidebar();
+  useEffect(() => {
+    if (!narrow) return;
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpenMobile(!openMobile);
+      }
+    };
+    window.addEventListener("keydown", shortcut, true);
+    return () => window.removeEventListener("keydown", shortcut, true);
+  }, [narrow, openMobile, setOpenMobile]);
+  if (!narrow) return <Sidebar className="workbench-sidebar">{children}</Sidebar>;
+  return (
+    <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+      <SheetContent
+        side="left"
+        className="workbench-mobile-sidebar"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          trigger.current?.focus();
+        }}
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>LensLabs navigation</SheetTitle>
+          <SheetDescription>Projects, shoots and business tools.</SheetDescription>
+        </SheetHeader>
+        {children}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ConversationHeading() {
+  const history = useChatHistory();
+  const active = history?.active;
+  if (!active || (!active.named && !active.messages.length)) return null;
+  const disabled =
+    !history.ready || history.locked || history.pending || history.switching || !!history.error;
+  return (
+    <>
+      <span className="workbench-conversation-title" title={shootDisplayTitle(active)}>
+        {shootDisplayTitle(active)}
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="workbench-sidebar-toggle"
+            aria-label="Conversation actions"
+            disabled={disabled}
+          >
+            <MoreHorizontal size={20} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="ll-chat-menu" align="end">
+          {active.messages.some((message) => !message.privateConnector) && (
+            <DropdownMenuItem
+              onSelect={() =>
+                window.dispatchEvent(
+                  new CustomEvent("lenslabs:chat-dialog", { detail: { action: "share" } }),
+                )
+              }
+            >
+              Share with client…
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onSelect={() =>
+              window.dispatchEvent(
+                new CustomEvent("lenslabs:chat-dialog", { detail: { action: "rename" } }),
+              )
+            }
+          >
+            Rename
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }

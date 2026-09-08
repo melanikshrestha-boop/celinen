@@ -60,6 +60,8 @@ export interface Shot {
   previewBlob?: Blob | undefined;
   /** False when a restored project needs its original folder reconnected. */
   sourceAvailable?: boolean | undefined;
+  /** Versioned full-byte fingerprint, separate from the perceptual similarity hash. */
+  sourceDigest?: string | undefined;
   width: number;
   height: number;
   sizeMb: number;

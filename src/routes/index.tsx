@@ -1,28 +1,25 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
-import { Footer, Nav } from "@/components/Nav";
-import { Fade } from "@/components/Fade";
-import { LogoMark } from "@/components/lensos/Logo";
-
-const DEMO_STATS = [
-  { label: "Ingest", value: "100%", sub: "1,298 previews", fill: "100%" },
-  { label: "Picks", value: "146", sub: "1,128 reviewed", fill: "87%" },
-  { label: "Next due", value: "6", sub: "Wire set · 23:30", fill: "50%" },
-];
+import { Nav } from "@/components/Nav";
+import { SavingsSection } from "@/components/marketing/SavingsSection";
+import { WorkflowSection } from "@/components/marketing/WorkflowSection";
+import { publicEntry } from "@/lib/public-entry";
+import "@/components/marketing/marketing-page.css";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "LensLabs — Cull a Shoot in Minutes" },
+      { title: "LensLabs — A workspace for your photography" },
       {
         name: "description",
         content:
-          "LensLabs scores, flags and culls a full RAW or JPEG shoot locally in your browser, then hands you the basic develop tools.",
+          "Review your shoot, choose your keepers, and prepare your client gallery. Explore LensLabs and estimate the value of your time before signing in.",
       },
-      { property: "og:title", content: "LensLabs — Cull a Shoot in Minutes" },
+      { property: "og:title", content: "LensLabs — A workspace for your photography" },
       {
         property: "og:description",
-        content: "Score, cull and develop a full shoot locally. No uploads.",
+        content:
+          "Review, edit and prepare your photography for delivery. Your decisions stay yours.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -31,286 +28,100 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const ADOBE = [
-  {
-    k: "Lightroom Classic",
-    mark: "Lr",
-    bg: "oklch(0.28 0.09 265)",
-    fg: "oklch(0.82 0.16 240)",
-    v: "Keepers + develop settings",
-  },
-  {
-    k: "Photoshop",
-    mark: "Ps",
-    bg: "oklch(0.26 0.08 250)",
-    fg: "oklch(0.80 0.14 235)",
-    v: "Open flagged frame, full res",
-  },
-  {
-    k: "Adobe Bridge",
-    mark: "Br",
-    bg: "oklch(0.27 0.07 285)",
-    fg: "oklch(0.82 0.12 290)",
-    v: "Verdicts as star ratings",
-  },
-];
-
-const REPLACED = [
-  { name: "Aftershoot", domain: "aftershoot.com", usd: 0 },
-  { name: "Pixieset", domain: "pixieset.com", usd: 40 },
-  { name: "SmugMug", domain: "smugmug.com", usd: 15 },
-  { name: "Photo Mechanic", domain: "camerabits.com", usd: 12 },
-  { name: "Squarespace", domain: "squarespace.com", usd: 23 },
-  { name: "Pic-Time", domain: "pic-time.com", usd: 20 },
-  { name: "Narrative Select", domain: "narrative.so", usd: 20 },
-];
-
-const REPLACED_TOTAL = REPLACED.reduce((s, r) => s + r.usd, 0);
-
-const logoFor = (domain: string) => `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-
-const TICKER = [
-  "laplacian focus variance",
-  "histogram clipping",
-  "average-hash dedupe",
-  "embedded raw preview",
-  "keeper ranking",
-  "local only · no uploads",
-];
-
 function Index() {
   const account = useAccount();
+  const entry = publicEntry(account?.status);
   return (
-    <div className="flex min-h-screen w-full flex-col overflow-hidden text-ink">
-      <Nav />
-
-      <section className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col items-center px-6 pb-24 pt-24 text-center">
-        <span className="rise-in inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[12px] text-moss shadow-[0_1px_2px_rgba(0,0,0,0.04)] [animation-delay:0ms]">
-          <span className="live-dot size-1.5 rounded-full bg-rust" />
-          Local · RAW + JPEG
-        </span>
-
-        <h1 className="rise-in mt-8 font-display text-[clamp(2.6rem,7.5vw,5.5rem)] font-bold leading-[0.98] tracking-[-0.04em] [animation-delay:90ms]">
-          Cull your shoot
-          <br />
-          in <span className="text-rust">seconds</span>, not minutes.
-        </h1>
-
-        <p className="rise-in mt-8 text-lg text-moss [animation-delay:180ms]">Drop the folder in</p>
-
-        <div className="rise-in relative mt-4 w-full max-w-[560px] overflow-hidden rounded-xl bg-ink px-4 py-3.5 text-left shadow-[0_8px_30px_rgba(0,0,0,0.10)] [animation-delay:240ms]">
-          <div className="scanline pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-transparent via-paper2/8 to-transparent" />
-          <code className="relative font-mono text-sm text-paper2">
-            <span className="text-rust">$</span>{" "}
-            <span className="type-line align-bottom">300 RAW files → 42 keepers</span>
-            <span className="caret ml-0.5 h-[1.05em] align-[-0.15em]" />
-          </code>
-        </div>
-
-        <p className="rise-in mt-4 text-lg text-moss [animation-delay:300ms]">
-          and let it take it from there. Go create more.
-        </p>
-
-        <div className="rise-in mt-10 flex flex-wrap items-center justify-center gap-3 [animation-delay:380ms]">
-          <Link
-            to="/studio"
-            className="group rounded-xl bg-ink px-6 py-3 text-sm font-medium text-paper2 transition-all duration-200 hover:-translate-y-0.5 hover:opacity-90 hover:shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
-          >
-            Open studio{" "}
-            <span className="inline-block transition-transform duration-200 group-hover:translate-x-1">
-              →
-            </span>
-          </Link>
-          <Link
-            to="/pricing"
-            className="rounded-xl border border-input bg-card px-6 py-3 text-sm text-moss transition-all duration-200 hover:-translate-y-0.5 hover:text-ink"
-          >
-            Pricing
-          </Link>
-        </div>
-      </section>
-
-      <div className="rise-in relative w-full overflow-hidden border-y border-border bg-card/60 py-3 [animation-delay:460ms]">
-        <div className="ticker-track gap-10 whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
-          {[...TICKER, ...TICKER].map((t, i) => (
-            <span key={i} className="flex items-center gap-10">
-              {t}
-              <span className="size-1 rounded-full bg-rust/60" />
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 py-24">
-        <div className="flex flex-col items-center text-center">
-          <div className="float-y">
-            <LogoMark size={48} className="iris-breathe text-ink" />
-          </div>
-          <h2 className="mt-6 font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
-            Your desk. One screen.
-          </h2>
-          <p className="mt-3 text-moss">Live demo — the real one is private to your studio.</p>
-        </div>
-
-        <div className="mt-10 overflow-hidden rounded-3xl border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.07)]">
-          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-            <LogoMark size={18} className="iris-spin text-ink" />
-            <span className="font-display text-[13px] font-semibold tracking-tight">
-              Ridgeway vs. Corbin Valley
-            </span>
-            <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-moss">
-              <span className="live-dot size-1.5 rounded-full bg-rust" />
-              local only
-            </span>
-          </div>
-
-          <div className="grid gap-4 p-5 sm:grid-cols-3">
-            {DEMO_STATS.map((s, i) => (
-              <div
-                key={s.label}
-                className="relative overflow-hidden rounded-2xl border border-border p-5"
+    <div className="marketing-page">
+      <a className="marketing-skip" href="#main-content">
+        Skip to content
+      </a>
+      <Nav landing />
+      <main id="main-content" tabIndex={-1}>
+        <section className="marketing-hero" aria-labelledby="home-heading">
+          <img
+            className="marketing-hero__image"
+            src="/images/auth-lens.jpg"
+            alt=""
+            width="1280"
+            height="720"
+            fetchPriority="high"
+          />
+          <div className="marketing-hero__content">
+            <p className="marketing-value__eyebrow">Your photography. Your decisions.</p>
+            <h1 id="home-heading">
+              More time for
+              <br />
+              the photographs.
+            </h1>
+            <p className="marketing-hero__lead">
+              Review your shoot, choose your keepers, and prepare your client gallery. One place to
+              keep the work moving.
+            </p>
+            <div className="marketing-actions">
+              <Link
+                to={entry.to}
+                search={entry.search}
+                className="marketing-action marketing-action--primary"
               >
-                <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-ink/[0.05] to-transparent sweep" />
-                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
-                  {s.label}
-                </p>
-                <p className="mt-3 font-display text-[2.1rem] font-bold leading-none tracking-[-0.04em]">
-                  {s.value}
-                </p>
-                <p className="mt-2 text-[13px] text-moss">{s.sub}</p>
-                <span className="mt-4 block h-1 overflow-hidden rounded-full bg-muted">
-                  <span
-                    className="bar-fill block h-full rounded-full bg-ink"
-                    style={{ width: s.fill, animationDelay: `${i * 160}ms` }}
-                  />
-                </span>
-              </div>
-            ))}
+                {entry.label}
+                <span aria-hidden="true">→</span>
+              </Link>
+              <a href="#savings" className="marketing-action marketing-action--text">
+                Estimate your savings<span aria-hidden="true">↓</span>
+              </a>
+            </div>
+            <p className="marketing-hero__note">
+              Review before applying edits. Publish only when you choose.
+            </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3 border-t border-border px-5 py-4">
-            <span className="font-mono text-[11px] text-moss">
-              CFexpress A → previews → keepers → Lightroom
-            </span>
-            <Link
-              to={account?.status === "in" ? "/desk" : "/auth"}
-              search={account?.status === "in" ? {} : { next: "/desk" }}
-              className="ml-auto rounded-xl bg-ink px-5 py-2.5 text-sm font-medium text-paper2 transition-all hover:-translate-y-0.5"
-            >
-              Start your desk →
+        </section>
+        <SavingsSection>
+          <Link
+            to={entry.to}
+            search={entry.search}
+            className="marketing-action marketing-action--primary"
+          >
+            {entry.label}
+            <span aria-hidden="true">→</span>
+          </Link>
+        </SavingsSection>
+        <WorkflowSection />
+        <section className="marketing-handoff" aria-labelledby="handoff-heading">
+          <div>
+            <p className="marketing-value__eyebrow">Fits the way you work</p>
+            <h2 id="handoff-heading">
+              Keep your editor.
+              <br />
+              Keep your control.
+            </h2>
+          </div>
+          <div className="marketing-handoff__body">
+            <p>
+              Export ratings and supported develop settings for your Adobe workflow. Finish detailed
+              retouching in your editor, then prepare gallery copies for delivery.
+            </p>
+            <p>
+              Gallery publishing requires a connected account. Available options depend on your
+              setup.
+            </p>
+            <Link to="/docs" className="marketing-action marketing-action--text">
+              Read the workflow guide<span aria-hidden="true">→</span>
             </Link>
           </div>
-        </div>
-      </Fade>
-
-      <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 py-24">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Integrations</p>
-        <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
-          Your edits are only <span className="text-rust">the beginning.</span>
-        </h2>
-
-        <div className="mt-10 grid gap-4 sm:grid-cols-3">
-          {ADOBE.map((i, n) => (
-            <div
-              key={i.k}
-              className="rise-in group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
-              style={{ animationDelay: `${n * 90}ms` }}
-            >
-              <span
-                className="grid size-12 shrink-0 place-items-center rounded-xl font-display text-[17px] font-bold transition-transform duration-200 group-hover:scale-105"
-                style={{ background: i.bg, color: i.fg, border: `1px solid ${i.fg}33` }}
-              >
-                {i.mark}
-              </span>
-              <span>
-                <span className="block font-display text-[15px] font-semibold tracking-tight">
-                  {i.k}
-                </span>
-                <span className="mt-0.5 block text-sm text-moss">{i.v}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="py-5 sm:pr-5">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
-              Less app-hopping. More photography.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {REPLACED.map((r) => (
-                <span
-                  key={r.name}
-                  className="flex items-center gap-2 rounded-lg bg-muted px-2.5 py-1 text-[13px] text-moss"
-                >
-                  <img
-                    src={logoFor(r.domain)}
-                    alt={`${r.name} logo`}
-                    width={16}
-                    height={16}
-                    loading="lazy"
-                    className="size-4 rounded-[3px]"
-                  />
-                  <span>{r.name}</span>
-                </span>
-              ))}
-            </div>
-            <p className="mt-4 text-sm leading-relaxed text-moss">
-              If your Aftershoot workflow still leaves you chasing clients, writing captions,
-              and uploading everything again, the shoot ended. Your second shift didn’t.
-            </p>
-          </div>
-          <div className="py-5 sm:pl-5 text-ink">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
-              The LensLabs direction
-            </p>
-            <p className="mt-3 font-display text-[19px] font-semibold tracking-tight">
-              Less second-shift energy.
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-moss">
-              Keep the client, the follow-up, and the final photos together. Review one publishing
-              draft for your portfolio and Instagram. Connections required; nothing posts without your approval.
-            </p>
-          </div>
-        </div>
-      </Fade>
-
-      <Fade as="section" className="mx-auto w-full max-w-[1000px] px-6 pb-24">
-        <div className="rounded-3xl border border-border bg-card p-8 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-12">
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Portfolio</p>
-          <h2 className="mt-3 max-w-[720px] font-display text-[clamp(1.9rem,4.4vw,3.1rem)] font-bold leading-[1.02] tracking-[-0.035em]">
-            Your site, live in <span className="text-rust">seconds</span>. Not minutes.
-          </h2>
-          <p className="mt-4 max-w-[560px] text-moss">
-            Pick keepers, pick a layout, ship it. Domain generated for you — or bring your own.
-          </p>
-
-          <div className="mt-8 max-w-[520px] overflow-hidden rounded-xl bg-ink px-4 py-3.5 font-mono text-sm text-paper2">
-            <span className="text-rust">$</span> publish →{" "}
-            <span className="type-line align-bottom">maya-okafor.lens.photo</span>
-            <span className="caret ml-0.5 h-[1.05em] align-[-0.15em]" />
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-2">
-            {[
-              "Auto galleries",
-              "Client proofing",
-              "Free subdomain",
-              "Custom domain",
-              "No page builder",
-            ].map((t) => (
-              <span
-                key={t}
-                className="rounded-full border border-border px-3 py-1 text-[12px] text-moss transition-colors hover:border-rust/40 hover:text-ink"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
-      </Fade>
-
-      <Footer />
+        </section>
+      </main>
+      <footer className="marketing-footer">
+        <Link to="/" className="marketing-footer__brand">
+          LensLabs
+        </Link>
+        <nav aria-label="Footer">
+          <Link to="/docs">Documentation</Link>
+          <Link to="/security">Security</Link>
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+        </nav>
+      </footer>
     </div>
   );
 }

@@ -11,6 +11,8 @@ const statusSchema = z.object({
 type NativeStatus = z.infer<typeof statusSchema>;
 let statusPromise: Promise<NativeStatus | null> | null = null;
 let checkedAt = 0;
+/** Runtime-enforced limits, shared with the read-only Settings policy display. */
+export const NATIVE_REQUEST_POLICY = Object.freeze({ healthTimeoutMs: 2000, maxAttempts: 2 });
 
 export function nativeEngineStatus(): Promise<NativeStatus | null> {
   if (
@@ -23,7 +25,7 @@ export function nativeEngineStatus(): Promise<NativeStatus | null> {
   checkedAt = Date.now();
   statusPromise = (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
+    const timeout = setTimeout(() => controller.abort(), NATIVE_REQUEST_POLICY.healthTimeoutMs);
     try {
       const response = await fetch("/__native/status", {
         headers: { "x-lenslabs-request": "studio" },
@@ -46,7 +48,7 @@ export async function nativeStudioRequest(
   path: "/__native/bursts" | "/__native/analyze",
   init: RequestInit,
 ): Promise<Response> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < NATIVE_REQUEST_POLICY.maxAttempts; attempt++) {
     if (init.signal?.aborted) throw new DOMException("Native job cancelled.", "AbortError");
     const status = await nativeEngineStatus();
     if (!status?.ready || !status.token)

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { workspaceStorageKey } from "./workspace-storage";
+import { appearanceSchema, validateAppearance } from "./appearance";
+import { shortcutsSchema } from "./shortcuts";
 export const displayNameSchema = z
   .string()
   .trim()
@@ -14,12 +16,21 @@ export const displayNameSchema = z
   );
 export const preferencesSchema = z
   .object({
-    // Read old System preferences as Black without resetting unrelated preferences.
-    theme: z.preprocess(
-      (value) => (value === "system" ? "dark" : value),
-      z.enum(["light", "dark"]).default("dark"),
-    ),
+    theme: z.enum(["light", "dark", "system"]).default("dark"),
+    language: z.enum(["en", "es", "auto"]).default("en"),
+    fileDestination: z.enum(["studio", "adobe", "folder"]).default("studio"),
+    appearance: appearanceSchema
+      .refine((value) => {
+        try {
+          validateAppearance(value);
+          return true;
+        } catch {
+          return false;
+        }
+      }, "Theme colors are not readable.")
+      .default({}),
     sendKey: z.enum(["enter", "modifier-enter"]).default("enter"),
+    shortcuts: shortcutsSchema.default({}),
     textSize: z.enum(["default", "large"]).default("default"),
     reduceMotion: z.boolean().default(false),
     sidebarOpen: z.boolean().default(true),
@@ -31,13 +42,28 @@ export const preferencesSchema = z
     pointerCursors: z.boolean().default(true),
     showPet: z.boolean().default(false),
     pet: z.enum(["cat", "dog"]).default("cat"),
+    petAnimation: z.boolean().default(false),
+    petPosition: z.enum(["left", "right"]).default("right"),
+    petImage: z
+      .string()
+      .max(12_000)
+      .refine(
+        (value) => !value || /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(value),
+        "Use a cropped JPEG companion image.",
+      )
+      .default(""),
     openSources: z.enum(["new-tab", "same-tab"]).default("new-tab"),
     personality: z.enum(["none", "friendly", "concise"]).default("none"),
+    responseDetail: z.enum(["balanced", "brief", "detailed"]).default("balanced"),
+    preferredTerms: z.string().trim().max(300).default(""),
     customInstructions: z.string().trim().max(2000).default(""),
     voiceRate: z
       .number()
       .refine((value) => [0.75, 1, 1.25, 1.5, 2].includes(value))
       .default(1),
+    voiceURI: z.string().max(1000).default(""),
+    completionNotifications: z.enum(["always", "unfocused", "off"]).default("unfocused"),
+    desktopNotifications: z.boolean().default(false),
   })
   .strict();
 export type AccountPreferences = z.infer<typeof preferencesSchema>;
@@ -50,8 +76,25 @@ export function readPreferences(value: string | null): AccountPreferences {
   try {
     return preferencesSchema.parse(JSON.parse(value ?? "{}"));
   } catch {
-    return { ...DEFAULT_PREFERENCES };
+    return { ...DEFAULT_PREFERENCES, cloudAssistant: false, desktopNotifications: false };
   }
+}
+/** Merge unrelated edits; reject a stale edit to the same field before touching storage. */
+export function mergePreferencePatch(
+  baseline: AccountPreferences,
+  latest: AccountPreferences,
+  patch: Partial<AccountPreferences>,
+) {
+  for (const key of Object.keys(patch) as (keyof AccountPreferences)[]) {
+    if (
+      JSON.stringify(latest[key]) !== JSON.stringify(baseline[key]) &&
+      JSON.stringify(latest[key]) !== JSON.stringify(patch[key])
+    )
+      throw new Error(
+        "This preference changed in another tab. Review the current value before saving again.",
+      );
+  }
+  return preferencesSchema.parse({ ...latest, ...patch });
 }
 export function accountName(metadata: Record<string, unknown> | undefined, email?: string) {
   for (const value of [metadata?.["display_name"], metadata?.["full_name"], metadata?.["name"]]) {

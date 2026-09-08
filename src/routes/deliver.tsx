@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { APPLICATION_ORIGIN } from "@/lib/application-origin";
 import { DeliveryWorkspace } from "@/components/delivery/DeliveryWorkspace";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
@@ -752,7 +753,7 @@ function CloudDeliver() {
 
   const open = galleries.find((g) => g.id === openId) ?? null;
   const link = open
-    ? `${typeof window !== "undefined" ? window.location.origin : "https://lenslab.dev"}/g/${open.slug}`
+    ? `${typeof window !== "undefined" ? window.location.origin : APPLICATION_ORIGIN}/g/${open.slug}`
     : "";
 
   const create = async () => {

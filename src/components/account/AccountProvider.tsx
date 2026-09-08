@@ -13,13 +13,14 @@ import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { verifiedSessionReceiver } from "@/lib/account-access";
 import { profileInputSchema, readAccountProfile, type ProfileInput } from "@/lib/account-profile";
+import { applyAppearance } from "@/lib/appearance";
 import {
   accountName,
   DEFAULT_PREFERENCES,
   displayNameSchema,
   observeSession,
   preferenceKey,
-  preferencesSchema,
+  mergePreferencePatch,
   readPreferences,
   type AccountPreferences,
 } from "@/lib/account-preferences";
@@ -30,6 +31,10 @@ type Account = {
   local: boolean;
   name: string;
   workspaceName: string;
+  biography?: string | undefined;
+  avatar?: string | undefined;
+  specialties?: string[] | undefined;
+  customSpecialty?: string | undefined;
   setupComplete: boolean;
   error: string | null;
   preferences: AccountPreferences;
@@ -156,12 +161,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [scope]);
   useEffect(() => {
     if (!scope) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      document.documentElement.classList.toggle("dark", preferences.theme === "dark");
+      applyAppearance(preferences, media.matches);
       document.documentElement.dataset["reduceMotion"] = String(preferences.reduceMotion);
       document.documentElement.dataset["chatText"] = preferences.textSize;
     };
     apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, [scope, preferences]);
   const registerLeaveGuard = useCallback((guard: () => Promise<boolean>) => {
     guards.current.add(guard);
@@ -171,15 +179,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, []);
   const savePreferences = useCallback(
     (patch: Partial<AccountPreferences>) => {
-      if (!scope) throw new Error("Open your workspace first.");
-      const next = preferencesSchema.parse({
-        ...readPreferences(localStorage.getItem(preferenceKey(scope))),
-        ...patch,
-      });
+      if (!scope || scopeRef.current !== scope) throw new Error("Open your workspace first.");
+      const next = mergePreferencePatch(
+        preferences,
+        readPreferences(localStorage.getItem(preferenceKey(scope))),
+        patch,
+      );
       localStorage.setItem(preferenceKey(scope), JSON.stringify(next));
       setPreferences(next);
     },
-    [scope],
+    [scope, preferences],
   );
   const saveName = useCallback(
     async (value: string) => {

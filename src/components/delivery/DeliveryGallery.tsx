@@ -24,6 +24,7 @@ import type { RoomView } from "@/lib/delivery/remote.server";
 import "./delivery.css";
 import { FinalDownloads } from "./FinalDownloads";
 import { currentVersion, messageOf, sizeLabel, type MediaReader } from "./presentation";
+import { useCommentDrafts } from "./useCommentDrafts";
 const stamp = (date: string) =>
   new Date(date).toLocaleString(undefined, {
     month: "short",
@@ -43,6 +44,7 @@ export function DeliveryGallery({
   media,
   onRevise,
   onStudio,
+  draftScope,
 }: {
   onDraftChange?: (dirty: boolean) => void;
   room: RoomView;
@@ -50,11 +52,12 @@ export function DeliveryGallery({
   preview?: boolean;
   localUrls?: Record<string, string> | undefined;
   busy: boolean;
-  run: (command: DeliveryCommand) => Promise<void>;
+  run: (command: DeliveryCommand, operationId?: string) => Promise<void>;
   refresh: () => Promise<void>;
   media: MediaReader;
   onRevise?: (photo: DeliveryPhoto) => void;
   onStudio?: (version: DeliveryVersion) => Promise<void>;
+  draftScope?: string;
 }) {
   const state = room.state;
   const [tab, setTab] = useState<"photos" | "feedback" | "activity">("photos");
@@ -67,11 +70,12 @@ export function DeliveryGallery({
   const [actionError, setActionError] = useState("");
   const [downloadNote, setDownloadNote] = useState("");
   const [downloading, setDownloading] = useState(false);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  useEffect(() => { onDraftChange?.(Object.values(drafts).some((text) => text.trim())); }, [drafts, onDraftChange]);
-  const [draftPhotos, setDraftPhotos] = useState<Record<string, string>>({});
+  const notes = useCommentDrafts(preview ? undefined : draftScope, state.comments, actor);
+  const { drafts } = notes;
+  useEffect(() => {
+    onDraftChange?.(notes.dirty);
+  }, [notes.dirty, onDraftChange]);
   const [confirmationIds, setConfirmationIds] = useState<string[]>([]);
-  const [requestRevision, setRequestRevision] = useState(false);
   const [confirmation, setConfirmation] = useState<"submit" | "release" | null>(null);
   const [time, setTime] = useState(new Date().toISOString());
   const mediaRef = useRef(media);
@@ -89,6 +93,7 @@ export function DeliveryGallery({
   const displayed = shown.slice(page * 48, (page + 1) * 48);
   const photo = photos.find((p) => p.id === active);
   const version = photo && displayVersion(photo);
+  const requestRevision = !!(version && drafts[version.id]?.revision);
   const visibleIds = [
     ...new Set([...displayed.map((p) => displayVersion(p)!.id), ...(version ? [version.id] : [])]),
   ];
@@ -105,9 +110,6 @@ export function DeliveryGallery({
   useEffect(() => {
     setPage((old) => Math.min(old, Math.max(0, Math.ceil(shown.length / 48) - 1)));
   }, [shown.length]);
-  useEffect(() => {
-    setRequestRevision(false);
-  }, [active, version?.id]);
   useEffect(() => {
     let alive = true;
     async function updateImages() {
@@ -140,10 +142,10 @@ export function DeliveryGallery({
     };
   }, [idsKey, room.revision, localUrls, mediaRefresh]);
 
-  async function act(command: DeliveryCommand) {
+  async function act(command: DeliveryCommand, operationId?: string) {
     setActionError("");
     try {
-      await run(command);
+      await run(command, operationId);
       return true;
     } catch (error) {
       setActionError(messageOf(error));
@@ -602,39 +604,39 @@ export function DeliveryGallery({
                   className="delivery-composer"
                   onSubmit={async (event) => {
                     event.preventDefault();
-                    const body = drafts[version.id]?.trim();
-                    if (!body || preview) return;
+                    const sent = drafts[version.id];
+                    const body = sent?.body.trim();
+                    if (!sent || !body || preview) return;
                     if (
-                      await act({
-                        type: "comment",
-                        versionId: version.id,
-                        body,
-                        revision: actor === "client" && requestRevision,
-                      })
+                      await act(
+                        {
+                          type: "comment",
+                          versionId: version.id,
+                          body,
+                          revision: actor === "client" && sent.revision,
+                        },
+                        sent.operationId,
+                      )
                     ) {
-                      setDrafts((old) =>
-                        old[version.id]?.trim() === body ? { ...old, [version.id]: "" } : old,
-                      );
-                      setRequestRevision(false);
+                      notes.acknowledge(version.id, sent.operationId);
                     }
                   }}
                 >
                   {Object.entries(drafts)
                     .filter(
-                      ([id, body]) =>
-                        id !== version.id && body.trim() && draftPhotos[id] === photo.id,
+                      ([id, draft]) =>
+                        id !== version.id && draft.body.trim() && draft.photoId === photo.id,
                     )
-                    .map(([id, body]) => (
+                    .map(([id, draft]) => (
                       <div key={id} className="delivery-notice">
                         <p>Your unsent note for an earlier version is still here:</p>
-                        <p className="delivery-comment-body">{body}</p>
+                        <p className="delivery-comment-body">{draft.body}</p>
                         <button
                           type="button"
                           className="delivery-quiet"
-                          disabled={!!drafts[version.id]?.trim()}
+                          disabled={!!drafts[version.id]?.body.trim()}
                           onClick={() => {
-                            setDrafts((old) => ({ ...old, [version.id]: body, [id]: "" }));
-                            setDraftPhotos((old) => ({ ...old, [version.id]: photo.id }));
+                            notes.move(id, version.id, photo.id);
                           }}
                         >
                           Use this note for version {version.number}
@@ -651,11 +653,10 @@ export function DeliveryGallery({
                         ? "Reply to your client…"
                         : "Tell your photographer what you have in mind…"
                     }
-                    value={drafts[version.id] ?? ""}
+                    value={drafts[version.id]?.body ?? ""}
                     maxLength={4000}
                     onChange={(e) => {
-                      setDrafts((old) => ({ ...old, [version.id]: e.target.value }));
-                      setDraftPhotos((old) => ({ ...old, [version.id]: photo.id }));
+                      notes.update(version.id, photo.id, { body: e.target.value });
                     }}
                     disabled={preview}
                     rows={3}
@@ -666,7 +667,9 @@ export function DeliveryGallery({
                         <input
                           type="checkbox"
                           checked={requestRevision}
-                          onChange={(e) => setRequestRevision(e.target.checked)}
+                          onChange={(e) =>
+                            notes.update(version.id, photo.id, { revision: e.target.checked })
+                          }
                           disabled={preview}
                         />
                         Request a change
@@ -674,12 +677,17 @@ export function DeliveryGallery({
                     )}
                     <button
                       className="delivery-primary"
-                      disabled={busy || preview || !drafts[version.id]?.trim()}
+                      disabled={busy || preview || !drafts[version.id]?.body.trim()}
                     >
                       {busy ? "Sending…" : actor === "owner" ? "Send reply" : "Send comment"}
                       <ArrowRight size={15} />
                     </button>
                   </div>
+                  {notes.storageError && (
+                    <p className="delivery-meta" role="alert">
+                      {notes.storageError}
+                    </p>
+                  )}
                   <p className="delivery-meta">
                     {preview
                       ? "Preview only. Client actions are enabled on a published private link."

@@ -3,10 +3,11 @@ import {
   DEFAULT_PREFERENCES,
   displayNameSchema,
   preferenceKey,
-  preferencesSchema,
+  mergePreferencePatch,
   readPreferences,
 } from "../lib/account-preferences";
-import { profileInputSchema } from "../lib/account-profile";
+import { profileInputSchema, type ProfileInput } from "../lib/account-profile";
+import { applyAppearance } from "../lib/appearance";
 import type { useAccount as realUseAccount } from "../components/account/AccountProvider";
 
 type Account = NonNullable<ReturnType<typeof realUseAccount>>;
@@ -24,7 +25,7 @@ export const useAccount = () => useContext(AccountContext);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState<ProfileInput>(initialProfile);
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const [error, setError] = useState<string | null>(null);
   const guards = useRef(new Set<() => Promise<boolean>>());
@@ -55,9 +56,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", changed);
   }, []);
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", preferences.theme === "dark");
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => applyAppearance(preferences, media.matches);
+    apply();
+    media.addEventListener("change", apply);
     document.documentElement.dataset["reduceMotion"] = String(preferences.reduceMotion);
     document.documentElement.dataset["chatText"] = preferences.textSize;
+    return () => media.removeEventListener("change", apply);
   }, [preferences]);
   const account: Account = {
     status: ready ? "in" : "loading",
@@ -79,10 +84,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setProfile(next);
     },
     savePreferences: (patch) => {
-      const next = preferencesSchema.parse({
-        ...readPreferences(localStorage.getItem(preferenceKey(scope))),
-        ...patch,
-      });
+      const next = mergePreferencePatch(
+        preferences,
+        readPreferences(localStorage.getItem(preferenceKey(scope))),
+        patch,
+      );
       localStorage.setItem(preferenceKey(scope), JSON.stringify(next));
       setPreferences(next);
     },

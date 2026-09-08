@@ -1,0 +1,205 @@
+.ll-chat-recents {
+  min-width: 0;
+  font-size: 13px;
+}
+.ll-chat-heading,
+.ll-chat-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ll-chat-heading {
+  justify-content: space-between;
+  color: var(--muted-foreground);
+  padding: 8px 6px;
+}
+.ll-chat-heading button,
+.ll-chat-hover {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.ll-chat-group h3 {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 10px 8px 5px;
+}
+.ll-chat-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 9px;
+  padding: 2px 3px;
+}
+.ll-chat-row.is-active,
+.ll-chat-row:hover,
+.ll-chat-row:focus-within {
+  background: var(--muted);
+}
+.ll-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  padding: 8px 5px;
+}
+.ll-chat-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ll-chat-title i {
+  width: 6px;
+  height: 6px;
+  background: var(--ll-settings-accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ll-chat-hover,
+.ll-chat-heading-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+.ll-chat-row:hover .ll-chat-hover,
+.ll-chat-row:has(:focus-visible) .ll-chat-hover,
+.ll-chat-row:has([data-state="open"]) .ll-chat-hover,
+.ll-chat-heading:hover .ll-chat-heading-actions,
+.ll-chat-heading:has(:focus-visible) .ll-chat-heading-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ll-chat-hover:hover {
+  background: var(--accent);
+}
+.ll-chat-empty,
+.ll-chat-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  padding: 6px;
+  overflow-wrap: anywhere;
+}
+.ll-chat-menu {
+  min-width: 230px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border-radius: 12px;
+}
+.ll-chat-menu [role="menuitem"] {
+  min-height: 34px;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.ll-chat-dialog {
+  width: calc(100vw - 32px);
+  max-width: 520px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.ll-chat-dialog form {
+  display: grid;
+  gap: 14px;
+}
+.ll-chat-dialog label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.ll-chat-dialog input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  min-width: 0;
+  padding: 10px;
+}
+.ll-chat-dialog-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ll-chat-dialog .settings-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ll-chat-delete {
+  color: #f36e6e !important;
+}
+.ll-transcript-preview {
+  max-height: 42dvh;
+  overflow-y: auto;
+  background: var(--muted);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.ll-transcript-preview h3 {
+  font-size: 15px;
+}
+.ll-transcript-preview article {
+  margin-top: 16px;
+}
+.ll-transcript-preview strong {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.ll-transcript-preview p {
+  white-space: pre-wrap;
+  margin-top: 4px;
+}
+.ll-quick-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 12px;
+  gap: 12px;
+}
+.ll-quick-header button {
+  padding: 4px 8px;
+  border-radius: 5px;
+}
+.workbench-panels .workbench-conversation.is-quick-chat {
+  display: flex !important;
+  position: fixed;
+  inset: auto 20px 20px auto;
+  z-index: 40;
+  width: min(440px, calc(100vw - 32px));
+  height: min(640px, calc(100dvh - 60px));
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 48px #0003;
+  flex-direction: column;
+  min-width: 0;
+}
+.is-quick-chat .workbench-chat-mount {
+  min-height: 0;
+  flex: 1;
+}
+.workbench-panels:has(.is-quick-chat) .workbench-tool-pane {
+  flex: 1;
+  width: 100%;
+}
+@media (hover: none) {
+  .ll-chat-hover,
+  .ll-chat-heading-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ll-chat-hover,
+  .ll-chat-heading-actions {
+    transition: none;
+  }
+}

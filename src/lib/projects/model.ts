@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Shot } from "@/lib/imaging";
+import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 
 export const PROJECT_TYPES = [
   "sports",
@@ -13,6 +14,8 @@ export const PROJECT_TYPES = [
 ] as const;
 export const PROCESSOR_VERSION = "lenslabs-canvas-v1";
 const id = z.string().min(1).max(2000);
+// Other record IDs retain their smaller bound; archive byte limits still apply.
+const frameId = z.string().min(1).max(PHOTO_ID_MAX_LENGTH);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const date = z.string().datetime();
 const number = z.number().finite();
@@ -31,7 +34,7 @@ export const editsSchema = z
 const verdict = z.enum(["undecided", "keep", "reject"]);
 export const frameMetadataSchema = z
   .object({
-    id,
+    id: frameId,
     name: z.string().min(1).max(1000),
     relativePath: z.string().max(4000).optional(),
     captureTimeMs: number.int().positive().max(8.64e15).optional(),
@@ -126,7 +129,7 @@ export const projectSchema = z
       .array(
         z
           .object({
-            id,
+            id: frameId,
             assetId: id,
             originalBlobId: hash.nullable(),
             previewBlobId: hash.nullable(),
@@ -159,7 +162,7 @@ export const projectSchema = z
         z
           .object({
             id,
-            frameId: id,
+            frameId,
             versionId: id,
             from: verdict.nullable(),
             to: verdict,
@@ -170,7 +173,7 @@ export const projectSchema = z
           .strict(),
       )
       .max(200000),
-    selectedId: id.nullable(),
+    selectedId: frameId.nullable(),
     filter: z.enum(["all", "keepers", "flagged", "rejected", "todo"]),
     activity: z
       .array(
@@ -195,7 +198,7 @@ export const projectSchema = z
           items: z.array(
             z
               .object({
-                frameId: id,
+                frameId,
                 assetId: id,
                 versionId: id,
                 blobId: hash,
@@ -212,7 +215,7 @@ export const projectSchema = z
         .object({
           id,
           proofId: id,
-          frameId: id,
+          frameId,
           versionId: id,
           choice: z.enum(["favorite", "approve", "revision"]),
           comment: z.string().max(4000),

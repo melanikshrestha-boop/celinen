@@ -153,21 +153,22 @@ export async function collectDroppedFiles(
     if (result.warnings.length < MAX_WARNINGS) result.warnings.push({ code, path, message });
   };
   const work: Work[] = [];
-  const fileKeys = new Set<string>();
+  const filePaths = new WeakMap<File, Set<string>>();
   const visited = new WeakSet<FileSystemEntry>();
   let entries = 0;
   let operations = 0;
   let warningOverflow = false;
 
   const addFile = (file: File, path: string) => {
-    const key = JSON.stringify([path, file.size, file.lastModified]);
-    if (fileKeys.has(key)) {
+    const paths = filePaths.get(file) ?? new Set<string>();
+    if (paths.has(path)) {
       result.duplicates++;
       return;
     }
     // Never mutate the caller's File to attach its read-only relative path.
     result.files.push(withRelativePath(file, path));
-    fileKeys.add(key);
+    paths.add(path);
+    filePaths.set(file, paths);
   };
 
   for (const { entry, file } of roots) {

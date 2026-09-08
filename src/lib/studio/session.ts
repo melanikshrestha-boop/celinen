@@ -172,6 +172,7 @@ function signatureOf(record: StoredShot): string {
     record.clippedHighlights,
     record.clippedShadows,
     record.hash,
+    record.sourceDigest,
     record.tone,
     record.score,
     record.flags,

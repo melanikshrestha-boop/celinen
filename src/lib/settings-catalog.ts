@@ -5,7 +5,7 @@ export const SETTINGS_SECTIONS = [
     label: "General",
     group: "Personal",
     terms:
-      "permissions full access cloud assistant default destination language prevent sleep keep awake speed suggested prompts",
+      "permissions full access cloud assistant default destination language prevent sleep keep awake speed suggested prompts completion notifications sound",
   },
   {
     id: "import",
@@ -17,7 +17,8 @@ export const SETTINGS_SECTIONS = [
     id: "profile",
     label: "Profile",
     group: "Personal",
-    terms: "name workspace identity Celine avatar",
+    terms:
+      "name workspace identity avatar photographer photography specialty specialties real estate portrait biography",
   },
   {
     id: "appearance",
@@ -29,7 +30,7 @@ export const SETTINGS_SECTIONS = [
     id: "voice",
     label: "Voice",
     group: "Personal",
-    terms: "speech read aloud playback rate speed dictation microphone",
+    terms: "speech read aloud playback rate speed voice selection dictation microphone",
   },
   {
     id: "configuration",
@@ -76,7 +77,7 @@ export const SETTINGS_SECTIONS = [
   },
   {
     id: "history",
-    label: "Activity history",
+    label: "Computer history",
     group: "Integrations",
     terms: "computer history archived chats conversations receipts",
   },
@@ -88,7 +89,7 @@ export const SETTINGS_SECTIONS = [
   },
   {
     id: "plugins",
-    label: "Plugins & connections",
+    label: "Plugins",
     group: "Integrations",
     terms: "Gmail Google Instagram portfolio Adobe Lightroom plugins integrations",
   },
@@ -100,41 +101,72 @@ export const SETTINGS_SECTIONS = [
   },
   {
     id: "hooks",
-    label: "Workflow actions",
-    group: "Photography",
+    label: "Hooks",
+    group: "Coding",
     terms: "hooks delivery publishing automation clients reminders",
   },
   {
+    id: "connections",
+    label: "Connections",
+    group: "Coding",
+    terms:
+      "Gmail Google Instagram Adobe Lightroom provider authorization scope reconnect disconnect",
+  },
+  {
     id: "versions",
-    label: "Versions & originals",
-    group: "Photography",
+    label: "Git",
+    group: "Coding",
     terms: "git undo revisions edits before after XMP backup",
   },
   {
     id: "environments",
     label: "Environments",
-    group: "Photography",
+    group: "Coding",
     terms: "C++ native engine browser processing cloud development lab",
   },
   {
     id: "shoots",
-    label: "Shoots & workspaces",
-    group: "Photography",
+    label: "Worktrees",
+    group: "Coding",
     terms: "worktrees new shoot recent projects tabs archive",
+  },
+  {
+    id: "archived",
+    label: "Archived",
+    group: "Standalone",
+    terms: "unarchive restore conversations history",
   },
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
+const slugs: Partial<Record<SettingsSection, string>> = {
+  shortcuts: "keyboard-shortcuts",
+  usage: "usage-billing",
+  computer: "computer-use",
+  history: "computer-history",
+  versions: "git",
+  shoots: "worktrees",
+};
+export function settingsPath(section: SettingsSection) {
+  return `/settings/${slugs[section] ?? section}`;
+}
+export function isSettingsPath(path: string) {
+  return path === "/settings" || SETTINGS_SECTIONS.some((entry) => settingsPath(entry.id) === path);
+}
 export function settingsSection(value: unknown): SettingsSection {
   // Old account/settings links continue to resolve after the navigation expansion.
   const alias =
     value === "privacy"
       ? "account"
-      : value === "connections"
-        ? "plugins"
+      : value === "notifications"
+        ? "general"
         : value === "chat"
           ? "shortcuts"
           : value;
-  return SETTINGS_SECTIONS.find((section) => section.id === alias)?.id ?? "general";
+  return (
+    SETTINGS_SECTIONS.find(
+      (section) => section.id === alias || slugs[section.id as keyof typeof slugs] === alias,
+    )?.id ?? "general"
+  );
 }
 export function searchSettings(query: string) {
   const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);

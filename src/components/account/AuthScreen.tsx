@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { APPLICATION_ORIGIN, applicationUrl } from "@/lib/application-origin";
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
@@ -255,9 +256,11 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           {localGoogle && (
             <a
               className="auth-live-link"
-              href={`https://lenslab.dev/auth?${new URLSearchParams({ next: safeSignInPath(next), mode: signup ? "signup" : "signin", ...(source ? { source } : {}) })}`}
+              href={applicationUrl(
+                `/auth?${new URLSearchParams({ next: safeSignInPath(next), mode: signup ? "signup" : "signin", ...(source ? { source } : {}) })}`,
+              )}
             >
-              Continue on lenslab.dev <ArrowRight size={16} />
+              Continue on {new URL(APPLICATION_ORIGIN).hostname} <ArrowRight size={16} />
             </a>
           )}
           {note && <p role="status">{note}</p>}

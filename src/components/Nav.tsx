@@ -22,7 +22,7 @@ const LINKS: { to: string; label: string; exact?: boolean }[] = [
   { to: "/pricing", label: "Pricing" },
 ];
 
-export function Nav() {
+export function Nav({ landing = false }: { landing?: boolean }) {
   const account = useAccount();
   const entry = publicEntry(account?.status);
 
@@ -35,21 +35,35 @@ export function Nav() {
         </Link>
 
         <nav className="hidden min-w-0 items-center justify-center gap-1 whitespace-nowrap text-sm text-moss lg:flex">
-          {LINKS.map((l) => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
-              activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
-              {...(l.exact ? { activeOptions: { exact: true } } : {})}
-            >
-              {l.label}
-            </Link>
-          ))}
+          {landing ? (
+            <>
+              <a href="#workflow" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
+                How it works
+              </a>
+              <a href="#savings" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
+                Savings
+              </a>
+              <Link to="/pricing" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
+                Pricing
+              </Link>
+            </>
+          ) : (
+            LINKS.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="rounded-lg px-3 py-1.5 transition-colors hover:bg-muted hover:text-ink"
+                activeProps={{ className: "rounded-lg px-3 py-1.5 bg-muted text-ink" }}
+                {...(l.exact ? { activeOptions: { exact: true } } : {})}
+              >
+                {l.label}
+              </Link>
+            ))
+          )}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
-          <ThemeToggle />
+          {!landing && <ThemeToggle />}
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -59,7 +73,14 @@ export function Nav() {
               <span className="-mt-1.5 text-lg leading-none">…</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              {LINKS.map((l) => (
+              {(landing
+                ? [
+                    { to: "/docs", label: "Workflow guide" },
+                    { to: "/pricing", label: "Pricing" },
+                    { to: "/studio", label: "Studio" },
+                  ]
+                : LINKS
+              ).map((l) => (
                 <DropdownMenuItem key={l.to} asChild>
                   <Link to={l.to} className="w-full cursor-pointer text-sm">
                     {l.label}

@@ -1,0 +1,120 @@
+.social-export {
+  --primary: var(--ink);
+  width: calc(100vw - 24px);
+  max-width: 760px;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--input);
+  font-family: var(--workspace-ui-font, system-ui, sans-serif);
+  box-shadow: none;
+}
+.social-export-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.social-export-preview {
+  position: relative;
+  width: 100%;
+  max-height: 360px;
+  justify-self: center;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.social-export-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.social-export-safe {
+  position: absolute;
+  inset: 13% 6%;
+  border: 1px dashed #ffffff70;
+  pointer-events: none;
+}
+.social-export-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px 12px;
+}
+.social-export-controls fieldset {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 14px;
+}
+.social-export-controls > p {
+  grid-column: 1 / -1;
+}
+.social-export-controls > label {
+  min-width: 0;
+  align-content: start;
+}
+.social-export label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.social-export legend {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.social-export label.social-export-channel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.social-export select,
+.social-export textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--input);
+  border-radius: 8px;
+}
+.social-export-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--moss);
+}
+.social-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: sticky;
+  bottom: -24px;
+  padding: 8px 0;
+  background: var(--paper);
+}
+.social-export-actions button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--mist);
+  font-size: 14px;
+}
+.social-export-actions .social-export-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.social-export button:disabled {
+  opacity: 0.45;
+}
+@media (max-width: 560px) {
+  .social-export-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .social-export-preview {
+    width: auto;
+    max-width: 100%;
+    height: 230px;
+  }
+}

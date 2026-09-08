@@ -9,6 +9,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Plugin } from "vite";
+import { socialFrameSchema } from "../lib/social-frame";
+import { runNativeSocial } from "./native-social";
 
 export const MAX_NATIVE_FILE_BYTES = 128 * 1024 * 1024;
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
@@ -343,6 +345,7 @@ export function nativeStudioPlugin(): Plugin {
     configureServer(server) {
       const binary = resolve(server.config.root, "native/build/lenslabs-native");
       const burstBinary = resolve(server.config.root, "native/build/lenslabs-bursts");
+      const socialBinary = resolve(server.config.root, "native/build/lenslabs-social");
       const token = randomBytes(32).toString("hex");
       const workers = Array.from({ length: 4 }, () => ({
         process: new NativeWorkerProcess(binary),
@@ -351,6 +354,7 @@ export function nativeStudioPlugin(): Plugin {
       }));
       const cache = new NativeFrameCache();
       let burstBusy = false;
+      let socialBusy = false;
       cleanup = () => {
         for (const worker of workers) worker.process.close();
         cache.clear();
@@ -379,8 +383,15 @@ export function nativeStudioPlugin(): Plugin {
             ready = false;
           }
           if (route === "/__native/status" && req.method === "GET") {
+            const socialReady =
+              ready &&
+              (await access(socialBinary, constants.X_OK).then(
+                () => true,
+                () => false,
+              ));
             sendJson(res, 200, {
               ready,
+              socialReady,
               token: ready ? token : null,
               engine: "lenslabs-cpp-0.1",
               maxFileBytes: MAX_NATIVE_FILE_BYTES,
@@ -393,6 +404,51 @@ export function nativeStudioPlugin(): Plugin {
               "Build the local C++ engine with make -C native first.",
             );
           if (req.method !== "POST") throw new NativeBridgeError(405, "POST required.");
+          if (route === "/__native/social-frame") {
+            if (req.headers["content-type"] !== "application/octet-stream")
+              throw new NativeBridgeError(415, "Photo bytes required.");
+            const raw = req.headers["x-lenslabs-frame"];
+            let input;
+            try {
+              input = socialFrameSchema.parse(
+                JSON.parse(typeof raw === "string" && raw.length < 1024 ? raw : "null"),
+              );
+            } catch {
+              throw new NativeBridgeError(400, "Invalid social frame settings.");
+            }
+            if (socialBusy)
+              throw new NativeBridgeError(429, "Another social photo is preparing. Retry shortly.");
+            socialBusy = true;
+            let directory: string | null = null;
+            let path: string | null = null;
+            try {
+              const bytes = await readBounded(req, 16 * 1024 * 1024, signal);
+              if (!bytes.length) throw new NativeBridgeError(400, "The photo is empty.");
+              directory = await mkdtemp(join(tmpdir(), "lenslabs-social-"));
+              path = join(directory, "source");
+              const file = await open(path, "wx", 0o600);
+              try {
+                await file.writeFile(bytes);
+              } finally {
+                await file.close();
+              }
+              const jpeg = await runNativeSocial(socialBinary, path, input, signal);
+              if (signal.aborted) throw abortError();
+              res.writeHead(200, {
+                "Content-Type": "image/jpeg",
+                "Content-Length": jpeg.length,
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-LensLabs-Engine": "cpp",
+              });
+              res.end(jpeg);
+            } finally {
+              if (path) await unlink(path).catch(() => {});
+              if (directory) await rmdir(directory).catch(() => {});
+              socialBusy = false;
+            }
+            return;
+          }
           if (route === "/__native/bursts") {
             if (req.headers["content-type"] !== "application/json")
               throw new NativeBridgeError(415, "JSON receipts required.");

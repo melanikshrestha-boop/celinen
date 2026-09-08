@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Plus } from "lucide-react";
+import { ArrowUp, Folder, Image, Plus, X } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useChatHistory, ChatSaveStatus } from "@/components/workbench/ChatHistory";
 import { transcriptContext, type ChatMessage } from "@/lib/chat-history";
 import { DEFAULT_PREFERENCES, shouldSendMessage } from "@/lib/account-preferences";
 import { assistantPersonalization } from "@/lib/settings-transfer";
 import { ReadReply } from "@/components/account/ReadReply";
+import { notifyResponseReady } from "@/lib/workspace-notifications";
 import { ShootOverview } from "@/components/workbench/ShootOverview";
 import type { ShootBrief } from "@/lib/studio/shoot-brief";
 import type { ReactNode } from "react";
@@ -41,6 +42,13 @@ export type { ToolCall, ToolName } from "@/lib/studio/commands";
 type Msg = ChatMessage;
 
 type ApiMsg = Record<string, unknown>;
+/** Ephemeral receipt for a real selection, not a second upload queue or saved shoot. */
+export type ImportAttachment = {
+  name: string;
+  count: number | null;
+  kind: "folder" | "files";
+  preview?: File;
+};
 
 const STUDIO_PENDING_COMMAND_KEY = "lenslabs.pending-command.v1:studio";
 const LEGACY_PENDING_COMMAND_KEY = "lenslabs.pending-command.v1";
@@ -80,6 +88,8 @@ function CullChatSession({
   status = null,
   importProgress = null,
   importing = false,
+  importAttachment = null,
+  dragActive = false,
   onImportFolder,
   onImportFiles,
   onCancelImport,
@@ -88,6 +98,7 @@ function CullChatSession({
   onReviewShoot = noAction,
   onOpenPhoto = noAction,
   recovery,
+  deliveryReference,
   paused = false,
 }: {
   workspace?: boolean;
@@ -95,6 +106,7 @@ function CullChatSession({
   onReviewShoot?: () => void;
   onOpenPhoto?: (id: string) => void;
   recovery?: ReactNode;
+  deliveryReference?: ReactNode;
   paused?: boolean;
   storageScope?: string;
   onConversationChange?: (hasContent: boolean) => void;
@@ -116,6 +128,8 @@ function CullChatSession({
   status?: string | null;
   importProgress?: { done: number; total: number } | null;
   importing?: boolean;
+  importAttachment?: ImportAttachment | null;
+  dragActive?: boolean;
   onImportFolder?: () => void;
   onImportFiles?: () => void;
   onCancelImport?: () => void;
@@ -123,6 +137,8 @@ function CullChatSession({
 }) {
   const history = useChatHistory();
   const account = useAccount();
+  const notificationPreferences = useRef(account?.preferences ?? DEFAULT_PREFERENCES);
+  notificationPreferences.current = account?.preferences ?? DEFAULT_PREFERENCES;
   const snapshot = history?.snapshot;
   const lockChat = history?.setLocked;
   const [msgs, setMsgs] = useState<Msg[]>(() => history?.active?.messages ?? []);
@@ -140,7 +156,43 @@ function CullChatSession({
     };
   }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const followsLatest = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+  const [dismissedImport, setDismissedImport] = useState<ImportAttachment | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!importAttachment?.preview) {
+      setAttachmentPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(importAttachment.preview);
+    setAttachmentPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [importAttachment]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [expandedInput, setExpandedInput] = useState(false);
+  useEffect(() => {
+    if (!workspace || !inputRef.current) return;
+    const input = inputRef.current;
+    const resize = () => {
+      input.style.height = "24px";
+      const height = Math.min(192, Math.max(24, input.scrollHeight));
+      input.style.height = `${height}px`;
+      setExpandedInput(height > 24);
+    };
+    resize();
+    // Observe width changes on the owning row, not the textarea's own height.
+    let width = input.parentElement?.clientWidth;
+    const widthObserver = new ResizeObserver(() => {
+      const next = input.parentElement?.clientWidth;
+      if (next !== width) {
+        width = next;
+        resize();
+      }
+    });
+    if (input.parentElement) widthObserver.observe(input.parentElement);
+    return () => widthObserver.disconnect();
+  }, [input, workspace]);
   const sendingRef = useRef(false);
   useEffect(() => {
     onConversationChange?.(
@@ -178,6 +230,10 @@ function CullChatSession({
   }, [suggestedPrompt]);
 
   useEffect(() => {
+    if (!followsLatest.current) {
+      setShowLatest(true);
+      return;
+    }
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior:
@@ -187,6 +243,16 @@ function CullChatSession({
           : "smooth",
     });
   }, [msgs, thinking, running, account?.preferences.reduceMotion]);
+
+  useEffect(() => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => {
+      if (followsLatest.current) viewport.scrollTop = viewport.scrollHeight;
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     try {
@@ -199,13 +265,22 @@ function CullChatSession({
       // Storage can be blocked in a private or embedded browser. The command
       // panel still works normally in that case.
     }
-    inputRef.current?.focus();
+    // Do not summon the software keyboard when a phone opens an empty workspace.
+    if (window.matchMedia("(pointer: fine)").matches) inputRef.current?.focus();
   }, [storageScope]);
 
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || sendingRef.current || history?.error || history?.switching) return;
+      if (
+        !trimmed ||
+        sendingRef.current ||
+        importing ||
+        paused ||
+        history?.error ||
+        history?.switching
+      )
+        return;
       const run = lifecycle.current;
       const checkActive = () => {
         if (!run.active) throw new DOMException("Conversation closed", "AbortError");
@@ -229,6 +304,8 @@ function CullChatSession({
         return;
       }
       sendingRef.current = true;
+      followsLatest.current = true;
+      setShowLatest(false);
       setInput("");
       const displayText =
         adobe?.kind === "plan"
@@ -516,6 +593,11 @@ function CullChatSession({
         setMsgs((m) => [...m, { role: "assistant", text: (err as Error).message }]);
       } finally {
         if (run.active) {
+          try {
+            notifyResponseReady(notificationPreferences.current);
+          } catch {
+            // Optional notifications must never prevent unlocking the composer.
+          }
           setRunning(null);
           setThinking(false);
           sendingRef.current = false;
@@ -540,12 +622,17 @@ function CullChatSession({
       history?.switching,
       storageScope,
       account?.preferences,
+      importing,
+      paused,
     ],
   );
 
   return (
     <div className={workspace ? "workbench-chat" : "flex h-full min-h-[420px] flex-col"}>
-      {workspace && <ChatSaveStatus />}
+      {workspace &&
+        (msgs.length > 0 || input || history?.error || history?.pending || history?.temporary) && (
+          <ChatSaveStatus />
+        )}
       {(!workspace || thinking || running) && (
         <div
           className={
@@ -575,7 +662,14 @@ function CullChatSession({
           workspace ? "workbench-messages" : "min-h-0 flex-1 space-y-3 overflow-y-auto py-3 pr-1"
         }
         aria-label="Shoot and conversation"
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          const near = node.scrollHeight - node.scrollTop - node.clientHeight < 64;
+          followsLatest.current = near;
+          setShowLatest(!near);
+        }}
       >
+        {deliveryReference}
         {workspace && shoot && shoot.total > 0 && (
           <ShootOverview
             shoot={shoot}
@@ -586,30 +680,9 @@ function CullChatSession({
             onReconnect={onImportFolder}
           />
         )}
-        {!msgs.length && !proposal && !(workspace && frameCount > 0) && (
-          <div
-            className={
-              workspace ? "workbench-chat-empty" : "space-y-2 font-mono text-[11px] text-moss"
-            }
-          >
-            {workspace ? (
-              <>
-                <p className="workbench-eyebrow">YOUR PHOTOGRAPHY WORKSPACE</p>
-                <h1>The shoot starts here.</h1>
-                <p>Drop your folder. Find your keepers. Make it yours.</p>
-                <button
-                  type="button"
-                  className="workbench-review-shoot"
-                  onClick={onImportFolder}
-                  disabled={importing || paused}
-                >
-                  Choose a folder <Plus size={17} />
-                </button>
-                <span className="workbench-empty-hint">RAW + JPEG · originals stay untouched</span>
-              </>
-            ) : (
-              <p>tell it what you want. it culls in the background.</p>
-            )}
+        {!workspace && !msgs.length && !proposal && (
+          <div className="space-y-2 font-mono text-[11px] text-moss">
+            <p>tell it what you want. it culls in the background.</p>
             {(account?.preferences.suggestedPrompts ?? true) &&
               [
                 "cull the shoot and keep the top 40",
@@ -622,11 +695,7 @@ function CullChatSession({
                     setInput(q);
                     inputRef.current?.focus();
                   }}
-                  className={
-                    workspace
-                      ? "workspace-prompt-suggestion"
-                      : "block w-full rounded-md border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-ink hover:text-paper2"
-                  }
+                  className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-ink hover:text-paper2"
                 >
                   {q}
                 </button>
@@ -658,7 +727,11 @@ function CullChatSession({
                     </div>
                   ))}
                   <p className="text-[12px] leading-relaxed text-ink">{m.text}</p>
-                  <ReadReply text={m.text} rate={account?.preferences.voiceRate ?? 1} />
+                  <ReadReply
+                    text={m.text}
+                    rate={account?.preferences.voiceRate ?? 1}
+                    voiceURI={account?.preferences.voiceURI ?? ""}
+                  />
                 </div>
               )}
             </div>
@@ -690,27 +763,45 @@ function CullChatSession({
               )}
             </div>
           )}
-        {!recovery && (status || importing || importProgress) && (
-          <div
-            className="space-y-1.5 font-mono text-[11px] text-moss"
-            role="status"
-            aria-live="polite"
+        {!recovery &&
+          (!workspace || !importAttachment) &&
+          (status || importing || importProgress) && (
+            <div
+              className="space-y-1.5 font-mono text-[11px] text-moss"
+              role="status"
+              aria-live="polite"
+            >
+              <p>
+                {importProgress
+                  ? `Reading and checking photos · ${importProgress.done.toLocaleString()} / ${importProgress.total.toLocaleString()}`
+                  : status || "Reading photos…"}
+              </p>
+              {importing && (
+                <button
+                  type="button"
+                  onClick={onCancelImport}
+                  className="underline underline-offset-2"
+                >
+                  Stop import
+                </button>
+              )}
+            </div>
+          )}
+        {workspace && showLatest && (
+          <button
+            type="button"
+            className="workbench-jump"
+            onClick={() => {
+              followsLatest.current = true;
+              scrollRef.current?.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: "instant",
+              });
+              setShowLatest(false);
+            }}
           >
-            <p>
-              {importProgress
-                ? `Reading and checking photos · ${importProgress.done.toLocaleString()} / ${importProgress.total.toLocaleString()}`
-                : status || "Reading photos…"}
-            </p>
-            {importing && (
-              <button
-                type="button"
-                onClick={onCancelImport}
-                className="underline underline-offset-2"
-              >
-                Stop import
-              </button>
-            )}
-          </div>
+            Jump to latest
+          </button>
         )}
       </div>
 
@@ -732,80 +823,127 @@ function CullChatSession({
           e.preventDefault();
           void send(input);
         }}
-        className={workspace ? "workbench-composer" : "border-t border-border pt-2"}
+        className={
+          workspace
+            ? `workbench-composer ${expandedInput || (importAttachment && dismissedImport !== importAttachment) ? "is-expanded" : ""} ${dragActive ? "is-dragging" : ""}`
+            : "border-t border-border pt-2"
+        }
       >
-        <label htmlFor="studio-chat-input" className="sr-only">
-          Message your photo assistant or paste Adobe settings
-        </label>
-        <textarea
-          id="studio-chat-input"
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (
-              shouldSendMessage(
-                {
-                  key: e.key,
-                  shiftKey: e.shiftKey,
-                  metaKey: e.metaKey,
-                  ctrlKey: e.ctrlKey,
-                  isComposing: e.nativeEvent.isComposing,
-                },
-                account?.preferences.sendKey ?? "enter",
-              )
-            ) {
-              e.preventDefault();
-              void send(input);
-            }
-          }}
-          rows={2}
-          maxLength={32000}
-          disabled={history?.switching}
-          placeholder={
-            workspace ? "Describe an edit, or paste Adobe settings…" : "cull this shoot…"
-          }
-          className="w-full resize-none rounded-md border border-input bg-paper px-2.5 py-2 font-mono text-[11px] text-ink outline-none placeholder:text-moss focus:border-ink/40"
-        />
-        <div
-          className={
-            workspace ? "workbench-composer-actions" : "flex items-center justify-between pt-1.5"
-          }
-        >
-          {workspace ? (
-            <div className="workbench-composer-tools">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Attach photos or a folder"
-                    disabled={importing || paused}
-                  >
-                    <Plus size={21} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="workbench-attach-menu" align="start" side="top">
-                  <DropdownMenuItem disabled={!onImportFolder} onSelect={() => onImportFolder?.()}>
-                    Choose folder
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={!onImportFiles} onSelect={() => onImportFiles?.()}>
-                    Choose photos
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {importing && <span>Importing photos…</span>}
+        {workspace && importAttachment && dismissedImport !== importAttachment && (
+          <div className="workbench-attachment" role="status" aria-live="polite">
+            {attachmentPreview ? (
+              <img src={attachmentPreview} alt="" onError={() => setAttachmentPreview(null)} />
+            ) : importAttachment.kind === "folder" ? (
+              <Folder size={28} aria-hidden="true" />
+            ) : (
+              <Image size={28} aria-hidden="true" />
+            )}
+            <div>
+              <strong title={importAttachment.name}>{importAttachment.name}</strong>
+              {importAttachment.count !== null && (
+                <p>
+                  {importAttachment.count.toLocaleString()} selected photo
+                  {importAttachment.count === 1 ? "" : "s"}
+                </p>
+              )}
+              <p>
+                {importProgress
+                  ? `Reading photos · ${importProgress.done.toLocaleString()} / ${importProgress.total.toLocaleString()}`
+                  : status || (importing ? "Reading folder…" : "Selection ready")}
+              </p>
             </div>
-          ) : (
-            <span className="font-mono text-[10px] text-moss">enter to send</span>
+            {importing ? (
+              <button type="button" onClick={onCancelImport}>
+                Stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Dismiss import summary"
+                onClick={() => setDismissedImport(importAttachment)}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        )}
+        <div className={workspace ? "workbench-composer-row" : ""}>
+          {workspace && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="workbench-attach"
+                  aria-label="Attach photos or a folder"
+                  disabled={importing || paused}
+                >
+                  <Plus size={20} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="workbench-attach-menu" align="start" side="top">
+                <DropdownMenuItem disabled={!onImportFolder} onSelect={() => onImportFolder?.()}>
+                  Choose folder
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={!onImportFiles} onSelect={() => onImportFiles?.()}>
+                  Choose photos
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-          <button
-            type="submit"
-            aria-label={workspace ? "Send message" : "Run command"}
-            disabled={thinking || !input.trim() || !!history?.error || history?.switching}
-            className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
+          <label htmlFor="studio-chat-input" className="sr-only">
+            Message your photo assistant or paste Adobe settings
+          </label>
+          <textarea
+            id="studio-chat-input"
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (
+                shouldSendMessage(
+                  {
+                    key: e.key,
+                    shiftKey: e.shiftKey,
+                    metaKey: e.metaKey,
+                    ctrlKey: e.ctrlKey,
+                    isComposing: e.nativeEvent.isComposing,
+                  },
+                  account?.preferences.sendKey ?? "enter",
+                )
+              ) {
+                e.preventDefault();
+                void send(input);
+              }
+            }}
+            rows={workspace ? 1 : 2}
+            maxLength={32000}
+            disabled={history?.switching}
+            placeholder={workspace ? "Drop your shoot folder." : "cull this shoot…"}
+            className="w-full resize-none rounded-md border border-input bg-paper px-2.5 py-2 font-mono text-[11px] text-ink outline-none placeholder:text-moss focus:border-ink/40"
+          />
+          <div
+            className={
+              workspace ? "workbench-composer-send" : "flex items-center justify-between pt-1.5"
+            }
           >
-            {workspace ? <ArrowUp size={19} /> : "Run"}
-          </button>
+            {!workspace && <span className="font-mono text-[10px] text-moss">enter to send</span>}
+            <button
+              type="submit"
+              aria-label={workspace ? "Send message" : "Run command"}
+              disabled={
+                thinking ||
+                !!running ||
+                importing ||
+                paused ||
+                !input.trim() ||
+                !!history?.error ||
+                history?.switching
+              }
+              className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
+            >
+              {workspace ? <ArrowUp size={20} /> : "Run"}
+            </button>
+          </div>
         </div>
       </form>
     </div>
