@@ -26,7 +26,11 @@ import {
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { AutoCropDialog } from "./AutoCropDialog";
-import { runDevelopImport, type DevelopImportReport } from "@/lib/develop/import";
+import {
+  completeDevelopImportIds,
+  runDevelopImport,
+  type DevelopImportReport,
+} from "@/lib/develop/import";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import {
   createDevelopStore,
@@ -831,7 +835,7 @@ export function DevelopPage({
       const result = await runDevelopImport(files, {
         // A byte-identical import can restore a missing Develop original. addPhotos
         // merges media into the old record without replacing its editing document.
-        existingIds: availablePhotos.map((item) => item.id),
+        existingIds: completeDevelopImportIds(library.photos),
         signal: controller.signal,
         onProgress: ({ index, total, fileName }) =>
           alive.current && setBusy(`Importing ${index} of ${total} · ${fileName}`),

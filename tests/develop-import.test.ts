@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { runDevelopImport } from "../src/lib/develop/import";
+import { completeDevelopImportIds, runDevelopImport } from "../src/lib/develop/import";
 import {
   developPhotoFromFile,
   type DevelopPhoto,
@@ -124,6 +124,103 @@ describe("Develop multi-photo import isolation", () => {
     expect(report.imported.map((p) => p.name)).toEqual(["new.jpg"]);
     expect(options.previewed).toEqual(["new.jpg"]);
     expect(options.existingIds).toEqual([known.id]);
+  });
+
+  test("reimporting a preview-only photo reaches storage with its existing source identity", async () => {
+    const original = file("recovered.jpg", "original camera bytes");
+    const preview = new Blob(["saved preview"], { type: "image/jpeg" });
+    const identified = await developPhotoFromFile(original, preview);
+    const existing: DevelopPhoto = Object.freeze({
+      ...identified,
+      sourceBlob: null,
+      sourceAvailable: false,
+      createdAt: 17,
+    });
+    const options = fixture();
+    const report = await runDevelopImport([original], {
+      ...options,
+      existingIds: completeDevelopImportIds([existing]),
+    });
+    expect(report.imported).toHaveLength(1);
+    expect(report.imported[0]!.id).toBe(existing.id);
+    expect(report.imported[0]!.sourceBlob).toBe(original);
+    expect(report.selectedId).toBe(existing.id);
+    expect(report.duplicates).toBe(0);
+    expect(options.previewed).toEqual([original.name]);
+    expect(existing.sourceBlob).toBeNull();
+    expect(existing.previewBlob).toBe(preview);
+    expect(existing.createdAt).toBe(17);
+  });
+
+  test("only nonempty originals with nonempty previews qualify as complete duplicates", () => {
+    const source = file("original.jpg");
+    const preview = new Blob(["preview"]);
+    const empty = new Blob();
+    const photos = Object.freeze([
+      Object.freeze({ id: "complete", sourceBlob: source, previewBlob: preview }),
+      Object.freeze({ id: "source-only", sourceBlob: source, previewBlob: null }),
+      Object.freeze({ id: "preview-only", sourceBlob: null, previewBlob: preview }),
+      Object.freeze({ id: "missing", sourceBlob: null, previewBlob: null }),
+      Object.freeze({ id: "empty-source", sourceBlob: empty, previewBlob: preview }),
+      Object.freeze({ id: "empty-preview", sourceBlob: source, previewBlob: empty }),
+    ]);
+    expect(completeDevelopImportIds(photos)).toEqual(["complete"]);
+    expect(photos).toHaveLength(6);
+    expect(photos[2]!.sourceBlob).toBeNull();
+    expect(photos[2]!.previewBlob).toBe(preview);
+  });
+
+  test("a source-only photo gets a preview and is then skipped on a complete reimport", async () => {
+    const original = file("source-only.jpg");
+    const existing = await developPhotoFromFile(original);
+    const options = fixture();
+    const first = await runDevelopImport([original, original], {
+      ...options,
+      existingIds: completeDevelopImportIds([existing]),
+    });
+    expect(first.imported).toHaveLength(1);
+    expect(first.imported[0]!.id).toBe(existing.id);
+    expect(first.imported[0]!.sourceBlob).toBe(original);
+    expect(first.imported[0]!.previewBlob!.size).toBeGreaterThan(0);
+    expect(first.duplicates).toBe(1);
+    expect(options.previewed).toEqual([original.name]);
+    const nextOptions = fixture();
+    const second = await runDevelopImport([original], {
+      ...nextOptions,
+      existingIds: completeDevelopImportIds(first.imported),
+    });
+    expect(second.imported).toHaveLength(0);
+    expect(second.duplicates).toBe(1);
+    expect(second.selectedId).toBeNull();
+    expect(nextOptions.previewed).toHaveLength(0);
+    expect(nextOptions.stored).toHaveLength(0);
+  });
+
+  test("337 missing legacy records are not matched or mutated by a same-name normal import", async () => {
+    const original = file("DSC6973.ARW", "reselected camera bytes");
+    const legacy = Object.freeze(
+      Array.from({ length: 337 }, (_, index) =>
+        Object.freeze({
+          id: `studio:legacy-${index}`,
+          name: index === 0 ? original.name : `saved-${index}.ARW`,
+          sourceBlob: null,
+          previewBlob: null,
+        }),
+      ),
+    );
+    const options = fixture();
+    const report = await runDevelopImport([original], {
+      ...options,
+      existingIds: completeDevelopImportIds(legacy),
+    });
+    expect(report.imported).toHaveLength(1);
+    expect(report.imported[0]!.id).toStartWith("sha256:");
+    expect(report.imported[0]!.id).not.toBe(legacy[0]!.id);
+    expect(report.duplicates).toBe(0);
+    expect(legacy).toHaveLength(337);
+    expect(legacy.every((photo) => photo.sourceBlob === null && photo.previewBlob === null)).toBe(
+      true,
+    );
   });
 
   test("all failures remain visible and cannot select an unsaved photo", async () => {
