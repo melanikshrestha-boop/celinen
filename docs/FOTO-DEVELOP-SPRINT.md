@@ -46,19 +46,88 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
 | --- | --- | --- |
 | Dedicated route and reference layout | Implemented | Inspected desktop 1440×1000 and phone 390×844; no horizontal overflow; original Studio route retained |
 | Native basic/presence controls | Implemented | C++ neutral identity, actual pixel changes and original unchanged; UI exposure changes actual rendered pixels |
-| Curve, HSL, grading | Implemented subset | Master RGB point curve, eight-channel HSL, three tonal grading ranges; native range fixtures; no independent R/G/B curves yet |
-| Grain, vignette, fade, bloom, halation | Implemented | Deterministic native effects and bounded outputs; no claim of Adobe/Sunroom algorithm equivalence |
+| Curve, HSL, grading | Implemented subset | Master plus independent red/green/blue point curves, eight-channel HSL, three tonal grading ranges; native pixel and browser history checks; grading wheels remain |
+| Grain, vignette, fade, bloom, halation, film falloff | Implemented | Deterministic native effects and bounded outputs; falloff is a hue-preserving highlight shoulder, not a proprietary stock emulation |
 | Crop/straighten/rotate/flip | Implemented | Native geometry tests, square-crop UI/native output check; source-coordinate overlay |
 | Linear/radial masks | Implemented | Native feather/invert/enable/local adjustments, UI placement and saved mask history; no brush/AI masking |
 | Presets/history/snapshots | Implemented | Original + five look presets, custom presets, snapshots, undo/redo; per-photo IndexedDB history; merge-only reimports |
 | Copy/paste/previous/sync | Implemented | Preserve target crop/masks by default; optional batch sync; atomic conflict rollback checked in real IndexedDB |
 | Import/library/filmstrip | Implemented | Original bytes or clearly labeled preview source; same-name originals content-addressed; supported Studio adjustments seeded only on first import |
-| Export | Implemented subset | Native JPEG sRGB, long edge up to 4096 without upscaling; optional sensor RAW decoding; original never overwritten |
+| Export | Implemented subset | Native JPEG sRGB, long edge up to 4096 without upscaling; sensor RAW decoding; exact downloadable JPEG proof, Fit/100% inspection and cancellation; original never overwritten |
+| Recovery-file import | Implemented | Explicit file/selection/preview/restore; atomic revision guards, originals and current metadata retained, appended undoable treatment; real reload and fault-injection checks |
 | Cross-tab and scope isolation | Implemented | Revision conflicts, simultaneous writers, quota rollback, account/project isolation; Develop cannot acknowledge a stale Studio writer's baseline |
 | AI masks/healing/AI denoise | Not implemented | Requires real models; do not expose fake controls |
 | Lens profiles, HDR, soft proofing, full RAW workflow | Partial / gaps | LibRaw sensor decode exists; not a full high-bit-depth color-managed RAW workflow |
 
-## Verified milestone, September 8
+## Second milestone, September 8, approximately 11:00 UTC
+
+Added independent RGB curves and Film falloff with real native processing.
+Existing v1 recipes, presets and histories acquire neutral defaults without
+rewriting stored records. Native protocol 2 carries the new controls; protocol 1
+is still accepted. The two Sony neutral exports remain byte-identical to the
+previous milestone. Curves are bounded piecewise-linear interpolation, not a
+claim of proprietary Adobe curve behavior.
+
+Export now offers **Preview export**. It renders the chosen source, long edge
+and JPEG quality and displays that very Blob. Export reuses the exact bytes if
+the photo/source/recipe/size/quality still match; changes immediately invalidate
+the proof. Fit and 100% inspection are available. RAW sensor and saved-preview
+modes are distinct, with honest provenance labels. This is an output JPEG
+preview, **not ICC/print soft proofing**. Cancellation was tested against a real
+sensor job. An initial browser run was interrupted by HMR contention; the clean
+rerun passed. The client now retries only definite worker-busy 429 responses,
+for at most eight 500ms waits, with separate one-time token refresh and abort
+checks. It never retries uncertain network failures.
+
+Recovery JSON can now be downloaded and imported from the left Recovery panel.
+Import never selects photos automatically. Select existing photos, preview the
+changes, then confirm. Recovery appends the recovered active treatment, preserves
+current metadata/originals/snapshots and existing history, and rejects stale
+revisions or partial batch writes. Missing IDs are shown but never fabricated.
+Two real issues found during verification are fixed:
+
+- Initialization could invalidate an immediate first file read; it now runs
+  before the chooser becomes interactive. A deterministic lifecycle test failed
+  before the fix and passed afterward.
+- A successful recovery followed by a failed library reload could leave the
+  editor displaying an old recipe. The parent now adopts committed receipts
+  immediately. An actual IndexedDB commit plus injected next-read failure verifies
+  the displayed recipe, subsequent export, and next-save revision.
+
+Verification for this milestone:
+
+- TypeScript, scoped ESLint and the production build passed. Existing TanStack
+  validator deprecation warnings remain. This is a bundle check, not a hosted
+  deployment of the native engine.
+- Final combined native/client/store/UI/workbench/Studio/lifecycle suites:
+  **163 pass, zero fail, 61,854 assertions across 11 files**, with both
+  checksum-verified Sony RAW fixtures enabled.
+- Native release and ASan/UBSan Develop suites: **34,803 assertions each**,
+  including 1,000 actual renders, channel isolation and neutral identity.
+- New browser suites: **85 checks** across RGB curves (15), raster export proof
+  (10), sensor export proof (12), sensor cancellation (6), recovery transactions
+  (13), recovery UI/reload (21), and committed-refresh failure (8).
+- Existing browser suites rerun: **83 checks** across import/edit/export (18),
+  reload (4), UI geometry/filter/modal boundaries (12), storage (25), Studio
+  read-only hydration (16), and missing-original reconnect (8).
+- These are targeted checks, including overlapping assertions across scenarios,
+  not 168 distinct feature or camera certifications. All mutating browser checks
+  used disposable synthetic/public-fixture libraries; the real 337-photo library
+  and local environment were not modified.
+- Desktop editor and exact RAW export dialog inspected at 1440×1000; the proof
+  dialog also inspected at 390×844 with no horizontal overflow and both final
+  actions visible. Visual artifacts are in the local temporary folder
+  `/private/tmp/foto-develop-milestone.DHumKr/`, not in the Git handoff. The Codex
+  app-open request was queued, but the native UI inspection service was
+  unavailable on two attempts; do not claim this turn visibly opened the user tab.
+
+Browser QA route IDs end in `007` (synthetic reconnect/curves/recovery), `009`
+(verified public Sony A6000 RAW), and `010` (fresh two-image editor regression).
+If the browser runner restarts with empty storage, recreate only these fixtures.
+Curve test button lookup must prefer aria-label over text because History can
+contain an identical curve name. Avoid app edits/HMR during native browser checks.
+
+## First verified milestone, September 8
 
 - `npx tsc --noEmit` and targeted ESLint: pass.
 - `npm run build`: production bundle passes. This does **not** deploy a hosted
@@ -128,16 +197,17 @@ LENSLABS_RAW_FIXTURES=/path/to/verified-fixtures bun test tests/develop-engine.t
 
 Without that explicit fixture path, the real-camera test is skipped. CR3, NEF
 and other real camera models have not been validated. Thumbnail-based RAW
-preview and full sensor export may differ; the export dialog says so.
+preview and full sensor export may differ; the exact export preview now makes
+that difference inspectable before downloading.
 
 ## Remaining sprint priorities
 
 1. Crop-preview race, hidden filtered Sync targets, and keyboard modal focus
    fixes are implemented and tested. Retain the regressions during new UI work.
-2. Add a sensor-RAW proof preview so the user can inspect the exact export source
-   treatment before downloading; test with user-authorized real RAW fixtures.
-3. Add independent RGB curves, richer color grading interaction, film falloff,
-   and selective copy/sync options with pixel and persistence regression checks.
+2. Exact sensor-RAW export proof, independent RGB curves, film falloff and safe
+   recovery import are implemented and tested. Preserve the new regressions.
+3. Add richer color grading interaction and selective copy/sync options with
+   pixel and persistence regression checks.
 4. Expose presets/history on narrow screens, improve dialog/keyboard access, and
    keep photo view dominant with the outer workspace sidebar collapsed.
    Extend the tested single-original reconnect to a carefully fingerprinted
@@ -149,7 +219,7 @@ preview and full sensor export may differ; the export dialog says so.
    imply placeholders provide these capabilities.
 
 Other limitations: saved neutral thumbnails do not yet show every live edit;
-recovery JSON can be downloaded but has no import UI; legacy Studio imports only
+legacy Studio imports only
 carry settings that map explicitly to this engine. No customer originals are
 uploaded or rewritten, and there is no cloud production-parity claim.
 

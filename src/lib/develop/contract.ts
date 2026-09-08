@@ -5,6 +5,32 @@ export type DevelopSourceMode = z.infer<typeof developSourceModeSchema>;
 const signed = z.number().finite().min(-100).max(100);
 const amount = z.number().finite().min(0).max(100);
 const unit = z.number().finite().min(0).max(1);
+const identityCurve = () => [
+  { x: 0, y: 0 },
+  { x: 1, y: 1 },
+];
+export const developCurveSchema = z
+  .array(z.object({ x: unit, y: unit }).strict())
+  .min(2)
+  .max(16)
+  .superRefine((points, ctx) => {
+    if (
+      points[0]?.x !== 0 ||
+      points.at(-1)?.x !== 1 ||
+      points.some((p, i) => i > 0 && p.x <= points[i - 1]!.x)
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Curve points must increase from x=0 to x=1.",
+      });
+  });
+const channelCurvesSchema = z
+  .object({
+    red: developCurveSchema.default(identityCurve),
+    green: developCurveSchema.default(identityCurve),
+    blue: developCurveSchema.default(identityCurve),
+  })
+  .strict();
 export const DEVELOP_HSL_CHANNELS = [
   "Red",
   "Orange",
@@ -52,21 +78,13 @@ export const developSettingsSchema = z
     texture: signed,
     clarity: signed,
     dehaze: signed,
-    curve: z
-      .array(z.object({ x: unit, y: unit }).strict())
-      .min(2)
-      .max(16)
-      .superRefine((points, ctx) => {
-        if (
-          points[0]?.x !== 0 ||
-          points.at(-1)?.x !== 1 ||
-          points.some((p, i) => i > 0 && p.x <= points[i - 1]!.x)
-        )
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Curve points must increase from x=0 to x=1.",
-          });
-      }),
+    curve: developCurveSchema,
+    // Additive v1 fields: old on-device recipes, presets and history remain readable.
+    channelCurves: channelCurvesSchema.default(() => ({
+      red: identityCurve(),
+      green: identityCurve(),
+      blue: identityCurve(),
+    })),
     hsl: z
       .array(z.object({ hue: signed, saturation: signed, luminance: signed }).strict())
       .length(8),
@@ -82,6 +100,7 @@ export const developSettingsSchema = z
     grain: amount,
     grainSize: z.number().finite().min(0.5).max(4),
     fade: amount,
+    filmFalloff: amount.default(0),
     vignette: signed,
     bloom: amount,
     halation: amount,
@@ -134,11 +153,13 @@ export function defaultDevelopSettings(): DevelopSettings {
       { x: 0, y: 0 },
       { x: 1, y: 1 },
     ],
+    channelCurves: { red: identityCurve(), green: identityCurve(), blue: identityCurve() },
     hsl: Array.from({ length: 8 }, () => ({ hue: 0, saturation: 0, luminance: 0 })),
     grading: { shadows: grade(), midtones: grade(), highlights: grade(), balance: 0, blending: 50 },
     grain: 0,
     grainSize: 1,
     fade: 0,
+    filmFalloff: 0,
     vignette: 0,
     bloom: 0,
     halation: 0,

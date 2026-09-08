@@ -30,7 +30,72 @@ describe("Develop image contract", () => {
     expect(second.hsl[0]!.hue).toBe(0);
     expect(cloneDevelopSettings(second)).toEqual(second);
     expect(developSettingsSchema.parse(JSON.parse(JSON.stringify(second)))).toEqual(second);
-    expect(developProtocol(second).startsWith("FOTO_DEVELOP_1\n")).toBe(true);
+    expect(developProtocol(second).startsWith("FOTO_DEVELOP_2\n")).toBe(true);
+  });
+  test("version1 recipes acquire neutral RGB curves and falloff without modifying saved input", () => {
+    const { channelCurves: _channels, filmFalloff: _falloff, ...legacy } = defaultDevelopSettings();
+    legacy.exposure = 0.75;
+    legacy.curve = [
+      { x: 0, y: 0.1 },
+      { x: 1, y: 0.95 },
+    ];
+    const serialized = JSON.stringify(legacy),
+      parsed = developSettingsSchema.parse(legacy);
+    expect(parsed.version).toBe(1);
+    expect(parsed.exposure).toBe(0.75);
+    expect(parsed.curve).toEqual(legacy.curve);
+    expect(parsed.channelCurves).toEqual(defaultDevelopSettings().channelCurves);
+    expect(parsed.filmFalloff).toBe(0);
+    expect(JSON.stringify(legacy)).toBe(serialized);
+    parsed.channelCurves.red[0]!.y = 0.4;
+    expect(parsed.channelCurves.green[0]!.y).toBe(0);
+    expect(developSettingsSchema.parse(legacy).channelCurves.red[0]!.y).toBe(0);
+  });
+  test("independent RGB curves and film falloff serialize through strict native transport", async () => {
+    const settings = defaultDevelopSettings();
+    settings.channelCurves.red = [
+      { x: 0, y: 0 },
+      { x: 0.4, y: 0.7 },
+      { x: 1, y: 1 },
+    ];
+    settings.channelCurves.green = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0.8 },
+    ];
+    settings.channelCurves.blue = [
+      { x: 0, y: 0.1 },
+      { x: 1, y: 1 },
+    ];
+    settings.filmFalloff = 63;
+    const packet = encodeDevelopRequest(new Blob(["photo"]), settings);
+    expect(parseDevelopRequest(Buffer.from(await packet.arrayBuffer())).settings).toEqual(settings);
+    expect(
+      developProtocol(settings).endsWith(
+        "3\n0 0\n0.4 0.7\n1 1\n2\n0 0\n1 0.8\n2\n0 0.1\n1 1\n63\n",
+      ),
+    ).toBe(true);
+    for (const patch of [
+      { filmFalloff: 101 },
+      { filmFalloff: NaN },
+      { filmFalloff: -1 },
+      {
+        channelCurves: {
+          red: [
+            { x: 0, y: 0 },
+            { x: 0, y: 1 },
+          ],
+        },
+      },
+      {
+        channelCurves: {
+          cyan: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+          ],
+        },
+      },
+    ])
+      expect(developSettingsSchema.safeParse({ ...settings, ...patch }).success).toBe(false);
   });
   test("rejects ranges, unknown data, NaN, bad crop and malformed curves", () => {
     const defaults = defaultDevelopSettings();
@@ -102,6 +167,12 @@ describe("Develop image contract", () => {
       s.exposure = ((i % 101) - 50) / 10;
       s.contrast = (i % 201) - 100;
       s.grain = i % 101;
+      s.channelCurves.red = [
+        { x: 0, y: 0 },
+        { x: 0.5, y: (i % 101) / 100 },
+        { x: 1, y: 1 },
+      ];
+      s.filmFalloff = i % 101;
       const packet = encodeDevelopRequest(new Blob(["photo"]), s);
       expect(parseDevelopRequest(Buffer.from(await packet.arrayBuffer())).settings).toEqual(s);
     }
@@ -112,6 +183,29 @@ const binary = resolve(process.env["FOTO_TEST_DEVELOP_BINARY"] ?? "native/build/
 describe.skipIf(process.platform !== "darwin" || !existsSync(binary))(
   "real C++ Develop renderer",
   () => {
+    test("native protocol applies each RGB curve and film highlight shoulder to real JPEG output", async () => {
+      const neutral = defaultDevelopSettings(),
+        signal = new AbortController().signal;
+      const original = await runNativeDevelop(binary, source, neutral, 512, 0.95, signal);
+      const outputs: string[] = [];
+      for (const channel of ["red", "green", "blue"] as const) {
+        const settings = defaultDevelopSettings();
+        settings.channelCurves[channel] = [
+          { x: 0, y: 0 },
+          { x: 1, y: 0.6 },
+        ];
+        const rendered = await runNativeDevelop(binary, source, settings, 512, 0.95, signal);
+        expect(rendered.equals(original)).toBe(false);
+        expect(jpegDimensions(rendered)).toEqual(jpegDimensions(original));
+        outputs.push(createHash("sha256").update(rendered).digest("hex"));
+      }
+      expect(new Set(outputs).size).toBe(3);
+      const film = defaultDevelopSettings();
+      film.filmFalloff = 100;
+      expect(
+        (await runNativeDevelop(binary, source, film, 512, 0.95, signal)).equals(original),
+      ).toBe(false);
+    }, 30_000);
     test("sensor RAW demosaic reads a no-thumbnail Bayer DNG, camera WB, exposure and orientation", async () => {
       const directory = await mkdtemp(join(tmpdir(), "foto-raw-test-"));
       const file = join(directory, "generated.dng"),

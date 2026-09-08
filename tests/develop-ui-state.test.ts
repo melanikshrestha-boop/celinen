@@ -1,9 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import {
   currentDevelopRender,
+  currentDevelopExportProof,
   developImageReady,
   filteredDevelopSelection,
 } from "../src/components/develop/develop-state";
+
+describe("Develop export proof provenance", () => {
+  const request = {
+    id: "raw-photo",
+    source: new Blob(["sensor"]),
+    recipeKey: '{"exposure":1}',
+    edge: 4096,
+    quality: 95,
+    sourceMode: "raw" as const,
+  };
+  const proof = { ...request, blob: new Blob(["jpeg"]), width: 4096, height: 2730 };
+  test("only an exact render request can reuse a downloadable proof", () => {
+    expect(currentDevelopExportProof(proof, { ...request })).toBe(true);
+    expect(currentDevelopExportProof(null, request)).toBe(false);
+    expect(currentDevelopExportProof(proof, null)).toBe(false);
+  });
+  test("every pixel or source setting invalidates a prior proof", () => {
+    for (const patch of [
+      { id: "other-photo" },
+      { source: new Blob(["sensor"]) },
+      { recipeKey: '{"exposure":2}' },
+      { edge: 1600 },
+      { quality: 90 },
+      { sourceMode: "preview" as const },
+    ])
+      expect(currentDevelopExportProof(proof, { ...request, ...patch })).toBe(false);
+  });
+});
 
 describe("Develop preview coordinate provenance", () => {
   const source = new Blob(["source"]);
