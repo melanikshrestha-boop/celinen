@@ -780,6 +780,59 @@ Next bounded delivery item: design an authenticated, idempotent download-handoff
 only what the browser actually verified and handed off. Do not call it a completed client download,
 and do not add it until stale-revision, retry and privacy behavior are tested.
 
+## Pass 15 — authenticated browser-handoff receipts (2026-09-08 03:54 UTC heartbeat)
+
+Primary-source refresh, not a Pixieset account or dashboard test:
+
+- [Pixieset's download-activity guide](https://help.pixieset.com/hc/en-us/articles/360000930212-Reviewing-Collection-Download-Activity)
+  calls its records initiated or generated downloads, separates gallery, single-photo and video
+  activity, and exposes resolution, sets, PIN where applicable and the initiation date. It also
+  states that generated gallery links expire after seven days. This supports recording a bounded
+  handoff event, not claiming that the operating system saved or opened a file.
+- [Pixieset's current client-download guide](https://help.pixieset.com/hc/en-us/articles/115003594212-Your-client-s-download-experience)
+  documents separate individual and gallery ZIP flows, browser download destinations, multiple ZIP
+  parts for large galleries and optional email/PIN steps. LensLabs did not copy its identity fields:
+  the existing invitation capability remains the client credential, and no client email, PIN,
+  filename, object path, checksum or invitation token is added to the activity event.
+- [Pixieset's current download settings](https://help.pixieset.com/hc/en-us/articles/115003795572-Collection-Download-Settings)
+  documents per-collection, full-gallery and single-photo controls plus web/high-resolution choices.
+  LensLabs still exposes only released, exact-version finals. Download-limit/contact settings remain
+  an explicit gap, not an implemented or tested claim.
+
+Implemented in the existing proof-to-final surface:
+
+- An individual file or checked ZIP is offered only after the existing byte-count and SHA-256 checks.
+  Immediately after the browser handoff, the client sends an authenticated `downloadHandoff` command
+  through the existing private invitation and compare-and-swap revision boundary.
+- The server independently verifies that every referenced exact version is still approved, released
+  and downloadable. Only clients can create the event. Individual receipts contain exactly one
+  version; ZIP parts contain at most the existing 30-file batch limit; duplicate version IDs fail.
+- The persisted wording is intentionally narrow: `Browser handoff recorded ...; final save location
+  not verified`. Activity never says a download completed. A failed or stale activity write tells the
+  client the browser handoff happened but the receipt did not update, and the same operation ID can be
+  retried without creating a second event or repurposed for another command.
+
+Verification: **69 focused workflow/download/server tests pass / 0 fail (213 assertions)**. New domain
+and isolated fake-Supabase regressions cover client-only authorization, unreleased/expired/duplicate
+refusal, single-file bounds, exact wording, operation-ID conflict, stale compare-and-swap retry and a
+lost-success retry producing exactly one event. Browser QA used the production gallery component with
+two synthetic released versions and the repository's public-domain JPEG: one integrity-checked phone
+file and one two-file checked ZIP were handed to the browser, both receipts appeared in Activity, the
+390px dialog had no horizontal overflow and no new non-font interaction errors appeared. Screenshots
+inspected: `/private/tmp/lenslabs-download-handoff-activity-mobile.png` and
+`/private/tmp/lenslabs-download-handoff-zip-mobile.png`.
+
+Limitations: this was simulated authenticated transport on loopback, not Supabase, a published link,
+Safari Files, Photos, or a real client device. The browser's final save/open location remains unknowable
+and is not represented. Current concurrent workspace changes introduce a separate TypeScript error in
+`src/lib/clients/sheet.ts:251` and invalid OpenAI Sans files emit existing page-load warnings; neither
+was changed or hidden by this delivery slice. The full suite reached 1,113 pass / 19 skip / 1 fail; the
+sole failure is the existing local HTTP bridge fixture receiving `EADDRINUSE` from `listen(0)`, and an
+isolated rerun reproduces it after all 15 preceding native-transport tests pass. Next bounded item:
+owner-facing activity filtering/CSV
+that preserves the browser-handoff semantic, or consented real-device recovery testing; do not add
+email tracking or download limits without a privacy/product decision.
+
 ## Remaining sprint order
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact
