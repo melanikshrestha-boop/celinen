@@ -19,6 +19,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
+import { Route as DevelopRouteImport } from './routes/develop'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as HelpRouteImport } from './routes/help'
@@ -108,6 +109,11 @@ const DeliverRoute = DeliverRouteImport.update({
 const DeskRoute = DeskRouteImport.update({
   id: '/desk',
   path: '/desk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevelopRoute = DevelopRouteImport.update({
+  id: '/develop',
+  path: '/develop',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
   '/help': typeof HelpRoute
@@ -377,6 +384,7 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
   '/help': typeof HelpRoute
@@ -430,6 +438,7 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
   '/help': typeof HelpRoute
@@ -484,6 +493,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/deliver'
     | '/desk'
+    | '/develop'
     | '/docs'
     | '/earnings'
     | '/help'
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/deliver'
     | '/desk'
+    | '/develop'
     | '/docs'
     | '/earnings'
     | '/help'
@@ -588,6 +599,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/deliver'
     | '/desk'
+    | '/develop'
     | '/docs'
     | '/earnings'
     | '/help'
@@ -641,6 +653,7 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
+  DevelopRoute: typeof DevelopRoute
   DocsRoute: typeof DocsRoute
   EarningsRoute: typeof EarningsRoute
   HelpRoute: typeof HelpRoute
@@ -753,6 +766,13 @@ declare module '@tanstack/react-router' {
       path: '/desk'
       fullPath: '/desk'
       preLoaderRoute: typeof DeskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/develop': {
+      id: '/develop'
+      path: '/develop'
+      fullPath: '/develop'
+      preLoaderRoute: typeof DevelopRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -1049,6 +1069,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
+  DevelopRoute: DevelopRoute,
   DocsRoute: DocsRoute,
   EarningsRoute: EarningsRoute,
   HelpRoute: HelpRoute,

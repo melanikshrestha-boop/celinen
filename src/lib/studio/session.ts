@@ -202,7 +202,26 @@ export async function loadStudioSession(
   scope = "device-local",
   shootId?: string,
 ): Promise<HydratedStudioSession | null> {
-  const state = sessionState(scope, shootId);
+  return hydrateStudioSession(scope, shootId, true);
+}
+
+/**
+ * Read media for another tool without acknowledging a revision on behalf of the
+ * still-mounted Studio writer. The caller owns and must revoke returned URLs.
+ */
+export async function readStudioSessionSnapshot(
+  scope = "device-local",
+  shootId?: string,
+): Promise<HydratedStudioSession | null> {
+  return hydrateStudioSession(scope, shootId, false);
+}
+
+async function hydrateStudioSession(
+  scope: string,
+  shootId: string | undefined,
+  acknowledgeWriter: boolean,
+): Promise<HydratedStudioSession | null> {
+  const state = acknowledgeWriter ? sessionState(scope, shootId) : null;
   if (typeof indexedDB === "undefined") {
     throw new Error("Local Studio storage is unavailable.");
   }
@@ -215,9 +234,11 @@ export async function loadStudioSession(
       >,
     );
     if (!stored) {
-      state.knownRevision = 0;
-      state.lastSavedSignatures.clear();
-      state.lastSavedPreviews.clear();
+      if (state) {
+        state.knownRevision = 0;
+        state.lastSavedSignatures.clear();
+        state.lastSavedPreviews.clear();
+      }
       return null;
     }
     const loadedRevision = revisionOf(stored);
@@ -243,9 +264,11 @@ export async function loadStudioSession(
       throw new Error("The saved Studio session is missing frame records.");
     }
     if (!records.length) {
-      state.knownRevision = loadedRevision;
-      state.lastSavedSignatures.clear();
-      state.lastSavedPreviews.clear();
+      if (state) {
+        state.knownRevision = loadedRevision;
+        state.lastSavedSignatures.clear();
+        state.lastSavedPreviews.clear();
+      }
       return null;
     }
 
@@ -274,14 +297,17 @@ export async function loadStudioSession(
       throw cause;
     }
 
-    // Only trust the cache after every referenced record hydrated successfully.
-    state.knownRevision = loadedRevision;
-    state.lastSavedSignatures.clear();
-    state.lastSavedPreviews.clear();
-    if (!isLegacy) {
-      for (const record of records) {
-        state.lastSavedSignatures.set(record.id, signatureOf(record));
-        state.lastSavedPreviews.set(record.id, record.previewBlob);
+    // Only the Studio owner may acknowledge the loaded writer revision. A
+    // read-only consumer must not make stale in-memory Studio edits writable.
+    if (state) {
+      state.knownRevision = loadedRevision;
+      state.lastSavedSignatures.clear();
+      state.lastSavedPreviews.clear();
+      if (!isLegacy) {
+        for (const record of records) {
+          state.lastSavedSignatures.set(record.id, signatureOf(record));
+          state.lastSavedPreviews.set(record.id, record.previewBlob);
+        }
       }
     }
 

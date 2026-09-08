@@ -32,13 +32,14 @@ const accountA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const accountB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
 describe("chat-first workspace boundaries", () => {
-  test("keeps only three tool shortcuts beside Chat without dropping the full catalogue", () => {
+  test("keeps the focused photo tool shortcuts including Develop without dropping the full catalogue", () => {
     expect(WORKBENCH_PRIMARY_TOOLS.map((tool) => tool.path)).toEqual([
       "/studio",
+      "/develop",
       "/deliver",
       "/clients",
     ]);
-    expect(WORKBENCH_TOOLS).toHaveLength(21);
+    expect(WORKBENCH_TOOLS).toHaveLength(22);
     expect(new Set(WORKBENCH_TOOLS.map((tool) => tool.path)).size).toBe(WORKBENCH_TOOLS.length);
     for (const tool of WORKBENCH_TOOLS) {
       expect(workbenchTab(tool.path)?.path).toBe(tool.path);
