@@ -74,6 +74,7 @@ import {
   type StudioFilter,
   type StudioHydrationState,
 } from "@/lib/studio/session";
+import { countReviewIssue, filterReviewIssue, type ReviewIssue } from "@/lib/studio/review-filter";
 import { bridgeCredentials, bridgeFetch } from "@/lib/bridge-client";
 import { indexDuplicateFrames } from "@/lib/studio/culling-index";
 import {
@@ -286,6 +287,7 @@ export function Studio({
   const [shots, setShots] = useState<Shot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [reviewIssue, setReviewIssue] = useState<ReviewIssue | null>(null);
   const [sessionStatus, setSessionStatus] = useState<StudioHydrationState>("loading");
   const [deliveryReference, setDeliveryReference] = useState<DeliveryReferenceValue | null>(null);
   const [deliveryReferenceError, setDeliveryReferenceError] = useState<string | null>(null);
@@ -473,6 +475,13 @@ export function Studio({
   const selectFilter = useCallback((next: Filter) => {
     latestFilterRef.current = next;
     setFilter(next);
+    setReviewIssue(null);
+  }, []);
+
+  const selectReviewIssue = useCallback((next: ReviewIssue) => {
+    latestFilterRef.current = "flagged";
+    setFilter("flagged");
+    setReviewIssue((current) => (current === next ? null : next));
   }, []);
 
   const selectSessionStatus = useCallback((next: StudioHydrationState) => {
@@ -1241,6 +1250,7 @@ export function Studio({
 
   /* ---------------- derived ---------------- */
   const visible = useMemo(() => {
+    if (reviewIssue) return filterReviewIssue(shots, reviewIssue);
     switch (filter) {
       case "keepers":
         return shots.filter((s) => s.verdict === "keep");
@@ -1253,7 +1263,7 @@ export function Studio({
       default:
         return shots;
     }
-  }, [shots, filter]);
+  }, [shots, filter, reviewIssue]);
 
   const selected = shots.find((s) => s.id === selectedId) ?? null;
   const counts = useMemo(
@@ -2426,16 +2436,26 @@ export function Studio({
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     <FlagTile
-                      label="Blur / soft"
-                      n={countFlag(shots, ["blur", "soft"])}
+                      label="Focus / eyes"
+                      n={countReviewIssue(shots, "focus")}
                       tone="rust"
+                      active={reviewIssue === "focus"}
+                      onClick={() => selectReviewIssue("focus")}
                     />
                     <FlagTile
                       label="Exposure"
-                      n={countFlag(shots, ["underexposed", "overexposed"])}
+                      n={countReviewIssue(shots, "exposure")}
                       tone="rust"
+                      active={reviewIssue === "exposure"}
+                      onClick={() => selectReviewIssue("exposure")}
                     />
-                    <FlagTile label="Duplicates" n={countFlag(shots, ["duplicate"])} tone="sun" />
+                    <FlagTile
+                      label="Duplicates"
+                      n={countReviewIssue(shots, "duplicates")}
+                      tone="sun"
+                      active={reviewIssue === "duplicates"}
+                      onClick={() => selectReviewIssue("duplicates")}
+                    />
                   </div>
                 </div>
 
@@ -2764,19 +2784,35 @@ export function Studio({
   );
 }
 
-function countFlag(shots: Shot[], flags: Flag[]) {
-  return shots.filter((s) => s.flags.some((f) => flags.includes(f))).length;
-}
-
-function FlagTile({ label, n, tone }: { label: string; n: number; tone: "rust" | "sun" }) {
+function FlagTile({
+  label,
+  n,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  n: number;
+  tone: "rust" | "sun";
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="torn flex items-center justify-between bg-paper2 p-3 shadow">
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={n === 0}
+      onClick={onClick}
+      className="torn flex items-center justify-between bg-paper2 p-3 text-left shadow transition-colors hover:bg-ink/5 disabled:cursor-default disabled:opacity-55 data-[active=true]:bg-ink/10"
+      data-active={active}
+      title={n ? `Show ${label.toLowerCase()} issues` : `No ${label.toLowerCase()} issues`}
+    >
       <span className="font-mono text-[11px]">{label}</span>
       <span
         className={`font-display text-xl font-semibold ${tone === "rust" ? "text-rust" : "text-sun"}`}
       >
         {n}
       </span>
-    </div>
+    </button>
   );
 }

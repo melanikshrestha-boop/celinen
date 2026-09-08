@@ -737,6 +737,49 @@ under the standing release-approval gate. Existing 8085 lab and foreground busin
 changes are preserved. Next useful item: research and test an explicit, collision-safe user
 workflow for same-path later additions or long-path Adobe handoff; do not silently re-key photos.
 
+## Pass 14 — direct issue-bucket review (2026-09-08 02:48 UTC heartbeat)
+
+Primary-source refresh, not competitor account testing:
+
+- [Aftershoot's current culling guide](https://support.aftershoot.com/en/articles/5223473-get-started-with-aftershoot-culling)
+  separates photographer flags from automated selections and exposes blur, closed-eyes,
+  duplicates and unrated groups for review. Its assisted mode provides scores and duplicate/key-face
+  context without assigning ratings or labels. [Grid, Loupe and Survey documentation](https://support.aftershoot.com/en/articles/9189985-using-grid-loupe-and-survey-mode-views)
+  also describes filter groups and synchronized comparison, but this pass does not claim LensLabs
+  survey-view parity or any direct Aftershoot session.
+- [Pixieset's proofing overview](https://help.pixieset.com/hc/en-us/articles/115003797011-Pixieset-and-Proofing)
+  documents client completion notification, per-photo notes and filename/CSV handoff.
+  [Pixieset download activity](https://help.pixieset.com/hc/en-us/articles/360000930212-Reviewing-Collection-Download-Activity)
+  distinguishes full-gallery, single-photo and video activity and describes seven-day link expiry.
+  LensLabs already has immutable selection submission and exact-version notes; truthful download
+  activity remains a separate server-receipt audit. No Pixieset dashboard or private gallery was used.
+
+Implemented without adding a panel or changing persisted picks:
+
+- The existing Focus / eyes, Exposure and Duplicates counters are now buttons. Selecting one shows
+  only frames carrying that exact issue family and switches the existing filter label to Flagged.
+- Focus includes blur, soft focus, face softness and closed eyes; Exposure includes under- and
+  overexposure; Duplicates includes only the existing duplicate flag. Source order is preserved.
+- Zero-count buckets are disabled. The active bucket has `aria-pressed`; selecting the ordinary
+  filter menu clears the issue bucket. The counters do not accept/reject a photo, apply the pending
+  first pass or alter source files.
+
+Verification: four new unit tests cover every issue family, mixed flags, stable order, counts,
+null filtering and source-array immutability. **52 focused tests pass / 0 fail (187 assertions)**
+across ingest, Studio commands, workspace recovery and the new filter. TypeScript, scoped ESLint
+and whitespace checks pass. Fresh full suite: **1,100 pass / 0 fail, 19 optional Lua-runtime
+checks skipped, 194,836 assertions across 72 files**; the production build passes with its existing
+deprecation advisories. Browser QA used a fresh loopback-only synthetic shoot with four
+repository/public-domain JPEG fixtures: all four appeared, the two detected Exposure issues reduced
+the filmstrip to two, the button exposed pressed state, the ordinary All photos filter restored four,
+and disabled zero-count buckets remained non-actionable. No new console errors. Screenshot inspected:
+`/private/tmp/lenslabs-review-filter-active.png`. This is workflow verification, not a culling
+accuracy benchmark; pending AI suggestions were not accepted and no real/user photographs changed.
+
+Next bounded delivery item: design an authenticated, idempotent download-handoff receipt that says
+only what the browser actually verified and handed off. Do not call it a completed client download,
+and do not add it until stale-revision, retry and privacy behavior are tested.
+
 ## Remaining sprint order
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact
