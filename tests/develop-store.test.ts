@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { defaultDevelopSettings } from "../src/lib/develop/contract";
 import {
   addSnapshot,
+  canPreserveDevelopOriginalOnRestore,
   createDevelopDocument,
   createDevelopPreset,
   createDevelopStore,
@@ -16,11 +17,13 @@ import {
   jumpToHistory,
   pushHistory,
   redoHistory,
+  reconnectDevelopPhoto,
   removeSnapshot,
   restoreSnapshot,
   undoHistory,
 } from "../src/lib/develop/store";
 import { DEFAULT_EDITS, type Shot } from "../src/lib/imaging";
+import { fingerprintSource } from "../src/lib/studio/ingest";
 
 describe("Develop non-destructive edit history", () => {
   test("starts neutral and never aliases the caller's settings or history", () => {
@@ -304,6 +307,150 @@ describe("Develop local photo identity and workspace boundary", () => {
     expect(pa.id).toBe(pr.id);
     expect(pa.sourceBlob).toBe(a);
     expect(pa.sourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  test("explicit reconnect attaches a missing original under its existing Studio identity", async () => {
+    const original = new File(["original RAW bytes"], "source.ARW", { lastModified: 123 });
+    const previousPreview = new Blob(["old preview"], { type: "image/jpeg" });
+    const preview = new Blob(["new preview"], { type: "image/jpeg" });
+    const photo = {
+      ...developPhotoFromShot(
+        studioPhoto({ sourceAvailable: false, width: 0, height: 0, previewBlob: previousPreview }),
+      ),
+      sourceAvailable: false,
+      createdAt: 1,
+    };
+    const receipt = await reconnectDevelopPhoto(
+      photo,
+      original,
+      preview,
+      { width: 1600, height: 1067 },
+      "raw-demosaic",
+    );
+    expect(receipt.id).toBe(photo.id);
+    expect(receipt.id).toBe("studio:studio-photo");
+    expect(receipt.name).toBe(photo.name);
+    expect(receipt.sourceFileName).toBe(photo.sourceFileName);
+    expect(receipt.sourceBlob).toBe(original);
+    expect(receipt.previewBlob).toBe(preview);
+    expect(receipt.previewOrigin).toBe("raw-demosaic");
+    expect(receipt.width).toBe(1600);
+    expect(receipt.sourceLastModified).toBe(123);
+    expect(receipt.sourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(receipt.reconnectOriginal).toBe(true);
+    expect(receipt.initialState).toBeUndefined();
+    expect(photo.sourceBlob).toBeNull();
+    expect(photo.previewBlob).toBe(previousPreview);
+    expect(photo.sourceDigest).toBeNull();
+  });
+
+  test("reconnect rejects a wrong filename or different original bytes", async () => {
+    const original = new File(["one"], "source.ARW", { lastModified: 1 });
+    const preview = new Blob(["preview"], { type: "image/jpeg" });
+    const known = await developPhotoFromFile(original);
+    const photo = {
+      ...developPhotoFromShot(studioPhoto({ sourceAvailable: false })),
+      sourceDigest: known.sourceDigest,
+      sourceAvailable: false,
+      createdAt: 1,
+    };
+    await expect(
+      reconnectDevelopPhoto(photo, new File(["one"], "SOURCE.ARW"), preview),
+    ).rejects.toThrow("Choose the original named");
+    await expect(
+      reconnectDevelopPhoto(photo, new File(["two"], "source.ARW"), preview),
+    ).rejects.toThrow("different bytes");
+    const receipt = await reconnectDevelopPhoto(photo, original, preview, {
+      width: 1600,
+      height: 1067,
+    });
+    expect(receipt.sourceDigest).toBe(known.sourceDigest);
+    expect(receipt.width).toBe(photo.width);
+    expect(receipt.height).toBe(photo.height);
+    await expect(
+      reconnectDevelopPhoto({ ...photo, sourceDigest: "unknown-v1:receipt" }, original, preview),
+    ).rejects.toThrow("cannot be verified");
+    await expect(reconnectDevelopPhoto(photo, original, new Blob())).rejects.toThrow(
+      "valid decoded preview",
+    );
+  });
+
+  test("reconnect verifies historical chunked SHA-256 without changing its fingerprint format", async () => {
+    const original = new File(["known chain source"], "source.ARW", { lastModified: 1 });
+    const sourceDigest = await fingerprintSource(original);
+    const photo = {
+      ...developPhotoFromShot(studioPhoto({ sourceAvailable: false })),
+      sourceDigest,
+      sourceAvailable: false,
+      createdAt: 1,
+    };
+    const preview = new Blob(["preview"], { type: "image/jpeg" });
+    const receipt = await reconnectDevelopPhoto(photo, original, preview);
+    expect(receipt.sourceDigest).toBe(sourceDigest);
+    expect(receipt.sourceDigest).toStartWith("sha256-chain-v1:");
+    await expect(
+      reconnectDevelopPhoto(photo, new File(["different source"], "source.ARW"), preview),
+    ).rejects.toThrow("different bytes");
+  });
+
+  test("reconnect never replaces an already stored original with different or unverified bytes", async () => {
+    const original = new File(["stored original"], "source.ARW", { lastModified: 123 });
+    const known = await developPhotoFromFile(original);
+    const photo = { ...known, id: "studio:stable", sourceAvailable: true, createdAt: 1 };
+    const preview = new Blob(["preview"], { type: "image/jpeg" });
+    const receipt = await reconnectDevelopPhoto(
+      photo,
+      new File(["stored original"], "source.ARW", { lastModified: 456 }),
+      preview,
+    );
+    expect(receipt.sourceBlob).toBe(original);
+    expect(receipt.sourceLastModified).toBe(123);
+    expect(photo.sourceBlob).toBe(original);
+    await expect(
+      reconnectDevelopPhoto(photo, new File(["replacement"], "source.ARW"), preview),
+    ).rejects.toThrow("different bytes");
+    await expect(
+      reconnectDevelopPhoto({ ...photo, sourceDigest: null }, original, preview),
+    ).rejects.toThrow("already has an original");
+  });
+
+  test("mixed fingerprint restoration preserves only a complete existing original without incoming bytes", async () => {
+    const original = new File(["stored source"], "source.ARW");
+    const saved = await developPhotoFromFile(original);
+    const restored = {
+      ...saved,
+      sourceBlob: null,
+      sourceDigest: await fingerprintSource(original),
+    };
+    expect(canPreserveDevelopOriginalOnRestore(saved, restored)).toBe(true);
+    expect(canPreserveDevelopOriginalOnRestore(saved, { ...restored, sourceBlob: original })).toBe(
+      false,
+    );
+    expect(canPreserveDevelopOriginalOnRestore({ ...saved, sourceBlob: null }, restored)).toBe(
+      false,
+    );
+    expect(canPreserveDevelopOriginalOnRestore(saved, { ...restored, id: "another-photo" })).toBe(
+      false,
+    );
+    expect(
+      canPreserveDevelopOriginalOnRestore(saved, { ...restored, reconnectOriginal: true }),
+    ).toBe(false);
+    expect(
+      canPreserveDevelopOriginalOnRestore(saved, {
+        ...restored,
+        sourceDigest: `sha256:${"0".repeat(64)}`,
+      }),
+    ).toBe(false);
+    expect(
+      canPreserveDevelopOriginalOnRestore(saved, {
+        ...restored,
+        sourceDigest: "unsupported:receipt",
+      }),
+    ).toBe(false);
+    expect(canPreserveDevelopOriginalOnRestore(saved, { ...restored, sourceDigest: null })).toBe(
+      false,
+    );
+    expect(await saved.sourceBlob!.text()).toBe("stored source");
   });
 
   test("Studio restored previews remain preview-only and Studio originals are untouched", () => {

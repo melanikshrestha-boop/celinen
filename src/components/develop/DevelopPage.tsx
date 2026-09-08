@@ -40,6 +40,7 @@ import {
   developRecoveryDocuments,
   developPhotoFromFile,
   developPhotoFromShot,
+  reconnectDevelopPhoto,
   type DevelopDocument,
   type DevelopPhoto,
   type DevelopLibrary,
@@ -190,6 +191,8 @@ export function DevelopPage({
   const [syncCrop, setSyncCrop] = useState(false),
     [syncMasks, setSyncMasks] = useState(false);
   const input = useRef<HTMLInputElement>(null),
+    reconnectInput = useRef<HTMLInputElement>(null),
+    reconnectTarget = useRef<DevelopPhoto | null>(null),
     importAbort = useRef<AbortController | null>(null),
     exportAbort = useRef<AbortController | null>(null),
     alive = useRef(true);
@@ -442,7 +445,7 @@ export function DevelopPage({
     return persistBatch([next], internal);
   }
   function change(next: DevelopSettings, label: string, commit = true) {
-    if (editsLocked() || !selectedRef.current) return;
+    if (editsLocked() || !selectedRef.current || !source) return;
     draftRef.current = next;
     setDraft(next);
     setBefore(false);
@@ -508,7 +511,7 @@ export function DevelopPage({
     }
   }
   function changeTool(next: DevelopTool) {
-    if (editsLocked()) return;
+    if (editsLocked() || !source) return;
     commitDraft();
     setTool(next);
     setCompare(false);
@@ -527,13 +530,13 @@ export function DevelopPage({
     setActivePreset("Original");
   }
   function undo() {
-    if (editsLocked()) return;
+    if (editsLocked() || !source) return;
     commitDraft();
     const id = selectedRef.current;
     if (id && docs.current[id]) void updateDoc(undoHistory(docs.current[id]!));
   }
   function redo() {
-    if (editsLocked()) return;
+    if (editsLocked() || !source) return;
     commitDraft();
     const id = selectedRef.current;
     if (id && docs.current[id]) void updateDoc(redoHistory(docs.current[id]!));
@@ -629,8 +632,8 @@ export function DevelopPage({
           continue;
         }
         let preview: Blob;
-        let previewOrigin: "embedded" | "raw-demosaic" | "raster" = incoming.isRaw
-          ? "embedded"
+        let previewOrigin: "unknown" | "raw-demosaic" | "raster" = incoming.isRaw
+          ? "unknown"
           : "raster";
         try {
           preview = await renderDevelop(file, defaultDevelopSettings(), {
@@ -680,6 +683,85 @@ export function DevelopPage({
             setSaveError(`Could not reopen the imported library. ${errorMessage(e)}`);
         }
       }
+      operationLock.current = null;
+      importAbort.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
+  function chooseOriginal() {
+    if (!photo || photo.sourceBlob || editsLocked()) return;
+    reconnectTarget.current = photo;
+    reconnectInput.current?.click();
+  }
+  async function reconnectOriginal(file: File, target: DevelopPhoto | null) {
+    if (!target || target.sourceBlob || !ready || editsLocked()) return;
+    operationLock.current = "import";
+    setBusy(`Reconnecting ${target.name}`);
+    setNotice("");
+    const controller = new AbortController();
+    importAbort.current = controller;
+    let attached = false;
+    try {
+      if (file.name !== (target.sourceFileName || target.name))
+        throw new Error(`Choose the original file named ${target.sourceFileName || target.name}.`);
+      if (!(await flush()))
+        throw new Error("Resolve the save problem before reconnecting an original.");
+      controller.signal.throwIfAborted();
+      let preview: Blob;
+      let previewOrigin: "unknown" | "raw-demosaic" | "raster" = target.isRaw
+        ? "unknown"
+        : "raster";
+      try {
+        preview = await renderDevelop(file, defaultDevelopSettings(), {
+          edge: 1600,
+          signal: controller.signal,
+        });
+      } catch (previewError) {
+        controller.signal.throwIfAborted();
+        if (!target.isRaw || !(await developEngineStatus())?.rawSupported) throw previewError;
+        setBusy(`Reconnecting ${target.name} · developing RAW preview`);
+        preview = await renderDevelop(file, defaultDevelopSettings(), {
+          edge: 1600,
+          sourceMode: "raw",
+          signal: controller.signal,
+        });
+        previewOrigin = "raw-demosaic";
+      }
+      const bitmap = await createImageBitmap(preview);
+      const dims = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      controller.signal.throwIfAborted();
+      const incoming = await reconnectDevelopPhoto(target, file, preview, dims, previewOrigin);
+      controller.signal.throwIfAborted();
+      if (!alive.current) return;
+      // Attach media to the existing photo ID. Never create a new document or reset its history.
+      await store.addPhotos([incoming]);
+      attached = true;
+      const refreshed = await store.loadLibrary();
+      if (alive.current && !failed.current) {
+        adopt(refreshed, target.id);
+        setNotice(
+          target.sourceDigest
+            ? `Original reconnected · ${target.name}. Edits and history preserved.`
+            : `File attached · ${target.name}. Edits preserved; previous file identity was not recorded.`,
+        );
+      }
+    } catch (e) {
+      if (alive.current) {
+        if (attached) {
+          failed.current = true;
+          setSaveError(
+            `The original was attached, but the library could not reload. ${errorMessage(e)}`,
+          );
+        } else {
+          setNotice(
+            controller.signal.aborted
+              ? "Reconnect stopped. The saved photo is unchanged."
+              : `${errorMessage(e)} The saved photo is unchanged.`,
+          );
+        }
+      }
+    } finally {
       operationLock.current = null;
       importAbort.current = null;
       if (alive.current) setBusy("");
@@ -795,19 +877,19 @@ export function DevelopPage({
         return;
       }
       if (mod) return;
-      if (key === "\\") {
+      if (key === "\\" && source) {
         e.preventDefault();
         setBefore((v) => !v);
       }
       if (key === "g") setMode("library");
       if (key === "d") setMode("develop");
       if (key === "r") changeTool(tool === "crop" ? "edit" : "crop");
-      if (key === "y") {
+      if (key === "y" && source) {
         setCompare((v) => !v);
         setTool("edit");
         setBefore(false);
       }
-      if (key === "z") {
+      if (key === "z" && source) {
         e.preventDefault();
         setZoom((v) => (v === "fit" ? "100" : "fit"));
       }
@@ -858,6 +940,20 @@ export function DevelopPage({
           e.target.value = "";
         }}
       />
+      <input
+        ref={reconnectInput}
+        type="file"
+        hidden
+        aria-label="Reconnect original file"
+        accept="image/*,.arw,.nef,.cr2,.cr3,.dng,.raf,.orf,.rw2,.pef,.raw"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const target = reconnectTarget.current ?? photo;
+          reconnectTarget.current = null;
+          e.target.value = "";
+          if (file) void reconnectOriginal(file, target);
+        }}
+      />
       <header className="develop-topbar" inert={Boolean(dialog)}>
         <div className="develop-brand">
           <span className="develop-brand-mark">f.</span>
@@ -876,7 +972,7 @@ export function DevelopPage({
             </button>
           </div>
           <button
-            disabled={!photo || !!busy || !!saveError || rendering || !!renderError}
+            disabled={!source || !!busy || !!saveError || rendering || !!renderError}
             onClick={() => openDialog("export")}
           >
             <ArrowDownToLine size={14} />
@@ -898,6 +994,8 @@ export function DevelopPage({
             <button onClick={recoveryFile}>Save recovery file</button>
           ) : busy.startsWith("Importing") ? (
             <button onClick={() => importAbort.current?.abort()}>Stop import</button>
+          ) : busy.startsWith("Reconnecting") ? (
+            <button onClick={() => importAbort.current?.abort()}>Stop reconnect</button>
           ) : notice ? (
             <button aria-label="Dismiss message" onClick={() => setNotice("")}>
               ×
@@ -916,10 +1014,18 @@ export function DevelopPage({
               )}
             </div>
             <div className="develop-inline">
-              <button aria-pressed={zoom === "fit"} onClick={() => setZoom("fit")}>
+              <button
+                disabled={!source}
+                aria-pressed={zoom === "fit"}
+                onClick={() => setZoom("fit")}
+              >
                 Fit
               </button>
-              <button aria-pressed={zoom === "100"} onClick={() => setZoom("100")}>
+              <button
+                disabled={!source}
+                aria-pressed={zoom === "100"}
+                onClick={() => setZoom("100")}
+              >
                 100% preview
               </button>
             </div>
@@ -929,7 +1035,7 @@ export function DevelopPage({
               {builtinPresets.map((p) => (
                 <button
                   key={p.name}
-                  disabled={!photo || !!saveError}
+                  disabled={!source || !!saveError}
                   aria-pressed={activePreset === p.name}
                   onClick={() => {
                     if (p.name === "Original") reset();
@@ -948,7 +1054,7 @@ export function DevelopPage({
               {library.presets.map((p) => (
                 <button
                   key={p.id}
-                  disabled={!photo || !!saveError}
+                  disabled={!source || !!saveError}
                   aria-pressed={activePreset === p.name}
                   onClick={() => applyPreset(p)}
                 >
@@ -983,7 +1089,12 @@ export function DevelopPage({
             </button>
             {doc?.snapshots.map((s) => (
               <div className="develop-mask-item" key={s.id}>
-                <button onClick={() => updateDoc(restoreSnapshot(doc, s.id))}>{s.name}</button>
+                <button
+                  disabled={!source || !!saveError}
+                  onClick={() => updateDoc(restoreSnapshot(doc, s.id))}
+                >
+                  {s.name}
+                </button>
                 <button
                   aria-label={`Remove snapshot ${s.name}`}
                   onClick={() => updateDoc(removeSnapshot(doc, s.id))}
@@ -1001,7 +1112,7 @@ export function DevelopPage({
                 .map(({ h, i }) => (
                   <button
                     key={h.id}
-                    disabled={!!saveError}
+                    disabled={!source || !!saveError}
                     aria-pressed={doc.cursor === i}
                     onClick={() => updateDoc(jumpToHistory(doc, i))}
                   >
@@ -1022,7 +1133,7 @@ export function DevelopPage({
               Copy
             </button>
             <button
-              disabled={!clipboard || !photo || !!saveError}
+              disabled={!clipboard || !source || !!saveError}
               onClick={() =>
                 clipboard &&
                 change(
@@ -1075,14 +1186,16 @@ export function DevelopPage({
                 <div>
                   <button
                     aria-label="Undo"
-                    disabled={!doc || doc.cursor === 0 || !!saveError}
+                    disabled={!source || !doc || doc.cursor === 0 || !!saveError}
                     onClick={undo}
                   >
                     <Undo2 size={15} />
                   </button>
                   <button
                     aria-label="Redo"
-                    disabled={!doc || doc.cursor === doc.history.length - 1 || !!saveError}
+                    disabled={
+                      !source || !doc || doc.cursor === doc.history.length - 1 || !!saveError
+                    }
                     onClick={redo}
                   >
                     <Redo2 size={15} />
@@ -1098,6 +1211,7 @@ export function DevelopPage({
                 <div>
                   <button
                     aria-label="Crop tool"
+                    disabled={!source}
                     aria-pressed={tool === "crop"}
                     onClick={() => changeTool(tool === "crop" ? "edit" : "crop")}
                   >
@@ -1105,6 +1219,7 @@ export function DevelopPage({
                   </button>
                   <button
                     aria-label="Mask tool"
+                    disabled={!source}
                     aria-pressed={tool === "mask"}
                     onClick={() => changeTool(tool === "mask" ? "edit" : "mask")}
                   >
@@ -1112,6 +1227,7 @@ export function DevelopPage({
                   </button>
                   <button
                     aria-label="Composition grid"
+                    disabled={!source}
                     aria-pressed={grid}
                     onClick={() => setGrid((v) => !v)}
                   >
@@ -1119,25 +1235,70 @@ export function DevelopPage({
                   </button>
                 </div>
               </div>
-              <DevelopViewer
-                key={selected ?? "empty"}
-                url={url ?? beforeUrl}
-                beforeUrl={beforeUrl}
-                before={before}
-                compare={compare}
-                zoom={zoom}
-                grid={grid}
-                tool={tool}
-                settings={draft}
-                change={change}
-                maskId={maskId}
-                onDimensions={onDimensions}
-                onHistogram={setBins}
-              />
+              {photo && !source ? (
+                <div className="develop-empty" role="status">
+                  <ImagePlus size={28} strokeWidth={1} />
+                  <h1>Original file needed</h1>
+                  <p>{photo.sourceFileName || photo.name}</p>
+                  <small>
+                    This saved photo has no preview on this device.
+                    <br />
+                    Reconnect its original to continue. Your edits and history stay intact.
+                  </small>
+                  {!photo.sourceDigest && (
+                    <small>
+                      No file fingerprint was saved. Choose the exact original; only its filename
+                      can be checked.
+                    </small>
+                  )}
+                  <button
+                    className="develop-primary"
+                    disabled={!!busy || !!saveError || engine === false}
+                    onClick={chooseOriginal}
+                  >
+                    Reconnect original
+                  </button>
+                </div>
+              ) : (
+                <DevelopViewer
+                  key={selected ?? "empty"}
+                  url={url ?? beforeUrl}
+                  emptyLabel={
+                    photo
+                      ? renderError
+                        ? "Preview unavailable."
+                        : "Preparing preview…"
+                      : "Choose a photograph to begin."
+                  }
+                  beforeUrl={beforeUrl}
+                  before={before}
+                  compare={compare}
+                  zoom={zoom}
+                  grid={grid}
+                  tool={tool}
+                  settings={draft}
+                  change={change}
+                  maskId={maskId}
+                  onDimensions={onDimensions}
+                  onHistogram={setBins}
+                />
+              )}
               {renderError && (
                 <p className="develop-render-error" role="alert">
                   {renderError}
                 </p>
+              )}
+              {photo && !photo.sourceBlob && source && (
+                <div className="develop-bottom-toolbar">
+                  <span>
+                    Preview only · Choose the original {photo.sourceFileName || photo.name}.
+                    {!photo.sourceDigest &&
+                      " No fingerprint was saved; only the filename can be checked."}
+                  </span>
+                  <button onClick={chooseOriginal} disabled={!!saveError || engine === false}>
+                    Reconnect original
+                  </button>
+                </div>
               )}
               <div className="develop-bottom-toolbar">
                 <div>
@@ -1171,15 +1332,18 @@ export function DevelopPage({
                     : dimensions.width
                       ? `${dimensions.width} × ${dimensions.height}`
                       : ""}
-                  {photo?.isRaw
+                  {source && photo?.isRaw
                     ? photo.previewOrigin === "raw-demosaic"
                       ? " · Sensor-derived preview"
                       : " · RAW preview"
-                    : !photo?.sourceAvailable
+                    : source && !photo?.sourceAvailable
                       ? " · Preview source"
                       : ""}
                 </span>
-                <button onClick={() => setZoom((v) => (v === "fit" ? "100" : "fit"))}>
+                <button
+                  disabled={!source}
+                  onClick={() => setZoom((v) => (v === "fit" ? "100" : "fit"))}
+                >
                   <Maximize size={12} />
                   {zoom === "fit" ? "Fit" : "100% preview"}
                 </button>
@@ -1196,11 +1360,13 @@ export function DevelopPage({
             <DevelopHistogram bins={bins} />
             <div className="develop-inline">
               <span>
-                {photo?.isRaw
-                  ? photo.previewOrigin === "raw-demosaic"
-                    ? "Sensor preview · sRGB"
-                    : "RAW preview · sRGB"
-                  : "sRGB"}
+                {!source
+                  ? "No image source"
+                  : photo?.isRaw
+                    ? photo.previewOrigin === "raw-demosaic"
+                      ? "Sensor preview · sRGB"
+                      : "RAW preview · sRGB"
+                    : "sRGB"}
               </span>
               <span>
                 {saveError
@@ -1213,7 +1379,7 @@ export function DevelopPage({
               </span>
             </div>
           </div>
-          <fieldset disabled={!photo || !!saveError || !!busy}>
+          <fieldset disabled={!source || !!saveError || !!busy}>
             <DevelopControls
               value={draft}
               change={change}
@@ -1226,7 +1392,7 @@ export function DevelopPage({
           </fieldset>
           <div className="develop-right-footer">
             <button
-              disabled={!photo || !!saveError || (selectedSet.size < 2 && !previous.current)}
+              disabled={!source || !!saveError || (selectedSet.size < 2 && !previous.current)}
               onClick={() => {
                 if (selectedSet.size > 1) {
                   openDialog("sync");
@@ -1242,7 +1408,7 @@ export function DevelopPage({
             >
               {selectedSet.size > 1 ? "Sync…" : "Previous"}
             </button>
-            <button disabled={!photo || !!saveError} onClick={reset}>
+            <button disabled={!source || !!saveError} onClick={reset}>
               Reset
             </button>
           </div>
