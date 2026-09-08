@@ -1,0 +1,54 @@
+.wb-color {
+  width: 220px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.wb-color-h {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.wb-color-modes {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.wb-color-modes button {
+  flex: 1;
+  border: 1px solid var(--border, #e5e5e5);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 6px 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.wb-color-modes button[aria-pressed="true"] {
+  background: var(--wb-text, #171717);
+  color: var(--wb-bg, #fff);
+  border-color: transparent;
+}
+.wb-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.wb-color-row input[type="color"] {
+  width: 32px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.wb-color-err {
+  margin: 8px 0 0;
+  color: #dc2626;
+  font-size: 12px;
+}

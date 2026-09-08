@@ -73,7 +73,17 @@ export function AppearanceSettings({
         tabIndex={-1}
       >
         {(["system", "light", "dark"] as const).map((theme) => (
-          <button key={theme} aria-pressed={prefs.theme === theme} onClick={() => save({ theme })}>
+          <button
+            key={theme}
+            aria-pressed={prefs.theme === theme}
+            onClick={() => {
+              if (theme === "light")
+                apply({ preset: "paper", ...THEME_PRESETS.paper }) && save({ theme });
+              else if (theme === "dark")
+                apply({ preset: "lenslabs", ...THEME_PRESETS.lenslabs }) && save({ theme });
+              else save({ theme });
+            }}
+          >
             <span className={`settings-theme-sample sample-${theme}`} aria-hidden="true">
               <i />
               <span>
@@ -90,16 +100,17 @@ export function AppearanceSettings({
         <AppearanceBasics prefs={prefs} save={save} />
         <Row
           title="Dark theme"
-          note="Custom colors apply to Settings in Dark mode. Light retains a readable neutral palette."
+          note="Light is white like a page. Dark is black. Pick Background and Text if you want your own."
         >
           <Choice
             label="Dark theme"
             value={colors.preset}
             options={[
-              ["lenslabs", "LensLabs"],
-              ["midnight", "Midnight"],
-              ["warm", "Warm"],
-              ...(colors.preset === "custom" ? [["custom", "Custom"] as const] : []),
+              ["paper", "Light"],
+              ["lenslabs", "Dark"],
+              ...(colors.preset === "custom" || colors.preset === "midnight" || colors.preset === "warm"
+                ? ([[colors.preset, colors.preset === "custom" ? "Custom" : colors.preset] as const] as const)
+                : []),
             ]}
             change={(preset) =>
               apply({
@@ -110,7 +121,7 @@ export function AppearanceSettings({
           />
         </Row>
         {(["background", "foreground"] as const).map((key) => (
-          <Row key={key} title={key[0]!.toUpperCase() + key.slice(1)}>
+          <Row key={key} title={key === "background" ? "Background" : "Text"}>
             <label className="settings-color">
               <span>{colors[key]}</span>
               <input
@@ -122,6 +133,32 @@ export function AppearanceSettings({
             </label>
           </Row>
         ))}
+        <Row title="Gradient">
+          <Choice
+            label="Gradient"
+            value={colors.backgroundStyle}
+            options={[
+              ["solid", "Off"],
+              ["gradient", "On"],
+            ]}
+            change={(value) =>
+              apply({ backgroundStyle: value as Appearance["backgroundStyle"], preset: "custom" })
+            }
+          />
+        </Row>
+        {colors.backgroundStyle === "gradient" && (
+          <Row title="Fade to">
+            <label className="settings-color">
+              <span>{colors.backgroundEnd}</span>
+              <input
+                type="color"
+                aria-label="Gradient end color"
+                value={colors.backgroundEnd}
+                onChange={(e) => apply({ backgroundEnd: e.target.value, preset: "custom" })}
+              />
+            </label>
+          </Row>
+        )}
         <Row title="UI font">
           <Choice
             label="UI font"

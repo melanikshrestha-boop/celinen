@@ -19,6 +19,7 @@ import {
 import { workbenchNavigation } from "@/lib/workbench";
 import { workspaceStorageKey } from "@/lib/workspace-storage";
 import { parseWorkspaceRequest } from "@/lib/workbench-projects";
+import { dispatchClientCommand, parseClientCommand } from "@/lib/clients/sheet";
 import {
   LOCAL_COMMAND_HELP,
   STUDIO_TOOL_DEFINITIONS,
@@ -27,6 +28,7 @@ import {
   type ToolCall,
 } from "@/lib/studio/commands";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
+import { PRODUCT_NAME } from "@/lib/product";
 import { parseCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
 import { studioCommandRefusal, studioToolBoundary } from "@/lib/studio/command-safety";
 import type { EditTarget, StudioProposal } from "@/lib/studio/proposals";
@@ -342,6 +344,25 @@ function CullChatSession({
           ]);
           return;
         }
+        const clientCommand = parseClientCommand(trimmed);
+        if (clientCommand && onNavigate) {
+          const opened = await onNavigate("/clients");
+          dispatchClientCommand(clientCommand);
+          const reply =
+            clientCommand.kind === "add"
+              ? `Added ${clientCommand.name} to Clients.`
+              : clientCommand.kind === "open"
+                ? `Opened ${clientCommand.name}.`
+                : clientCommand.kind === "quiet"
+                  ? "Showing quiet names."
+                  : clientCommand.kind === "unopened"
+                    ? "Showing names whose gallery is still closed."
+                    : `Attached ${clientCommand.name} to a new project.`;
+          const text = opened ? reply : "Kept your current tool open.";
+          historyRef.current.push({ role: "assistant", content: text });
+          setMsgs((messages) => [...messages, { role: "assistant", text }]);
+          return;
+        }
         const destination = onNavigate && workbenchNavigation(trimmed);
         if (destination) {
           const opened = await onNavigate!(destination);
@@ -478,7 +499,7 @@ function CullChatSession({
               messages: [
                 {
                   role: "system",
-                  content: `You are the LensLabs photography assistant. Speak in plain English. Earlier conversation messages are historical receipts and may refer to a different shoot or interrupted preview. The current shoot state below is authoritative. Never repeat an earlier action without a new explicit request. Tools propose edits and selections; the photographer reviews and applies them. Never claim edits were saved or photos exported without a successful tool result. Never pretend to see visual details: you have metadata only. Subject-aware edits, removals and athlete recognition are unavailable. Stop after a preview and wait for the user's decision. Current shoot state:\n${context}`,
+                  content: `You are the ${PRODUCT_NAME} photography assistant. Speak in plain English. Earlier conversation messages are historical receipts and may refer to a different shoot or interrupted preview. The current shoot state below is authoritative. Never repeat an earlier action without a new explicit request. Tools propose edits and selections; the photographer reviews and applies them. Never claim edits were saved or photos exported without a successful tool result. Never pretend to see visual details: you have metadata only. Subject-aware edits, removals and athlete recognition are unavailable. Stop after a preview and wait for the user's decision. Current shoot state:\n${context}`,
                 },
                 ...(assistantPersonalization(account?.preferences ?? DEFAULT_PREFERENCES)
                   ? [
@@ -737,9 +758,7 @@ function CullChatSession({
             </div>
           ))}
         </div>
-        {!workspace &&
-          !!msgs.length &&
-          !frameCount &&
+        {!frameCount &&
           !importing &&
           (onImportFolder || onImportFiles) && (
             <div className="flex items-center gap-3 font-mono text-[11px] text-moss">
@@ -918,8 +937,8 @@ function CullChatSession({
             rows={workspace ? 1 : 2}
             maxLength={32000}
             disabled={history?.switching}
-            placeholder={workspace ? "Drop your shoot folder." : "cull this shoot…"}
-            className="w-full resize-none rounded-md border border-input bg-paper px-2.5 py-2 font-mono text-[11px] text-ink outline-none placeholder:text-moss focus:border-ink/40"
+            placeholder={workspace ? "Message your photo assistant" : "cull this shoot…"}
+            className="w-full resize-none rounded-md border border-input bg-paper px-2.5 py-2 text-[14px] text-ink outline-none placeholder:text-moss focus:border-ink/40"
           />
           <div
             className={

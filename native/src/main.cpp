@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <csignal>
+#include <ctime>
 #include <iomanip>
 #include <iostream>
 #include <locale>
@@ -51,9 +52,13 @@ void help() {
     "  lenslabs-native render INPUT OUTPUT.jpg [--edge 1600] [--quality 0.9]\n"
     "      [--exposure -5..5] [--contrast -100..100] [--highlights -100..100]\n"
     "      [--shadows -100..100] [--saturation -100..100]\n"
+    "  lenslabs-native ingest PATH --job NAME --out DIR [--cull auto] [--export proof]\n"
+    "      [--threads 1..16] [--edge 8..4096] [--max-files 1..100000]\n"
     "  lenslabs-native --version\n\n"
     "  lenslabs-native worker  (private local transport IPC; LENS1 framing)\n\n"
     "Scan emits NDJSON suggestions, never changes picks or files. Ctrl-C stops scheduling.\n"
+    "Ingest writes NEW cull.csv + job.json suggestions into --out. Originals are not copied.\n"
+    "--export proof writes NEW 2048px JPEGs of suggested keepers under out/proof/ (max 200).\n"
     "Workers are also capped by a 256 MiB kernel-buffer estimate (OS decoding uses extra memory).\n"
     "Render writes a NEW bounded-resolution JPEG, never overwrites an existing path.\n"
     "RAW support depends on this macOS ImageIO version; this is not a full RAW editor.\n"
@@ -152,6 +157,108 @@ int scan(int argc, char** argv) {
             << ",\"repeat_is_not_unique_shoot\":" << (options.repeat > 1 ? "true" : "false") << "}\n";
   return stats.cancelled ? 130 : (stats.failed || found.truncated || !found.warnings.empty() || found.files.empty() ? 2 : 0);
 }
+std::string utc_stamp() {
+  const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  std::tm utc{};
+  gmtime_r(&now, &utc);
+  std::ostringstream stamp;
+  stamp << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+  return stamp.str();
+}
+std::string suggestion_reason(const FrameResult& result) {
+  if (!result.error.empty()) return "unreadable";
+  const auto verdict = first_pass(result.analysis);
+  if (verdict == Verdict::keep) return "keep";
+  if (result.analysis.blur) return "blur";
+  if (result.analysis.score < 45) return "low-score";
+  return "review";
+}
+std::vector<std::uint8_t> utf8_bytes(const std::string& text) {
+  return {text.begin(), text.end()};
+}
+int ingest(int argc, char** argv) {
+  if (argc < 3) throw std::invalid_argument("ingest requires a photo or folder");
+  std::string job;
+  std::filesystem::path out;
+  bool export_proof = false;
+  RunOptions options;
+  options.threads = std::clamp(std::thread::hardware_concurrency(), 1u, 4u);
+  std::size_t max_files = 100000;
+  for (int i = 3; i < argc; ++i) {
+    const std::string option = argv[i];
+    if (i + 1 == argc) throw std::invalid_argument("Missing value for " + option);
+    const std::string value = argv[++i];
+    if (option == "--job") job = value;
+    else if (option == "--out") out = value;
+    else if (option == "--export") {
+      if (value != "proof") throw std::invalid_argument("export must be proof");
+      export_proof = true;
+    } else if (option == "--cull") {
+      if (value != "auto") throw std::invalid_argument("cull must be auto");
+    } else if (option == "--threads") {
+      const auto threads = integer(value);
+      if (!threads || threads > 16) throw std::invalid_argument("threads must be 1..16");
+      options.threads = static_cast<unsigned>(threads);
+    } else if (option == "--edge") {
+      const auto edge = integer(value);
+      if (edge < 8 || edge > 4096) throw std::invalid_argument("edge must be 8..4096");
+      options.max_edge = static_cast<std::uint32_t>(edge);
+    } else if (option == "--max-files") max_files = integer(value);
+    else throw std::invalid_argument("Unknown ingest option: " + option);
+  }
+  if (job.empty() || out.empty()) throw std::invalid_argument("ingest requires --job and --out");
+  if (!max_files || max_files > 100000)
+    throw std::invalid_argument("max-files must be 1..100000");
+  auto found = discover(argv[2], max_files, &cancelled);
+  std::vector<CullSuggestion> rows(found.files.size());
+  std::mutex output_mutex;
+  auto stats = process(found.files, options, cancelled, [&](std::size_t index, const FrameResult& result) {
+    CullSuggestion row;
+    row.relative_path = result.source.relative_path;
+    row.score = result.error.empty() ? result.analysis.score : 0;
+    row.suggestion = result.error.empty() ? first_pass(result.analysis) : Verdict::undecided;
+    row.reason = suggestion_reason(result);
+    std::lock_guard lock(output_mutex);
+    if (index < rows.size()) rows[index] = std::move(row);
+  });
+  if (cancelled.load()) return 130;
+  std::filesystem::create_directories(out);
+  const auto csv = format_cull_csv(rows);
+  const auto json = format_job_json(job, std::filesystem::absolute(argv[2]).generic_string(), rows,
+                                    engine_version, utc_stamp());
+  write_new_file(out / "cull.csv", utf8_bytes(csv));
+  write_new_file(out / "job.json", utf8_bytes(json));
+  std::size_t proofs = 0, proof_failures = 0;
+  if (export_proof) {
+    std::filesystem::create_directories(out / "proof");
+    for (std::size_t i = 0; i < rows.size() && proofs < 200; ++i) {
+      if (cancelled.load()) return 130;
+      if (i >= found.files.size() || rows[i].suggestion != Verdict::keep) continue;
+      try {
+        const auto image = decode_preview(found.files[i].path, 2048);
+        if (cancelled.load()) return 130;
+        const auto jpeg = encode_jpeg(image, 0.92);
+        std::ostringstream name;
+        name << std::setfill('0') << std::setw(3) << (proofs + 1) << '_'
+             << portable_stem(found.files[i].path) << ".jpg";
+        write_new_file(out / "proof" / name.str(), jpeg);
+        ++proofs;
+      } catch (const std::exception&) {
+        if (cancelled.load()) return 130;
+        ++proof_failures;
+      }
+    }
+  }
+  std::cout << "{\"event\":\"ingest\",\"job\":" << json_string(job)
+            << ",\"out\":" << json_string(out.generic_string())
+            << ",\"files\":" << rows.size()
+            << ",\"completed\":" << stats.completed
+            << ",\"failed\":" << stats.failed
+            << ",\"proofs\":" << proofs
+            << ",\"proof_failures\":" << proof_failures
+            << ",\"note\":\"Suggestions only. Originals were not copied.\"}\n";
+  return stats.failed || found.truncated || found.files.empty() || proof_failures ? 2 : 0;
+}
 int render_file(int argc, char** argv) {
   if (argc < 4) throw std::invalid_argument("render requires an input and a NEW output.jpg");
   const std::filesystem::path output = argv[3];
@@ -213,6 +320,7 @@ int main(int argc, char** argv) {
     const std::string command = argv[1];
     if (command == "--version") { std::cout << lenslabs::engine_version << '\n'; return 0; }
     if (command == "scan" || command == "inspect") return scan(argc, argv);
+    if (command == "ingest") return ingest(argc, argv);
     if (command == "render") return render_file(argc, argv);
     throw std::invalid_argument("Unknown command; use --help");
   } catch (const std::exception& error) {

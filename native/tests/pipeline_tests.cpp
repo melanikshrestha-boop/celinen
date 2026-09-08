@@ -182,6 +182,22 @@ int main() {
     index.insert(123, 999);
     check(index.nearby(123, 0) == std::vector<std::size_t>{999}, "moved-from index reusable");
 
+    check(portable_stem("card/Chen Wedding.CR3") == "Chen-Wedding", "proof stems stay portable");
+    check(portable_stem("../.hidden").find("..") == std::string::npos, "proof names cannot traverse");
+    check(portable_stem("a/../../x.jpg") == "x", "only the filename stem is used");
+    check(format_cull_csv({{"card/a.jpg", 91, Verdict::keep, "keep"}}) ==
+              "file,score,reason,decision\ncard/a.jpg,91,keep,keep\n",
+          "cull csv records mechanical suggestions");
+    check(format_cull_csv({{"c, quote\".CR3", 80, Verdict::reject, "blur"}}) ==
+              "file,score,reason,decision\n\"c, quote\"\".CR3\",80,blur,reject\n",
+          "cull csv quotes commas and quotes");
+    const auto job = format_job_json("Chen Wedding", "/Volumes/CARD",
+                                     {{"a.jpg", 91, Verdict::keep, "keep"},
+                                      {"b.jpg", 40, Verdict::reject, "low-score"}},
+                                     "lenslabs-cpp-0.1", "2026-09-07T00:00:00Z");
+    check(job.find("\"suggestedKeep\":1") != std::string::npos, "job json counts suggested keepers");
+    check(job.find("not copied") != std::string::npos, "job json refuses original hostage");
+    throws([&] { format_job_json("", "/card", {}, "e", "t"); }, "unnamed job refused");
     check(json_string("a\"b\\c\n\t") == "\"a\\\"b\\\\c\\u000a\\u0009\"", "NDJSON controls escaped");
     check(json_string("é") == "\"é\"", "UTF-8 paths preserved");
     const std::vector<std::uint8_t> bytes = {'J', 'P', 'E', 'G'};

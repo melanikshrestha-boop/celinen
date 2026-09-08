@@ -4,18 +4,19 @@ import { Nav } from "@/components/Nav";
 import { SavingsSection } from "@/components/marketing/SavingsSection";
 import { WorkflowSection } from "@/components/marketing/WorkflowSection";
 import { publicEntry } from "@/lib/public-entry";
+import { PRODUCT_NAME } from "@/lib/product";
 import "@/components/marketing/marketing-page.css";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "LensLabs — A workspace for your photography" },
+      { title: PRODUCT_NAME },
       {
         name: "description",
         content:
           "Review your shoot, choose your keepers, and prepare your client gallery. Explore LensLabs and estimate the value of your time before signing in.",
       },
-      { property: "og:title", content: "LensLabs — A workspace for your photography" },
+      { property: "og:title", content: PRODUCT_NAME },
       {
         property: "og:description",
         content:

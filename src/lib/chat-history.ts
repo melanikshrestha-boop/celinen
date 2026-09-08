@@ -49,12 +49,12 @@ export function needsChatSave(
 }
 export const CHAT_CONFLICT =
   "This chat changed in another tab. Export this tab's conversation before reloading. Your photos are untouched.";
-export function newChat(project: string): ChatRecord {
+export function newChat(project: string, title = "New chat"): ChatRecord {
   return {
     id: crypto.randomUUID(),
     project,
-    title: "New chat",
-    named: false,
+    title,
+    named: title !== "New chat",
     archived: false,
     pinned: false,
     section: "",

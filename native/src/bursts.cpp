@@ -12,7 +12,9 @@
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace lenslabs {
 namespace {
@@ -282,6 +284,27 @@ std::vector<BurstFrame> read_burst_protocol(std::istream& input) {
     if (++total_bytes > 64 * 1024 * 1024) throw std::invalid_argument("Burst request exceeds 64 MiB");
   }
   return frames;
+}
+
+std::vector<std::pair<std::string, Verdict>> apply_burst_cull(
+    const BurstGroup& group, const std::vector<BurstFrame>& frames, const std::string& keep_id) {
+  if (std::find(group.frame_ids.begin(), group.frame_ids.end(), keep_id) == group.frame_ids.end())
+    throw std::invalid_argument("That photo is not in this burst. No picks were changed.");
+  std::unordered_map<std::string, const BurstFrame*> by_id;
+  by_id.reserve(frames.size());
+  for (const auto& frame : frames) by_id.emplace(frame.id, &frame);
+  const auto keeper = by_id.find(keep_id);
+  if (keeper == by_id.end())
+    throw std::invalid_argument("Reconnect the original before culling this burst. No picks were changed.");
+  if (keeper->second->verdict != Verdict::undecided) return {};
+  std::vector<std::pair<std::string, Verdict>> changes{{keep_id, Verdict::keep}};
+  for (const auto& id : group.frame_ids) {
+    if (id == keep_id) continue;
+    const auto frame = by_id.find(id);
+    if (frame == by_id.end() || frame->second->verdict != Verdict::undecided) continue;
+    changes.emplace_back(id, Verdict::reject);
+  }
+  return changes;
 }
 
 std::string burst_review_json(const BurstReview& review) {

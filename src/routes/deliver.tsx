@@ -46,12 +46,12 @@ export const Route = createFileRoute("/deliver")({
       {
         name: "description",
         content:
-          "Send a shoot to the client as a fast, passcode-protected gallery: they favourite the frames they want and download in one click.",
+          "Send keepers after you cull. Clients favorite from that set — they never see the card dump.",
       },
       { property: "og:title", content: "Delivery — LensLabs client galleries" },
       {
         property: "og:description",
-        content: "Gallery links, client favourites, downloads, expiry — no Pixieset required.",
+        content: "Keepers-only galleries, client favorites, downloads, expiry.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -835,7 +835,7 @@ function CloudDeliver() {
       <SectionTitle
         kicker="Delivery"
         title="Hand the shoot over in one link."
-        sub="Passcode optional, downloads optional, expiry optional. The client favourites what they want and you see the picks instantly."
+        sub="Keepers only. Clients favorite from that set. Passcode, downloads, and expiry are optional."
       />
       <ProofingEntry />
 

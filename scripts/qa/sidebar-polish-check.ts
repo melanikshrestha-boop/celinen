@@ -42,7 +42,7 @@ try {
           const font=getComputedStyle(nodes[0]).fontFamily;
           return {
             compact:nodes.every(el=>getComputedStyle(el).fontSize==='14px' && getComputedStyle(el).lineHeight==='20px'),
-            font:font.startsWith('-apple-system') && !font.includes('Inter Tight'),
+            font:font.includes('OpenAI Sans') && !font.includes('Inter Tight'),
             aligned:getComputedStyle(panel.querySelector('.ll-chat-recents')).fontFamily===font,
             brand:getComputedStyle(panel.querySelector('.workbench-brand')).fontSize==='18px',
             neutral:active.length>=1 && active.every(el=>getComputedStyle(el,'::after').content==='none' && getComputedStyle(el).backgroundColor===${JSON.stringify(theme === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)")}),
