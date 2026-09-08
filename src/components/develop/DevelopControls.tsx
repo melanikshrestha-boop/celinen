@@ -99,11 +99,60 @@ export function DevelopSlider({
   );
 }
 
+type CurveChannel = "master" | "red" | "green" | "blue";
+const curveChannels: { id: CurveChannel; label: string; short: string; color: string }[] = [
+  { id: "master", label: "Master", short: "Master", color: "#d4d4d4" },
+  { id: "red", label: "Red", short: "R", color: "#e28686" },
+  { id: "green", label: "Green", short: "G", color: "#98c293" },
+  { id: "blue", label: "Blue", short: "B", color: "#8caee1" },
+];
+
 export function ToneCurve({ value, change }: { value: DevelopSettings; change: DevelopChange }) {
-  const svg = useRef<SVGSVGElement>(null);
-  const drag = useRef<number | null>(null);
+  const [channel, setChannel] = useState<CurveChannel>("master");
+  const drag = useRef<{ index: number; channel: CurveChannel } | null>(null);
   const current = useRef(value);
   current.current = value;
+  const selectedChannel = curveChannels.find((c) => c.id === channel)!;
+  const points = getCurve(value, channel);
+  const curveLabel = channel === "master" ? "Tone curve" : `${selectedChannel.label} tone curve`;
+  const pointLabel = channel === "master" ? "Curve" : `${selectedChannel.label} curve`;
+  function getCurve(settings: DevelopSettings, active: CurveChannel) {
+    return active === "master"
+      ? settings.curve
+      : (settings.channelCurves?.[active] ?? defaultDevelopSettings().curve);
+  }
+  function editCurve(
+    curve: DevelopSettings["curve"],
+    label: string,
+    commit = true,
+    active = channel,
+  ) {
+    const settings = current.current;
+    current.current =
+      active === "master"
+        ? { ...settings, curve }
+        : {
+            ...settings,
+            channelCurves: {
+              ...defaultDevelopSettings().channelCurves,
+              ...settings.channelCurves,
+              [active]: curve,
+            },
+          };
+    change(current.current, label, commit);
+  }
+  function finishDrag() {
+    const gesture = drag.current;
+    if (!gesture) return;
+    drag.current = null;
+    change(
+      current.current,
+      gesture.channel === "master"
+        ? "Tone curve"
+        : `${curveChannels.find((c) => c.id === gesture.channel)!.label} tone curve`,
+      true,
+    );
+  }
   function point(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     return {
@@ -113,36 +162,57 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
   }
   return (
     <>
+      <div className="develop-curve-channels" role="group" aria-label="Tone curve channel">
+        {curveChannels.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            aria-label={`${c.label} tone curve`}
+            aria-pressed={channel === c.id}
+            title={
+              c.id === "master" ? "Master curve · all RGB channels" : `${c.label} channel curve`
+            }
+            style={{ color: c.color }}
+            onClick={() => {
+              finishDrag();
+              setChannel(c.id);
+            }}
+          >
+            {c.short}
+          </button>
+        ))}
+      </div>
       <svg
-        ref={svg}
         className="develop-curve"
+        data-channel={channel}
+        style={{ color: selectedChannel.color }}
         viewBox="0 0 200 200"
         role="img"
-        aria-label="Tone curve. Drag points or click to add a point."
+        aria-label={`${selectedChannel.label} tone curve. Drag points or use the point controls below.`}
         onPointerDown={(e) => {
+          if (e.button !== 0 || e.currentTarget.closest("fieldset:disabled")) return;
+          e.preventDefault();
           const p = point(e);
-          const near = current.current.curve.findIndex(
-            (v) => Math.hypot(v.x - p.x, v.y - p.y) < 0.065,
-          );
-          if (near >= 0) drag.current = near;
+          const curve = getCurve(current.current, channel);
+          const near = curve.findIndex((v) => Math.hypot(v.x - p.x, v.y - p.y) < 0.065);
+          if (near >= 0) drag.current = { index: near, channel };
           else if (
-            current.current.curve.length < 16 &&
+            curve.length < 16 &&
             p.x > 0.015 &&
             p.x < 0.985 &&
-            !current.current.curve.some((v) => Math.abs(v.x - p.x) < 0.015)
+            !curve.some((v) => Math.abs(v.x - p.x) < 0.015)
           ) {
-            const curve = [...current.current.curve, p].sort((a, b) => a.x - b.x);
-            drag.current = curve.indexOf(p);
-            current.current = { ...current.current, curve };
-            change(current.current, "Tone curve", false);
+            const next = [...curve, p].sort((a, b) => a.x - b.x);
+            drag.current = { index: next.indexOf(p), channel };
+            editCurve(next, curveLabel, false);
           }
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
           if (drag.current === null) return;
           const p = point(e),
-            i = drag.current,
-            curve = current.current.curve.map((v) => ({ ...v }));
+            { index: i, channel: active } = drag.current,
+            curve = getCurve(current.current, active).map((v) => ({ ...v }));
           p.x =
             i === 0
               ? 0
@@ -150,73 +220,105 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
                 ? 1
                 : Math.max(curve[i - 1]!.x + 0.005, Math.min(curve[i + 1]!.x - 0.005, p.x));
           curve[i] = p;
-          current.current = { ...current.current, curve };
-          change(current.current, "Tone curve", false);
+          editCurve(
+            curve,
+            active === "master"
+              ? "Tone curve"
+              : `${curveChannels.find((c) => c.id === active)!.label} tone curve`,
+            false,
+            active,
+          );
         }}
-        onPointerUp={() => {
-          if (drag.current !== null) change(current.current, "Tone curve", true);
-          drag.current = null;
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-          change(current.current, "Tone curve", true);
-        }}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onLostPointerCapture={finishDrag}
       >
         {[50, 100, 150].map((n) => (
           <path key={n} d={`M${n} 0V200 M0 ${n}H200`} className="curve-grid" />
         ))}
         <path d="M0 200L200 0" className="curve-diagonal" />
         <polyline
-          points={value.curve.map((p) => `${p.x * 200},${(1 - p.y) * 200}`).join(" ")}
+          points={points.map((p) => `${p.x * 200},${(1 - p.y) * 200}`).join(" ")}
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
         />
-        {value.curve.map((p, i) => (
+        {points.map((p, i) => (
           <circle key={i} cx={p.x * 200} cy={(1 - p.y) * 200} r="3.3" />
         ))}
       </svg>
       <div className="develop-inline">
-        <span>Point curve · RGB</span>
+        <span>Point curve · {channel === "master" ? "RGB" : selectedChannel.label}</span>
         <button
-          onClick={() => change({ ...value, curve: defaultDevelopSettings().curve }, "Reset curve")}
+          aria-label={`Add ${channel === "master" ? "master" : channel} curve point`}
+          disabled={points.length >= 16}
+          onClick={() => {
+            const curve = getCurve(current.current, channel);
+            let widest = 0;
+            for (let i = 1; i < curve.length - 1; i++)
+              if (curve[i + 1]!.x - curve[i]!.x > curve[widest + 1]!.x - curve[widest]!.x)
+                widest = i;
+            const left = curve[widest]!,
+              right = curve[widest + 1]!;
+            editCurve(
+              [
+                ...curve.slice(0, widest + 1),
+                { x: (left.x + right.x) / 2, y: (left.y + right.y) / 2 },
+                ...curve.slice(widest + 1),
+              ],
+              `Add ${channel === "master" ? "master" : channel} curve point`,
+            );
+          }}
+        >
+          Add point
+        </button>
+        <button
+          aria-label={`Reset ${channel} curve to linear`}
+          onClick={() =>
+            editCurve(
+              defaultDevelopSettings().curve,
+              channel === "master" ? "Reset curve" : `Reset ${channel} curve`,
+            )
+          }
         >
           Linear
         </button>
       </div>
       <div className="develop-curve-points">
-        {value.curve.map((p, i) => (
+        {points.map((p, i) => (
           <div key={i}>
             <label>
               Point {i + 1}
               <input
-                aria-label={`Curve point ${i + 1} output`}
+                aria-label={`${pointLabel} point ${i + 1} output`}
                 type="number"
                 min="0"
                 max="100"
                 value={Math.round(p.y * 100)}
-                onChange={(e) =>
-                  change(
-                    {
-                      ...value,
-                      curve: value.curve.map((v, j) =>
-                        j === i
-                          ? { ...v, y: Math.max(0, Math.min(100, Number(e.target.value))) / 100 }
-                          : v,
-                      ),
-                    },
-                    "Tone curve",
-                  )
-                }
+                onChange={(e) => {
+                  const output = Number(e.target.value);
+                  if (!Number.isFinite(output)) return;
+                  editCurve(
+                    getCurve(current.current, channel).map((v, j) =>
+                      j === i ? { ...v, y: Math.max(0, Math.min(100, output)) / 100 } : v,
+                    ),
+                    curveLabel,
+                    false,
+                  );
+                }}
+                onBlur={() => change(current.current, curveLabel, true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
               />
             </label>
-            {i > 0 && i < value.curve.length - 1 && (
+            {i > 0 && i < points.length - 1 && (
               <button
-                aria-label={`Remove curve point ${i + 1}`}
+                aria-label={`Remove ${channel === "master" ? "curve" : `${channel} curve`} point ${i + 1}`}
                 onClick={() =>
-                  change(
-                    { ...value, curve: value.curve.filter((_, j) => i !== j) },
-                    "Remove curve point",
+                  editCurve(
+                    getCurve(current.current, channel).filter((_, j) => i !== j),
+                    channel === "master" ? "Remove curve point" : `Remove ${channel} curve point`,
                   )
                 }
               >
@@ -233,6 +335,7 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
 export function DevelopControls({
   value,
   change,
+  photoId,
   tool,
   onTool,
   maskId,
@@ -241,6 +344,7 @@ export function DevelopControls({
 }: {
   value: DevelopSettings;
   change: DevelopChange;
+  photoId?: string;
   tool: DevelopTool;
   onTool: (tool: DevelopTool) => void;
   maskId: string | null;
@@ -254,7 +358,7 @@ export function DevelopControls({
     <DevelopSlider
       key={key}
       label={label}
-      value={value[key] as number}
+      value={(value[key] ?? defaults[key]) as number}
       min={min}
       max={max}
       step={step}
@@ -339,7 +443,7 @@ export function DevelopControls({
         {scalar("saturation", "Saturation")}
       </Panel>
       <Panel title="Tone Curve">
-        <ToneCurve value={value} change={change} />
+        <ToneCurve key={photoId} value={value} change={change} />
       </Panel>
       <Panel title="Color Mixer">
         <div className="develop-colors" role="group" aria-label="Color range">
@@ -442,6 +546,7 @@ export function DevelopControls({
         {scalar("bloom", "Bloom", 0)}
         {scalar("fade", "Fade", 0)}
         {scalar("vignette", "Vignette")}
+        {scalar("filmFalloff", "Film falloff", 0)}
       </Panel>
       <Panel title="Detail">
         {scalar("sharpening", "Sharpening", 0)}

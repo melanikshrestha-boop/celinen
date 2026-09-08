@@ -12,6 +12,10 @@ import {
 /** Deliberately separate from Studio's databases. Develop never writes a Studio session. */
 export const DEVELOP_DATABASE_NAME = "foto-develop-v1";
 export const DEVELOP_HISTORY_LIMIT = 200;
+export const DEVELOP_RECOVERY_LIMITS = Object.freeze({
+  maxBytes: 32 * 1024 * 1024,
+  maxDocuments: 2000,
+});
 const STORES = { photos: "photos", documents: "documents", presets: "presets" } as const;
 const nonempty = z
   .string()
@@ -118,6 +122,24 @@ export type DevelopLibrary = {
 };
 export type DevelopStoreChange = { kind: "photos" | "documents" | "presets"; ids: string[] };
 export type DevelopStoreOptions = { scope: string; libraryId: string; factory?: IDBFactory };
+export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
+export type DevelopRecovery = {
+  version: 1;
+  namespace: string;
+  documents: Record<string, DevelopDocument>;
+};
+export type DevelopRecoveryPlan = {
+  namespace: string;
+  photoIds: string[];
+  expectedRevisions: Record<string, number>;
+  updates: { document: DevelopDocument; expectedRevision: number }[];
+  unchangedPhotoIds: string[];
+};
+export type DevelopRecoveryResult = {
+  documents: DevelopDocument[];
+  restoredPhotoIds: string[];
+  unchangedPhotoIds: string[];
+};
 
 function uniqueId(): string {
   return (
@@ -253,6 +275,159 @@ export function developRecoveryDocuments(
   if (selectedId && recovered[selectedId])
     recovered[selectedId] = pushHistory(recovered[selectedId]!, draft, "Recovered adjustment");
   return recovered;
+}
+
+function checkRecoverySize(text: string): void {
+  if (
+    typeof text !== "string" ||
+    text.length > DEVELOP_RECOVERY_LIMITS.maxBytes ||
+    new TextEncoder().encode(text).byteLength > DEVELOP_RECOVERY_LIMITS.maxBytes
+  )
+    throw new Error("Recovery files must be no larger than 32 MB. No saved edits were changed.");
+}
+function checkRecoveryCollections(rawDocument: unknown): void {
+  if (!rawDocument || typeof rawDocument !== "object") return;
+  const raw = rawDocument as Record<string, unknown>;
+  const bounded = (value: unknown, limit: number) => {
+    if (Array.isArray(value) && value.length > limit)
+      throw new Error(
+        "The recovery contains an invalid oversized edit history or settings collection.",
+      );
+  };
+  // Zod array limits also validate their elements. Bound hostile collections before
+  // parsing so a small JSON file containing millions of empty objects cannot expand
+  // into millions of validation errors.
+  bounded(raw["history"], DEVELOP_HISTORY_LIMIT + 1);
+  bounded(raw["snapshots"], 50);
+  const entries = [
+    ...(Array.isArray(raw["history"]) ? raw["history"] : []),
+    ...(Array.isArray(raw["snapshots"]) ? raw["snapshots"] : []),
+  ];
+  for (const entry of entries) {
+    const settings = entry?.settings;
+    if (!settings || typeof settings !== "object") continue;
+    bounded(settings.curve, 16);
+    bounded(settings.hsl, 8);
+    bounded(settings.masks, DEVELOP_ENGINE_LIMITS.maxMasks);
+    for (const channel of ["red", "green", "blue"]) bounded(settings.channelCurves?.[channel], 16);
+  }
+}
+function checkedRecovery(input: unknown, target: DevelopRecoveryTarget): DevelopRecovery {
+  const namespace = JSON.stringify([
+    nonempty.parse(target.scope),
+    nonempty.parse(target.libraryId),
+  ]);
+  const header = z
+    .object({ version: z.literal(1), namespace: z.string().max(8192), documents: z.unknown() })
+    .strict()
+    .safeParse(input);
+  if (!header.success)
+    throw new Error("This is not a supported version 1 FOTO Develop recovery file.");
+  if (header.data.namespace !== namespace)
+    throw new Error(
+      "This recovery belongs to a different workspace or project. Open its original Develop library.",
+    );
+  const rawDocuments = header.data.documents;
+  if (!rawDocuments || typeof rawDocuments !== "object" || Array.isArray(rawDocuments))
+    throw new Error("The recovery document index is invalid.");
+  const entries = Object.entries(rawDocuments);
+  if (!entries.length || entries.length > DEVELOP_RECOVERY_LIMITS.maxDocuments)
+    throw new Error("A recovery must contain between 1 and 2,000 photo documents.");
+  const documents: Record<string, DevelopDocument> = Object.create(null);
+  for (const [id, rawDocument] of entries) {
+    if (["__proto__", "prototype", "constructor"].includes(id))
+      throw new Error("The recovery contains an invalid photo identifier.");
+    checkRecoveryCollections(rawDocument);
+    const result = developDocumentSchema.safeParse(rawDocument);
+    if (!result.success)
+      throw new Error(
+        `Recovery edits for “${id.slice(0, 100)}” are invalid: ${result.error.issues[0]?.message ?? "Invalid document"}`,
+      );
+    if (id !== result.data.photoId)
+      throw new Error("A recovery photo ID does not match its document index.");
+    documents[id] = result.data;
+  }
+  const checked: DevelopRecovery = { version: 1, namespace, documents };
+  // Revalidate the size for direct callers as well as the JSON file parser.
+  checkRecoverySize(JSON.stringify(checked));
+  return checked;
+}
+
+/** Reads existing recovery exports; never imports photo bytes, metadata, or a database. */
+export function parseDevelopRecovery(text: string, target: DevelopRecoveryTarget): DevelopRecovery {
+  checkRecoverySize(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("This recovery file is not valid JSON. No saved edits were changed.");
+  }
+  return checkedRecovery(parsed, target);
+}
+
+function recoverySelection(recovery: DevelopRecovery, photoIds: string[]): string[] {
+  const checked = z
+    .array(nonempty)
+    .min(1)
+    .max(DEVELOP_RECOVERY_LIMITS.maxDocuments)
+    .parse(photoIds);
+  if (new Set(checked).size !== checked.length)
+    throw new Error("Select each recovery photo only once.");
+  for (const id of checked)
+    if (!Object.hasOwn(recovery.documents, id))
+      throw new Error("A selected photo is not in this recovery file.");
+  return checked;
+}
+
+/** Append a recoverable treatment without dropping saved redo steps or importing old metadata. */
+function recoveredDocument(current: DevelopDocument, recovered: DevelopDocument): DevelopDocument {
+  const checked = documentCopy(current);
+  const settings = currentRecipe(recovered);
+  const before = currentRecipe(checked);
+  if (sameSettings(before, settings)) return checked;
+  const at = timestamp();
+  const entries: DevelopHistoryEntry[] = [];
+  if (!sameSettings(checked.history.at(-1)!.settings, before))
+    entries.push({ id: uniqueId(), label: "Before recovery", settings: before, at });
+  entries.push({ id: uniqueId(), label: "Recovered adjustment", settings, at });
+  if (checked.history.length + entries.length > DEVELOP_HISTORY_LIMIT + 1)
+    throw new Error(
+      "Recovery would exceed this photo’s 200-step history limit. Export your saved work before making room; no history was removed.",
+    );
+  return documentCopy({
+    ...checked,
+    history: [...checked.history, ...entries],
+    cursor: checked.history.length + entries.length - 1,
+    updatedAt: at,
+  });
+}
+
+/** Read-only preview. Explicitly select photos, then pass its revision map to restoreRecovery. */
+export function prepareDevelopRecovery(
+  input: DevelopRecovery,
+  library: DevelopLibrary,
+  options: DevelopRecoveryTarget & { photoIds: string[] },
+): DevelopRecoveryPlan {
+  const recovery = checkedRecovery(input, options);
+  const photoIds = recoverySelection(recovery, options.photoIds);
+  const existingPhotoIds = new Set(library.photos.map((photo) => photo.id));
+  const expectedRevisions: Record<string, number> = Object.create(null);
+  const updates: DevelopRecoveryPlan["updates"] = [];
+  const unchangedPhotoIds: string[] = [];
+  for (const photoId of photoIds) {
+    if (!existingPhotoIds.has(photoId) || !Object.hasOwn(library.documents, photoId))
+      throw new Error(
+        "A selected recovery photo is missing from this library. Reconnect or import its original into this project first.",
+      );
+    const current = documentCopy(library.documents[photoId]!);
+    if (current.photoId !== photoId)
+      throw new Error("The current Develop document index is invalid.");
+    expectedRevisions[photoId] = current.revision;
+    const document = recoveredDocument(current, recovery.documents[photoId]!);
+    if (document.history.length === current.history.length) unchangedPhotoIds.push(photoId);
+    else updates.push({ document, expectedRevision: current.revision });
+  }
+  return { namespace: recovery.namespace, photoIds, expectedRevisions, updates, unchangedPhotoIds };
 }
 
 export class DevelopSaveConflict extends Error {
@@ -766,6 +941,82 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         );
         notify({ kind: "photos", ids: photos.map((photo) => photo.id) });
         return photos;
+      } finally {
+        db.close();
+      }
+    },
+    /** Explicit edit-only restore. Revision checks and the complete batch share one transaction. */
+    async restoreRecovery(
+      input: DevelopRecovery,
+      options: { photoIds: string[]; expectedRevisions: Record<string, number> },
+    ): Promise<DevelopRecoveryResult> {
+      const recovery = checkedRecovery(input, { scope, libraryId });
+      const photoIds = recoverySelection(recovery, options.photoIds);
+      const revisions = z.record(revisionSchema).parse(options.expectedRevisions);
+      if (
+        Object.keys(revisions).length !== photoIds.length ||
+        photoIds.some((id) => !Object.hasOwn(revisions, id))
+      )
+        throw new Error("Preview each selected recovery photo before confirming its restore.");
+      const db = await database();
+      try {
+        const result = await transaction(
+          db,
+          [STORES.documents, STORES.photos],
+          "readwrite",
+          async (tx) => {
+            const documentsStore = tx.objectStore(STORES.documents);
+            const records = await Promise.all(
+              photoIds.map(async (photoId) => ({
+                photoId,
+                document: (await requestResult(documentsStore.get(key(photoId)))) as
+                  DocumentRecord | undefined,
+                photo: await requestResult(tx.objectStore(STORES.photos).getKey(key(photoId))),
+              })),
+            );
+            const result: DevelopRecoveryResult = {
+              documents: [],
+              restoredPhotoIds: [],
+              unchangedPhotoIds: [],
+            };
+            for (const { photoId, document: record, photo } of records) {
+              if (!record || photo === undefined)
+                throw new Error(
+                  "A selected recovery photo is no longer in this library. No edits were restored.",
+                );
+              const current = documentCopy(record.value);
+              if (
+                current.photoId !== photoId ||
+                record.namespace !== namespace ||
+                record.key !== key(photoId)
+              )
+                throw new Error("The saved Develop edit index is invalid.");
+              if (current.revision !== revisions[photoId]) throw new DevelopSaveConflict(photoId);
+              const restored = recoveredDocument(current, recovery.documents[photoId]!);
+              if (restored.history.length === current.history.length) {
+                result.documents.push(current);
+                result.unchangedPhotoIds.push(photoId);
+              } else {
+                result.documents.push(
+                  documentCopy({ ...restored, revision: current.revision + 1 }),
+                );
+                result.restoredPhotoIds.push(photoId);
+              }
+            }
+            const changedIds = new Set(result.restoredPhotoIds);
+            for (const value of result.documents)
+              if (changedIds.has(value.photoId))
+                documentsStore.put({
+                  key: key(value.photoId),
+                  namespace,
+                  value,
+                } satisfies DocumentRecord);
+            return result;
+          },
+        );
+        if (result.restoredPhotoIds.length)
+          notify({ kind: "documents", ids: result.restoredPhotoIds });
+        return result;
       } finally {
         db.close();
       }

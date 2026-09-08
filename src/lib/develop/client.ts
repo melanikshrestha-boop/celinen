@@ -74,6 +74,27 @@ export function encodeDevelopRequest(
   new DataView(length.buffer).setUint32(0, header.length, false);
   return new Blob([length, header, source], { type: "application/x-foto-develop" });
 }
+
+// Only a definite worker-busy response may be replayed. The total scheduled
+// wait is at most four seconds, independent of the one token-renewal attempt.
+const busyRetryLimit = 8;
+const busyRetryDelayMs = 500;
+function waitForDevelopWorker(signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, busyRetryDelayMs);
+    function abort() {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(signal?.reason ?? new DOMException("Develop render cancelled.", "AbortError"));
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export async function renderDevelop(
   source: Blob,
   settings: DevelopSettings = defaultDevelopSettings(),
@@ -84,21 +105,24 @@ export async function renderDevelop(
     sourceMode?: DevelopSourceMode;
   } = {},
 ): Promise<Blob> {
-  const body = encodeDevelopRequest(
-    source,
-    settings,
-    options.edge,
-    options.quality,
-    options.sourceMode,
-  );
-  for (let attempt = 0; attempt < 2; attempt++) {
-    options.signal?.throwIfAborted();
-    const status = await developEngineStatus(attempt > 0);
+  // Snapshot the immutable packet and options once. An obsolete render cannot
+  // pick up a newer recipe, source mode, or signal while waiting for a worker.
+  const { edge, quality, sourceMode = "preview", signal } = options;
+  signal?.throwIfAborted();
+  const body = encodeDevelopRequest(source, settings, edge, quality, sourceMode);
+  let busyRetries = 0,
+    renewedToken = false,
+    refreshStatus = false;
+  for (;;) {
+    signal?.throwIfAborted();
+    const status = await developEngineStatus(refreshStatus);
+    refreshStatus = false;
+    signal?.throwIfAborted();
     if (!status?.ready || !status.token)
       throw new Error(
         "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
       );
-    if (options.sourceMode === "raw" && !status.rawSupported)
+    if (sourceMode === "raw" && !status.rawSupported)
       throw new Error("Rebuild the local C++ engine to enable sensor RAW development.");
     const response = await fetch("/__develop/render", {
       method: "POST",
@@ -109,9 +133,19 @@ export async function renderDevelop(
       },
       body,
       cache: "no-store",
-      ...(options.signal ? { signal: options.signal } : {}),
+      ...(signal ? { signal } : {}),
     });
-    if (response.status === 403 && attempt === 0) continue;
+    signal?.throwIfAborted();
+    if (response.status === 403 && !renewedToken) {
+      renewedToken = true;
+      refreshStatus = true;
+      continue;
+    }
+    if (response.status === 429 && busyRetries < busyRetryLimit) {
+      busyRetries++;
+      await waitForDevelopWorker(signal);
+      continue;
+    }
     if (!response.ok) {
       let message = `Develop processing failed (${response.status}).`;
       try {
@@ -134,13 +168,12 @@ export async function renderDevelop(
       size < 4 ||
       size > 32 * 1024 * 1024 ||
       response.headers.get("content-type") !== "image/jpeg" ||
-      response.headers.get("x-foto-source") !==
-        (options.sourceMode === "raw" ? "raw-demosaic" : "preview")
+      response.headers.get("x-foto-source") !== (sourceMode === "raw" ? "raw-demosaic" : "preview")
     )
       throw new Error("Develop returned an invalid image receipt.");
     const result = await response.blob();
+    signal?.throwIfAborted();
     if (result.size !== size) throw new Error("Develop returned an incomplete image.");
     return result;
   }
-  throw new Error("The local Develop session expired. Reload this page.");
 }

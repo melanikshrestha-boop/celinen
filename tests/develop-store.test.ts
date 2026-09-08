@@ -8,12 +8,15 @@ import {
   createDevelopStore,
   currentRecipe,
   DEVELOP_HISTORY_LIMIT,
+  DEVELOP_RECOVERY_LIMITS,
   developDocumentSchema,
   developDocumentForImport,
   developInitialStateFromShot,
   developPhotoFromFile,
   developPhotoFromShot,
   developRecoveryDocuments,
+  parseDevelopRecovery,
+  prepareDevelopRecovery,
   jumpToHistory,
   pushHistory,
   redoHistory,
@@ -21,6 +24,8 @@ import {
   removeSnapshot,
   restoreSnapshot,
   undoHistory,
+  type DevelopDocument,
+  type DevelopLibrary,
 } from "../src/lib/develop/store";
 import { DEFAULT_EDITS, type Shot } from "../src/lib/imaging";
 import { fingerprintSource } from "../src/lib/studio/ingest";
@@ -498,5 +503,271 @@ describe("Develop local photo identity and workspace boundary", () => {
     await expect(store.loadLibrary()).rejects.toThrow("IDB denied");
     store.close();
     await expect(store.loadLibrary()).rejects.toThrow("closed");
+  });
+});
+
+describe("Develop explicit edit recovery", () => {
+  const target = { scope: "recovery-test", libraryId: "project-one" };
+  const namespace = JSON.stringify([target.scope, target.libraryId]);
+  function exportText(documents: Record<string, DevelopDocument>) {
+    return JSON.stringify({ version: 1, namespace, documents });
+  }
+  async function fixture(current = createDevelopDocument("studio:one")): Promise<DevelopLibrary> {
+    const source = await developPhotoFromFile(new File(["protected original"], "original.ARW"));
+    return {
+      photos: [{ ...source, id: current.photoId, sourceAvailable: true, createdAt: 1 }],
+      documents: { [current.photoId]: current },
+      presets: [],
+    };
+  }
+
+  test("parses actual v1 export shape including an unsaved draft and old additive defaults", () => {
+    const saved = createDevelopDocument("studio:one");
+    const draft = { ...currentRecipe(saved), exposure: 1.5 };
+    const exported = JSON.parse(
+      exportText(developRecoveryDocuments({ [saved.photoId]: saved }, saved.photoId, draft)),
+    );
+    for (const entry of exported.documents[saved.photoId].history) {
+      delete entry.settings.channelCurves;
+      delete entry.settings.filmFalloff;
+    }
+    const recovery = parseDevelopRecovery(JSON.stringify(exported), target);
+    expect(currentRecipe(recovery.documents[saved.photoId]!).exposure).toBe(1.5);
+    expect(currentRecipe(recovery.documents[saved.photoId]!).channelCurves).toEqual(
+      defaultDevelopSettings().channelCurves,
+    );
+    expect(currentRecipe(recovery.documents[saved.photoId]!).filmFalloff).toBe(0);
+    expect(currentRecipe(saved).exposure).toBe(0);
+    expect(recovery.namespace).toBe(namespace);
+    expect(recovery.documents[saved.photoId]!.revision).toBe(saved.revision);
+  });
+
+  test("rejects bad JSON, versions, scopes, projects, IDs and unknown payload fields", () => {
+    const current = createDevelopDocument("studio:one");
+    const payload = JSON.parse(exportText({ [current.photoId]: current }));
+    expect(() => parseDevelopRecovery("not json", target)).toThrow("not valid JSON");
+    expect(() => parseDevelopRecovery(JSON.stringify({ ...payload, version: 2 }), target)).toThrow(
+      "version 1",
+    );
+    expect(() =>
+      parseDevelopRecovery(JSON.stringify(payload), { ...target, scope: "another" }),
+    ).toThrow("different workspace or project");
+    expect(() =>
+      parseDevelopRecovery(JSON.stringify(payload), { ...target, libraryId: "another" }),
+    ).toThrow("different workspace or project");
+    expect(() =>
+      parseDevelopRecovery(JSON.stringify({ ...payload, documents: { wrong: current } }), target),
+    ).toThrow("photo ID");
+    expect(() => parseDevelopRecovery(JSON.stringify({ ...payload, photos: [] }), target)).toThrow(
+      "version 1",
+    );
+    expect(() =>
+      parseDevelopRecovery(JSON.stringify({ ...payload, documents: [] }), target),
+    ).toThrow("document index");
+    expect(() =>
+      parseDevelopRecovery(
+        JSON.stringify({
+          ...payload,
+          documents: { [current.photoId]: { ...current, sourceBlob: "injected" } },
+        }),
+        target,
+      ),
+    ).toThrow("invalid");
+    expect(() =>
+      parseDevelopRecovery(
+        JSON.stringify({ ...payload, documents: JSON.parse('{"__proto__":{}}') }),
+        target,
+      ),
+    ).toThrow("invalid photo identifier");
+    expect(Object.hasOwn({}, "polluted")).toBe(false);
+  });
+
+  test("caps file size, photo count, history, snapshots and settings ranges", () => {
+    const current = createDevelopDocument("studio:one");
+    const invalid = (doc: unknown) =>
+      JSON.stringify({ version: 1, namespace, documents: { [current.photoId]: doc } });
+    expect(() =>
+      parseDevelopRecovery(" ".repeat(DEVELOP_RECOVERY_LIMITS.maxBytes + 1), target),
+    ).toThrow("32 MB");
+    expect(() =>
+      parseDevelopRecovery("é".repeat(DEVELOP_RECOVERY_LIMITS.maxBytes / 2 + 1), target),
+    ).toThrow("32 MB");
+    expect(() =>
+      parseDevelopRecovery(
+        JSON.stringify({
+          version: 1,
+          namespace,
+          documents: Object.fromEntries(
+            Array.from({ length: DEVELOP_RECOVERY_LIMITS.maxDocuments + 1 }, (_, i) => [
+              `photo:${i}`,
+              null,
+            ]),
+          ),
+        }),
+        target,
+      ),
+    ).toThrow("2,000");
+    expect(() =>
+      parseDevelopRecovery(JSON.stringify({ version: 1, namespace, documents: {} }), target),
+    ).toThrow("between 1");
+    const history = Array.from({ length: DEVELOP_HISTORY_LIMIT + 2 }, (_, i) => ({
+      ...current.history[0],
+      id: `history:${i}`,
+    }));
+    expect(() => parseDevelopRecovery(invalid({ ...current, history }), target)).toThrow("invalid");
+    const snapshots = Array.from({ length: 51 }, (_, i) => ({
+      id: `snapshot:${i}`,
+      name: "Snapshot",
+      settings: currentRecipe(current),
+      at: 1,
+    }));
+    expect(() => parseDevelopRecovery(invalid({ ...current, snapshots }), target)).toThrow(
+      "invalid",
+    );
+    expect(() => parseDevelopRecovery(invalid({ ...current, cursor: 99 }), target)).toThrow(
+      "invalid",
+    );
+    expect(() =>
+      parseDevelopRecovery(
+        invalid({
+          ...current,
+          history: [
+            { ...current.history[0], settings: { ...currentRecipe(current), exposure: 99 } },
+          ],
+        }),
+        target,
+      ),
+    ).toThrow("invalid");
+  });
+
+  test("prepares an undoable treatment while preserving current metadata, snapshots and original bytes", async () => {
+    const saved = addSnapshot(createDevelopDocument("studio:one"), "Keep this snapshot");
+    saved.metadata = { rating: 5, flag: "pick", colorLabel: "green" };
+    saved.revision = 7;
+    const library = await fixture(saved);
+    const imported = pushHistory(
+      createDevelopDocument(saved.photoId),
+      { ...defaultDevelopSettings(), exposure: 2 },
+      "Unsaved treatment",
+    );
+    imported.metadata = { rating: 1, flag: "reject", colorLabel: "red" };
+    imported.revision = 99;
+    const recovery = parseDevelopRecovery(exportText({ [saved.photoId]: imported }), target);
+    const before = JSON.stringify({ saved, imported });
+    const original = library.photos[0]!.sourceBlob;
+    const plan = prepareDevelopRecovery(recovery, library, {
+      ...target,
+      photoIds: [saved.photoId],
+    });
+    const restored = plan.updates[0]!.document;
+    expect(plan.expectedRevisions[saved.photoId]).toBe(7);
+    expect(plan.updates[0]!.expectedRevision).toBe(7);
+    expect(restored.revision).toBe(7);
+    expect(currentRecipe(restored).exposure).toBe(2);
+    expect(currentRecipe(undoHistory(restored)).exposure).toBe(0);
+    expect(restored.metadata).toEqual(saved.metadata);
+    expect(restored.snapshots).toEqual(saved.snapshots);
+    expect(restored.history[0]).toEqual(saved.history[0]);
+    expect(plan.unchangedPhotoIds).toHaveLength(0);
+    expect(library.photos[0]!.sourceBlob).toBe(original);
+    expect(await original!.text()).toBe("protected original");
+    expect(JSON.stringify({ saved, imported })).toBe(before);
+    restored.metadata.rating = 0;
+    restored.history[0]!.settings.exposure = -5;
+    expect(saved.metadata.rating).toBe(5);
+    expect(currentRecipe(saved).exposure).toBe(0);
+  });
+
+  test("recovery retains saved redo branches and undo returns to the previously visible treatment", async () => {
+    const first = pushHistory(createDevelopDocument("studio:one"), {
+      ...defaultDevelopSettings(),
+      exposure: 1,
+    });
+    const saved = undoHistory(pushHistory(first, { ...defaultDevelopSettings(), exposure: 2 }));
+    const recovered = pushHistory(createDevelopDocument(saved.photoId), {
+      ...defaultDevelopSettings(),
+      exposure: -2,
+    });
+    const library = await fixture(saved);
+    const plan = prepareDevelopRecovery(
+      parseDevelopRecovery(exportText({ [saved.photoId]: recovered }), target),
+      library,
+      { ...target, photoIds: [saved.photoId] },
+    );
+    const restored = plan.updates[0]!.document;
+    expect(restored.history.slice(0, saved.history.length)).toEqual(saved.history);
+    expect(restored.history.at(-2)!.label).toBe("Before recovery");
+    expect(currentRecipe(undoHistory(restored)).exposure).toBe(1);
+    expect(currentRecipe(redoHistory(undoHistory(restored))).exposure).toBe(-2);
+    expect(restored.metadata).toEqual(saved.metadata);
+  });
+
+  test("identical recovery is a no-op and a full history is never silently trimmed", async () => {
+    const saved = createDevelopDocument("studio:one");
+    saved.history = Array.from({ length: DEVELOP_HISTORY_LIMIT + 1 }, (_, i) => ({
+      ...saved.history[0]!,
+      id: `history:${i}`,
+      settings: { ...defaultDevelopSettings(), exposure: i % 2 },
+    }));
+    saved.cursor = 1;
+    const library = await fixture(saved);
+    const same = pushHistory(createDevelopDocument(saved.photoId), currentRecipe(saved));
+    const unchanged = prepareDevelopRecovery(
+      parseDevelopRecovery(exportText({ [saved.photoId]: same }), target),
+      library,
+      { ...target, photoIds: [saved.photoId] },
+    );
+    expect(unchanged.updates).toHaveLength(0);
+    expect(unchanged.unchangedPhotoIds).toEqual([saved.photoId]);
+    const different = pushHistory(createDevelopDocument(saved.photoId), {
+      ...defaultDevelopSettings(),
+      exposure: -3,
+    });
+    const before = JSON.stringify(saved);
+    expect(() =>
+      prepareDevelopRecovery(
+        parseDevelopRecovery(exportText({ [saved.photoId]: different }), target),
+        library,
+        { ...target, photoIds: [saved.photoId] },
+      ),
+    ).toThrow("no history was removed");
+    expect(JSON.stringify(saved)).toBe(before);
+  });
+
+  test("requires explicit unique selections already in the current library", async () => {
+    const saved = createDevelopDocument("studio:one");
+    const recovery = parseDevelopRecovery(exportText({ [saved.photoId]: saved }), target);
+    const library = await fixture(saved);
+    expect(() => prepareDevelopRecovery(recovery, library, { ...target, photoIds: [] })).toThrow();
+    expect(() =>
+      prepareDevelopRecovery(recovery, library, {
+        ...target,
+        photoIds: [saved.photoId, saved.photoId],
+      }),
+    ).toThrow("only once");
+    expect(() =>
+      prepareDevelopRecovery(recovery, library, { ...target, photoIds: ["missing"] }),
+    ).toThrow("not in this recovery");
+    expect(() =>
+      prepareDevelopRecovery(
+        recovery,
+        { ...library, photos: [] },
+        { ...target, photoIds: [saved.photoId] },
+      ),
+    ).toThrow("missing from this library");
+    expect(() =>
+      prepareDevelopRecovery(
+        recovery,
+        { ...library, documents: {} },
+        { ...target, photoIds: [saved.photoId] },
+      ),
+    ).toThrow("missing from this library");
+    expect(() =>
+      prepareDevelopRecovery(recovery, library, {
+        ...target,
+        scope: "wrong",
+        photoIds: [saved.photoId],
+      }),
+    ).toThrow("different workspace or project");
   });
 });

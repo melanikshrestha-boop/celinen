@@ -557,6 +557,23 @@
   appearance: none;
   margin: 0;
 }
+.develop-curve-channels {
+  display: flex;
+  gap: 4px;
+  margin: 0 auto 8px;
+  max-width: 210px;
+}
+.develop-curve-channels button {
+  flex: 1;
+  min-height: 24px;
+  padding: 3px 5px;
+  background: transparent;
+  border-color: transparent;
+}
+.develop-curve-channels button[aria-pressed="true"] {
+  background: #414141;
+  border-color: #666;
+}
 .develop-curve {
   display: block;
   width: 100%;
@@ -571,7 +588,7 @@
   border: 1px solid #4b4b4b;
 }
 .develop-curve circle {
-  fill: #d4d4d4;
+  fill: currentColor;
   stroke: #242424;
   stroke-width: 1;
   cursor: move;
@@ -874,6 +891,17 @@
   width: min(380px, 100%);
   box-shadow: 0 20px 60px #0008;
   font-size: 12px;
+  max-height: 100%;
+  overflow-y: auto;
+}
+.develop-export-dialog {
+  width: min(580px, 100%);
+}
+.develop-export-settings {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }
 .develop-dialog h2 {
   font-size: 18px;
@@ -886,11 +914,48 @@
   color: #b3b3b3;
   margin: 0 0 16px;
 }
-.develop-dialog > label {
+.develop-dialog > label,
+.develop-export-settings > label {
   display: flex;
   flex-direction: column;
   gap: 7px;
   margin: 14px 0;
+}
+.develop-proof-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0 10px;
+}
+.develop-export-proof {
+  margin: 0;
+}
+.develop-export-proof > div {
+  height: clamp(160px, 26vh, 280px);
+  overflow: auto;
+  background: #171717;
+  border-radius: 3px;
+}
+.develop-export-proof img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.develop-export-proof .is-actual-size img {
+  width: auto;
+  height: auto;
+  max-width: none;
+}
+.develop-export-proof figcaption {
+  color: #c4c4c4;
+  font-size: 11px;
+  margin: 8px 0;
+}
+.develop-export-proof figcaption span {
+  display: block;
+  color: #969696;
+  margin-top: 3px;
 }
 .develop-dialog input:not([type="checkbox"]),
 .develop-dialog select {

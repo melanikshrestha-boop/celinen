@@ -31,7 +31,7 @@ export function developProtocol(input: DevelopSettings): string {
   const s = developSettingsSchema.parse(input),
     c = s.crop;
   const lines: Array<string | number[]> = [
-    "FOTO_DEVELOP_1",
+    "FOTO_DEVELOP_2",
     [
       s.exposure,
       s.contrast,
@@ -84,6 +84,11 @@ export function developProtocol(input: DevelopSettings): string {
       m.temperature,
       m.saturation,
     ]),
+    ...[s.channelCurves.red, s.channelCurves.green, s.channelCurves.blue].flatMap((curve) => [
+      [curve.length],
+      ...curve.map((point) => [point.x, point.y]),
+    ]),
+    [s.filmFalloff],
   ];
   return lines.map((l) => (typeof l === "string" ? l : l.join(" "))).join("\n") + "\n";
 }

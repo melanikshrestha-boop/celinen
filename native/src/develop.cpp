@@ -38,6 +38,16 @@ double curve_value(double v, const std::vector<CurvePoint>& points) {
   }
   return points.back().y;
 }
+bool identity_curve(const std::vector<CurvePoint>& points) {
+  return points.size()==2 && points[0].x==0 && points[0].y==0 && points[1].x==1 && points[1].y==1;
+}
+void validate_curve(const std::vector<CurvePoint>& points) {
+  if(points.size()<2||points.size()>16||points.front().x!=0||points.back().x!=1) throw std::invalid_argument("Invalid curve.");
+  for(std::size_t i=0;i<points.size();++i) {
+    bounded(points[i].x,0,1);bounded(points[i].y,0,1);
+    if(i && points[i].x<=points[i-1].x) throw std::invalid_argument("Curve order.");
+  }
+}
 void saturate(Pixel& p, double amount) {
   const double y = luma(p);
   for (auto& v : p) v = float(clamp(y + (v - y) * amount));
@@ -104,10 +114,9 @@ Image geometry(const Image& in, const DevelopCrop& c) {
 void validate_develop(const DevelopSettings& s) {
   bounded(s.exposure, -5, 5);
   for (double v : {s.contrast,s.highlights,s.shadows,s.whites,s.blacks,s.temperature,s.tint,s.saturation,s.vibrance,s.texture,s.clarity,s.dehaze,s.balance,s.vignette}) bounded(v, -100, 100);
-  for (double v : {s.blending,s.grain,s.fade,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
+  for (double v : {s.blending,s.grain,s.fade,s.film_falloff,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
   bounded(s.grain_size, .5, 4);
-  if (s.curve.size() < 2 || s.curve.size() > 16 || s.curve.front().x != 0 || s.curve.back().x != 1) throw std::invalid_argument("Invalid curve.");
-  for (std::size_t i = 0; i < s.curve.size(); ++i) { bounded(s.curve[i].x,0,1); bounded(s.curve[i].y,0,1); if (i && s.curve[i].x <= s.curve[i-1].x) throw std::invalid_argument("Curve order."); }
+  validate_curve(s.curve);for(const auto& curve:s.channel_curves) validate_curve(curve);
   for (const auto& h : s.hsl) { bounded(h.hue,-100,100); bounded(h.saturation,-100,100); bounded(h.luminance,-100,100); }
   for (const auto& g : {s.shadow_grade,s.midtone_grade,s.highlight_grade}) { bounded(g.hue,0,360); bounded(g.saturation,0,100); bounded(g.luminance,-100,100); }
   const auto& c = s.crop; bounded(c.x,0,1); bounded(c.y,0,1); bounded(c.width,.01,1); bounded(c.height,.01,1); bounded(c.angle,-45,45);
@@ -117,7 +126,7 @@ void validate_develop(const DevelopSettings& s) {
 }
 
 DevelopSettings read_develop_protocol(std::istream& in) {
-  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1") throw std::invalid_argument("Invalid Develop protocol.");
+  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2") throw std::invalid_argument("Invalid Develop protocol.");
   DevelopSettings s;
   in >> s.exposure >> s.contrast >> s.highlights >> s.shadows >> s.whites >> s.blacks >> s.temperature >> s.tint >> s.saturation >> s.vibrance >> s.texture >> s.clarity >> s.dehaze;
   int count = 0; in >> count; if (count < 2 || count > 16) throw std::invalid_argument("Invalid curve count.");
@@ -128,6 +137,13 @@ DevelopSettings read_develop_protocol(std::istream& in) {
   auto& c = s.crop; in >> c.x >> c.y >> c.width >> c.height >> c.angle >> c.rotate >> c.flip_x >> c.flip_y;
   in >> count; if (count < 0 || count > 12) throw std::invalid_argument("Invalid mask count.");
   s.masks.resize(count); for (auto& m : s.masks) in >> m.radial >> m.enabled >> m.x >> m.y >> m.radius >> m.aspect >> m.angle >> m.feather >> m.invert >> m.exposure >> m.temperature >> m.saturation;
+  if(marker=="FOTO_DEVELOP_2") {
+    for(auto& curve:s.channel_curves) {
+      in >> count;if(count<2||count>16) throw std::invalid_argument("Invalid channel curve count.");
+      curve.resize(count);for(auto& point:curve) in >> point.x >> point.y;
+    }
+    in >> s.film_falloff;
+  }
   if (!in) throw std::invalid_argument("Truncated Develop settings.");
   in >> std::ws; if (!in.eof()) throw std::invalid_argument("Extra Develop settings.");
   validate_develop(s); return s;
@@ -152,7 +168,8 @@ Image develop(const Image& source, const DevelopSettings& s) {
   const auto n = std::size_t(w) * h;
   std::vector<Pixel> pixels(n);
   const double exposure = std::exp2(s.exposure);
-  const bool use_curve = s.curve.size() != 2 || s.curve[0].y != 0 || s.curve[1].y != 1;
+  const bool use_curve = !identity_curve(s.curve);
+  const std::array<bool,3> use_channel_curve{!identity_curve(s.channel_curves[0]),!identity_curve(s.channel_curves[1]),!identity_curve(s.channel_curves[2])};
   bool use_hsl = false; for (const auto& a : s.hsl) use_hsl |= a.hue != 0 || a.saturation != 0 || a.luminance != 0;
   const std::array<double,8> centers{0,30,60,120,180,240,275,315};
   for (unsigned y = 0; y < h; ++y) for (unsigned x = 0; x < w; ++x) {
@@ -162,10 +179,12 @@ Image develop(const Image& source, const DevelopSettings& s) {
     if (s.temperature != 0 || s.tint != 0) temperature(p,s.temperature,s.tint);
     const double lum = luma(p), lo = std::pow(1-lum,2), hi = std::pow(lum,2);
     const double shift = s.shadows*.0025*lo + s.highlights*.0025*hi + s.blacks*.0015*std::pow(1-lum,5) + s.whites*.0015*std::pow(lum,5);
-    for (auto& v : p) {
+    for (std::size_t channel=0;channel<p.size();++channel) {
+      auto& v=p[channel];
       double value = (v + shift - .5) * (1 + s.contrast*.008) + .5;
       value = (value - s.dehaze*.0015) / (1 - s.dehaze*.0025);
       v = float(clamp(value)); if (use_curve) v = float(curve_value(v,s.curve));
+      if(use_channel_curve[channel]) v=float(curve_value(v,s.channel_curves[channel]));
     }
     if (s.saturation != 0 || s.vibrance != 0) {
       const double spread = std::max({p[0],p[1],p[2]})-std::min({p[0],p[1],p[2]});
@@ -221,8 +240,15 @@ Image develop(const Image& source, const DevelopSettings& s) {
     const auto i=std::size_t(y)*w+x;
     const double distance=std::min(1.0,(std::pow((x+.5)/w-.5,2)+std::pow((y+.5)/h-.5,2))*2);
     const double vig=s.vignette*.006*smooth(distance), noise=grain(x,y,s.grain_size)*s.grain*.0012;
+    // Smooth shoulder above 55% with slope 1 at the join; use a shared RGB scale to preserve hue.
+    const double peak=std::max({pixels[i][0],pixels[i][1],pixels[i][2]});
+    double falloff_scale=1;
+    if(s.film_falloff && peak>.55) {
+      const double shoulder=.55+.45*(1-std::exp(-(peak-.55)/.45));
+      falloff_scale=1+(shoulder/peak-1)*s.film_falloff*.01;
+    }
     for(int c=0;c<3;++c) {
-      double value=pixels[i][c]*(1-s.fade*.003)+s.fade*.0015;
+      double value=pixels[i][c]*falloff_scale*(1-s.fade*.003)+s.fade*.0015;
       value=vig<0?value*(1+vig):value+(1-value)*vig;
       value+=noise*(.35+.65*(1-std::abs(value-.5)*2));
       out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value)*255));

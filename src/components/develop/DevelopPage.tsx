@@ -47,9 +47,13 @@ import {
 } from "@/lib/develop/store";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
 import { DevelopViewer, DevelopHistogram } from "./DevelopViewer";
+import { DevelopRecoveryDialog } from "./DevelopRecoveryDialog";
 import {
   currentDevelopRender,
+  currentDevelopExportProof,
   filteredDevelopSelection,
+  type DevelopExportProof,
+  type DevelopExportRequest,
   type DevelopRenderOwner,
 } from "./develop-state";
 import "./develop.css";
@@ -183,11 +187,15 @@ export function DevelopPage({
     (width: number, height: number) => setDimensions({ width, height }),
     [],
   );
-  const [dialog, setDialog] = useState<"preset" | "snapshot" | "export" | "sync" | null>(null),
+  const [dialog, setDialog] = useState<
+      "preset" | "snapshot" | "export" | "sync" | "recovery" | null
+    >(null),
     [name, setName] = useState(""),
     [exportEdge, setExportEdge] = useState(4096),
     [exportQuality, setExportQuality] = useState(95),
     [exportSourceMode, setExportSourceMode] = useState<"raw" | "preview">("raw");
+  const [exportProof, setExportProof] = useState<DevelopExportProof | null>(null),
+    [proofZoom, setProofZoom] = useState(false);
   const [syncCrop, setSyncCrop] = useState(false),
     [syncMasks, setSyncMasks] = useState(false);
   const input = useRef<HTMLInputElement>(null),
@@ -204,6 +212,20 @@ export function DevelopPage({
     doc = selected ? library.documents[selected] : undefined;
   const source = photo?.sourceBlob ?? photo?.previewBlob ?? null;
   const previewSource = photo?.isRaw ? (photo.previewBlob ?? source) : source;
+  const exportRequest: DevelopExportRequest | null =
+    photo && source
+      ? {
+          id: photo.id,
+          source:
+            photo.isRaw && exportSourceMode === "preview" ? (photo.previewBlob ?? source) : source,
+          recipeKey: JSON.stringify(cloneDevelopSettings(draft)),
+          edge: exportEdge,
+          quality: exportQuality,
+          sourceMode: photo.isRaw && photo.sourceAvailable ? exportSourceMode : "preview",
+        }
+      : null;
+  const proofReady = currentDevelopExportProof(exportProof, exportRequest);
+  const proofUrl = useBlobUrl(proofReady ? exportProof?.blob : null);
   const url = useBlobUrl(
       currentDevelopRender(renderOwner.current, selected, previewSource, tool !== "edit")
         ? renderBlob
@@ -258,6 +280,10 @@ export function DevelopPage({
   }, []);
   useEffect(() => {
     setDialogError("");
+    if (dialog !== "export") {
+      setExportProof(null);
+      setProofZoom(false);
+    }
   }, [dialog]);
   useEffect(() => {
     if (!dialog) return;
@@ -312,6 +338,21 @@ export function DevelopPage({
     dialogOpener.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDialog(next);
+  }
+  async function openRecovery() {
+    if (editsLocked()) return;
+    dialogOpener.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    operationLock.current = "dialog";
+    setBusy("Saving edits…");
+    try {
+      if (await flush()) {
+        if (alive.current) setDialog("recovery");
+      }
+    } finally {
+      operationLock.current = null;
+      if (alive.current) setBusy("");
+    }
   }
 
   function markDraftDirty(value: boolean) {
@@ -767,6 +808,42 @@ export function DevelopPage({
       if (alive.current) setBusy("");
     }
   }
+  async function previewExport() {
+    if (dialog !== "export" || editsLocked() || !exportRequest) return;
+    const request = exportRequest;
+    const recipe = cloneDevelopSettings(draftRef.current);
+    operationLock.current = "dialog";
+    setDialogError("");
+    setExportProof(null);
+    setBusy("Rendering export preview…");
+    const controller = new AbortController();
+    exportAbort.current = controller;
+    try {
+      if (!(await flush()))
+        throw new Error("These edits could not be saved. Save a recovery file before continuing.");
+      controller.signal.throwIfAborted();
+      const blob = await renderDevelop(request.source, recipe, {
+        edge: request.edge,
+        quality: request.quality / 100,
+        sourceMode: request.sourceMode,
+        signal: controller.signal,
+      });
+      const bitmap = await createImageBitmap(blob);
+      try {
+        if (alive.current && !controller.signal.aborted)
+          setExportProof({ ...request, blob, width: bitmap.width, height: bitmap.height });
+      } finally {
+        bitmap.close();
+      }
+    } catch (e) {
+      if (alive.current)
+        setDialogError(controller.signal.aborted ? "Export preview cancelled." : errorMessage(e));
+    } finally {
+      operationLock.current = null;
+      exportAbort.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
   async function confirmDialog() {
     if (!dialog || editsLocked()) return;
     const action = dialog,
@@ -826,16 +903,19 @@ export function DevelopPage({
         if (alive.current) setNotice(`Settings synced to ${updates.length} photos`);
       }
       if (action === "export") {
-        if (!photo || !source) throw new Error("Choose a photo with a source first.");
-        const sourceMode = photo.isRaw && photo.sourceAvailable ? exportSourceMode : "preview";
-        const exportSource =
-          photo.isRaw && sourceMode === "preview" ? (photo.previewBlob ?? source) : source;
-        const blob = await renderDevelop(exportSource, recipe, {
-          edge: exportEdge,
-          quality: exportQuality / 100,
-          signal: controller.signal,
-          sourceMode,
-        });
+        if (!photo || !exportRequest) throw new Error("Choose a photo with a source first.");
+        const { sourceMode } = exportRequest;
+        // Download the exact proof bytes when all inputs still match. A changed
+        // source, recipe, size or quality can never reuse a stale preview.
+        const blob =
+          currentDevelopExportProof(exportProof, exportRequest) && exportProof
+            ? exportProof.blob
+            : await renderDevelop(exportRequest.source, recipe, {
+                edge: exportRequest.edge,
+                quality: exportRequest.quality / 100,
+                signal: controller.signal,
+                sourceMode,
+              });
         const bitmap = await createImageBitmap(blob);
         const size = `${bitmap.width} × ${bitmap.height}`;
         bitmap.close();
@@ -1121,6 +1201,22 @@ export function DevelopPage({
                 ))}
             </div>
           </Panel>
+          <Panel title="Recovery">
+            <button
+              className="develop-wide develop-quiet"
+              disabled={!library.photos.length}
+              onClick={recoveryFile}
+            >
+              Save recovery file
+            </button>
+            <button
+              className="develop-wide develop-quiet"
+              disabled={!!saveError || !!busy}
+              onClick={() => void openRecovery()}
+            >
+              Import recovery file
+            </button>
+          </Panel>
           <div className="develop-left-footer">
             <button
               disabled={!photo}
@@ -1381,6 +1477,7 @@ export function DevelopPage({
           </div>
           <fieldset disabled={!source || !!saveError || !!busy}>
             <DevelopControls
+              photoId={selected ?? "empty"}
               value={draft}
               change={change}
               tool={tool}
@@ -1522,7 +1619,7 @@ export function DevelopPage({
         >
           <section
             ref={dialogElement}
-            className="develop-dialog"
+            className={`develop-dialog${dialog === "export" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="develop-dialog-title"
@@ -1535,10 +1632,36 @@ export function DevelopPage({
                   ? "Save snapshot"
                   : dialog === "sync"
                     ? "Sync settings"
-                    : "Export photograph"}
+                    : dialog === "recovery"
+                      ? "Recover saved edits"
+                      : "Export photograph"}
             </h2>
             {dialogError && <p role="alert">{dialogError}</p>}
-            {dialog === "preset" || dialog === "snapshot" ? (
+            {dialog === "recovery" ? (
+              <DevelopRecoveryDialog
+                store={store}
+                scope={scope}
+                libraryId={projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`}
+                onClose={() => setDialog(null)}
+                onCommitted={(documents) => {
+                  // A successful transaction is authoritative even if the optional
+                  // full-library refresh subsequently fails. Never expose/export
+                  // the old draft after recovery has already been committed.
+                  const nextDocuments = { ...docs.current };
+                  for (const document of documents) nextDocuments[document.photoId] = document;
+                  adopt({ ...library, documents: nextDocuments }, selectedRef.current);
+                }}
+                onRestored={(next) => {
+                  adopt(next, selectedRef.current);
+                  setDialog(null);
+                  setNotice("Recovery edits restored. Originals and existing history preserved.");
+                }}
+                onBusyChange={(value) => {
+                  operationLock.current = value ? "dialog" : null;
+                  setBusy(value ? "Recovering edits…" : "");
+                }}
+              />
+            ) : dialog === "preset" || dialog === "snapshot" ? (
               <label>
                 Name
                 <input
@@ -1575,7 +1698,7 @@ export function DevelopPage({
                 </label>
               </>
             ) : (
-              <>
+              <fieldset className="develop-export-settings" disabled={!!busy}>
                 <p>JPEG · sRGB · original file untouched</p>
                 {photo?.isRaw && photo.sourceAvailable && (
                   <>
@@ -1589,16 +1712,20 @@ export function DevelopPage({
                         <option value="preview">
                           {photo.previewOrigin === "raw-demosaic"
                             ? "Saved sensor-derived preview"
-                            : "Embedded preview"}
+                            : photo.previewOrigin === "embedded"
+                              ? "Embedded camera preview"
+                              : "Saved preview"}
                         </option>
                       </select>
                     </label>
                     <p className="develop-export-disclosure">
                       {exportSourceMode === "raw"
-                        ? "LibRaw decodes the sensor data. Color may differ from the camera preview shown in Develop."
+                        ? "LibRaw decodes the sensor data. Preview export to check the exact JPEG before downloading. Color can differ from the editor’s saved preview."
                         : photo.previewOrigin === "raw-demosaic"
                           ? "Exports the saved 1,600px sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
-                          : "Exports the camera’s embedded preview, not sensor RAW data."}
+                          : photo.previewOrigin === "embedded"
+                            ? "Exports the camera’s embedded preview, not sensor RAW data."
+                            : "Exports the saved preview, not a new render from sensor RAW data."}
                     </p>
                   </>
                 )}
@@ -1630,27 +1757,82 @@ export function DevelopPage({
                     }
                   />
                 </label>
-              </>
+                <div className="develop-proof-toolbar">
+                  <button
+                    type="button"
+                    onClick={() => void previewExport()}
+                    disabled={!exportRequest || !!saveError}
+                  >
+                    {proofReady ? "Refresh preview" : "Preview export"}
+                  </button>
+                  {proofReady && (
+                    <button
+                      type="button"
+                      aria-label="Export preview at 100 percent"
+                      aria-pressed={proofZoom}
+                      onClick={() => setProofZoom((value) => !value)}
+                    >
+                      {proofZoom ? "Fit" : "100%"}
+                    </button>
+                  )}
+                </div>
+                {proofUrl && exportProof && (
+                  <figure className="develop-export-proof">
+                    <div
+                      className={proofZoom ? "is-actual-size" : ""}
+                      tabIndex={0}
+                      aria-label={
+                        proofZoom
+                          ? "Export preview, scroll to inspect actual pixels"
+                          : "Export preview"
+                      }
+                    >
+                      <img
+                        src={proofUrl}
+                        alt={`Export preview of ${photo?.name ?? "photograph"}`}
+                        width={exportProof.width}
+                        height={exportProof.height}
+                      />
+                    </div>
+                    <figcaption>
+                      {exportProof.width.toLocaleString()} × {exportProof.height.toLocaleString()} ·
+                      JPEG
+                      {exportProof.sourceMode === "raw" ? " · Sensor RAW" : ""}
+                      <span>Export downloads this exact file. This is not a print soft proof.</span>
+                    </figcaption>
+                  </figure>
+                )}
+                {!proofReady && exportProof && (
+                  <p className="develop-export-disclosure">
+                    Export settings changed. Preview again to inspect the new file.
+                  </p>
+                )}
+              </fieldset>
             )}
-            <div className="develop-dialog-actions">
-              <button disabled={!!busy} onClick={() => setDialog(null)}>
-                Cancel
-              </button>
-              <button
-                className="develop-primary"
-                disabled={
-                  !!busy || ((dialog === "preset" || dialog === "snapshot") && !name.trim())
-                }
-                onClick={() => void confirmDialog()}
-              >
-                {busy ||
-                  (dialog === "export"
-                    ? "Export JPEG"
-                    : dialog === "sync"
-                      ? "Sync settings"
-                      : "Save")}
-              </button>
-            </div>
+            {dialog !== "recovery" && (
+              <div className="develop-dialog-actions">
+                {busy === "Rendering export preview…" && (
+                  <button onClick={() => exportAbort.current?.abort()}>Stop preview</button>
+                )}
+                <button disabled={!!busy} onClick={() => setDialog(null)}>
+                  Cancel
+                </button>
+                <button
+                  className="develop-primary"
+                  disabled={
+                    !!busy || ((dialog === "preset" || dialog === "snapshot") && !name.trim())
+                  }
+                  onClick={() => void confirmDialog()}
+                >
+                  {busy ||
+                    (dialog === "export"
+                      ? "Export JPEG"
+                      : dialog === "sync"
+                        ? "Sync settings"
+                        : "Save")}
+                </button>
+              </div>
+            )}
           </section>
         </div>
       )}

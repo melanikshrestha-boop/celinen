@@ -22,10 +22,12 @@ struct DevelopSettings {
   double temperature = 0, tint = 0, saturation = 0, vibrance = 0;
   double texture = 0, clarity = 0, dehaze = 0;
   std::vector<CurvePoint> curve{{0, 0}, {1, 1}};
+  std::array<std::vector<CurvePoint>, 3> channel_curves{{{{0,0},{1,1}},{{0,0},{1,1}},{{0,0},{1,1}}}};
   std::array<HslAdjustment, 8> hsl{};
   Grade shadow_grade, midtone_grade, highlight_grade;
   double balance = 0, blending = 50;
   double grain = 0, grain_size = 1, fade = 0, vignette = 0, bloom = 0, halation = 0;
+  double film_falloff = 0;
   double sharpening = 0, noise_reduction = 0, color_noise_reduction = 0;
   DevelopCrop crop;
   std::vector<DevelopMask> masks;

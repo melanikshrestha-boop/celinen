@@ -21,12 +21,17 @@ be retained when navigating from the workspace. The separate lab command keeps
 local development identity out of the production configuration. Native binaries,
 original photos and local environment files are not part of the Git handoff.
 
-Develop provides exposure/color/presence, a master point curve, HSL, tonal color
-grading, deterministic film effects, detail, crop/straighten/rotate/flip, and
+Develop provides exposure/color/presence, master and independent RGB point curves,
+HSL, tonal color grading, deterministic film effects and highlight falloff,
+detail, crop/straighten/rotate/flip, and
 manual radial/linear masks. Recipes, snapshots and history are kept separately
 from originals. `GET /__develop/status` and protected `POST /__develop/render`
 are loopback development routes, not a hosted production API. Source RAW export
-uses LibRaw sensor demosaic; embedded-preview export is separately labeled.
+uses LibRaw sensor demosaic; saved-preview export is separately labeled.
+Preview export displays the exact JPEG bytes that will be downloaded, with
+source/recipe/size/quality invalidation and cancellable sensor processing.
+Recovery files can restore explicitly selected treatments as undoable history
+steps without replacing originals or current review metadata.
 Current output is JPEG/sRGB up to a 4,096px long edge, not a complete 16-bit or
 full-resolution Lightroom pipeline. Other operating systems still require a
 decoder/encoder adapter.
