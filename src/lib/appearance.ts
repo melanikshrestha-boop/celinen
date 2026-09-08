@@ -15,6 +15,7 @@ export const appearanceSchema = z
     codeSize: z.number().int().min(12).max(20).default(13),
     density: z.enum(["compact", "comfortable"]).default("compact"),
     translucentSidebar: z.boolean().default(true),
+    sidebarOpacity: z.number().int().min(20).max(100).default(80),
     contrast: z.enum(["system", "standard", "more"]).default("system"),
     accentStyle: z.enum(["solid", "gradient"]).default("solid"),
     accentEnd: color.default("#b099f1"),
@@ -182,8 +183,11 @@ export function sidebarSurfaceTokens(appearance: Appearance, dark: boolean) {
   const text = neutral ? (dark ? "#f5f5f5" : "#202020") : appearance.foreground;
   const muted = neutral ? (dark ? "#a3a3a3" : "#626262") : readableMuted(text, solid);
   const translucent = appearance.translucentSidebar && appearance.contrast !== "more";
+  const alpha = Math.round((appearance.sidebarOpacity * 255) / 100)
+    .toString(16)
+    .padStart(2, "0");
   return {
-    "--foto-sidebar-material": translucent ? `${solid}${dark ? "99" : "e6"}` : solid,
+    "--foto-sidebar-material": translucent ? `${solid}${alpha}` : solid,
     "--foto-sidebar-solid": solid,
     "--foto-sidebar-hover": `${text}0d`,
     "--foto-sidebar-selected": `${text}18`,

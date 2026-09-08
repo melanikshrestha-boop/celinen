@@ -9,6 +9,12 @@ import {
   type DevelopHistogramData,
 } from "@/lib/develop/histogram";
 import type { DevelopChange } from "./DevelopControls";
+import {
+  histogramDisplayBins,
+  histogramHeight,
+  type HistogramChannel,
+  type HistogramScale,
+} from "@/lib/develop/histogram-display";
 
 export function DevelopHistogram({
   histogram,
@@ -37,7 +43,9 @@ export function DevelopHistogram({
   } | null>(null);
   const keyboard = useRef<{ base: DevelopSettings; expected: string; zone: ToneZone } | null>(null);
   const [hover, setHover] = useState<ToneZone | null>(null);
-  const bins = histogram?.channels ?? [],
+  const [channel, setChannel] = useState<HistogramChannel>("rgb");
+  const [scale, setScale] = useState<HistogramScale>("linear");
+  const bins = histogramDisplayBins(histogram, channel),
     max = Math.max(1, ...bins.flat());
   const locked = disabled || !histogram?.pixels;
   // A preset, undo, source change or recovery wins over an in-flight gesture.
@@ -60,6 +68,24 @@ export function DevelopHistogram({
     `${((count / Math.max(1, histogram?.pixels ?? 0)) * 100).toFixed(2)}%`;
   return (
     <div className="develop-histogram-control">
+      <div className="develop-histogram-display">
+        <select
+          aria-label="Histogram channel"
+          value={channel}
+          onChange={(event) => setChannel(event.target.value as HistogramChannel)}
+        >
+          <option value="rgb">RGB</option>
+          <option value="luminance">Luminance</option>
+        </select>
+        <select
+          aria-label="Histogram scale"
+          value={scale}
+          onChange={(event) => setScale(event.target.value as HistogramScale)}
+        >
+          <option value="linear">Linear</option>
+          <option value="log">Log</option>
+        </select>
+      </div>
       <div className="develop-histogram-clipping">
         <button
           type="button"
@@ -134,15 +160,17 @@ export function DevelopHistogram({
           viewBox="0 0 256 74"
           preserveAspectRatio="none"
           role="img"
-          aria-label="Rendered preview RGB histogram"
+          aria-label={`Rendered preview ${channel === "rgb" ? "RGB" : "luminance"} histogram, ${scale} scale`}
         >
-          {bins.map((channel, i) => (
+          {bins.map((bin, i) => (
             <path
               key={i}
-              d={`M0 74 ${channel.map((n, j) => `L${(j * 256) / 255} ${74 - Math.sqrt(n / max) * 70}`).join(" ")} L256 74Z`}
-              fill={["#e29e9e", "#8dbfa4", "#8ca4d2"][i]}
+              d={`M0 74 ${bin.map((n, j) => `L${(j * 256) / 255} ${74 - histogramHeight(n, max, scale) * 70}`).join(" ")} L256 74Z`}
+              fill={channel === "luminance" ? "#bcbcbc" : ["#db6877", "#70b487", "#7297d3"][i]}
+              stroke={channel === "luminance" ? "#e0e0e0" : ["#ee8290", "#85c79b", "#8eb0e7"][i]}
+              strokeWidth="0.5"
               style={{ mixBlendMode: "screen" }}
-              opacity=".55"
+              opacity=".65"
             />
           ))}
         </svg>

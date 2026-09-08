@@ -77,11 +77,11 @@ export function AppearanceSettings({
             key={theme}
             aria-pressed={prefs.theme === theme}
             onClick={() => {
-              if (theme === "light")
-                apply({ preset: "paper", ...THEME_PRESETS.paper }) && save({ theme });
-              else if (theme === "dark")
-                apply({ preset: "lenslabs", ...THEME_PRESETS.lenslabs }) && save({ theme });
-              else save({ theme });
+              if (theme === "light") {
+                if (apply({ preset: "paper", ...THEME_PRESETS.paper })) save({ theme });
+              } else if (theme === "dark") {
+                if (apply({ preset: "lenslabs", ...THEME_PRESETS.lenslabs })) save({ theme });
+              } else save({ theme });
             }}
           >
             <span className={`settings-theme-sample sample-${theme}`} aria-hidden="true">
@@ -108,8 +108,12 @@ export function AppearanceSettings({
             options={[
               ["paper", "Light"],
               ["lenslabs", "Dark"],
-              ...(colors.preset === "custom" || colors.preset === "midnight" || colors.preset === "warm"
-                ? ([[colors.preset, colors.preset === "custom" ? "Custom" : colors.preset] as const] as const)
+              ...(colors.preset === "custom" ||
+              colors.preset === "midnight" ||
+              colors.preset === "warm"
+                ? ([
+                    [colors.preset, colors.preset === "custom" ? "Custom" : colors.preset] as const,
+                  ] as const)
                 : []),
             ]}
             change={(preset) =>
@@ -228,6 +232,24 @@ export function AppearanceSettings({
             checked={colors.translucentSidebar}
             onCheckedChange={(value) => apply({ translucentSidebar: value })}
           />
+        </Row>
+        <Row
+          title="Sidebar opacity"
+          note="Higher values make the background more solid. Your photographs are unchanged."
+        >
+          <label className="settings-range">
+            <input
+              type="range"
+              aria-label="Sidebar opacity"
+              min={20}
+              max={100}
+              step={5}
+              disabled={!colors.translucentSidebar}
+              value={colors.sidebarOpacity}
+              onChange={(event) => apply({ sidebarOpacity: Number(event.target.value) })}
+            />
+            <output>{colors.translucentSidebar ? colors.sidebarOpacity : 100}%</output>
+          </label>
         </Row>
         <Row
           title="Text contrast"

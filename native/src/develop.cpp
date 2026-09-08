@@ -74,6 +74,39 @@ std::vector<Pixel> blur(const std::vector<Pixel>& in, unsigned w, unsigned h, in
   };
   pass(in, horizontal, false); pass(horizontal, output, true); return output;
 }
+// A bounded bilateral filter in working-space luminance. Spatial and range
+// weights retain structural edges; unlike a detail cutoff, the range widens
+// with strength so visible high-amplitude grain is not left wholly untouched.
+// The common, gamut-bounded RGB offset leaves chroma differences unchanged.
+// This is classical local denoising, not a trained RAW reconstruction model.
+void denoise_luminance(std::vector<Pixel>& pixels, unsigned w, unsigned h, double amount) {
+  const double strength=amount*.01, sigma=.015+.28*strength;
+  std::array<float,4097> range{};
+  for(std::size_t i=0;i<range.size();++i) {
+    const double delta=double(i)/4096;
+    range[i]=float(std::exp(-delta*delta/(2*sigma*sigma)));
+  }
+  std::array<float,25> spatial{};
+  for(int dy=-2;dy<=2;++dy)for(int dx=-2;dx<=2;++dx)
+    spatial[(dy+2)*5+dx+2]=float(std::exp(-(dx*dx+dy*dy)/4.5));
+  std::vector<float> luminance(pixels.size());
+  for(std::size_t i=0;i<pixels.size();++i)luminance[i]=float(luma(pixels[i]));
+  for(unsigned y=0;y<h;++y)for(unsigned x=0;x<w;++x) {
+    const auto i=std::size_t(y)*w+x;const float center=luminance[i];
+    double sum=0,weight_sum=0;
+    for(int dy=-2;dy<=2;++dy)for(int dx=-2;dx<=2;++dx) {
+      const auto yy=unsigned(std::clamp(int(y)+dy,0,int(h)-1)),xx=unsigned(std::clamp(int(x)+dx,0,int(w)-1));
+      const float neighbor=luminance[std::size_t(yy)*w+xx];
+      const auto distance=std::min(4096u,unsigned(std::abs(neighbor-center)*4096+.5));
+      const double weight=spatial[(dy+2)*5+dx+2]*range[distance];
+      sum+=weight*neighbor;weight_sum+=weight;
+    }
+    auto& p=pixels[i];
+    const double delta=std::clamp((sum/weight_sum-center)*strength,
+      -double(std::min({p[0],p[1],p[2]})),1-double(std::max({p[0],p[1],p[2]})));
+    for(auto& value:p)value=float(value+delta);
+  }
+}
 double grain(unsigned x, unsigned y, double size) {
   const unsigned gx = unsigned(std::floor(x / size)), gy = unsigned(std::floor(y / size));
   std::uint32_t v = (gx * 374761393u + gy * 668265263u + 0x9e3779b9u);
@@ -237,14 +270,20 @@ Image develop(const Image& source, const DevelopSettings& s) {
     }
     pixels[i]=p;
   }
-  if (s.sharpening || s.texture || s.noise_reduction || s.color_noise_reduction) {
+  // Denoise first, then compute detail from the cleaned signal. Sharing the
+  // original detail term made sharpening >= 50 cancel even maximum denoise.
+  if(s.noise_reduction)denoise_luminance(pixels,source.width,source.height,s.noise_reduction);
+  if (s.sharpening || s.texture || s.color_noise_reduction) {
     const auto soft=blur(pixels,w,h,1);
     for(std::size_t i=0;i<n;++i) {
       const double lum=luma(pixels[i]), smooth_lum=luma(soft[i]);
       for(int c=0;c<3;++c) {
         const double detail=pixels[i][c]-soft[i][c];
-        const double denoise=s.noise_reduction*.01*std::max(0.0,1-std::abs(detail)*8);
-        double value=pixels[i][c]+detail*(s.sharpening*.02+s.texture*.007-denoise);
+        // Soft-threshold the remaining high-frequency residual while denoise
+        // is enabled; otherwise unsharp masking can re-amplify the same grain.
+        const double cleaned_detail=s.noise_reduction
+          ? std::copysign(std::max(0.0,std::abs(detail)-s.noise_reduction*.001),detail) : detail;
+        double value=pixels[i][c]+cleaned_detail*(s.sharpening*.02+s.texture*.007);
         value+=(soft[i][c]-smooth_lum-(pixels[i][c]-lum))*s.color_noise_reduction*.01;
         pixels[i][c]=float(clamp(value));
       }

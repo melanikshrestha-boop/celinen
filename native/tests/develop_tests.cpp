@@ -36,6 +36,45 @@ int main() {
     lenslabs::DevelopSettings neutral;
     check(lenslabs::develop(source,neutral).rgba==original,"Neutral settings are byte-identical.");
     {
+      for (int amplitude : {12,60}) {
+        auto noisy=solid(128);
+        for(unsigned y=0;y<noisy.height;++y)for(unsigned x=0;x<noisy.width;++x) {
+          const auto i=(std::size_t(y)*noisy.width+x)*4;
+          for(int c=0;c<3;++c)noisy.rgba[i+c]=std::uint8_t(128+((x+y)%2?amplitude:-amplitude));
+        }
+        const auto bytes=noisy.rgba;
+        auto denoise=neutral;denoise.noise_reduction=100;
+        const auto reduced=lenslabs::develop(noisy,denoise);
+        check(noise_energy(reduced,128)<amplitude*amplitude*.6,"Maximum luminance denoise reduces even strong high-frequency noise.");
+        denoise.sharpening=50;
+        check(noise_energy(lenslabs::develop(noisy,denoise),128)<amplitude*amplitude,"Sharpening does not cancel the luminance denoise stage.");
+        check(noisy.rgba==bytes,"Denoise never writes source pixels.");
+      }
+      auto colored=solid(128);
+      for(unsigned y=0;y<colored.height;++y)for(unsigned x=0;x<colored.width;++x) {
+        const auto i=(std::size_t(y)*colored.width+x)*4;const int noise=(x+y)%2?20:-20;
+        colored.rgba[i]=100+noise;colored.rgba[i+1]=140+noise;colored.rgba[i+2]=170+noise;
+        colored.rgba[i+3]=std::uint8_t((x+y)%256);
+      }
+      auto denoise=neutral;denoise.noise_reduction=100;const auto filtered=lenslabs::develop(colored,denoise);
+      for(std::size_t i=0;i<colored.rgba.size();i+=4) {
+        check(int(filtered.rgba[i+1])-filtered.rgba[i]==40&&int(filtered.rgba[i+2])-filtered.rgba[i+1]==30,"Luminance denoise preserves in-gamut color differences.");
+        check(filtered.rgba[i+3]==colored.rgba[i+3],"Luminance denoise preserves alpha.");
+      }
+      auto edge=solid(40);
+      for(unsigned y=0;y<edge.height;++y)for(unsigned x=edge.width/2;x<edge.width;++x)
+        for(int c=0;c<3;++c)edge.rgba[(std::size_t(y)*edge.width+x)*4+c]=215;
+      const auto preserved=lenslabs::develop(edge,denoise);
+      for(std::size_t i=0;i<edge.rgba.size();i+=4) {
+        check(preserved.rgba[i]>=40&&preserved.rgba[i]<=215,"Denoise creates no edge overshoot or halos.");
+        check(std::abs(int(preserved.rgba[i])-edge.rgba[i])<=9,"Luminance denoise preserves strong structural edges.");
+      }
+      for(auto dimensions:{std::pair{1u,1u},std::pair{1u,32u},std::pair{32u,1u}}) {
+        auto tiny=solid(90,dimensions.first,dimensions.second);
+        check(lenslabs::develop(tiny,denoise).rgba==tiny.rgba,"Denoise handles one-pixel dimensions and uniform fields exactly.");
+      }
+    }
+    {
       auto middle=neutral;middle.tonal_grading=true;middle.blending=0;middle.midtone_grade={120,80,0};
       check(lenslabs::develop(source,middle).rgba!=original,"Tonal midtones still work when blending is zero.");
     }
