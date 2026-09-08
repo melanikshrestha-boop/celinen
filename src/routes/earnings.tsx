@@ -7,6 +7,7 @@ import {
 import { localDate } from "@/lib/business/reminders";
 import "@/components/lensos/business-workspace.css";
 import { createFileRoute } from "@tanstack/react-router";
+import { LegacyWorkbenchRedirect } from "./-legacy-redirect";
 import { useEffect, useMemo, useState } from "react";
 import { Btn, Card, Chip, Shell } from "@/components/lensos/Shell";
 import { PieBlock } from "@/components/earnings/PieBlock";
@@ -68,7 +69,7 @@ export const Route = createFileRoute("/earnings")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Earnings,
+  component: LegacyWorkbenchRedirect,
 });
 
 type Kind = "income" | "expense";
@@ -211,7 +212,7 @@ function seedLocalFinance(state: LocalFinanceState): LocalFinanceState {
   return next;
 }
 
-function Earnings() {
+export function EarningsWorkspace() {
   const { events: allEvents, clients } = useLens();
 
   const [runtimeMode, setRuntimeMode] = useState<"checking" | "local" | "remote">("checking");
@@ -655,9 +656,10 @@ function Earnings() {
   return (
     <Shell hideEventHeader>
       <div className="iris-finances">
-        <h1>Earnings</h1>
+        <h1>Money</h1>
         <p className="iris-finances-sub">
-          {periodEntries.length} · {runtimeMode === "local" ? "saved on this device" : "saved to your account"}
+          {periodEntries.length} ·{" "}
+          {runtimeMode === "local" ? "saved on this device" : "saved to your account"}
         </p>
 
         {dataError && (
@@ -1090,7 +1092,11 @@ function Earnings() {
                       )}
                       {runtimeMode === "local" && confirmDeleteEntryId === e.id ? (
                         <>
-                          <button type="button" className="act" onClick={() => void removeEntry(e.id)}>
+                          <button
+                            type="button"
+                            className="act"
+                            onClick={() => void removeEntry(e.id)}
+                          >
                             confirm
                           </button>
                           <button
@@ -1157,7 +1163,9 @@ function Earnings() {
                         setKind(next);
                         setForm((current) => ({
                           ...current,
-                          category: (next === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES)[0]!,
+                          category: (next === "income"
+                            ? INCOME_CATEGORIES
+                            : EXPENSE_CATEGORIES)[0]!,
                         }));
                       }}
                     >
@@ -1171,9 +1179,11 @@ function Earnings() {
                       value={form.category}
                       onChange={(e) => setForm({ ...form, category: e.target.value })}
                     >
-                      {(!cats.includes(form.category) ? [form.category, ...cats] : cats).map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
+                      {(!cats.includes(form.category) ? [form.category, ...cats] : cats).map(
+                        (c) => (
+                          <option key={c}>{c}</option>
+                        ),
+                      )}
                     </select>
                   </td>
                   <td className="amt">

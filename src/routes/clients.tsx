@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { LegacyWorkbenchRedirect } from "./-legacy-redirect";
 import "@/components/lensos/business-workspace.css";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { useEffect, useRef, useState } from "react";
@@ -67,10 +68,10 @@ export const Route = createFileRoute("/clients")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Clients,
+  component: LegacyWorkbenchRedirect,
 });
 
-function Clients() {
+export function ClientsWorkspace() {
   const [local, setLocal] = useState<boolean | null>(null);
   useEffect(
     () =>

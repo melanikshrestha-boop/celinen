@@ -80,20 +80,20 @@ html[data-workspace-grid="true"] .workbench-conversation {
   background-size: 24px 24px;
 }
 html[data-contrast="more"] .settings-shell {
-  --settings-muted: #454545;
+  --settings-muted: var(--ll-settings-foreground, #454545);
   --settings-border: #888;
-  --settings-text: #000;
+  --settings-text: var(--ll-settings-foreground, #000);
 }
 html.dark[data-contrast="more"] .settings-shell {
-  --settings-muted: #d1d1d1;
+  --settings-muted: var(--ll-settings-foreground, #d1d1d1);
   --settings-border: #888;
-  --settings-text: #fff;
+  --settings-text: var(--ll-settings-foreground, #fff);
 }
 html[data-contrast="more"] .photo-workbench {
-  --wb-muted: #444;
+  --wb-muted: var(--wb-user-fg, #444);
 }
 html.dark[data-contrast="more"] .photo-workbench {
-  --wb-muted: #d1d1d1;
+  --wb-muted: var(--wb-user-fg, #d1d1d1);
 }
 html[data-contrast="more"] :is(.ll-chat-hover, .ll-chat-title) {
   color: var(--wb-text);
@@ -104,20 +104,20 @@ html[data-contrast="more"] :is(button, input, [role="combobox"]):focus-visible {
 }
 @media (prefers-contrast: more) {
   html[data-contrast="system"] .settings-shell {
-    --settings-muted: #454545;
+    --settings-muted: var(--ll-settings-foreground, #454545);
     --settings-border: #888;
-    --settings-text: #000;
+    --settings-text: var(--ll-settings-foreground, #000);
   }
   html.dark[data-contrast="system"] .settings-shell {
-    --settings-muted: #d1d1d1;
+    --settings-muted: var(--ll-settings-foreground, #d1d1d1);
     --settings-border: #888;
-    --settings-text: #fff;
+    --settings-text: var(--ll-settings-foreground, #fff);
   }
   html[data-contrast="system"] .photo-workbench {
-    --wb-muted: #444;
+    --wb-muted: var(--wb-user-fg, #444);
   }
   html.dark[data-contrast="system"] .photo-workbench {
-    --wb-muted: #d1d1d1;
+    --wb-muted: var(--wb-user-fg, #d1d1d1);
   }
 }
 @media (max-width: 600px) {

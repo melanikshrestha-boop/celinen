@@ -3,6 +3,10 @@ import type { DeliveryFocus } from "./delivery/studio-handoff";
 import { isSettingsPath } from "./settings-catalog";
 
 export const WORKBENCH_TOOLS = [
+  { path: "/tonight", label: "Tonight", group: "Workspace" },
+  { path: "/shoots", label: "Shoots", group: "Workspace" },
+  { path: "/library", label: "Library", group: "Workspace" },
+  { path: "/money", label: "Money", group: "Business" },
   { path: "/studio", label: "Studio", group: "Workspace" },
   { path: "/develop", label: "Develop", group: "Workspace" },
   { path: "/projects", label: "Projects", group: "Workspace" },
@@ -28,9 +32,16 @@ export const WORKBENCH_TOOLS = [
   { path: "/settings", label: "Settings", group: "Account" },
 ] as const;
 /** Keep everyday navigation small; the complete catalogue remains in the command menu. */
-export const WORKBENCH_PRIMARY_TOOLS = WORKBENCH_TOOLS.filter((tool) =>
-  (["/studio", "/develop", "/deliver", "/clients"] as readonly string[]).includes(tool.path),
-);
+export const WORKBENCH_PRIMARY_TOOLS = [
+  "/tonight",
+  "/shoots",
+  "/library",
+  "/deliver",
+  "/money",
+].map((path) => ({
+  ...WORKBENCH_TOOLS.find((tool) => tool.path === path)!,
+  ...(path === "/deliver" ? { label: "Deliver" } : {}),
+}));
 export type WorkbenchTab = { href: string; label: string; path: string };
 const unsafeUrlCharacters = (value: string) =>
   [...value].some((char) => char === "\\" || char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127);
@@ -150,6 +161,8 @@ export function isWorkbenchRoute(routeIds: readonly string[]) {
     (id) =>
       id === "/workspace" ||
       id === "/shoot" ||
+      id === "/jobs" ||
+      id.startsWith("/shoots/") ||
       id === "/settings_/$section" ||
       WORKBENCH_TOOLS.some((t) => t.path === id),
   );
@@ -159,6 +172,25 @@ export function workbenchTab(href: string): WorkbenchTab | null {
   const url = new URL(href, "https://workspace.invalid");
   if (url.origin !== "https://workspace.invalid") return null;
   const path = url.pathname.replace(/\/$/, "").toLowerCase();
+  const shoot = path.match(/^\/shoots\/([^/]+)(?:\/(cull|develop|gallery|social|smart-file))?$/);
+  if (shoot) {
+    const label =
+      (
+        {
+          cull: "Cull",
+          develop: "Develop",
+          gallery: "Gallery",
+          social: "Social",
+          "smart-file": "SmartFile",
+        } as Record<string, string>
+      )[shoot[2] ?? ""] ?? "Overview";
+    url.searchParams.sort();
+    return {
+      href: `${url.pathname.replace(/\/$/, "")}${url.search}${url.hash}`,
+      path: url.pathname.replace(/\/$/, ""),
+      label,
+    };
+  }
   const tool = WORKBENCH_TOOLS.find(
     (t) => t.path === path || (t.path === "/settings" && isSettingsPath(path)),
   );
@@ -172,7 +204,7 @@ export function workbenchTab(href: string): WorkbenchTab | null {
   // Equivalent shoot URLs describe one tab, independent of query insertion order.
   if (url.searchParams.has("shoot")) url.searchParams.sort();
   return {
-    href: `${tool.path}${url.search}`,
+    href: `${tool.path}${url.search}${["/tonight", "/shoots", "/library", "/deliver", "/money"].includes(tool.path) ? url.hash : ""}`,
     path: tool.path,
     label:
       tool.label +

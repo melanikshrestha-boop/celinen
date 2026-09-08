@@ -9,18 +9,13 @@ import {
   type ReactNode,
 } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { createPortal } from "react-dom";
 import {
-  FolderPlus,
   PanelLeft,
   PanelRightClose,
   PanelsTopLeft,
   MoreHorizontal,
   Search,
-  Users,
-  Wallet,
-  SlidersHorizontal,
-  Send,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,12 +28,10 @@ import {
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { WorkspacePreferences } from "@/components/account/WorkspacePreferences";
-import { useWorkspaceText } from "@/components/account/useWorkspaceText";
 import { AccountSetup } from "@/components/account/AccountSetup";
 import { LogoMark } from "@/components/lensos/Logo";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { PRODUCT_NAME } from "@/lib/product";
-import { WorkbenchColor } from "./WorkbenchColor";
 import {
   addWorkbenchTab,
   closeWorkbenchTab,
@@ -60,18 +53,27 @@ import {
   scopeToolHref,
   tabProjectScope,
   workspaceToolHref,
+  shootRoute,
 } from "@/lib/workbench-projects";
 import { GmailConnection } from "./GmailConnection";
 import { ResearchPanel } from "./ResearchPanel";
 import { MailPanel } from "./MailPanel";
-import { RecentShoots } from "./RecentShoots";
 import { nextShootLabel, renameShoot } from "@/lib/studio/shoot-directory";
 import { shootDisplayTitle } from "@/lib/workspace-labels";
 import { ToolPalette } from "./ToolPalette";
 import { ShootTabs } from "./ShootTabs";
 import { SidebarHistoryControls } from "./SidebarHistoryControls";
 import { useSidebarHistory } from "./useSidebarHistory";
-import { ChatHistoryProvider, ChatRecents, NewChatButton, useChatHistory } from "./ChatHistory";
+import { ChatHistoryProvider, ChatRecents, useChatHistory } from "./ChatHistory";
+import { LibraryRecents, NewShootAction, PrimaryNavigation } from "./PrimaryNavigation";
+import { FOTO_PRIMARY_NAV, primaryNavigationPath } from "./primary-navigation";
+import {
+  parseShootKey,
+  shootWorkspaceHref,
+  shootSummaryDetail,
+  useShootNavigationData,
+} from "@/components/shoots/navigation";
+import { ShootWorkflowTabs } from "@/components/shoots/ShootWorkspaceFrame";
 import {
   Sheet,
   SheetContent,
@@ -180,14 +182,24 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
 }
 function WorkbenchFrame({ children, account }: { children: ReactNode; account: string }) {
   const sidebarHistory = useSidebarHistory();
-  const t = useWorkspaceText();
   const shortcuts = useAccount()?.preferences.shortcuts ?? DEFAULT_SHORTCUTS;
   const navigate = useNavigate();
   const router = useRouter();
   const href = useRouterState({ select: (state) => state.location.href });
   const current = workbenchTab(href);
+  const pathname = new URL(href, "https://workspace.invalid").pathname;
+  const routeShoot = shootRoute(href);
+  const routeShootKey = routeShoot && parseShootKey(routeShoot.key) ? routeShoot.key : null;
+  const shootTab = routeShoot?.tab ?? "overview";
+  const primaryPath = primaryNavigationPath(pathname);
+  const primarySurface = !!primaryPath;
+  const isCull = !!routeShootKey && shootTab === "cull";
+  const isDevelop = !!routeShootKey && shootTab === "develop";
+  const navigationData = useShootNavigationData(account, isLocalSingleUserMode);
   const [tabs, setTabs] = useState<WorkbenchTab[]>(() =>
-    current ? addWorkbenchTab(readWorkbenchTabs(account), current) : readWorkbenchTabs(account),
+    current && !primarySurface
+      ? addWorkbenchTab(readWorkbenchTabs(account), current)
+      : readWorkbenchTabs(account),
   );
   useEffect(() => {
     try {
@@ -197,19 +209,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
     }
   }, [account, tabs]);
   const tabsRef = useRef(tabs);
-  tabsRef.current = current ? addWorkbenchTab(tabs, current) : tabs;
+  tabsRef.current = current && !primarySurface ? addWorkbenchTab(tabs, current) : tabs;
   const [chatTarget, setChatTarget] = useState<HTMLDivElement | null>(null);
-  // Keep conversation actions mounted while the responsive drawer closes.
-  // Only their navigation host moves; dialogs and keyboard actions stay alive.
-  const [historyHost] = useState(() =>
-    typeof document === "undefined" ? null : document.createElement("div"),
-  );
-  const mountHistory = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (node && historyHost) node.appendChild(historyHost);
-    },
-    [historyHost],
-  );
   const [quickChat, setQuickChat] = useState(false);
   const [binding, setBinding] = useState<StudioWorkbenchBinding>(
     () =>
@@ -258,6 +259,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
         return false;
       if (
         tab &&
+        !primaryNavigationPath(home.pathname) &&
         tabsRef.current.filter((entry) => tabProjectScope(entry.href) === tabProjectScope(tab.href))
           .length >= 32 &&
         !tabsRef.current.some((entry) => entry.href === tab.href)
@@ -299,17 +301,30 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
       ),
     [openExact, binding],
   );
+  const creatingRef = useRef(false);
+  const pendingShoot = useRef<{ id: string; title: string } | null>(null);
+  const [creatingShoot, setCreatingShoot] = useState(false);
   const newShoot = useCallback(async () => {
-    const id = crypto.randomUUID();
-    if (!(await openExact(`/workspace?shoot=${id}`))) return false;
+    if (creatingRef.current) return false;
+    creatingRef.current = true;
+    setCreatingShoot(true);
     try {
-      await renameShoot(account, id, nextShootLabel(account));
+      const draft = pendingShoot.current ?? {
+        id: crypto.randomUUID(),
+        title: nextShootLabel(account),
+      };
+      pendingShoot.current = draft;
+      if (!(await openExact(shootWorkspaceHref(draft.id)))) return false;
+      await renameShoot(account, draft.id, draft.title);
+      pendingShoot.current = null;
+      return true;
     } catch {
-      setTabNote(
-        "The new project could not be added to Recents. Keep this tab open and try naming it again.",
-      );
+      setTabNote("This shoot could not be saved. Click New shoot to retry saving the same shoot.");
+      return false;
+    } finally {
+      creatingRef.current = false;
+      setCreatingShoot(false);
     }
-    return true;
   }, [openExact, account]);
   useEffect(() => {
     if (
@@ -337,7 +352,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   useEffect(() => {
     const tab = workbenchTab(href);
     setMobilePane(tab ? "tool" : "chat");
-    if (tab) setTabs((old) => addWorkbenchTab(old, tab));
+    if (tab && !primaryNavigationPath(new URL(href, "https://workspace.invalid").pathname))
+      setTabs((old) => addWorkbenchTab(old, tab));
     if (explicitWorkspaceBinding(href, isLocalSingleUserMode))
       setBinding((old) => {
         const next = resolveWorkspaceBinding(href, old, isLocalSingleUserMode);
@@ -364,7 +380,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   // Bind during render on Studio navigation; no intermediate frame may edit the previous shoot.
   const activeBinding = resolveWorkspaceBinding(href, binding, isLocalSingleUserMode);
   const activeTool = !compact || mobilePane === "tool" ? (current?.path ?? null) : null;
-  const studioVisible = current?.path === "/studio";
+  const studioVisible = current?.path === "/studio" || isCull;
   const openQuickChat = useCallback(async () => {
     if (!current || current.path === "/settings") {
       if (!(await openTool("/studio"))) return;
@@ -396,6 +412,9 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
       showStudio,
       storageScope: account,
       workspaceProjectId: activeBinding.kind === "ready" ? activeBinding.projectId : null,
+      workspaceShootId: activeBinding.kind === "ready" ? activeBinding.shootId : undefined,
+      workspaceDeliveryFocus:
+        activeBinding.kind === "ready" ? activeBinding.deliveryFocus : undefined,
       newShoot,
       openQuickChat,
       closeQuickChat,
@@ -432,7 +451,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
         : path,
     );
   };
-  const showTool = !!current;
+  // Invalid canonical links still need their route's error UI, never the previous conversation.
+  const showTool = !!current || primarySurface;
   const closeTab = async (tab: WorkbenchTab) => {
     const closed = closeWorkbenchTab(projectTabs, tab.href, current?.href ?? "/workspace");
     const forget = () => {
@@ -464,18 +484,38 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
     <ChatHistoryProvider scope={account} project={projectScope(activeBinding)}>
       <WorkbenchContext.Provider value={context}>
         <WorkspacePreferences />
-        <WorkspaceSidebar narrow={narrow} trigger={sidebarTriggerRef}>
-          <SidebarHeader className="workbench-sidebar-top">
-            <div className="workbench-sidebar-toolbar">
+        <WorkspaceSidebar
+          narrow={narrow}
+          trigger={sidebarTriggerRef}
+          rail={
+            <aside className="foto-mobile-rail" aria-label="Workspace navigation">
               <button
+                ref={sidebarTriggerRef}
                 className="workbench-sidebar-toggle"
-                aria-label={narrow ? "Close sidebar" : "Collapse sidebar"}
-                onClick={() => (narrow ? setOpenMobile(false) : setSidebarOpen(false))}
+                aria-label="Open sidebar"
+                title="Open sidebar"
+                onClick={() => setOpenMobile(true)}
               >
-                <PanelLeft size={20} />
+                <LogoMark size={22} />
               </button>
-              <SidebarHistoryControls navigation={sidebarHistory} />
-            </div>
+              <NewShootAction create={newShoot} busy={creatingShoot} />
+              <PrimaryNavigation
+                pathname={pathname}
+                open={openExact}
+                counts={{ "/tonight": navigationData.tonightCount }}
+              />
+              <button
+                className="workbench-sidebar-toggle foto-rail-settings"
+                aria-label="Settings"
+                title="Settings"
+                onClick={() => void openExact("/settings/general")}
+              >
+                <Settings size={20} strokeWidth={1.65} />
+              </button>
+            </aside>
+          }
+        >
+          <SidebarHeader className="workbench-sidebar-top">
             <div className="workbench-brand-row">
               {!narrow && !sidebarOpen ? (
                 <button
@@ -489,11 +529,11 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 </button>
               ) : (
                 <a
-                  href={scopeToolHref("/workspace", binding)}
+                  href="/tonight"
                   onClick={(event) => {
                     if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                       event.preventDefault();
-                      void openTool("/workspace");
+                      void openExact("/tonight");
                     }
                   }}
                   className="workbench-brand"
@@ -503,20 +543,19 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 </a>
               )}
               <div className="workbench-brand-actions">
-                <WorkbenchColor />
                 <button
-                  className="workbench-tools-button"
-                  aria-label="All tools"
-                  title="All tools (⌘K)"
-                  onClick={() => setSearchOpen(true)}
+                  className="workbench-sidebar-toggle"
+                  aria-label={narrow ? "Close sidebar" : "Collapse sidebar"}
+                  title={narrow ? "Close sidebar" : "Collapse sidebar"}
+                  onClick={() => (narrow ? setOpenMobile(false) : setSidebarOpen(false))}
                 >
-                  <PanelsTopLeft size={19} />
+                  <PanelLeft size={20} />
                 </button>
               </div>
             </div>
           </SidebarHeader>
           <SidebarContent className="workbench-sidebar-content">
-            <NewChatButton />
+            <NewShootAction create={newShoot} busy={creatingShoot} />
             <button
               className="workbench-nav-item workbench-rail-search"
               aria-label="Search"
@@ -525,72 +564,51 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             >
               <Search size={20} />
             </button>
-            <button
-              className="workbench-nav-item workbench-new-project"
-              onClick={() => void newShoot()}
-            >
-              <FolderPlus size={16} />
-              {t("New project")}
-            </button>
-            <nav className="workbench-business-nav" aria-label="Photo and business tools">
-              {[
-                { path: "/develop", label: "Develop", Icon: SlidersHorizontal },
-                { path: "/clients", label: "Clients", Icon: Users },
-                { path: "/earnings", label: "Earnings", Icon: Wallet },
-                ...(isLocalSingleUserMode
-                  ? [{ path: "/outbound", label: "Outbound", Icon: Send }]
-                  : []),
-              ].map(({ path, label, Icon }) => (
-                <a
-                  key={path}
-                  className={`workbench-nav-item ${current?.path === path ? "is-active" : ""}`}
-                  href={scopeToolHref(path, activeBinding)}
-                  title={t(label)}
-                  aria-current={current?.path === path ? "page" : undefined}
-                  onClick={(event) => {
-                    if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-                      event.preventDefault();
-                      void openTool(path);
-                    }
-                  }}
-                >
-                  <Icon size={16} />
-                  <span title={t(label)}>{t(label)}</span>
-                </a>
-              ))}
-            </nav>
-            <RecentShoots
-              scope={account}
-              activeId={
-                activeBinding.kind === "ready" && !activeBinding.projectId
-                  ? (activeBinding.shootId ?? null)
-                  : null
-              }
+            <PrimaryNavigation
+              pathname={pathname}
               open={openExact}
-            >
-              <div ref={mountHistory} />
-            </RecentShoots>
+              counts={{ "/tonight": navigationData.tonightCount }}
+            />
+            <LibraryRecents
+              rows={navigationData.recents.map((row) => ({
+                id: row.key,
+                title: row.title,
+                href: row.recoveryPending ? "/library" : shootWorkspaceHref(row.key),
+                detail: shootSummaryDetail(row),
+                recoveryPending: row.recoveryPending,
+              }))}
+              activeId={routeShootKey}
+              open={openExact}
+              loading={navigationData.loading}
+              error={navigationData.error}
+            />
           </SidebarContent>
           <SidebarFooter className="workbench-sidebar-bottom">
+            <button
+              className="workbench-nav-item foto-secondary-nav"
+              onClick={() => setSearchOpen(true)}
+              aria-label="All tools"
+              title="All tools (⌘K)"
+            >
+              <PanelsTopLeft size={20} strokeWidth={1.65} />
+              <span className="foto-nav-label">All tools</span>
+              <kbd className="foto-nav-label">⌘K</kbd>
+            </button>
             <AccountMenu />
           </SidebarFooter>
         </WorkspaceSidebar>
-        {historyHost &&
-          createPortal(<ChatRecents menuSide={narrow ? "bottom" : "right"} />, historyHost)}
         <div className="workbench-body">
-          <header className="workbench-header">
-            {narrow && (
-              <button
-                ref={sidebarTriggerRef}
-                className="workbench-sidebar-toggle"
-                aria-label="Open sidebar"
-                onClick={() => setOpenMobile(true)}
-              >
-                <PanelLeft size={20} />
-              </button>
-            )}
-            {projectTabs.length === 0 && !showTool && <ConversationHeading />}
-            {(projectTabs.length > 0 || showTool) && (
+          <header className={`workbench-header ${primarySurface ? "foto-workflow-header" : ""}`}>
+            <SidebarHistoryControls navigation={sidebarHistory} />
+            {routeShootKey ? (
+              <ShootWorkflowTabs id={routeShootKey} active={shootTab} />
+            ) : primarySurface ? (
+              <span className="foto-page-location">
+                {FOTO_PRIMARY_NAV.find((item) => item.href === primaryPath)?.label ?? "Shoots"}
+              </span>
+            ) : null}
+            {!primarySurface && projectTabs.length === 0 && !showTool && <ConversationHeading />}
+            {!primarySurface && (projectTabs.length > 0 || showTool) && (
               <ShootTabs
                 tabs={projectTabs}
                 currentHref={current?.href ?? null}
@@ -603,7 +621,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             )}
             {tabNote && <span role="status">{tabNote}</span>}
             <div className="workbench-header-actions">
-              {showTool && current?.path !== "/studio" && (
+              {showTool && !primarySurface && current && current.path !== "/studio" && (
                 <>
                   {compact ? (
                     <button
@@ -626,7 +644,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             </div>
           </header>
           <div
-            className={`workbench-panels ${showTool ? "has-tool" : ""} ${current?.path === "/studio" ? "is-studio" : ""} ${current?.path === "/develop" ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" ? "is-earnings" : ""} ${current?.path === "/outbound" ? "is-outbound" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
+            className={`workbench-panels ${showTool ? "has-tool" : ""} ${primarySurface ? "foto-workflow-panels" : ""} ${studioVisible ? "is-studio" : ""} ${current?.path === "/develop" || isDevelop ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" || pathname === "/money" ? "is-earnings" : ""} ${current?.path === "/outbound" ? "is-outbound" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
             data-mobile-pane={showTool ? mobilePane : "chat"}
           >
             <main
@@ -634,7 +652,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
               hidden={
                 !quickChat &&
                 showTool &&
-                ((compact && mobilePane === "tool") ||
+                (primarySurface ||
+                  (compact && mobilePane === "tool") ||
                   (!compact &&
                     (current?.path === "/earnings" ||
                       current?.path === "/outbound" ||
@@ -662,6 +681,10 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                   </div>
                 </div>
               )}
+              <details className="foto-conversation-history" hidden={pathname !== "/workspace"}>
+                <summary>Conversation history</summary>
+                <ChatRecents menuSide="bottom" />
+              </details>
               <div ref={setChatTarget} className="workbench-chat-mount" />
               {activeBinding.kind === "blocked" && <p role="alert">{activeBinding.reason}</p>}
             </main>
@@ -726,9 +749,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 <div
                   data-workbench-tool="route"
                   hidden={
-                    current?.path === "/studio" ||
-                    current?.path === "/research" ||
-                    current?.path === "/mail"
+                    studioVisible || current?.path === "/research" || current?.path === "/mail"
                   }
                   tabIndex={-1}
                   onPointerDown={(event) => {
@@ -764,10 +785,12 @@ function WorkspaceSidebar({
   narrow,
   trigger,
   children,
+  rail,
 }: {
   narrow: boolean;
   trigger: React.RefObject<HTMLButtonElement | null>;
   children: ReactNode;
+  rail: ReactNode;
 }) {
   const { openMobile, setOpenMobile } = useSidebar();
   useEffect(() => {
@@ -789,22 +812,25 @@ function WorkspaceSidebar({
       </Sidebar>
     );
   return (
-    <Sheet open={openMobile} onOpenChange={setOpenMobile}>
-      <SheetContent
-        side="left"
-        className="workbench-mobile-sidebar"
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          trigger.current?.focus();
-        }}
-      >
-        <SheetHeader className="sr-only">
-          <SheetTitle>LensLabs navigation</SheetTitle>
-          <SheetDescription>Projects, shoots and business tools.</SheetDescription>
-        </SheetHeader>
-        {children}
-      </SheetContent>
-    </Sheet>
+    <>
+      {rail}
+      <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+        <SheetContent
+          side="left"
+          className="workbench-mobile-sidebar"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            trigger.current?.focus();
+          }}
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>foto navigation</SheetTitle>
+            <SheetDescription>Tonight, Shoots, Library, Deliver and Money.</SheetDescription>
+          </SheetHeader>
+          {children}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
