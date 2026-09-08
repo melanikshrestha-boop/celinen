@@ -10,6 +10,13 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
+  activityFilters,
+  deliveryActivityCsv,
+  filteredActivity,
+  type DeliveryActivityFilter,
+} from "@/lib/delivery/activity";
+import { offerDownload } from "@/lib/delivery/downloads";
+import {
   downloadable,
   isApproved,
   nextAction,
@@ -25,7 +32,6 @@ import "./delivery.css";
 import { FinalDownloads } from "./FinalDownloads";
 import { currentVersion, messageOf, sizeLabel, type MediaReader } from "./presentation";
 import { useCommentDrafts } from "./useCommentDrafts";
-import { offerDownload } from "@/lib/delivery/downloads";
 const stamp = (date: string) =>
   new Date(date).toLocaleString(undefined, {
     month: "short",
@@ -63,6 +69,7 @@ export function DeliveryGallery({
   const state = room.state;
   const [tab, setTab] = useState<"photos" | "feedback" | "activity">("photos");
   const [filter, setFilter] = useState<"all" | "selected" | "changes" | "ready">("all");
+  const [activityFilter, setActivityFilter] = useState<DeliveryActivityFilter>("all");
   const [page, setPage] = useState(0);
   const [active, setActive] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -104,6 +111,7 @@ export function DeliveryGallery({
       (p) => p.published && isApproved(state, p.published) && !state.released.includes(p.published),
     )
     .map((p) => p.published!);
+  const activity = filteredActivity(state.events, activityFilter);
 
   useEffect(() => {
     setPage(0);
@@ -431,20 +439,54 @@ export function DeliveryGallery({
         </div>
       )}
       {tab === "activity" && (
-        <ol className="delivery-activity">
-          {!state.events.length && <li>No shared activity yet.</li>}
-          {[...state.events]
-            .reverse()
-            .filter((e) => !e.text.startsWith("Upload reserved"))
-            .slice(0, 100)
-            .map((event) => (
-              <li key={event.id}>
-                <time dateTime={event.at}>{stamp(event.at)}</time>
-                <span>{event.text}</span>
-                <small>{event.role === "owner" ? "Photographer" : state.clientName}</small>
-              </li>
-            ))}
-        </ol>
+        <>
+          {!preview && actor === "owner" && (
+            <div className="delivery-activity-tools">
+              <div className="delivery-filters" aria-label="Filter shared activity">
+                {activityFilters.map((name) => (
+                  <button
+                    key={name}
+                    aria-pressed={activityFilter === name}
+                    onClick={() => setActivityFilter(name)}
+                  >
+                    {name === "all"
+                      ? "All"
+                      : name === "client"
+                        ? "Client"
+                        : name[0]!.toUpperCase() + name.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="delivery-quiet"
+                disabled={!activity.length}
+                onClick={() =>
+                  offerDownload(
+                    new Blob([deliveryActivityCsv(state.events, activityFilter)], {
+                      type: "text/csv;charset=utf-8",
+                    }),
+                    `gallery-activity-${activityFilter}.csv`,
+                  )
+                }
+              >
+                <ArrowDown size={15} /> Export CSV
+              </button>
+            </div>
+          )}
+          <ol className="delivery-activity">
+            {!activity.length && <li>No shared activity in this view.</li>}
+            {[...activity]
+              .reverse()
+              .slice(0, 100)
+              .map((event) => (
+                <li key={event.id}>
+                  <time dateTime={event.at}>{stamp(event.at)}</time>
+                  <span>{event.text}</span>
+                  <small>{event.role === "owner" ? "Photographer" : state.clientName}</small>
+                </li>
+              ))}
+          </ol>
+        </>
       )}
       <Dialog
         open={!!version}

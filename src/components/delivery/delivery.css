@@ -326,6 +326,18 @@
 .delivery-activity {
   padding-top: 16px;
 }
+.delivery-activity-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 760px;
+  padding-top: 12px;
+}
+.delivery-activity-tools .delivery-filters {
+  margin: 0;
+}
 .delivery-activity li {
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr) 90px;

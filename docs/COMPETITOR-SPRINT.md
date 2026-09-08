@@ -833,6 +833,52 @@ owner-facing activity filtering/CSV
 that preserves the browser-handoff semantic, or consented real-device recovery testing; do not add
 email tracking or download limits without a privacy/product decision.
 
+## Pass 16 — owner Activity filters and truthful CSV (2026-09-08 04:52 UTC heartbeat)
+
+Primary-source refresh, not competitor account testing:
+
+- [Pixieset's Favorite Activity guide](https://help.pixieset.com/hc/en-us/articles/115002991071-How-can-I-review-my-client-s-Favorite-Activity)
+  documents photographer-side favorite lists, client notes and filename CSV export. Its
+  [photo-note guide](https://help.pixieset.com/hc/en-us/articles/115003733191-How-does-my-client-add-a-note-or-a-comment-on-a-photo)
+  says exported favorite lists include client notes. This supports an owner export surface, but it
+  does not establish the fields or identity safety LensLabs needs for an editor handoff.
+- [Pixieset's download-activity guide](https://help.pixieset.com/hc/en-us/articles/360000930212-Reviewing-Collection-Download-Activity)
+  documents a collection-level CSV and calls gallery activity initiated downloads. LensLabs keeps
+  its stronger wording from Pass 15: a browser handoff was recorded and the final save location was
+  not verified.
+- [Aftershoot's current export guide](https://support.aftershoot.com/en/articles/7048858-how-to-export-your-culled-images-from-aftershoot)
+  documents exporting the active cull filter to a folder or another application. This pass does not
+  claim a direct Aftershoot session or change LensLabs culling/export behavior.
+
+Implemented in the existing owner Activity tab without adding a dashboard:
+
+- The photographer can filter shared activity by All, Client, Selections, Feedback or Downloads.
+  Private upload reservations stay excluded. Source history remains append-only and unmodified;
+  unknown future event wording remains visible under All instead of being silently discarded.
+- Export CSV follows the active filter and uses UTC timestamp, generic actor, bounded category and
+  the exact shared activity text. It does not add invitation tokens, storage paths, hashes or client
+  email. Every cell is quoted and spreadsheet-formula prefixes are neutralized.
+- Download rows retain `final save location not verified` exactly. Neither the UI nor CSV says a
+  browser handoff completed a save. Filter/export controls are owner-only; the client Activity view
+  remains unchanged.
+
+Verification: **77 focused delivery tests pass / 0 fail (236 assertions)**, including eight new
+activity classification/filter/CSV tests for stable order, hidden reservations, source immutability,
+Unicode, quotes, newlines, formula injection and exact browser-handoff wording. TypeScript, scoped
+ESLint, production build and whitespace checks pass. A 390×844 synthetic owner gallery verified all
+five filters, client-only rows, active-filter CSV contents, no horizontal overflow and no new console
+errors. Screenshot inspected: `/private/tmp/lenslabs-owner-activity-mobile.png`.
+
+Limitations: browser QA used loopback, synthetic workflow history and repository/public-domain media,
+not Supabase, a published invitation, Pixieset, Aftershoot or real client data. The full concurrent
+suite reached **1,121 pass / 19 skip / 3 fail**. The failures are outside this slice: the existing
+native HTTP fixture still receives `EADDRINUSE` from `listen(0)`, concurrent Appearance work breaks
+one accent contrast assertion, and concurrent chat-copy work changed a tested empty-composer
+placeholder. Each reproduces in its own targeted test; none was changed or hidden here. Next bounded
+item: export the submitted selection snapshot and photo notes with exact LensLabs photo/version IDs
+so repeated camera filenames cannot target the wrong frame. Do not call a filename-only CSV an Adobe
+round trip.
+
 ## Remaining sprint order
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact
