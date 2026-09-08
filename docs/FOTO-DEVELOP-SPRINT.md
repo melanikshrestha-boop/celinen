@@ -488,3 +488,48 @@ fixtures. Do not inflate test counts or equate repeated smoke tests with parity.
 Push only scoped validated source changes to the existing private branch. Git
 sync is not proof of production deployment. Update this document with exact
 commands, results, known gaps and next steps before yielding.
+
+## Faster cancelled-render handoff, September 8, 23:00 UTC
+
+Scoped change: only client busy-retry timing and its regressions. The first wait
+is now 100 ms, then 200 / 300 / 400 / 600 / 700 / 800 / 900 ms. There are still
+at most eight retries and four seconds of scheduled waits. The one 403 token
+renewal does not reset that budget. Requests keep the same source/settings/signal;
+network failures and other errors are not replayed. Server lanes and pixel math
+are unchanged by this patch.
+
+In three before and three after isolated Node/native public-fixture trials,
+the median next-JPEG handoff was 639.2 ms before and 221.4 ms after. The first
+retry dropped from 501.9 to 102.1 ms. Both versions made two requests per next
+photo with identical submitted bytes, original hashes and JPEG output. The
+cancelled request's handler completed within 3.9 ms; this is an upper bound on
+lane release including file cleanup, not an exact process-close timestamp.
+These are cancellation handoffs, not end-to-end user upload or general RAW
+throughput measurements. Longer contention can resend bodies earlier and wait
+longer at later retry boundaries; the count/total-wait bounds are unchanged.
+
+`tests/develop-client.test.ts` covers the exact schedule, every token-renewal
+boundary, cancellation before/after a timer, independent overlapping requests,
+immutable packets and error receipts. The 100 ms regression failed against the
+old 500 ms implementation before the fix. `tests/develop-retry-handoff.fixture.ts`
+uses Node's HTTP runtime like Vite, real C++ processing and public SHA-verified
+files; it requires actual connection close and unchanged output/source hashes.
+It never reads or writes a customer library. The fixture falls back to the older
+4,096-edge engine's RAW lane for compatibility; that is a different target from
+the larger-export/JPEG timing experiment.
+
+Reproduce: `LENSLABS_RAW_FIXTURES=/path/to/verified-fixtures bun test tests/develop-client.test.ts`
+and `LENSLABS_RAW_FIXTURES=/path/to/verified-fixtures node --import tsx tests/develop-retry-handoff.fixture.ts`.
+Working-tree verification: full suite 1,759 pass / 19 skip / one explicit TODO /
+zero failures; TypeScript, scoped lint and production build pass. The TODO is
+the still-unimplemented versioned RAW white-balance continuity fix. This is not
+full Lightroom parity, hosted deployment or proof of all-camera support.
+
+The isolated Git candidate also passed 46 focused tests / 1,364 assertions,
+TypeScript, scoped lint and production build. It was checked again against a
+fresh build of its own unchanged baseline native sources (88,713 native Develop
+assertions), not only the newer working-tree binary. These candidate results
+are separate from the full working-tree suite above. The fixture requires macOS,
+Node, installed repository dev dependencies including tsx, the native executable,
+and the checksum-verified RAW directory. No environment files were copied into
+the isolated candidate.
