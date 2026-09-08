@@ -114,11 +114,11 @@ Image geometry(const Image& in, const DevelopCrop& c) {
 void validate_develop(const DevelopSettings& s) {
   bounded(s.exposure, -5, 5);
   for (double v : {s.contrast,s.highlights,s.shadows,s.whites,s.blacks,s.temperature,s.tint,s.saturation,s.vibrance,s.texture,s.clarity,s.dehaze,s.balance,s.vignette}) bounded(v, -100, 100);
-  for (double v : {s.blending,s.grain,s.fade,s.film_falloff,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
+  for (double v : {s.blending,s.grain,s.grain_luminance,s.fade,s.film_falloff,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
   bounded(s.grain_size, .5, 4);
   validate_curve(s.curve);for(const auto& curve:s.channel_curves) validate_curve(curve);
   for (const auto& h : s.hsl) { bounded(h.hue,-100,100); bounded(h.saturation,-100,100); bounded(h.luminance,-100,100); }
-  for (const auto& g : {s.shadow_grade,s.midtone_grade,s.highlight_grade}) { bounded(g.hue,0,360); bounded(g.saturation,0,100); bounded(g.luminance,-100,100); }
+  for (const auto& g : {s.shadow_grade,s.midtone_grade,s.highlight_grade,s.global_grade}) { bounded(g.hue,0,360); bounded(g.saturation,0,100); bounded(g.luminance,-100,100); }
   const auto& c = s.crop; bounded(c.x,0,1); bounded(c.y,0,1); bounded(c.width,.01,1); bounded(c.height,.01,1); bounded(c.angle,-45,45);
   if (c.x + c.width > 1.000001 || c.y + c.height > 1.000001 || (c.rotate != 0 && c.rotate != 90 && c.rotate != 180 && c.rotate != 270)) throw std::invalid_argument("Invalid crop.");
   if (s.masks.size() > 12) throw std::invalid_argument("Too many masks.");
@@ -126,7 +126,7 @@ void validate_develop(const DevelopSettings& s) {
 }
 
 DevelopSettings read_develop_protocol(std::istream& in) {
-  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2") throw std::invalid_argument("Invalid Develop protocol.");
+  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2" && marker != "FOTO_DEVELOP_3") throw std::invalid_argument("Invalid Develop protocol.");
   DevelopSettings s;
   in >> s.exposure >> s.contrast >> s.highlights >> s.shadows >> s.whites >> s.blacks >> s.temperature >> s.tint >> s.saturation >> s.vibrance >> s.texture >> s.clarity >> s.dehaze;
   int count = 0; in >> count; if (count < 2 || count > 16) throw std::invalid_argument("Invalid curve count.");
@@ -137,12 +137,15 @@ DevelopSettings read_develop_protocol(std::istream& in) {
   auto& c = s.crop; in >> c.x >> c.y >> c.width >> c.height >> c.angle >> c.rotate >> c.flip_x >> c.flip_y;
   in >> count; if (count < 0 || count > 12) throw std::invalid_argument("Invalid mask count.");
   s.masks.resize(count); for (auto& m : s.masks) in >> m.radial >> m.enabled >> m.x >> m.y >> m.radius >> m.aspect >> m.angle >> m.feather >> m.invert >> m.exposure >> m.temperature >> m.saturation;
-  if(marker=="FOTO_DEVELOP_2") {
+  if(marker!="FOTO_DEVELOP_1") {
     for(auto& curve:s.channel_curves) {
       in >> count;if(count<2||count>16) throw std::invalid_argument("Invalid channel curve count.");
       curve.resize(count);for(auto& point:curve) in >> point.x >> point.y;
     }
     in >> s.film_falloff;
+  }
+  if(marker=="FOTO_DEVELOP_3") {
+    in >> s.tonal_grading >> s.global_grade.hue >> s.global_grade.saturation >> s.global_grade.luminance >> s.grain_luminance;
   }
   if (!in) throw std::invalid_argument("Truncated Develop settings.");
   in >> std::ws; if (!in.eof()) throw std::invalid_argument("Extra Develop settings.");
@@ -171,6 +174,9 @@ Image develop(const Image& source, const DevelopSettings& s) {
   const bool use_curve = !identity_curve(s.curve);
   const std::array<bool,3> use_channel_curve{!identity_curve(s.channel_curves[0]),!identity_curve(s.channel_curves[1]),!identity_curve(s.channel_curves[2])};
   bool use_hsl = false; for (const auto& a : s.hsl) use_hsl |= a.hue != 0 || a.saturation != 0 || a.luminance != 0;
+  const std::array<Grade,3> grades{s.shadow_grade,s.midtone_grade,s.highlight_grade};
+  const bool use_grading=std::any_of(grades.begin(),grades.end(),[](const Grade& g){return g.saturation!=0||g.luminance!=0;});
+  const double grade_sigma=.16+.34*s.blending*.01, grade_precision=1/(2*grade_sigma*grade_sigma);
   const std::array<double,8> centers{0,30,60,120,180,240,275,315};
   for (unsigned y = 0; y < h; ++y) for (unsigned x = 0; x < w; ++x) {
     const auto i = std::size_t(y) * w + x;
@@ -195,12 +201,33 @@ Image develop(const Image& source, const DevelopSettings& s) {
       for (std::size_t c=0;c<centers.size();++c) { double distance=std::abs(color[0]*360-centers[c]); distance=std::min(distance,360-distance); const double weight=std::max(0.0,1-distance/60); dh+=weight*s.hsl[c].hue; ds+=weight*s.hsl[c].saturation; dl+=weight*s.hsl[c].luminance; total+=weight; }
       if (total>0) p=hsl_rgb(color[0]+dh/total/600,color[1]*(1+ds/total/100),color[2]+dl/total/200*color[1]);
     }
-    const double level=clamp(luma(p)-s.balance*.003);
-    const double shadow=std::pow(1-level,1+s.blending*.03), highlight=std::pow(level,1+s.blending*.03), middle=std::max(0.0,1-shadow-highlight);
-    const std::array<Grade,3> grades{s.shadow_grade,s.midtone_grade,s.highlight_grade}; const std::array<double,3> weights{shadow,middle,highlight};
-    for (int g=0;g<3;++g) if (grades[g].saturation != 0 || grades[g].luminance != 0) {
-      const auto tint=hsl_rgb(grades[g].hue/360,1,.5); const double tint_luma=luma(tint);
-      for (int c=0;c<3;++c) p[c]=float(clamp(p[c]+weights[g]*((tint[c]-tint_luma)*grades[g].saturation*.003+grades[g].luminance*.002)));
+    if(use_grading&&s.tonal_grading) {
+      // Independent FOTO model, not Adobe's proprietary algorithm. Normalized Gaussian
+      // tonal windows overlap more as Blending increases. Positive Balance expands highlights.
+      // Control semantics: https://blog.adobe.com/en/publish/2020/10/20/introducing-color-grading
+      const double level=clamp(luma(p)+s.balance*.004);
+      std::array<double,3> weights{};double total=0;
+      for(int g=0;g<3;++g) { weights[g]=std::exp(-std::pow(level-g*.5,2)*grade_precision);total+=weights[g]; }
+      std::array<double,3> offset{};
+      for(int g=0;g<3;++g) if(grades[g].saturation!=0 || grades[g].luminance!=0) {
+        const auto tint=hsl_rgb(grades[g].hue/360,1,.5);const double tint_luma=luma(tint);
+        for(int c=0;c<3;++c) offset[c]+=weights[g]/total*((tint[c]-tint_luma)*grades[g].saturation*.003+grades[g].luminance*.002);
+      }
+      // Clamp only after accumulating all ranges: wheel order does not bias clipped colors.
+      for(int c=0;c<3;++c) p[c]=float(clamp(p[c]+offset[c]));
+    } else if(use_grading) {
+      // Keep existing recipes and protocols 1/2 pixel-identical, including legacy balance/blending.
+      const double level=clamp(luma(p)-s.balance*.003);
+      const double shadow=std::pow(1-level,1+s.blending*.03), highlight=std::pow(level,1+s.blending*.03), middle=std::max(0.0,1-shadow-highlight);
+      const std::array<double,3> weights{shadow,middle,highlight};
+      for (int g=0;g<3;++g) if (grades[g].saturation != 0 || grades[g].luminance != 0) {
+        const auto tint=hsl_rgb(grades[g].hue/360,1,.5); const double tint_luma=luma(tint);
+        for (int c=0;c<3;++c) p[c]=float(clamp(p[c]+weights[g]*((tint[c]-tint_luma)*grades[g].saturation*.003+grades[g].luminance*.002)));
+      }
+    }
+    if(s.global_grade.saturation!=0 || s.global_grade.luminance!=0) {
+      const auto tint=hsl_rgb(s.global_grade.hue/360,1,.5);const double tint_luma=luma(tint);
+      for(int c=0;c<3;++c) p[c]=float(clamp(p[c]+(tint[c]-tint_luma)*s.global_grade.saturation*.003+s.global_grade.luminance*.002));
     }
     for (const auto& mask:s.masks) {
       const double weight=develop_mask_weight(mask,(x+.5)/w,(y+.5)/h); if(weight == 0) continue;
@@ -247,11 +274,28 @@ Image develop(const Image& source, const DevelopSettings& s) {
       const double shoulder=.55+.45*(1-std::exp(-(peak-.55)/.45));
       falloff_scale=1+(shoulder/peak-1)*s.film_falloff*.01;
     }
+    std::array<double,3> finished{};
     for(int c=0;c<3;++c) {
       double value=pixels[i][c]*falloff_scale*(1-s.fade*.003)+s.fade*.0015;
       value=vig<0?value*(1+vig):value+(1-value)*vig;
-      value+=noise*(.35+.65*(1-std::abs(value-.5)*2));
-      out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value)*255));
+      finished[c]=value;
+      if(s.grain_luminance==0 || s.grain==0) {
+        // Preserve original arithmetic/rounding, including its per-channel envelope.
+        value+=noise*(.35+.65*(1-std::abs(value-.5)*2));
+        out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value)*255));
+      }
+    }
+    if(s.grain_luminance!=0 && s.grain!=0) {
+      // A bounded, signal-dependent amplitude, not calibrated film-stock simulation.
+      // A shared luma envelope keeps grain neutral rather than modulating each RGB channel.
+      // sqrt(4L(1-L)) tapers the standard deviation at black/white, peaks at middle gray.
+      // Intensity-dependent scaling: ITU-T H Supplement 21 (2025), film grain synthesis.
+      const double light=clamp(.2126*finished[0]+.7152*finished[1]+.0722*finished[2]);
+      const double adaptive=std::sqrt(4*light*(1-light)), mix=s.grain_luminance*.01;
+      for(int c=0;c<3;++c) {
+        const double value=finished[c],legacy=.35+.65*(1-std::abs(value-.5)*2);
+        out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value+noise*(legacy+(adaptive-legacy)*mix))*255));
+      }
     }
   }
   return geometry(out,s.crop);

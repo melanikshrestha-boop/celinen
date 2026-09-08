@@ -30,7 +30,7 @@ describe("Develop image contract", () => {
     expect(second.hsl[0]!.hue).toBe(0);
     expect(cloneDevelopSettings(second)).toEqual(second);
     expect(developSettingsSchema.parse(JSON.parse(JSON.stringify(second)))).toEqual(second);
-    expect(developProtocol(second).startsWith("FOTO_DEVELOP_2\n")).toBe(true);
+    expect(developProtocol(second).startsWith("FOTO_DEVELOP_3\n")).toBe(true);
   });
   test("version1 recipes acquire neutral RGB curves and falloff without modifying saved input", () => {
     const { channelCurves: _channels, filmFalloff: _falloff, ...legacy } = defaultDevelopSettings();
@@ -71,7 +71,7 @@ describe("Develop image contract", () => {
     expect(parseDevelopRequest(Buffer.from(await packet.arrayBuffer())).settings).toEqual(settings);
     expect(
       developProtocol(settings).endsWith(
-        "3\n0 0\n0.4 0.7\n1 1\n2\n0 0\n1 0.8\n2\n0 0.1\n1 1\n63\n",
+        "3\n0 0\n0.4 0.7\n1 1\n2\n0 0\n1 0.8\n2\n0 0.1\n1 1\n63\n1 0 0 0 0\n",
       ),
     ).toBe(true);
     for (const patch of [
@@ -96,6 +96,51 @@ describe("Develop image contract", () => {
       },
     ])
       expect(developSettingsSchema.safeParse({ ...settings, ...patch }).success).toBe(false);
+  });
+  test("old grading and grain stay legacy while new defaults select tonal grading", async () => {
+    const settings = defaultDevelopSettings();
+    const { grainLuminance: _response, grading, ...oldSettings } = settings;
+    const { model: _model, global: _global, ...oldGrading } = grading;
+    oldGrading.midtones = { hue: 120, saturation: 65, luminance: 25 };
+    oldGrading.blending = 0;
+    const old = { ...oldSettings, grading: oldGrading },
+      serialized = JSON.stringify(old);
+    const upgraded = developSettingsSchema.parse(old);
+    expect(upgraded.grading.model).toBe("legacy");
+    expect(upgraded.grading.midtones).toEqual(oldGrading.midtones);
+    expect(upgraded.grading.global).toEqual({ hue: 0, saturation: 0, luminance: 0 });
+    expect(upgraded.grainLuminance).toBe(0);
+    expect(settings.grading.model).toBe("tonal");
+    expect(JSON.stringify(old)).toBe(serialized);
+    upgraded.grading.global.saturation = 15;
+    expect(developSettingsSchema.parse(old).grading.global.saturation).toBe(0);
+    expect(settings.grading.shadows.saturation).toBe(0);
+    const packet = encodeDevelopRequest(new Blob(["photo"]), upgraded);
+    expect(parseDevelopRequest(Buffer.from(await packet.arrayBuffer())).settings).toEqual(upgraded);
+    expect(developProtocol(upgraded).endsWith("0 0 15 0 0\n")).toBe(true);
+  });
+  test("global grading and luminance grain serialize and reject malformed values", async () => {
+    const settings = defaultDevelopSettings();
+    settings.grading.global = { hue: 230, saturation: 75, luminance: -32 };
+    settings.grainLuminance = 89;
+    const packet = encodeDevelopRequest(new Blob(["photo"]), settings);
+    expect(parseDevelopRequest(Buffer.from(await packet.arrayBuffer())).settings).toEqual(settings);
+    expect(developProtocol(settings).endsWith("1 230 75 -32 89\n")).toBe(true);
+    for (const grainLuminance of [-1, 101, Infinity, NaN, "100", null])
+      expect(developSettingsSchema.safeParse({ ...settings, grainLuminance }).success).toBe(false);
+    for (const patch of [
+      { model: "adobe" },
+      { model: null },
+      { global: { hue: 361, saturation: 0, luminance: 0 } },
+      { global: { hue: 0, saturation: 101, luminance: 0 } },
+      { global: { hue: 0, saturation: 0, luminance: -101 } },
+      { global: { hue: 0, saturation: 0, luminance: NaN } },
+      { global: { hue: 0, saturation: 0, luminance: 0, other: 1 } },
+    ])
+      expect(
+        developSettingsSchema.safeParse({ ...settings, grading: { ...settings.grading, ...patch } })
+          .success,
+      ).toBe(false);
   });
   test("rejects ranges, unknown data, NaN, bad crop and malformed curves", () => {
     const defaults = defaultDevelopSettings();
@@ -167,6 +212,9 @@ describe("Develop image contract", () => {
       s.exposure = ((i % 101) - 50) / 10;
       s.contrast = (i % 201) - 100;
       s.grain = i % 101;
+      s.grainLuminance = (i * 7) % 101;
+      s.grading.model = i % 2 ? "legacy" : "tonal";
+      s.grading.global = { hue: i % 361, saturation: i % 101, luminance: (i % 201) - 100 };
       s.channelCurves.red = [
         { x: 0, y: 0 },
         { x: 0.5, y: (i % 101) / 100 },
@@ -183,6 +231,29 @@ const binary = resolve(process.env["FOTO_TEST_DEVELOP_BINARY"] ?? "native/build/
 describe.skipIf(process.platform !== "darwin" || !existsSync(binary))(
   "real C++ Develop renderer",
   () => {
+    test("global grading and adaptive grain alter exported JPEG bytes deterministically", async () => {
+      const signal = new AbortController().signal,
+        neutral = defaultDevelopSettings();
+      const originalSource = createHash("sha256").update(readFileSync(source)).digest("hex");
+      const base = await runNativeDevelop(binary, source, neutral, 512, 0.95, signal);
+      const settings = defaultDevelopSettings();
+      settings.grading.global = { hue: 270, saturation: 65, luminance: 20 };
+      const global = await runNativeDevelop(binary, source, settings, 512, 0.95, signal);
+      expect(global.equals(base)).toBe(false);
+      settings.grain = 80;
+      settings.grainLuminance = 100;
+      const grain = await runNativeDevelop(binary, source, settings, 512, 0.95, signal);
+      expect(grain.equals(global)).toBe(false);
+      expect(jpegDimensions(grain)).toEqual(jpegDimensions(base));
+      expect(
+        (await runNativeDevelop(binary, source, settings, 512, 0.95, signal)).equals(grain),
+      ).toBe(true);
+      settings.grainLuminance = 0;
+      expect(
+        (await runNativeDevelop(binary, source, settings, 512, 0.95, signal)).equals(grain),
+      ).toBe(false);
+      expect(createHash("sha256").update(readFileSync(source)).digest("hex")).toBe(originalSource);
+    }, 30_000);
     test("native protocol applies each RGB curve and film highlight shoulder to real JPEG output", async () => {
       const neutral = defaultDevelopSettings(),
         signal = new AbortController().signal;
@@ -452,6 +523,10 @@ describe.skipIf(process.platform !== "darwin" || !existsSync(binary) || !realRaw
           edited.contrast = 12;
           edited.highlights = -25;
           edited.shadows = 18;
+          edited.grading.global = { hue: 38, saturation: 18, luminance: 3 };
+          edited.grading.shadows = { hue: 225, saturation: 24, luminance: -5 };
+          edited.grain = 35;
+          edited.grainLuminance = 100;
           const started = performance.now();
           const before = await runNativeDevelop(
             binary,
