@@ -927,6 +927,53 @@ composer placeholder. None was changed or hidden here. Next bounded item: produc
 scoped Lightroom/Capture One lookup handoff from the exact selection identities, with duplicate-name
 ambiguity blocking rather than being guessed; do not claim editor import until tested in that editor.
 
+## Pass 18 — ambiguity-safe editor lookup handoff (2026-09-08 07:52 UTC heartbeat)
+
+Primary-source basis, not Lightroom, Capture One or competitor account testing:
+
+- [Pixieset's Lightroom Copy List guide](https://help.pixieset.com/hc/en-us/articles/115003505192-Viewing-Client-Favorites-in-Lightroom)
+  documents copying a comma-formatted filename list into Lightroom search. It also warns that
+  `Contains` can return partial filename matches and that virtual copies cannot be uniquely selected.
+- [Pixieset's Capture One guide](https://help.pixieset.com/hc/en-us/articles/11068982092429-Viewing-Client-Favorites-in-Capture-One)
+  documents pasting a space-delimited filename list into Capture One's Select by Filename List flow.
+- [Aftershoot's current export guide](https://support.aftershoot.com/en/articles/7048858-how-to-export-your-culled-images-from-aftershoot)
+  documents direct application/folder export from a filtered cull. This LensLabs slice is deliberately
+  narrower: it copies a lookup list and does not claim direct editor import, metadata write-back or a
+  completed round trip.
+
+Implemented beside the exact selection CSV in the existing owner Feedback tools:
+
+- One compact Editor lookup menu copies the latest immutable submitted filenames in the documented
+  comma-delimited Lightroom or space-delimited Capture One format. Mutable current picks and newer
+  published versions cannot retarget the list.
+- The helper fails closed on exact, case-only or Unicode-normalized duplicate filenames before it
+  touches the clipboard. Lightroom also blocks comma delimiters and filename substrings that could
+  over-select under `Contains`; Capture One blocks whitespace that would split one filename into
+  multiple tokens.
+- The UI says the LensLabs CSV remains the exact selection record because only that file carries
+  exact photo/version IDs. Clipboard unavailability and every ambiguity surface as an error; the UI
+  does not silently copy a partial list or claim another editor received it. The control remains
+  photographer-only.
+
+Verification: **120 focused delivery tests pass / 0 fail (430 assertions)**, including four new editor
+lookup tests covering both target formats, immutable submitted-version identity, source immutability,
+case/Unicode duplicates, target delimiters and Lightroom substring ambiguity. TypeScript, scoped
+ESLint, production build and whitespace checks pass. A synthetic 390x844 owner gallery intercepted
+the clipboard locally, verified both exact list formats, blocked a case-only duplicate without another
+clipboard write, fit without horizontal overflow and showed no new non-font console errors. The client
+Feedback view exposed no editor control. Screenshot inspected:
+`/private/tmp/lenslabs-editor-lookups-mobile.png`.
+
+Limitations: this used loopback, a mocked clipboard, synthetic workflow state and repository/public-
+domain media. It did not open Lightroom, Capture One, Supabase, a published invitation, Pixieset,
+Aftershoot or real client data, and therefore does not claim a successful editor import. Virtual-copy
+ambiguity cannot be detected from LensLabs filenames, so the exact-ID CSV remains authoritative. The
+full concurrent suite reached **1,132 pass / 19 skip / 3 fail**. The same three unrelated failures
+remain: the local HTTP bridge fixture receives `EADDRINUSE` from `listen(0)`, concurrent Appearance
+work breaks one accent contrast assertion, and concurrent chat-copy work changed a tested empty
+composer placeholder. None was changed or hidden here. Next bounded item: return to culling review and
+close one measured creative-control or unreadable-file recovery gap without inventing quality claims.
+
 ## Remaining sprint order
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact

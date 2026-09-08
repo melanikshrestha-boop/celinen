@@ -134,6 +134,12 @@ Object.assign(window, {
       sessionStorage.setItem(key, JSON.stringify(authoritative));
       publishView(authoritative);
     },
+    makeFilenameAmbiguous: () => {
+      authoritative = structuredClone(authoritative);
+      authoritative.photos[1]!.versions[0]!.filename = "SYNTHETIC-ONE.JPG";
+      sessionStorage.setItem(key, JSON.stringify(authoritative));
+      publishView(authoritative);
+    },
   },
 });
 
