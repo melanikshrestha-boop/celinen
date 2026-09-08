@@ -8,6 +8,7 @@ export const WORKBENCH_TOOLS = [
   { path: "/projects", label: "Projects", group: "Workspace" },
   { path: "/deliver", label: "Delivery", group: "Workspace" },
   { path: "/clients", label: "Clients", group: "Business" },
+  { path: "/outbound", label: "Outbound", group: "Business" },
   { path: "/publish", label: "Publish", group: "Workspace" },
   { path: "/shop", label: "Print shop", group: "Business" },
   { path: "/network", label: "Photographer network", group: "Business" },
