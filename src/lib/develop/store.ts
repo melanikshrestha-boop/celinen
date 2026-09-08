@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { cropRect, DEFAULT_EDITS, type Shot } from "../imaging";
+import { fingerprintSource } from "../studio/ingest";
 import {
   cloneDevelopSettings,
   defaultDevelopSettings,
@@ -103,8 +104,10 @@ export type DevelopPhotoInput = {
   sourceDigest: string | null;
   /** Consumed only when the photo is first inserted; never stored alongside its media. */
   initialState?: z.infer<typeof initialStateSchema>;
+  /** Explicit source-attachment operation; never emitted by ordinary Studio imports. */
+  reconnectOriginal?: true;
 };
-export type DevelopPhoto = Omit<DevelopPhotoInput, "initialState"> & {
+export type DevelopPhoto = Omit<DevelopPhotoInput, "initialState" | "reconnectOriginal"> & {
   sourceAvailable: boolean;
   createdAt: number;
 };
@@ -291,6 +294,8 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
   if (!Number.isFinite(input.sourceLastModified) || input.sourceLastModified < 0)
     throw new Error("Invalid photo modification time.");
   if (typeof input.isRaw !== "boolean") throw new Error("Invalid photo format.");
+  if (input.reconnectOriginal !== undefined && input.reconnectOriginal !== true)
+    throw new Error("Invalid source reconnect operation.");
   if (
     input.previewOrigin !== undefined &&
     !["embedded", "raw-demosaic", "raster", "unknown"].includes(input.previewOrigin)
@@ -311,6 +316,32 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
     previewOrigin: input.previewOrigin ?? "unknown",
     ...(initialState ? { initialState } : {}),
   };
+}
+/**
+ * A restored Studio snapshot has no bytes with which to compare fingerprint versions.
+ * Keep a complete saved original instead of treating two algorithms as proof of a
+ * different source. This is a no-op only: never use this exception to enrich media.
+ */
+export function canPreserveDevelopOriginalOnRestore(
+  previous: DevelopPhotoInput,
+  incoming: DevelopPhotoInput,
+): boolean {
+  const scheme = (digest: string | null) => {
+    if (/^(?:sha256:)?[0-9a-f]{64}$/i.test(digest ?? "")) return "sha256";
+    if (/^sha256-chain-v1:[0-9a-f]{64}$/i.test(digest ?? "")) return "sha256-chain-v1";
+    return null;
+  };
+  const previousScheme = scheme(previous.sourceDigest);
+  const incomingScheme = scheme(incoming.sourceDigest);
+  return Boolean(
+    previous.id === incoming.id &&
+    previous.sourceBlob?.size &&
+    incoming.sourceBlob === null &&
+    !incoming.reconnectOriginal &&
+    previousScheme &&
+    incomingScheme &&
+    previousScheme !== incomingScheme,
+  );
 }
 /** Parameter migration, not a promise of identical pixels across the two renderers. */
 export function developInitialStateFromShot(shot: Shot): z.infer<typeof initialStateSchema> {
@@ -402,6 +433,75 @@ export async function developPhotoFromFile(
     sourceFileName: file.name,
     sourceLastModified: file.lastModified,
     sourceDigest: identity,
+  });
+}
+
+/**
+ * Explicit user-selected attachment only, never automatic filename reconciliation.
+ * Historical records without a fingerprint may be attached only while their original
+ * is missing. A filename match alone is not claimed as proof of historical identity.
+ */
+export async function reconnectDevelopPhoto(
+  photo: DevelopPhoto,
+  file: File,
+  previewBlob: Blob,
+  dimensions = { width: 0, height: 0 },
+  previewOrigin: NonNullable<DevelopPhotoInput["previewOrigin"]> = "unknown",
+): Promise<DevelopPhotoInput> {
+  const expectedName = photo.sourceFileName || photo.name;
+  const existing = checkedPhoto({ ...photo, sourceFileName: expectedName });
+  if (file.name !== expectedName)
+    throw new Error(
+      `Choose the original named “${expectedName}”. No source or edits were changed.`,
+    );
+  if (!(previewBlob instanceof Blob) || !previewBlob.size || previewBlob.size > 32 * 1024 * 1024)
+    throw new Error("Reconnect needs a valid decoded preview of the selected original.");
+  if (photo.sourceAvailable && !existing.sourceBlob)
+    throw new Error("This photo’s source state changed. Reload Develop before reconnecting it.");
+  if (!existing.sourceDigest && (photo.sourceAvailable || existing.sourceBlob))
+    throw new Error(
+      "This photo already has an original. Its stored bytes will not be replaced by an unverified file.",
+    );
+  const incoming = await developPhotoFromFile(file, previewBlob, dimensions);
+  if (existing.sourceDigest) {
+    let matches = false;
+    if (/^sha256:[0-9a-f]{64}$/i.test(existing.sourceDigest))
+      matches = incoming.sourceDigest === existing.sourceDigest.toLowerCase();
+    else if (/^[0-9a-f]{64}$/i.test(existing.sourceDigest))
+      matches = incoming.sourceDigest === `sha256:${existing.sourceDigest.toLowerCase()}`;
+    else if (/^sha256-chain-v1:[0-9a-f]{64}$/.test(existing.sourceDigest))
+      matches = (await fingerprintSource(file)) === existing.sourceDigest;
+    else
+      throw new Error(
+        "This saved source fingerprint cannot be verified. Import the file separately; the existing photo and edits remain unchanged.",
+      );
+    if (!matches)
+      throw new Error(
+        "The selected original has different bytes. The saved photo, source and edits were preserved.",
+      );
+  }
+  if (existing.sourceBlob) {
+    const originalReceipt = await developPhotoFromFile(
+      new File([existing.sourceBlob], expectedName, { lastModified: existing.sourceLastModified }),
+    );
+    if (originalReceipt.sourceDigest !== incoming.sourceDigest)
+      throw new Error(
+        "The selected file differs from the stored original. No original was replaced.",
+      );
+  }
+  return checkedPhoto({
+    id: existing.id,
+    name: existing.name,
+    width: existing.width || incoming.width,
+    height: existing.height || incoming.height,
+    isRaw: existing.isRaw,
+    sourceBlob: existing.sourceBlob ?? file,
+    previewBlob,
+    previewOrigin,
+    sourceFileName: expectedName,
+    sourceLastModified: existing.sourceLastModified || file.lastModified,
+    sourceDigest: existing.sourceDigest ?? incoming.sourceDigest,
+    reconnectOriginal: true,
   });
 }
 
@@ -591,8 +691,23 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             );
             const output: DevelopPhoto[] = [];
             for (const { input, photo } of existing) {
-              const { initialState: _initialState, ...media } = input;
+              const {
+                initialState: _initialState,
+                reconnectOriginal: _reconnectOriginal,
+                ...media
+              } = input;
               const previous = photo ? checkedPhoto(photo.value) : null;
+              if (input.reconnectOriginal && (!previous || !input.sourceBlob || !input.previewBlob))
+                throw new Error(
+                  "The reconnect target is no longer available in this Develop library. Reload before attaching the original.",
+                );
+              const refreshAttachedPreview = Boolean(
+                input.reconnectOriginal && previous && !previous.sourceBlob && input.sourceBlob,
+              );
+              if (previous && canPreserveDevelopOriginalOnRestore(previous, input)) {
+                output.push({ ...photo!.value, sourceAvailable: true });
+                continue;
+              }
               if (
                 previous?.sourceDigest &&
                 input.sourceDigest &&
@@ -605,7 +720,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 previous &&
                 !(!previous.sourceBlob && input.sourceBlob) &&
                 !(!previous.previewBlob && input.previewBlob) &&
-                !(!previous.sourceDigest && input.sourceDigest) &&
+                !(!previous.sourceBlob && !previous.sourceDigest && input.sourceDigest) &&
                 !(!previous.width && input.width) &&
                 !(!previous.height && input.height)
               ) {
@@ -617,11 +732,15 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 ? {
                     ...photo!.value,
                     sourceBlob: previous.sourceBlob ?? input.sourceBlob,
-                    previewBlob: previous.previewBlob ?? input.previewBlob,
-                    previewOrigin: previous.previewBlob
-                      ? (previous.previewOrigin ?? "unknown")
-                      : (input.previewOrigin ?? "unknown"),
-                    sourceDigest: previous.sourceDigest ?? input.sourceDigest,
+                    previewBlob: refreshAttachedPreview
+                      ? input.previewBlob
+                      : (previous.previewBlob ?? input.previewBlob),
+                    previewOrigin:
+                      !refreshAttachedPreview && previous.previewBlob
+                        ? (previous.previewOrigin ?? "unknown")
+                        : (input.previewOrigin ?? "unknown"),
+                    sourceDigest:
+                      previous.sourceDigest ?? (!previous.sourceBlob ? input.sourceDigest : null),
                     sourceFileName: previous.sourceBlob
                       ? previous.sourceFileName
                       : input.sourceFileName,

@@ -5,6 +5,7 @@ import { developImageReady } from "./develop-state";
 
 export function DevelopViewer({
   url,
+  emptyLabel = "Choose a photograph to begin.",
   beforeUrl,
   before,
   compare,
@@ -18,6 +19,7 @@ export function DevelopViewer({
   onHistogram,
 }: {
   url: string | null;
+  emptyLabel?: string;
   beforeUrl: string | null;
   before: boolean;
   compare: boolean;
@@ -228,7 +230,7 @@ export function DevelopViewer({
           </div>
         </div>
       ) : (
-        <p className="develop-hint">Choose a photograph to begin.</p>
+        <p className="develop-hint">{emptyLabel}</p>
       )}
     </div>
   );

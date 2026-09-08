@@ -50,7 +50,7 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
 | Grain, vignette, fade, bloom, halation | Implemented | Deterministic native effects and bounded outputs; no claim of Adobe/Sunroom algorithm equivalence |
 | Crop/straighten/rotate/flip | Implemented | Native geometry tests, square-crop UI/native output check; source-coordinate overlay |
 | Linear/radial masks | Implemented | Native feather/invert/enable/local adjustments, UI placement and saved mask history; no brush/AI masking |
-| Presets/history/snapshots | Implemented | Neutral + six look entries, custom presets, snapshots, undo/redo; per-photo IndexedDB history; merge-only reimports |
+| Presets/history/snapshots | Implemented | Original + five look presets, custom presets, snapshots, undo/redo; per-photo IndexedDB history; merge-only reimports |
 | Copy/paste/previous/sync | Implemented | Preserve target crop/masks by default; optional batch sync; atomic conflict rollback checked in real IndexedDB |
 | Import/library/filmstrip | Implemented | Original bytes or clearly labeled preview source; same-name originals content-addressed; supported Studio adjustments seeded only on first import |
 | Export | Implemented subset | Native JPEG sRGB, long edge up to 4096 without upscaling; optional sensor RAW decoding; original never overwritten |
@@ -64,14 +64,17 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
 - `npm run build`: production bundle passes. This does **not** deploy a hosted
   native worker. The working native transport is registered in the local Vite
   runtime used by `npm run dev:lab`.
-- `bun test tests/develop-engine.test.ts tests/develop-store.test.ts
-  tests/native-transport.test.ts tests/native-client.test.ts --timeout 30000`:
-  **57 tests, zero failures, 61,431 assertions**. This includes existing culling
-  transport checks, 1,000 bounded transport combinations, and 1,000 independent
-  history/undo/JSON-reload sequences. Repetition is not a claim of feature parity.
+- Final combined regression: **132 tests, zero failures, 61,703 assertions**
+  across Develop engine/store/UI-state, native transport/client, workbench,
+  development-lab and Studio-safety suites, with the verified Sony fixture
+  directory explicitly supplied. This includes existing culling transport,
+  1,000 bounded transport combinations, and 1,000 independent history/undo/
+  JSON-reload sequences. Repetition is not a claim of feature parity. The HTTP
+  tests require permission to bind temporary loopback ports; a restricted run
+  reported a port-binding failure and the permitted rerun passed.
 - Native release tests: **24,147 assertions**, including 1,000 actual renders.
   Same unit suite under ASan/UBSan passes. Sanitized sensor-RAW test: 11 assertions.
-- Browser storage tests: **19 checks** against real IndexedDB, including atomic
+- Browser storage tests: **25 checks** against real IndexedDB, including atomic
   rollback, competing writers, original bytes, initial Studio settings and safe
   reimports. `tests/develop-store.browser.js`.
 - Studio read-only boundary: **16 browser checks** and five existing session
@@ -85,7 +88,7 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
   a real page reload confirmed the recipe, rating, custom preset and snapshot.
   `tests/develop-ui.browser.js` and `tests/develop-reload.browser.js`. Alongside
   storage and Studio-safety browser tests plus the 12 review-boundary checks
-  below, this is **69 browser checks**, not 69 end-to-end camera or Lightroom
+  below plus eight missing-original recovery checks, this is **83 browser checks**, not 83 end-to-end camera or Lightroom
   feature certifications.
 - Independent review fixes verified: ten unit tests and **12 browser checks**
   cover source-geometry preview provenance, filtered Sync targets and dialog
@@ -94,9 +97,21 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
   `tests/develop-ui-state.test.ts`, `tests/develop-ui-boundaries.browser.js`.
 - Existing workbench, local-development identity and Studio-safety tests:
   **59 passed**, zero failed. The expected tool catalogue now includes Develop.
+- Final inspection of the actual existing 337-photo project exposed legacy
+  records with neither original bytes nor a saved preview. The page now says
+  **Original file needed**, offers **Reconnect original**, and disables pixel
+  edits/export until image data exists. A separate disposable legacy-record
+  regression passed **eight browser checks**: wrong-file rejection, correct
+  source attachment with the same Studio ID, no duplicate, unchanged edit
+  history, exposure, temperature and rating. Existing known SHA-256 or Studio
+  chain fingerprints are verified; unknown historical identity is disclosed
+  and requires explicit user-selected attachment. No existing original is
+  overwritten. `tests/develop-reconnect-seed.browser.js` then
+  `tests/develop-reconnect.browser.js` reproduce this case.
 - Desktop and mobile screenshots inspected locally. Phone width 390px matches
-  document width 390px. Phone editing works, but left-panel preset/history tools
-  still need a compact accessible drawer.
+  document width 390px. Phone layout loads without horizontal overflow, but
+  touch-specific interaction coverage is limited and left-panel preset/history
+  tools still need a compact accessible drawer.
 
 The full RAW path is tested with an original synthetic Bayer DNG without an
 embedded thumbnail and the previously documented A6000/A7 IV fixture files.
@@ -125,6 +140,9 @@ preview and full sensor export may differ; the export dialog says so.
    and selective copy/sync options with pixel and persistence regression checks.
 4. Expose presets/history on narrow screens, improve dialog/keyboard access, and
    keep photo view dominant with the outer workspace sidebar collapsed.
+   Extend the tested single-original reconnect to a carefully fingerprinted
+   folder/batch flow for legacy projects; never match unrelated originals
+   silently or reset saved edit history.
 5. Develop brush masks and source-coordinate correctness before adding AI tools.
 6. Full-resolution/high-bit-depth color management, TIFF export, lens profiles,
    healing, AI denoise/masking, HDR and soft proofing remain unimplemented. Do not
