@@ -574,10 +574,7 @@ html:not(.dark) [data-mobile="true"][data-sidebar="sidebar"] {
 .workspace-mail-message pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font:
-    16px/1.7 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font: 16px/1.7 var(--font-sans);
   padding: 28px 0 10px;
 }
 .workbench-sidebar-content {
@@ -1074,10 +1071,7 @@ html[data-contrast="more"]
   letter-spacing: -0.035em;
 }
 .workbench-empty-photos p {
-  font:
-    16px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font: 16px/1.6 var(--font-sans);
   color: var(--moss);
   max-width: 320px;
 }
@@ -1480,19 +1474,13 @@ html[data-contrast="more"]
   line-height: 1.7;
 }
 .workbench-message.assistant .font-mono {
-  font:
-    13px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font: 13px/1.6 var(--font-sans);
   color: #aaa;
   margin-bottom: 12px;
 }
 .workbench-messages > [role="status"] {
   color: #aaa;
-  font:
-    13px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
+  font: 13px/1.6 var(--font-sans);
 }
 .workbench-composer {
   flex-shrink: 0;

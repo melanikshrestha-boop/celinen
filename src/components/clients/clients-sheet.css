@@ -7,7 +7,7 @@
   --n-hover: rgba(55, 53, 47, 0.04);
   --n-select: #e3e2e0;
   --n-blue: #2383e2;
-  --n-serif: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  --n-ui-font: var(--font-sans);
   color-scheme: light;
   height: 100%;
   min-height: 0;
@@ -15,7 +15,7 @@
   flex-direction: column;
   background: var(--n-bg);
   color: var(--n-text);
-  font-family: var(--n-serif);
+  font-family: var(--n-ui-font);
 }
 .clients-sheet * {
   box-sizing: border-box;
@@ -30,7 +30,7 @@
 }
 .clients-title {
   margin: 6px 0 0;
-  font-family: var(--n-serif);
+  font-family: var(--n-ui-font);
   font-size: 40px;
   font-weight: 500;
   letter-spacing: -0.03em;
@@ -277,7 +277,7 @@
 .clients-empty {
   padding: 48px 24px;
   color: var(--n-faint);
-  font-family: var(--n-serif);
+  font-family: var(--n-ui-font);
   font-size: 22px;
 }
 .clients-page {
@@ -308,7 +308,7 @@
 }
 .clients-page-body h1 {
   margin: 0 0 18px;
-  font-family: var(--n-serif);
+  font-family: var(--n-ui-font);
   font-size: 40px;
   font-weight: 500;
   letter-spacing: -0.03em;

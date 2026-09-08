@@ -6,15 +6,9 @@
   --out-line: color-mix(in srgb, var(--out-text) 12%, transparent);
   --out-hover: color-mix(in srgb, var(--out-text) 6%, transparent);
   color: var(--out-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
-}
-.photo-workbench:has(.outbound-page) {
-  --workspace-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-.photo-workbench:has(.outbound-page) :is(.workbench-sidebar, .workbench-header) {
-  font-family: var(--workspace-ui-font);
 }
 .workbench-panels.is-outbound .workbench-tool-content {
   padding: 0;

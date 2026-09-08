@@ -60,9 +60,11 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
 
-  --font-display: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
-  --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-sans: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  --font-display: var(--ll-ui-font, var(--foto-font-sans));
+  --font-sans: var(--ll-ui-font, var(--foto-font-sans));
+  /* Legacy font-mono classes label UI, not code. Keep those labels consistent. */
+  --font-mono: var(--ll-ui-font, var(--foto-font-sans));
+  --font-code: var(--ll-code-font, var(--foto-font-mono));
 
 
   --color-background: var(--background);
@@ -93,6 +95,8 @@
 
 :root {
   --radius: 0.625rem;
+  --foto-font-sans: "OpenAI Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --foto-font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* LensLabs — engineered dark-first. Near-black shell, one signal red. */
   --paper: oklch(0.985 0.002 90);
@@ -137,6 +141,11 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Actual code and shortcut text retain their independently chosen face. */
+  code, kbd, samp, pre {
+    font-family: var(--font-code);
   }
 }
 

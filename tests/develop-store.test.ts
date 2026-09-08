@@ -480,6 +480,35 @@ describe("Develop local photo identity and workspace boundary", () => {
     expect(JSON.stringify({ ...shot, file: undefined, previewBlob: undefined })).toBe(metadata);
   });
 
+  test("337 legacy decode-failed RAW placeholders preserve every identity and edit without fabricating media", () => {
+    const shots = Array.from({ length: 337 }, (_, index) =>
+      studioPhoto({
+        id: `legacy-${index}`,
+        name: `DSC${String(index).padStart(5, "0")}.ARW`,
+        width: 0,
+        height: 0,
+        file: new File([], `DSC${index}.preview.jpg`, { type: "image/jpeg", lastModified: 0 }),
+        sourceAvailable: false,
+        previewBlob: undefined,
+        edits: { ...DEFAULT_EDITS, temp: index % 100 },
+        verdict: index % 2 ? "keep" : "reject",
+      }),
+    );
+    const before = JSON.stringify(shots);
+    const photos = shots.map(developPhotoFromShot);
+    expect(photos).toHaveLength(337);
+    expect(new Set(photos.map((photo) => photo.id)).size).toBe(337);
+    for (const [index, photo] of photos.entries()) {
+      expect(photo.id).toBe(`studio:legacy-${index}`);
+      expect(photo.sourceBlob).toBeNull();
+      expect(photo.previewBlob).toBeNull();
+      expect(photo.sourceFileName).toBe(shots[index]!.name);
+      expect(photo.initialState?.settings.temperature).toBe(index % 100);
+      expect(photo.initialState?.metadata.flag).toBe(index % 2 ? "pick" : "reject");
+    }
+    expect(JSON.stringify(shots)).toBe(before);
+  });
+
   test("workspace and project namespaces cannot collide by delimiters", () => {
     const a = createDevelopStore({ scope: "a:b", libraryId: "c" });
     const b = createDevelopStore({ scope: "a", libraryId: "b:c" });

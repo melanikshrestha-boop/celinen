@@ -26,6 +26,8 @@ import {
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
+import { runDevelopImport, type DevelopImportReport } from "@/lib/develop/import";
+import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import {
   createDevelopStore,
   currentRecipe,
@@ -38,7 +40,6 @@ import {
   removeSnapshot,
   createDevelopPreset,
   developRecoveryDocuments,
-  developPhotoFromFile,
   developPhotoFromShot,
   reconnectDevelopPhoto,
   type DevelopDocument,
@@ -164,6 +165,9 @@ export function DevelopPage({
     [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(""),
     [engine, setEngine] = useState<boolean | null>(null);
+  const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
+    [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [tool, setTool] = useState<DevelopTool>("edit"),
     [maskId, setMaskId] = useState<string | null>(null);
   const [mode, setMode] = useState<"develop" | "library">("develop"),
@@ -199,6 +203,7 @@ export function DevelopPage({
   const [syncCrop, setSyncCrop] = useState(false),
     [syncMasks, setSyncMasks] = useState(false);
   const input = useRef<HTMLInputElement>(null),
+    folderInput = useRef<HTMLInputElement>(null),
     reconnectInput = useRef<HTMLInputElement>(null),
     reconnectTarget = useRef<DevelopPhoto | null>(null),
     importAbort = useRef<AbortController | null>(null),
@@ -210,7 +215,12 @@ export function DevelopPage({
     dialogOpener = useRef<HTMLElement | null>(null);
   const photo = library.photos.find((p) => p.id === selected) ?? null,
     doc = selected ? library.documents[selected] : undefined;
-  const source = photo?.sourceBlob ?? photo?.previewBlob ?? null;
+  const source = photo?.sourceBlob?.size
+    ? photo.sourceBlob
+    : photo?.previewBlob?.size
+      ? photo.previewBlob
+      : null;
+  const availablePhotos = library.photos.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
   const previewSource = photo?.isRaw ? (photo.previewBlob ?? source) : source;
   const exportRequest: DevelopExportRequest | null =
     photo && source
@@ -245,6 +255,7 @@ export function DevelopPage({
           ? (library.documents[p.id]?.metadata.rating ?? 0) >= 3
           : library.documents[p.id]?.metadata.flag !== "reject"),
   );
+  const filmstripPhotos = visible.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
   const flushLatest = useRef<() => Promise<boolean>>(async () => true);
   const flush = useCallback(() => flushLatest.current(), []);
   useToolLeaveGuard(
@@ -369,7 +380,14 @@ export function DevelopPage({
       Object.entries(next.documents).map(([id, d]) => [id, d.revision]),
     );
     setLibrary(next);
-    const id = choose && next.documents[choose] ? choose : (next.photos[0]?.id ?? null);
+    const chosen = next.photos.find((p) => p.id === choose);
+    const id =
+      chosen && (chosen.sourceBlob?.size || chosen.previewBlob?.size)
+        ? chosen.id
+        : (next.photos.find((p) => p.sourceBlob?.size || p.previewBlob?.size)?.id ??
+          chosen?.id ??
+          next.photos[0]?.id ??
+          null);
     selectedRef.current = id;
     setSelected(id);
     setSelectedSet(new Set(id ? [id] : []));
@@ -522,6 +540,7 @@ export function DevelopPage({
     commitDraft();
     const visibleIds = library.photos
       .filter((p) => {
+        if (!p.sourceBlob?.size && !p.previewBlob?.size) return false;
         const metadata = docs.current[p.id]?.metadata;
         return (
           next === "all" ||
@@ -649,66 +668,89 @@ export function DevelopPage({
     };
   }, [selected, previewSource, renderRecipe, tool]);
 
-  async function importPhotos(files: File[]) {
-    if (!files.length || !ready || editsLocked()) return;
+  async function importPhotos(incomingFiles: File[] | DataTransfer) {
+    if (
+      (Array.isArray(incomingFiles) && !incomingFiles.length) ||
+      !ready ||
+      editsLocked() ||
+      dialog
+    )
+      return;
     operationLock.current = "import";
     setBusy("Preparing import…");
     setNotice("");
+    setImportFailures([]);
     const controller = new AbortController();
     importAbort.current = controller;
-    let added = 0,
-      duplicates = 0;
-    const knownIds = new Set(library.photos.map((item) => item.id));
+    let importedSelection: string | null = null;
     try {
+      // Capture dropped handles during the event, before an await protects the drag store.
+      const dropped = Array.isArray(incomingFiles)
+        ? null
+        : collectDroppedFiles(incomingFiles, {
+            signal: controller.signal,
+            onProgress: (progress) =>
+              alive.current && setBusy(`Reading folder · ${progress.files} files`),
+          });
+      const collected = dropped ? await dropped : null;
+      const files = collected?.files ?? (incomingFiles as File[]);
+      const warnings = (collected?.warnings ?? []).map((warning) => ({
+        fileName: warning.path || "Folder",
+        message: warning.message,
+      }));
       if (!(await flush()))
         throw new Error("Resolve the save problem before importing more photos.");
-      for (const [i, file] of files.entries()) {
-        controller.signal.throwIfAborted();
-        if (!alive.current) break;
-        setBusy(`Importing ${i + 1} of ${files.length}`);
-        const incoming = await developPhotoFromFile(file);
-        controller.signal.throwIfAborted();
-        if (knownIds.has(incoming.id)) {
-          duplicates++;
-          continue;
+      const result = await runDevelopImport(files, {
+        // A byte-identical import can restore a missing Develop original. addPhotos
+        // merges media into the old record without replacing its editing document.
+        existingIds: availablePhotos.map((item) => item.id),
+        signal: controller.signal,
+        onProgress: ({ index, total, fileName }) =>
+          alive.current && setBusy(`Importing ${index} of ${total} · ${fileName}`),
+        save: (incoming) => store.addPhotos([incoming]),
+        preparePreview: async (file, incoming, signal) => {
+          let preview: Blob;
+          let previewOrigin: "unknown" | "raw-demosaic" | "raster" = incoming.isRaw
+            ? "unknown"
+            : "raster";
+          try {
+            preview = await renderDevelop(file, defaultDevelopSettings(), {
+              edge: 1600,
+              signal,
+            });
+          } catch (previewError) {
+            signal.throwIfAborted();
+            if (!incoming.isRaw || !(await developEngineStatus())?.rawSupported) throw previewError;
+            if (alive.current) setBusy(`Importing ${file.name} · developing RAW preview`);
+            preview = await renderDevelop(file, defaultDevelopSettings(), {
+              edge: 1600,
+              sourceMode: "raw",
+              signal,
+            });
+            previewOrigin = "raw-demosaic";
+          }
+          const bitmap = await createImageBitmap(preview);
+          const dims = { width: bitmap.width, height: bitmap.height };
+          bitmap.close();
+          return { ...incoming, previewBlob: preview, previewOrigin, ...dims };
+        },
+      });
+      importedSelection = result.selectedId;
+      if (alive.current) {
+        setImportFailures([...warnings, ...result.failures]);
+        if (importedSelection) {
+          setFilter("all");
+          setMode("develop");
+          setTool("edit");
+          setBefore(false);
+          setCompare(false);
         }
-        let preview: Blob;
-        let previewOrigin: "unknown" | "raw-demosaic" | "raster" = incoming.isRaw
-          ? "unknown"
-          : "raster";
-        try {
-          preview = await renderDevelop(file, defaultDevelopSettings(), {
-            edge: 1600,
-            signal: controller.signal,
-          });
-        } catch (previewError) {
-          controller.signal.throwIfAborted();
-          if (!incoming.isRaw || !(await developEngineStatus())?.rawSupported) throw previewError;
-          setBusy(`Importing ${i + 1} of ${files.length} · developing RAW preview`);
-          preview = await renderDevelop(file, defaultDevelopSettings(), {
-            edge: 1600,
-            sourceMode: "raw",
-            signal: controller.signal,
-          });
-          previewOrigin = "raw-demosaic";
-        }
-        const bitmap = await createImageBitmap(preview);
-        const dims = { width: bitmap.width, height: bitmap.height };
-        bitmap.close();
-        controller.signal.throwIfAborted();
-        await store.addPhotos([{ ...incoming, previewBlob: preview, previewOrigin, ...dims }]);
-        knownIds.add(incoming.id);
-        added++;
+        setNotice(
+          `${result.imported.length} ${result.imported.length === 1 ? "photo" : "photos"} imported${result.duplicates ? ` · ${result.duplicates} already in this library` : ""}${result.failures.length ? ` · ${result.failures.length} could not be imported` : ""}${warnings.length ? ` · ${warnings.length} folder warnings` : ""}${result.stopped ? " · Import stopped" : ""}${result.fatalError ? ` · ${result.fatalError}` : ""}`,
+        );
       }
-      if (alive.current)
-        setNotice(
-          `${added} ${added === 1 ? "photo" : "photos"} imported${duplicates ? ` · ${duplicates} already in this library` : ""}`,
-        );
     } catch (e) {
-      if (alive.current)
-        setNotice(
-          `${added ? `${added} imported. ` : ""}${controller.signal.aborted ? "Import stopped." : errorMessage(e)}`,
-        );
+      if (alive.current) setNotice(controller.signal.aborted ? "Import stopped." : errorMessage(e));
     } finally {
       // Editing entry points stay locked until every queued write and refresh has settled.
       // Never replace in-memory recovery edits after a failed save.
@@ -716,7 +758,8 @@ export function DevelopPage({
         try {
           if (await flush()) {
             const refreshed = await store.loadLibrary();
-            if (alive.current && !failed.current) adopt(refreshed, selectedRef.current);
+            if (alive.current && !failed.current)
+              adopt(refreshed, importedSelection ?? selectedRef.current);
           }
         } catch (e) {
           failed.current = true;
@@ -730,15 +773,16 @@ export function DevelopPage({
     }
   }
   function chooseOriginal() {
-    if (!photo || photo.sourceBlob || editsLocked()) return;
+    if (!photo || photo.sourceBlob?.size || editsLocked()) return;
     reconnectTarget.current = photo;
     reconnectInput.current?.click();
   }
   async function reconnectOriginal(file: File, target: DevelopPhoto | null) {
-    if (!target || target.sourceBlob || !ready || editsLocked()) return;
+    if (!target || target.sourceBlob?.size || !ready || editsLocked()) return;
     operationLock.current = "import";
     setBusy(`Reconnecting ${target.name}`);
     setNotice("");
+    setImportFailures([]);
     const controller = new AbortController();
     importAbort.current = controller;
     let attached = false;
@@ -975,8 +1019,9 @@ export function DevelopPage({
       }
       if (key === "arrowleft" || key === "arrowright") {
         e.preventDefault();
-        const i = visible.findIndex((p) => p.id === selectedRef.current),
-          p = visible[i + (key === "arrowleft" ? -1 : 1)];
+        const navigable = mode === "library" ? visible : filmstripPhotos;
+        const i = navigable.findIndex((p) => p.id === selectedRef.current),
+          p = navigable[i + (key === "arrowleft" ? -1 : 1)];
         if (p) select(p.id);
       }
       const id = selectedRef.current,
@@ -1008,16 +1053,62 @@ export function DevelopPage({
     );
   if (!ready) return <div className="foto-develop develop-loading">Opening Develop…</div>;
   return (
-    <section className="foto-develop" aria-label="FOTO Develop">
+    <section
+      className={`foto-develop${dragging ? " is-dragging" : ""}`}
+      aria-label="FOTO Develop"
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragDepth.current++;
+        if (!busy && !dialog) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = busy || dialog ? "none" : "copy";
+      }}
+      onDragLeave={(event) => {
+        event.stopPropagation();
+        if (--dragDepth.current <= 0) {
+          dragDepth.current = 0;
+          setDragging(false);
+        }
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        dragDepth.current = 0;
+        setDragging(false);
+        void importPhotos(event.dataTransfer);
+      }}
+    >
+      {dragging && <div className="develop-drop-overlay">Drop photos or folders to import</div>}
       <input
         ref={input}
         type="file"
         hidden
         multiple
+        aria-label="Import photos"
         accept="image/*,.arw,.nef,.cr2,.cr3,.dng,.raf,.orf,.rw2,.pef,.raw"
         onChange={(e) => {
           void importPhotos(Array.from(e.target.files ?? []));
           e.target.value = "";
+        }}
+      />
+      <input
+        ref={(element) => {
+          folderInput.current = element;
+          element?.setAttribute("webkitdirectory", "");
+        }}
+        type="file"
+        hidden
+        multiple
+        aria-label="Import photo folder"
+        onChange={(event) => {
+          void importPhotos(Array.from(event.target.files ?? []));
+          event.target.value = "";
         }}
       />
       <input
@@ -1043,21 +1134,29 @@ export function DevelopPage({
         </div>
         <div className="develop-top-actions">
           <button onClick={() => workbench?.showStudio()}>Studio</button>
-          <div className="develop-segment">
-            <button aria-pressed={mode === "library"} onClick={() => setMode("library")}>
-              Library
-            </button>
-            <button aria-pressed={mode === "develop"} onClick={() => setMode("develop")}>
-              Develop
-            </button>
-          </div>
-          <button
-            disabled={!source || !!busy || !!saveError || rendering || !!renderError}
-            onClick={() => openDialog("export")}
-          >
-            <ArrowDownToLine size={14} />
-            Export
+          {library.photos.length > 0 && (
+            <div className="develop-segment">
+              <button aria-pressed={mode === "library"} onClick={() => setMode("library")}>
+                Library
+              </button>
+              <button aria-pressed={mode === "develop"} onClick={() => setMode("develop")}>
+                Develop
+              </button>
+            </div>
+          )}
+          <button disabled={!!busy || !!saveError} onClick={() => input.current?.click()}>
+            <Plus size={14} />
+            Import
           </button>
+          {availablePhotos.length > 0 && (
+            <button
+              disabled={!source || !!busy || !!saveError || rendering || !!renderError}
+              onClick={() => openDialog("export")}
+            >
+              <ArrowDownToLine size={14} />
+              Export
+            </button>
+          )}
         </div>
       </header>
       {(saveError || notice || busy || engine === false) && (
@@ -1072,7 +1171,7 @@ export function DevelopPage({
           </span>
           {saveError ? (
             <button onClick={recoveryFile}>Save recovery file</button>
-          ) : busy.startsWith("Importing") ? (
+          ) : operationLock.current === "import" && !busy.startsWith("Reconnecting") ? (
             <button onClick={() => importAbort.current?.abort()}>Stop import</button>
           ) : busy.startsWith("Reconnecting") ? (
             <button onClick={() => importAbort.current?.abort()}>Stop reconnect</button>
@@ -1083,183 +1182,248 @@ export function DevelopPage({
           ) : null}
         </div>
       )}
-      <div className="develop-workspace" inert={Boolean(busy || dialog)}>
-        <aside className="develop-left">
-          <Panel title="Navigator" open>
-            <div className="develop-navigator">
-              {beforeUrl ? (
-                <img src={beforeUrl} alt="Navigator preview" />
-              ) : (
-                <ImagePlus size={24} />
-              )}
-            </div>
-            <div className="develop-inline">
-              <button
-                disabled={!source}
-                aria-pressed={zoom === "fit"}
-                onClick={() => setZoom("fit")}
-              >
-                Fit
-              </button>
-              <button
-                disabled={!source}
-                aria-pressed={zoom === "100"}
-                onClick={() => setZoom("100")}
-              >
-                100% preview
-              </button>
-            </div>
-          </Panel>
-          <Panel title="Presets" open>
-            <div className="develop-preset-list">
-              {builtinPresets.map((p) => (
+      {importFailures.length > 0 && (
+        <details className="develop-import-report">
+          <summary>
+            {importFailures.length} import {importFailures.length === 1 ? "issue" : "issues"} · view
+            details
+          </summary>
+          <ul>
+            {importFailures.map((failure, index) => (
+              <li key={index}>
+                <strong>{failure.fileName}</strong>
+                <span>{failure.message}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div
+        className={`develop-workspace${!source ? " is-without-photo" : ""}`}
+        inert={Boolean(busy || dialog)}
+      >
+        {source && (
+          <aside className="develop-left">
+            <Panel title="Navigator" open>
+              <div className="develop-navigator">
+                {beforeUrl ? (
+                  <img src={beforeUrl} alt="Navigator preview" />
+                ) : (
+                  <ImagePlus size={24} />
+                )}
+              </div>
+              <div className="develop-inline">
                 <button
-                  key={p.name}
-                  disabled={!source || !!saveError}
-                  aria-pressed={activePreset === p.name}
-                  onClick={() => {
-                    if (p.name === "Original") reset();
-                    else
-                      applyPreset({
-                        name: p.name,
-                        settings: { ...defaultDevelopSettings(), ...p.patch },
-                      });
-                  }}
+                  disabled={!source}
+                  aria-pressed={zoom === "fit"}
+                  onClick={() => setZoom("fit")}
                 >
-                  <span style={{ background: p.color }} />
-                  {p.name}
-                  {activePreset === p.name && <Check size={12} />}
-                </button>
-              ))}
-              {library.presets.map((p) => (
-                <button
-                  key={p.id}
-                  disabled={!source || !!saveError}
-                  aria-pressed={activePreset === p.name}
-                  onClick={() => applyPreset(p)}
-                >
-                  <span />
-                  {p.name}
-                </button>
-              ))}
-            </div>
-            <button
-              className="develop-wide develop-quiet"
-              disabled={!photo}
-              onClick={() => {
-                setName("");
-                openDialog("preset");
-              }}
-            >
-              <Plus size={12} />
-              Create preset
-            </button>
-          </Panel>
-          <Panel title="Snapshots">
-            <button
-              className="develop-wide develop-quiet"
-              disabled={!photo || !!saveError}
-              onClick={() => {
-                setName("");
-                openDialog("snapshot");
-              }}
-            >
-              <Plus size={12} />
-              New snapshot
-            </button>
-            {doc?.snapshots.map((s) => (
-              <div className="develop-mask-item" key={s.id}>
-                <button
-                  disabled={!source || !!saveError}
-                  onClick={() => updateDoc(restoreSnapshot(doc, s.id))}
-                >
-                  {s.name}
+                  Fit
                 </button>
                 <button
-                  aria-label={`Remove snapshot ${s.name}`}
-                  onClick={() => updateDoc(removeSnapshot(doc, s.id))}
+                  disabled={!source}
+                  aria-pressed={zoom === "100"}
+                  onClick={() => setZoom("100")}
                 >
-                  ×
+                  100% preview
                 </button>
               </div>
-            ))}
-          </Panel>
-          <Panel title="History" open>
-            <div className="develop-history">
-              {doc?.history
-                .map((h, i) => ({ h, i }))
-                .reverse()
-                .map(({ h, i }) => (
+            </Panel>
+            <Panel title="Presets" open>
+              <div className="develop-preset-list">
+                {builtinPresets.map((p) => (
                   <button
-                    key={h.id}
+                    key={p.name}
                     disabled={!source || !!saveError}
-                    aria-pressed={doc.cursor === i}
-                    onClick={() => updateDoc(jumpToHistory(doc, i))}
+                    aria-pressed={activePreset === p.name}
+                    onClick={() => {
+                      if (p.name === "Original") reset();
+                      else
+                        applyPreset({
+                          name: p.name,
+                          settings: { ...defaultDevelopSettings(), ...p.patch },
+                        });
+                    }}
                   >
-                    {h.label}
+                    <span style={{ background: p.color }} />
+                    {p.name}
+                    {activePreset === p.name && <Check size={12} />}
                   </button>
                 ))}
+                {library.presets.map((p) => (
+                  <button
+                    key={p.id}
+                    disabled={!source || !!saveError}
+                    aria-pressed={activePreset === p.name}
+                    onClick={() => applyPreset(p)}
+                  >
+                    <span />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="develop-wide develop-quiet"
+                disabled={!photo}
+                onClick={() => {
+                  setName("");
+                  openDialog("preset");
+                }}
+              >
+                <Plus size={12} />
+                Create preset
+              </button>
+            </Panel>
+            <Panel title="Snapshots">
+              <button
+                className="develop-wide develop-quiet"
+                disabled={!photo || !!saveError}
+                onClick={() => {
+                  setName("");
+                  openDialog("snapshot");
+                }}
+              >
+                <Plus size={12} />
+                New snapshot
+              </button>
+              {doc?.snapshots.map((s) => (
+                <div className="develop-mask-item" key={s.id}>
+                  <button
+                    disabled={!source || !!saveError}
+                    onClick={() => updateDoc(restoreSnapshot(doc, s.id))}
+                  >
+                    {s.name}
+                  </button>
+                  <button
+                    aria-label={`Remove snapshot ${s.name}`}
+                    onClick={() => updateDoc(removeSnapshot(doc, s.id))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </Panel>
+            <Panel title="History" open>
+              <div className="develop-history">
+                {doc?.history
+                  .map((h, i) => ({ h, i }))
+                  .reverse()
+                  .map(({ h, i }) => (
+                    <button
+                      key={h.id}
+                      disabled={!source || !!saveError}
+                      aria-pressed={doc.cursor === i}
+                      onClick={() => updateDoc(jumpToHistory(doc, i))}
+                    >
+                      {h.label}
+                    </button>
+                  ))}
+              </div>
+            </Panel>
+            <Panel title="Recovery">
+              <button
+                className="develop-wide develop-quiet"
+                disabled={!library.photos.length}
+                onClick={recoveryFile}
+              >
+                Save recovery file
+              </button>
+              <button
+                className="develop-wide develop-quiet"
+                disabled={!!saveError || !!busy}
+                onClick={() => void openRecovery()}
+              >
+                Import recovery file
+              </button>
+            </Panel>
+            <div className="develop-left-footer">
+              <button
+                disabled={!photo}
+                onClick={() => {
+                  setClipboard(cloneDevelopSettings(draft));
+                  setNotice("Settings copied");
+                }}
+              >
+                <Copy size={12} />
+                Copy
+              </button>
+              <button
+                disabled={!clipboard || !source || !!saveError}
+                onClick={() =>
+                  clipboard &&
+                  change(
+                    { ...cloneDevelopSettings(clipboard), crop: draft.crop, masks: draft.masks },
+                    "Paste settings",
+                  )
+                }
+              >
+                Paste
+              </button>
             </div>
-          </Panel>
-          <Panel title="Recovery">
-            <button
-              className="develop-wide develop-quiet"
-              disabled={!library.photos.length}
-              onClick={recoveryFile}
-            >
-              Save recovery file
-            </button>
-            <button
-              className="develop-wide develop-quiet"
-              disabled={!!saveError || !!busy}
-              onClick={() => void openRecovery()}
-            >
-              Import recovery file
-            </button>
-          </Panel>
-          <div className="develop-left-footer">
-            <button
-              disabled={!photo}
-              onClick={() => {
-                setClipboard(cloneDevelopSettings(draft));
-                setNotice("Settings copied");
-              }}
-            >
-              <Copy size={12} />
-              Copy
-            </button>
-            <button
-              disabled={!clipboard || !source || !!saveError}
-              onClick={() =>
-                clipboard &&
-                change(
-                  { ...cloneDevelopSettings(clipboard), crop: draft.crop, masks: draft.masks },
-                  "Paste settings",
-                )
-              }
-            >
-              Paste
-            </button>
-          </div>
-        </aside>
+          </aside>
+        )}
         <main className="develop-center">
-          {!library.photos.length ? (
+          {availablePhotos.length > 0 &&
+          !(mode === "library" ? visible.length : filmstripPhotos.length) ? (
+            <div className="develop-empty">
+              <h1>No photos match this filter</h1>
+              <button onClick={() => changeFilter("all")}>Show all photos</button>
+            </div>
+          ) : !source && (mode === "develop" || !library.photos.length) ? (
             <div className="develop-empty">
               <ImagePlus size={34} strokeWidth={1} />
-              <h1>Your photographs. Your look.</h1>
-              <p>Bring in a photograph and start developing.</p>
-              <button
-                className="develop-primary"
-                disabled={!!busy || engine === false}
-                onClick={() => input.current?.click()}
-              >
-                Import photos
-              </button>
-              <small>
-                JPEG, PNG, TIFF, HEIC and supported RAW files.
-                <br />
-                Your original files stay untouched.
-              </small>
+              <h1>Bring your photos into Develop</h1>
+              <p>Drop photos or a folder here to get started.</p>
+              <div className="develop-import-actions">
+                <button
+                  className="develop-primary"
+                  disabled={!!busy || !!saveError}
+                  onClick={() => input.current?.click()}
+                >
+                  Import photos
+                </button>
+                <button
+                  disabled={!!busy || !!saveError}
+                  onClick={() => folderInput.current?.click()}
+                >
+                  Choose folder
+                </button>
+              </div>
+              <small>JPEG, PNG, TIFF, HEIC and supported RAW files.</small>
+              {library.photos.length > 0 && (
+                <details className="develop-missing-files">
+                  <summary>
+                    {library.photos.length - availablePhotos.length} saved photos need their
+                    originals
+                  </summary>
+                  <p>Your edits are saved. Reconnect the original file to resume.</p>
+                  <ul>
+                    {library.photos
+                      .filter((p) => !p.sourceBlob?.size && !p.previewBlob?.size)
+                      .map((p) => (
+                        <li key={p.id}>
+                          <span>{p.name}</span>
+                          <button
+                            onClick={() => {
+                              reconnectTarget.current = p;
+                              reconnectInput.current?.click();
+                            }}
+                          >
+                            Reconnect original
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                  <small>
+                    Older entries without a fingerprint are matched by filename only. Choose the
+                    exact original.
+                  </small>
+                  <button onClick={recoveryFile}>Save edit recovery file</button>
+                  <button onClick={() => void openRecovery()} disabled={!!saveError}>
+                    Import recovery file
+                  </button>
+                </details>
+              )}
             </div>
           ) : mode === "library" ? (
             <div className="develop-library-grid">
@@ -1447,169 +1611,177 @@ export function DevelopPage({
             </>
           )}
         </main>
-        <aside className="develop-right">
-          <div className="develop-histogram-wrap">
-            <div className="develop-inline">
-              <span>Histogram</span>
-              <SlidersHorizontal size={12} />
+        {source && (
+          <aside className="develop-right">
+            <div className="develop-histogram-wrap">
+              <div className="develop-inline">
+                <span>Histogram</span>
+                <SlidersHorizontal size={12} />
+              </div>
+              <DevelopHistogram bins={bins} />
+              <div className="develop-inline">
+                <span>
+                  {!source
+                    ? "No image source"
+                    : photo?.isRaw
+                      ? photo.previewOrigin === "raw-demosaic"
+                        ? "Sensor preview · sRGB"
+                        : "RAW preview · sRGB"
+                      : "sRGB"}
+                </span>
+                <span>
+                  {saveError
+                    ? "Not saved"
+                    : draftDirty
+                      ? "Unsaved adjustment"
+                      : pending
+                        ? "Saving…"
+                        : "Local edits"}
+                </span>
+              </div>
             </div>
-            <DevelopHistogram bins={bins} />
-            <div className="develop-inline">
+            <fieldset disabled={!source || !!saveError || !!busy}>
+              <DevelopControls
+                photoId={selected ?? "empty"}
+                value={draft}
+                change={change}
+                tool={tool}
+                onTool={changeTool}
+                maskId={maskId}
+                onMask={setMaskId}
+                sourceAspect={sourceAspect}
+              />
+            </fieldset>
+            <div className="develop-right-footer">
+              <button
+                disabled={!source || !!saveError || (selectedSet.size < 2 && !previous.current)}
+                onClick={() => {
+                  if (selectedSet.size > 1) {
+                    openDialog("sync");
+                    return;
+                  }
+                  const p = previous.current ? docs.current[previous.current] : null;
+                  if (p)
+                    change(
+                      { ...currentRecipe(p), crop: draft.crop, masks: draft.masks },
+                      "Previous settings",
+                    );
+                }}
+              >
+                {selectedSet.size > 1 ? "Sync…" : "Previous"}
+              </button>
+              <button disabled={!source || !!saveError} onClick={reset}>
+                Reset
+              </button>
+            </div>
+          </aside>
+        )}
+      </div>
+      {availablePhotos.length > 0 && (
+        <footer className="develop-filmstrip" inert={Boolean(busy || dialog)}>
+          <div className="develop-filmstrip-bar">
+            <div>
+              <button
+                disabled={!!busy || !!saveError || engine === false}
+                onClick={() => input.current?.click()}
+              >
+                <Plus size={13} />
+                Import
+              </button>
+              <button
+                aria-label="Previous photograph"
+                disabled={!selected || filmstripPhotos.findIndex((p) => p.id === selected) < 1}
+                onClick={() => {
+                  const i = filmstripPhotos.findIndex((p) => p.id === selected);
+                  if (filmstripPhotos[i - 1]) select(filmstripPhotos[i - 1]!.id);
+                }}
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                aria-label="Next photograph"
+                disabled={
+                  !selected ||
+                  filmstripPhotos.findIndex((p) => p.id === selected) >= filmstripPhotos.length - 1
+                }
+                onClick={() => {
+                  const i = filmstripPhotos.findIndex((p) => p.id === selected);
+                  if (filmstripPhotos[i + 1]) select(filmstripPhotos[i + 1]!.id);
+                }}
+              >
+                <ChevronRight size={15} />
+              </button>
               <span>
-                {!source
-                  ? "No image source"
-                  : photo?.isRaw
-                    ? photo.previewOrigin === "raw-demosaic"
-                      ? "Sensor preview · sRGB"
-                      : "RAW preview · sRGB"
-                    : "sRGB"}
+                {availablePhotos.length} available · {selectedSet.size} selected
               </span>
-              <span>
+            </div>
+            <div>
+              {doc && (
+                <div className="develop-rating" role="group" aria-label="Photo rating">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      disabled={!!saveError}
+                      aria-label={`Rate ${n} stars`}
+                      aria-pressed={doc.metadata.rating >= n}
+                      onClick={() =>
+                        persistBatch([
+                          {
+                            ...doc,
+                            metadata: {
+                              ...doc.metadata,
+                              rating: doc.metadata.rating === n ? 0 : n,
+                            },
+                          },
+                        ])
+                      }
+                    >
+                      <Star size={11} fill={doc.metadata.rating >= n ? "currentColor" : "none"} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <select
+                aria-label="Filter photos"
+                value={filter}
+                onChange={(e) => changeFilter(e.target.value)}
+              >
+                <option value="all">All photos</option>
+                <option value="picks">Picks</option>
+                <option value="rated">3 stars and up</option>
+                <option value="not-rejected">Not rejected</option>
+              </select>
+              <span className="develop-save-status">
                 {saveError
-                  ? "Not saved"
+                  ? "Save needs attention"
                   : draftDirty
                     ? "Unsaved adjustment"
                     : pending
                       ? "Saving…"
-                      : "Local edits"}
+                      : "All edits saved"}
               </span>
             </div>
           </div>
-          <fieldset disabled={!source || !!saveError || !!busy}>
-            <DevelopControls
-              photoId={selected ?? "empty"}
-              value={draft}
-              change={change}
-              tool={tool}
-              onTool={changeTool}
-              maskId={maskId}
-              onMask={setMaskId}
-              sourceAspect={sourceAspect}
-            />
-          </fieldset>
-          <div className="develop-right-footer">
-            <button
-              disabled={!source || !!saveError || (selectedSet.size < 2 && !previous.current)}
-              onClick={() => {
-                if (selectedSet.size > 1) {
-                  openDialog("sync");
-                  return;
-                }
-                const p = previous.current ? docs.current[previous.current] : null;
-                if (p)
-                  change(
-                    { ...currentRecipe(p), crop: draft.crop, masks: draft.masks },
-                    "Previous settings",
-                  );
-              }}
-            >
-              {selectedSet.size > 1 ? "Sync…" : "Previous"}
-            </button>
-            <button disabled={!source || !!saveError} onClick={reset}>
-              Reset
-            </button>
+          <div className="develop-filmstrip-items" role="group" aria-label="Filmstrip">
+            {filmstripPhotos.map((p, i) => (
+              <button
+                key={p.id}
+                aria-label={`${i + 1}. ${p.name}`}
+                aria-pressed={selectedSet.has(p.id)}
+                className={selected === p.id ? "is-active" : ""}
+                onClick={(e) => select(p.id, e.shiftKey || e.metaKey || e.ctrlKey)}
+              >
+                <span className="develop-frame-number">{i + 1}</span>
+                <Thumb photo={p} />
+                <span className="develop-frame-name">{p.name}</span>
+                {library.documents[p.id]?.metadata.flag === "pick" && (
+                  <Check className="develop-frame-flag" size={12} />
+                )}
+              </button>
+            ))}
           </div>
-        </aside>
-      </div>
-      <footer className="develop-filmstrip" inert={Boolean(busy || dialog)}>
-        <div className="develop-filmstrip-bar">
-          <div>
-            <button
-              disabled={!!busy || !!saveError || engine === false}
-              onClick={() => input.current?.click()}
-            >
-              <Plus size={13} />
-              Import
-            </button>
-            <button
-              aria-label="Previous photograph"
-              disabled={!selected || visible.findIndex((p) => p.id === selected) < 1}
-              onClick={() => {
-                const i = visible.findIndex((p) => p.id === selected);
-                if (visible[i - 1]) select(visible[i - 1]!.id);
-              }}
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <button
-              aria-label="Next photograph"
-              disabled={
-                !selected || visible.findIndex((p) => p.id === selected) >= visible.length - 1
-              }
-              onClick={() => {
-                const i = visible.findIndex((p) => p.id === selected);
-                if (visible[i + 1]) select(visible[i + 1]!.id);
-              }}
-            >
-              <ChevronRight size={15} />
-            </button>
-            <span>
-              {library.photos.length} photos · {selectedSet.size} selected
-            </span>
-          </div>
-          <div>
-            {doc && (
-              <div className="develop-rating" role="group" aria-label="Photo rating">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    disabled={!!saveError}
-                    aria-label={`Rate ${n} stars`}
-                    aria-pressed={doc.metadata.rating >= n}
-                    onClick={() =>
-                      persistBatch([
-                        {
-                          ...doc,
-                          metadata: { ...doc.metadata, rating: doc.metadata.rating === n ? 0 : n },
-                        },
-                      ])
-                    }
-                  >
-                    <Star size={11} fill={doc.metadata.rating >= n ? "currentColor" : "none"} />
-                  </button>
-                ))}
-              </div>
-            )}
-            <select
-              aria-label="Filter photos"
-              value={filter}
-              onChange={(e) => changeFilter(e.target.value)}
-            >
-              <option value="all">All photos</option>
-              <option value="picks">Picks</option>
-              <option value="rated">3 stars and up</option>
-              <option value="not-rejected">Not rejected</option>
-            </select>
-            <span className="develop-save-status">
-              {saveError
-                ? "Save needs attention"
-                : draftDirty
-                  ? "Unsaved adjustment"
-                  : pending
-                    ? "Saving…"
-                    : "All edits saved"}
-            </span>
-          </div>
-        </div>
-        <div className="develop-filmstrip-items" role="group" aria-label="Filmstrip">
-          {visible.map((p, i) => (
-            <button
-              key={p.id}
-              aria-label={`${i + 1}. ${p.name}`}
-              aria-pressed={selectedSet.has(p.id)}
-              className={selected === p.id ? "is-active" : ""}
-              onClick={(e) => select(p.id, e.shiftKey || e.metaKey || e.ctrlKey)}
-            >
-              <span className="develop-frame-number">{i + 1}</span>
-              <Thumb photo={p} />
-              <span className="develop-frame-name">{p.name}</span>
-              {library.documents[p.id]?.metadata.flag === "pick" && (
-                <Check className="develop-frame-flag" size={12} />
-              )}
-            </button>
-          ))}
-        </div>
-      </footer>
+        </footer>
+      )}
       {dialog && (
         <div
           className="develop-modal-backdrop"

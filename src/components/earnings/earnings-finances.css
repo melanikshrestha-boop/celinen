@@ -1,4 +1,4 @@
-/* Lunara Glow Finances surface + Wonder pies. Light cream, Times 12/13. */
+/* Books keeps its compact financial layout and shares the FOTO interface face. */
 .iris-finances {
   --fx-bg: var(--wb-bg, #ffffff);
   --fx-strong: var(--wb-text, #1a1c22);
@@ -6,7 +6,7 @@
   --fx-faint: rgba(26, 28, 34, 0.38);
   background: var(--fx-bg);
   color: var(--fx-strong);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 400;
   line-height: 1.4;
@@ -23,7 +23,7 @@
 .iris-finances label,
 .iris-finances .k,
 .iris-finances .v {
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 400;
 }
@@ -211,7 +211,7 @@
   color: var(--fx-strong);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
-  font-family: "Times New Roman", Times, serif !important;
+  font-family: var(--font-sans);
 }
 
 .bk-legend {
