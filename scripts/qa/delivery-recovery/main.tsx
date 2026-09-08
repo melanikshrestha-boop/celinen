@@ -118,6 +118,22 @@ Object.assign(window, {
       sessionStorage.setItem(key, JSON.stringify(authoritative));
       publishView(authoritative);
     },
+    seedSelectionNotes: () => {
+      if (!authoritative.comments.some((comment) => comment.id === id(50)))
+        authoritative = apply(
+          authoritative,
+          {
+            type: "comment",
+            versionId: id(4),
+            body: 'Crop tighter, keep the sign — 東京 📷\nClient note, "quoted".',
+            revision: true,
+          },
+          "client",
+          id(50),
+        );
+      sessionStorage.setItem(key, JSON.stringify(authoritative));
+      publishView(authoritative);
+    },
   },
 });
 

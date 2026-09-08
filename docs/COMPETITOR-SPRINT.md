@@ -879,6 +879,54 @@ item: export the submitted selection snapshot and photo notes with exact LensLab
 so repeated camera filenames cannot target the wrong frame. Do not call a filename-only CSV an Adobe
 round trip.
 
+## Pass 17 — exact submitted-selection and note export (2026-09-08 06:49 UTC heartbeat)
+
+Primary-source refresh, not competitor account testing:
+
+- [Pixieset's Favorite Activity guide](https://help.pixieset.com/hc/en-us/articles/115002991071-How-can-I-review-my-client-s-Favorite-Activity)
+  documents photographer-side favorite lists, client notes and filename CSV export. Its
+  [photo-note guide](https://help.pixieset.com/hc/en-us/articles/115003733191-How-does-my-client-add-a-note-or-a-comment-on-a-photo)
+  confirms that exported favorite-list CSVs include client notes.
+- [Pixieset's Lightroom Copy List guide](https://help.pixieset.com/hc/en-us/articles/115003505192-Viewing-Client-Favorites-in-Lightroom)
+  documents a filename search workflow and warns that partial filename matches can return extra
+  images and virtual copies need manual checking. LensLabs therefore does not use a camera filename
+  as selection identity or call this CSV an Adobe round trip.
+- [Aftershoot's current export guide](https://support.aftershoot.com/en/articles/7048858-how-to-export-your-culled-images-from-aftershoot)
+  documents filter-based folder/application export with star ratings, color labels and edits. This
+  pass does not claim an Aftershoot session and does not change LensLabs culling or editor export.
+
+Implemented in the existing owner Feedback tab without adding another panel:
+
+- The photographer can export the latest immutable submitted-selection snapshot. Current mutable
+  picks cannot change the export after submission or reopening.
+- Every row contains the submission timestamp and ID, exact LensLabs photo ID, exact version ID,
+  filename and version number. Repeated camera filenames remain separate rows. A missing historic
+  version or duplicate submitted identity fails the whole export instead of silently omitting or
+  guessing a photo.
+- Only client notes attached to that exact submitted photo/version pair are included. Notes for a
+  newer version, another photo or the photographer are not joined by filename. Change-request status
+  remains explicit as None, Addressed or Open.
+- Every CSV cell is quoted, Unicode and multiline notes are preserved, and spreadsheet-formula
+  prefixes are neutralized. The control is owner-only and the client Feedback view remains unchanged.
+
+Verification: **71 focused delivery tests pass / 0 fail (237 assertions)**, including five new
+selection-export tests for repeated filenames, immutable latest submissions, exact-version client
+notes, Unicode/quotes/newlines, formula injection, missing history, duplicate identities and source
+immutability. TypeScript, scoped ESLint, production build and whitespace checks pass. A synthetic
+390×844 owner gallery captured the CSV, verified both exact photo/version pairs plus a quoted Unicode
+change request, confirmed no horizontal overflow and confirmed the client cannot see the control.
+Screenshot inspected: `/private/tmp/lenslabs-owner-selection-export-mobile.png`.
+
+Limitations: browser QA used loopback, synthetic workflow state and repository/public-domain media,
+not Supabase, a published invitation, Lightroom, Capture One, Pixieset, Aftershoot or real client
+data. The CSV is a safe LensLabs interchange record, not proof that another editor imported it. The
+full concurrent suite reached **1,128 pass / 19 skip / 3 fail**. The three failures remain outside
+this slice: the local HTTP bridge fixture receives `EADDRINUSE` from `listen(0)`, concurrent Appearance
+work breaks one accent contrast assertion, and concurrent chat-copy work changed a tested empty
+composer placeholder. None was changed or hidden here. Next bounded item: produce an explicitly
+scoped Lightroom/Capture One lookup handoff from the exact selection identities, with duplicate-name
+ambiguity blocking rather than being guessed; do not claim editor import until tested in that editor.
+
 ## Remaining sprint order
 
 1. **Finish research hours 1–3.** Walk public Aftershoot product tour and Pixieset demo. Record exact
