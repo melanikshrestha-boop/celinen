@@ -26,6 +26,7 @@ import { Route as HelpRouteImport } from './routes/help'
 import { Route as MailRouteImport } from './routes/mail'
 import { Route as MetadataRouteImport } from './routes/metadata'
 import { Route as NetworkRouteImport } from './routes/network'
+import { Route as OutboundRouteImport } from './routes/outbound'
 import { Route as PackagesRouteImport } from './routes/packages'
 import { Route as PhotographersRouteImport } from './routes/photographers'
 import { Route as PickRouteImport } from './routes/pick'
@@ -144,6 +145,11 @@ const MetadataRoute = MetadataRouteImport.update({
 const NetworkRoute = NetworkRouteImport.update({
   id: '/network',
   path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OutboundRoute = OutboundRouteImport.update({
+  id: '/outbound',
+  path: '/outbound',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PackagesRoute = PackagesRouteImport.update({
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/network': typeof NetworkRoute
+  '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
   '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
@@ -391,6 +398,7 @@ export interface FileRoutesByTo {
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/network': typeof NetworkRoute
+  '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
   '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
@@ -445,6 +453,7 @@ export interface FileRoutesById {
   '/mail': typeof MailRoute
   '/metadata': typeof MetadataRoute
   '/network': typeof NetworkRoute
+  '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
   '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
@@ -500,6 +509,7 @@ export interface FileRouteTypes {
     | '/mail'
     | '/metadata'
     | '/network'
+    | '/outbound'
     | '/packages'
     | '/photographers'
     | '/pick'
@@ -553,6 +563,7 @@ export interface FileRouteTypes {
     | '/mail'
     | '/metadata'
     | '/network'
+    | '/outbound'
     | '/packages'
     | '/photographers'
     | '/pick'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/mail'
     | '/metadata'
     | '/network'
+    | '/outbound'
     | '/packages'
     | '/photographers'
     | '/pick'
@@ -660,6 +672,7 @@ export interface RootRouteChildren {
   MailRoute: typeof MailRoute
   MetadataRoute: typeof MetadataRoute
   NetworkRoute: typeof NetworkRoute
+  OutboundRoute: typeof OutboundRoute
   PackagesRoute: typeof PackagesRoute
   PhotographersRoute: typeof PhotographersRoute
   PickRoute: typeof PickRoute
@@ -815,6 +828,13 @@ declare module '@tanstack/react-router' {
       path: '/network'
       fullPath: '/network'
       preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/outbound': {
+      id: '/outbound'
+      path: '/outbound'
+      fullPath: '/outbound'
+      preLoaderRoute: typeof OutboundRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/packages': {
@@ -1076,6 +1096,7 @@ const rootRouteChildren: RootRouteChildren = {
   MailRoute: MailRoute,
   MetadataRoute: MetadataRoute,
   NetworkRoute: NetworkRoute,
+  OutboundRoute: OutboundRoute,
   PackagesRoute: PackagesRoute,
   PhotographersRoute: PhotographersRoute,
   PickRoute: PickRoute,

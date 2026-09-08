@@ -20,6 +20,7 @@ import {
   Users,
   Wallet,
   SlidersHorizontal,
+  Send,
 } from "lucide-react";
 import {
   Sidebar,
@@ -536,6 +537,9 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 { path: "/develop", label: "Develop", Icon: SlidersHorizontal },
                 { path: "/clients", label: "Clients", Icon: Users },
                 { path: "/earnings", label: "Earnings", Icon: Wallet },
+                ...(isLocalSingleUserMode
+                  ? [{ path: "/outbound", label: "Outbound", Icon: Send }]
+                  : []),
               ].map(({ path, label, Icon }) => (
                 <a
                   key={path}
@@ -622,7 +626,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             </div>
           </header>
           <div
-            className={`workbench-panels ${showTool ? "has-tool" : ""} ${current?.path === "/studio" ? "is-studio" : ""} ${current?.path === "/develop" ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" ? "is-earnings" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
+            className={`workbench-panels ${showTool ? "has-tool" : ""} ${current?.path === "/studio" ? "is-studio" : ""} ${current?.path === "/develop" ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" ? "is-earnings" : ""} ${current?.path === "/outbound" ? "is-outbound" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
             data-mobile-pane={showTool ? mobilePane : "chat"}
           >
             <main
@@ -633,6 +637,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 ((compact && mobilePane === "tool") ||
                   (!compact &&
                     (current?.path === "/earnings" ||
+                      current?.path === "/outbound" ||
                       current?.path === "/develop" ||
                       current?.path === "/clients" ||
                       current?.path === "/studio")))
