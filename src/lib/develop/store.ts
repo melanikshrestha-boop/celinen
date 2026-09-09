@@ -311,11 +311,18 @@ type LocalObserver = {
   listener: (change: DevelopStoreChange) => void;
 };
 const localObservers: Set<LocalObserver> = import.meta.hot?.data["developObservers"] ?? new Set();
-const notificationOrigin: string = import.meta.hot?.data["developNotificationOrigin"] ?? uniqueId();
+// Generated lazily: the Workers runtime forbids random values at module scope,
+// and eager evaluation here 500s every server-rendered route.
+let cachedNotificationOrigin: string | undefined = import.meta.hot?.data[
+  "developNotificationOrigin"
+] as string | undefined;
+function notificationOrigin(): string {
+  return (cachedNotificationOrigin ??= uniqueId());
+}
 if (import.meta.hot)
   import.meta.hot.dispose((data) => {
     data["developObservers"] = localObservers;
-    data["developNotificationOrigin"] = notificationOrigin;
+    data["developNotificationOrigin"] = cachedNotificationOrigin;
   });
 export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
 export type DevelopRecovery = {
