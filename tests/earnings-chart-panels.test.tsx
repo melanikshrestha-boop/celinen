@@ -50,12 +50,23 @@ const panels = (html: string) =>
     (match) => match[0],
   );
 
-describe("four flat Earnings metric panels", () => {
-  test("four real series retain canonical totals and closed secondary breakdown", () => {
+describe("three primary cash-flow charts and secondary Refunds", () => {
+  test("three primary series retain canonical totals; Refunds and Breakdown start collapsed", () => {
     const value = model(),
       before = JSON.stringify(value),
       html = render(value);
     expect(panels(html)).toHaveLength(4);
+    const primary = html.slice(0, html.indexOf('<details class="earnings-refunds-detail"'));
+    expect(panels(primary)).toHaveLength(3);
+    expect(panels(primary).map((panel) => panel.match(/<h3[^>]*>([^<]+)<\/h3>/)![1])).toEqual([
+      "Collected",
+      "Expenses",
+      "Net Cash Flow",
+    ]);
+    expect(html).toContain(
+      '<details class="earnings-refunds-detail"><summary>Refunds <span>$40.00</span></summary>',
+    );
+    expect(html).not.toContain('<details class="earnings-refunds-detail" open');
     expect(panels(html).map((panel) => panel.match(/data-metric="([^"]+)"/)![1])).toEqual([
       "collectedMinor",
       "expensesMinor",
@@ -73,7 +84,7 @@ describe("four flat Earnings metric panels", () => {
     );
     expect(html).not.toContain('<details class="earnings-chart-breakdown" open');
     expect(html).toContain("Recorded refunds, already deducted from Collected.");
-    expect(html).toContain("not taxable profit");
+    expect(html).toContain("Not profit, taxable income or a bank balance.");
     expect(JSON.stringify(value)).toBe(before);
   });
 
@@ -105,28 +116,48 @@ describe("four flat Earnings metric panels", () => {
     expect(panels(render(value))[0]).toContain("≈ $15.00");
   });
 
-  test("one point stays visible without inventing an area or second observation", () => {
+  test("one nonzero point stays visible without inventing an area or second observation", () => {
     const value = model();
     value.points = [value.points[0]!];
     value.totals = { ...value.totals, ...value.points[0]! };
-    for (const panel of panels(render(value))) {
+    for (const panel of panels(render(value)).slice(0, 3)) {
       expect(panel.match(/<circle /g)).toHaveLength(1);
-      expect(panel).toContain('cx="300"');
+      expect(panel).toContain('cx="294"');
       expect(panel).not.toMatch(/<path[^>]* Z/);
       expect(panel).not.toMatch(/NaN|Infinity|undefined/);
     }
+    expect(panels(render(value))[3]).not.toContain("<svg");
+    expect(panels(render(value))[3]).toContain("No refunds recorded");
   });
 
-  test("zero-only Refunds keeps real zero observations but only one zero axis label", () => {
+  test("zero-only Refunds has a compact truthful empty state, not an invented flat plot", () => {
     const value = model();
     value.points = value.points.map((point) => ({ ...point, refundsMinor: 0 }));
     value.totals.refundsMinor = 0;
     const output = panels(render(value))[3]!;
-    const ticks = [...output.matchAll(/<g aria-hidden="true"><text[^>]*>([^<]+)<\/text><\/g>/g)];
-    expect(ticks.map((tick) => tick[1])).toEqual(["0"]);
-    expect(output.match(/<circle /g)).toHaveLength(2);
-    expect(output).toContain("Daily average <span>$0.00</span>");
+    expect(output).toContain('data-empty="true"');
+    expect(output).toContain("No refunds recorded");
+    expect(output).toContain("$0.00");
+    expect(output).not.toContain("<svg");
+    expect(output).not.toContain("Daily average");
     expect(output).not.toContain("No recorded cash flow");
+  });
+
+  test("zero net movement is distinct from no activity, while offsetting movements remain plotted", () => {
+    const value = model();
+    value.points = value.points.map((point) => ({ ...point, netMinor: 0 }));
+    value.totals.netMinor = 0;
+    let output = panels(render(value))[2]!;
+    expect(output).toContain("No net activity");
+    expect(output).not.toContain("<svg");
+    // A zero total is not an empty series when recorded intervals offset.
+    value.points[0]!.netMinor = 5000;
+    value.points[1]!.netMinor = -5000;
+    output = panels(render(value))[2]!;
+    expect(output).toContain("<svg");
+    expect(output.match(/<circle /g)).toHaveLength(2);
+    expect(output).not.toContain('data-empty="true"');
+    expect(output).toContain("$0.00");
   });
 
   test("actual keyboard/pointer handlers retain exact readout, scale mapping and observer cleanup", () => {

@@ -136,6 +136,16 @@ export function resolvedAppearance(prefs: ThemePreference, systemDark: boolean) 
     appearance = { ...appearance, preset: "paper", ...THEME_PRESETS.paper };
   else if (dark && appearance.preset === "paper")
     appearance = { ...appearance, preset: "lenslabs", ...THEME_PRESETS.lenslabs };
+  // Wonder's light paper is a presentation token. Existing exported themes and
+  // saved custom palettes remain unchanged rather than being migrated on render.
+  if (!dark && appearance.preset === "paper")
+    appearance = {
+      ...appearance,
+      background: "#f7f7fa",
+      backgroundEnd: "#f7f7fa",
+      backgroundStyle: "solid",
+      foreground: "#1a1c22",
+    };
   // Dark mode is a black workspace, including older tinted/gradient palettes.
   // Resolve for display only so switching modes never destroys saved colors.
   if (dark)
@@ -196,8 +206,8 @@ function readableMuted(foreground: string, background: string) {
 /** Shared neutral surfaces for both navigation rails. No wallpaper or tinted underlay. */
 export function sidebarSurfaceTokens(appearance: Appearance, dark: boolean) {
   const neutral = dark || appearance.preset === "lenslabs" || appearance.preset === "paper";
-  const solid = neutral ? (dark ? "#000000" : "#f9f9f9") : appearance.background;
-  const text = neutral ? (dark ? "#f5f5f5" : "#202020") : appearance.foreground;
+  const solid = neutral ? (dark ? "#000000" : "#f7f7fa") : appearance.background;
+  const text = neutral ? (dark ? "#f5f5f5" : "#1a1c22") : appearance.foreground;
   const muted = neutral ? (dark ? "#a3a3a3" : "#626262") : readableMuted(text, solid);
   const translucent = appearance.translucentSidebar && appearance.contrast !== "more";
   const alpha = Math.round((appearance.sidebarOpacity * 255) / 100)
@@ -214,7 +224,7 @@ export function sidebarSurfaceTokens(appearance: Appearance, dark: boolean) {
     "--foto-settings-surface": neutral
       ? dark
         ? "#000000"
-        : "#fafafa"
+        : "#f7f7fa"
       : mixHex(text, appearance.background, 0.04),
     "--foto-settings-border": `${text}14`,
   };
@@ -253,10 +263,10 @@ export function applyAppearance(prefs: ThemePreference, systemDark: boolean) {
       ? `linear-gradient(115deg, ${value.accent}, ${value.accentEnd})`
       : value.accent,
   );
-  // Product typography is shared across every surface. Retain old preference
-  // records for compatibility without allowing a legacy serif setting to split
-  // the navigation, editor, settings and charts into different visual systems.
-  root.style.setProperty("--ll-ui-font", "var(--foto-font-sans)");
+  // The approved Wonder reference uses Source Serif 4 for interface text.
+  // Keep saved font choices portable without changing those preference records
+  // or letting them split navigation, editor, settings and charts into different faces.
+  root.style.setProperty("--ll-ui-font", "var(--foto-font-ui)");
   root.style.setProperty(
     "--ll-code-font",
     value.codeFont === "system-mono"

@@ -56,15 +56,26 @@ return await (async () => {
       for (const element of probes)
         check(`${choice}: ${element.dataset.font}`, font(element).startsWith(expected));
     };
-    doc.documentElement.style.setProperty("--ll-ui-font", "var(--foto-font-sans)");
+    doc.documentElement.style.setProperty("--ll-ui-font", "var(--foto-font-ui)");
     doc.documentElement.style.setProperty("--ll-code-font", "var(--foto-font-mono)");
-    await doc.fonts.load('14px "OpenAI Sans"');
-    check("bundled sans-serif font loads successfully", doc.fonts.check('14px "OpenAI Sans"'));
-    verify("default sans", '"OpenAI Sans"');
+    for (const face of [
+      '400 14px "Source Serif 4"',
+      '650 28px "Source Serif 4"',
+      'italic 400 14px "Source Serif 4"',
+    ]) {
+      const loaded = await doc.fonts.load(face);
+      check(
+        `bundled Wonder font loads: ${face}`,
+        loaded.length > 0 &&
+          loaded.every((font) => font.status === "loaded") &&
+          doc.fonts.check(face),
+      );
+    }
+    verify("Wonder interface", '"Source Serif 4"');
     for (const element of doc.querySelectorAll("[data-code]"))
       check(`code font stays independent: ${element.tagName}`, font(element).includes("Mono"));
-    doc.documentElement.style.setProperty("--ll-ui-font", "var(--foto-font-sans)");
-    verify("restored sans", '"OpenAI Sans"');
+    doc.documentElement.classList.add("dark");
+    verify("dark Wonder interface", '"Source Serif 4"');
     doc.documentElement.style.setProperty(
       "--ll-code-font",
       'Menlo, Consolas, "Liberation Mono", monospace',

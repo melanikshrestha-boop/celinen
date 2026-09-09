@@ -320,12 +320,11 @@ function EarningsContent() {
           <h1 id="earnings-title" tabIndex={-1}>
             Earnings
           </h1>
-          <p>Get paid. Know what’s owed. Keep creating.</p>
         </div>
         <div className="earnings-actions">
           <button onClick={() => newForm("entry")} disabled={!data.writable}>
             <Plus size={15} />
-            Add entry
+            Add Entry
           </button>
           <button
             className="earnings-primary"
@@ -333,7 +332,7 @@ function EarningsContent() {
             disabled={!data.writable}
           >
             <Plus size={15} />
-            New invoice
+            New Invoice
           </button>
         </div>
       </header>
@@ -430,14 +429,14 @@ function EarningsContent() {
           </small>
         </div>
         <div>
-          <dt>Gallery sales</dt>
+          <dt>Gallery Sales</dt>
           <dd>{galleryAvailable ? money(metric?.gallerySalesMinor) : "—"}</dd>
           <small>{galleryAvailable ? "Verified gallery payments" : "Checkout not connected"}</small>
         </div>
         <div>
-          <dt>Net</dt>
+          <dt>Net Cash Flow</dt>
           <dd>{money(metric?.netMinor)}</dd>
-          <small>After recorded expenses · before tax</small>
+          <small>Recorded cash in less expenses</small>
         </div>
       </dl>
       <EarningsCharts
@@ -640,10 +639,12 @@ function EarningsContent() {
       <details className="earnings-method">
         <summary>How these numbers work</summary>
         <p>
-          Collected is recorded payments less dated refunds in the selected period. Net subtracts
-          recorded expenses; it is before tax and any unrecorded processor fees. Outstanding and
-          overdue use verified issued invoice balances as of today. Drafts, failed payments, test
-          charges and payouts are not income. Currencies are never combined.
+          Collected is recorded payments less dated refunds in the selected period. Net Cash Flow
+          subtracts recorded expenses. It is not profit, taxable income or a bank balance; it does
+          not include unrecorded fees or other unrecorded costs. Outstanding and overdue use
+          verified issued invoice balances as of today. Drafts, failed payments, test charges and
+          payouts are not income. Gallery Sales is part of Collected, not additional income.
+          Currencies are never combined.
         </p>
         <p>
           {data.localMode

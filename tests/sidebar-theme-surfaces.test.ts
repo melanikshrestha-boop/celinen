@@ -45,11 +45,11 @@ function apply(
 }
 
 describe("Neutral sidebar theme surfaces", () => {
-  test("every mode renders one sans-serif even with a saved legacy serif preference", () => {
-    const appearance = appearanceSchema.parse({ uiFont: "serif" });
+  test("every mode renders the Wonder interface even with a saved legacy sans preference", () => {
+    const appearance = appearanceSchema.parse({ uiFont: "sans" });
     const saved = JSON.stringify(appearance);
     for (const theme of ["light", "dark", "system"] as const) {
-      expect(apply(theme, appearance).properties.get("--ll-ui-font")).toBe("var(--foto-font-sans)");
+      expect(apply(theme, appearance).properties.get("--ll-ui-font")).toBe("var(--foto-font-ui)");
       expect(JSON.stringify(appearance)).toBe(saved);
     }
   });
@@ -93,9 +93,9 @@ describe("Neutral sidebar theme surfaces", () => {
         const result = resolvedAppearance(prefs, systemDark);
         const expectedDark = theme === "dark" || (theme === "system" && systemDark);
         expect(result.dark).toBe(expectedDark);
-        expect(result.appearance.background).toBe(expectedDark ? "#000000" : "#ffffff");
+        expect(result.appearance.background).toBe(expectedDark ? "#000000" : "#f7f7fa");
         const tokens = sidebarSurfaceTokens(result.appearance, result.dark);
-        expect(tokens["--foto-sidebar-material"]).toBe(expectedDark ? "#000000cc" : "#f9f9f9cc");
+        expect(tokens["--foto-sidebar-material"]).toBe(expectedDark ? "#000000cc" : "#f7f7facc");
         expect(JSON.stringify(prefs)).toBe(before);
       }
     }
@@ -106,6 +106,16 @@ describe("Neutral sidebar theme surfaces", () => {
     expect(resolved.appearance.background).toBe("#000000");
     expect(appearance.background).toBe("#ffffff");
     expect(appearance.preset).toBe("paper");
+  });
+  test("built-in paper renders Wonder's light surface without rewriting old exports", () => {
+    const appearance = appearanceSchema.parse({ preset: "paper", ...THEME_PRESETS.paper });
+    const before = JSON.stringify(appearance);
+    const result = resolvedAppearance({ theme: "light", appearance }, false);
+    expect(result.appearance.background).toBe("#f7f7fa");
+    expect(result.appearance.foreground).toBe("#1a1c22");
+    expect(sidebarSurfaceTokens(result.appearance, false)["--foto-sidebar-solid"]).toBe("#f7f7fa");
+    expect(JSON.stringify(appearance)).toBe(before);
+    expect(importTheme(exportTheme(appearance))).toEqual(appearance);
   });
   test("explicit saved opacity, mode, palette and typography remain intact", () => {
     for (const theme of ["light", "dark", "system"] as const) {

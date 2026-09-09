@@ -17,8 +17,9 @@ const SERIES = [
   },
   {
     key: "netMinor",
-    label: "Net",
-    description: "Recorded collections minus recorded expenses, not taxable profit.",
+    label: "Net Cash Flow",
+    description:
+      "Recorded collections minus recorded expenses. Not profit, taxable income or a bank balance.",
   },
   {
     key: "refundsMinor",
@@ -57,15 +58,17 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
     setActiveDate(index === null ? null : (points[index]?.date ?? null));
   const selected = active === null ? null : points[active];
   const values = points.map((point) => point[series.key]);
+  const hasSeriesActivity = values.some((value) => value !== 0);
   const min = Math.min(0, ...values),
-    max = Math.max(1, ...values);
-  // A zero series needs a nonzero drawing range, not three rounded "0" labels.
-  const ticks = values.every((value) => value === 0) ? [0] : [max, (max + min) / 2, min];
-  const left = 52,
-    right = width - 12,
-    top = 16,
+    max = Math.max(0, ...values);
+  // Axis observations remain representable in the currency's smallest unit.
+  // One-cent ranges need two ticks, not a fabricated half-cent or duplicate zero.
+  const ticks = [...new Set([max, Math.round((max + min) / 2), min])];
+  const left = 44,
+    right = width - 16,
+    top = 18,
     bottom = 152;
-  const y = (value: number) => bottom - ((value - min) / (max - min)) * (bottom - top);
+  const y = (value: number) => bottom - ((value - min) / Math.max(1, max - min)) * (bottom - top);
   const step = (right - left) / Math.max(1, points.length - 1);
   const x = (index: number) => (points.length === 1 ? (left + right) / 2 : left + step * index);
   const money = (value: number) => formatEarningsMoney(value, model.currency);
@@ -79,18 +82,24 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
     isNet
       ? value < 0
         ? "var(--earn-chart-negative)"
-        : "var(--earn-chart-positive)"
+        : value > 0
+          ? "var(--earn-chart-positive)"
+          : "var(--earn-chart-blue)"
       : "var(--earn-chart-blue)";
   const zeroOffset = (y(0) - top) / (bottom - top);
+  const crossesZero = min < 0 && max > 0;
+  const upperColor = max > 0 ? color(1) : color(-1);
+  const lowerColor = min < 0 ? color(-1) : color(1);
   const line = points
     .map((point, index) => `${index ? "L" : "M"}${x(index)},${y(point[series.key])}`)
     .join(" ");
   const area =
     points.length > 1 ? `${line} L${x(points.length - 1)},${y(0)} L${x(0)},${y(0)} Z` : "";
   const compact = (value: number) =>
-    new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
-      value / 10 ** currencyExponent(model.currency),
-    );
+    new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: currencyExponent(model.currency),
+    }).format(value / 10 ** currencyExponent(model.currency));
   const indices = [
     ...new Set(
       width < 420
@@ -115,6 +124,7 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
     <figure
       className="earnings-metric-chart"
       data-metric={series.key}
+      data-empty={!hasSeriesActivity || undefined}
       aria-labelledby={`${id}-title`}
     >
       <figcaption className="earnings-chart-title">
@@ -136,7 +146,7 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
         </span>
       </div>
       <div ref={host} className="earnings-plot-wrap">
-        {model.hasActivity && points.length > 0 ? (
+        {hasSeriesActivity && points.length > 0 ? (
           <>
             <svg
               className="earnings-plot"
@@ -186,8 +196,8 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
                   y1={top}
                   y2={bottom}
                 >
-                  <stop offset={zeroOffset} stopColor={color(0)} />
-                  <stop offset={zeroOffset} stopColor={color(-1)} />
+                  <stop offset={crossesZero ? zeroOffset : 0} stopColor={upperColor} />
+                  <stop offset={crossesZero ? zeroOffset : 1} stopColor={lowerColor} />
                 </linearGradient>
                 <linearGradient
                   id={`${id}-area`}
@@ -197,14 +207,25 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
                   y1={top}
                   y2={bottom}
                 >
-                  <stop offset="0" stopColor={color(0)} stopOpacity="0.26" />
-                  <stop offset={zeroOffset} stopColor={color(0)} stopOpacity="0" />
-                  <stop offset={zeroOffset} stopColor={color(-1)} stopOpacity="0" />
-                  <stop offset="1" stopColor={color(-1)} stopOpacity="0.26" />
+                  <stop offset="0" stopColor={upperColor} stopOpacity={max > 0 ? "0.26" : "0"} />
+                  {crossesZero && (
+                    <>
+                      <stop offset={zeroOffset} stopColor={upperColor} stopOpacity="0" />
+                      <stop offset={zeroOffset} stopColor={lowerColor} stopOpacity="0" />
+                    </>
+                  )}
+                  <stop offset="1" stopColor={lowerColor} stopOpacity={min < 0 ? "0.26" : "0"} />
                 </linearGradient>
               </defs>
               {ticks.map((value, index) => (
                 <g key={index} aria-hidden="true">
+                  <line
+                    x1={left}
+                    x2={right}
+                    y1={y(value)}
+                    y2={y(value)}
+                    className="earnings-chart-gridline"
+                  />
                   <text x={left - 8} y={y(value) + 4} textAnchor="end">
                     {compact(value)}
                   </text>
@@ -218,7 +239,7 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
                 y1={y(average)}
                 y2={y(average)}
                 className="earnings-chart-average"
-                stroke={color(average)}
+                stroke="var(--earn-chart-average)"
                 aria-hidden="true"
               />
               {selected && (
@@ -286,12 +307,20 @@ function MetricChart({ model, series }: { model: ChartModel; series: (typeof SER
               className="earnings-chart-average-label"
               title="Calendar average, including zero-activity intervals. Approximate values are rounded to this currency’s precision."
             >
-              <i style={{ borderColor: color(average) }} />
+              <i style={{ borderColor: "var(--earn-chart-average)" }} />
               {interval} average <span>{averageLabel}</span>
             </div>
           </>
         ) : (
-          <div className="earnings-chart-empty">No recorded cash flow in this period.</div>
+          <div className="earnings-chart-empty">
+            {series.key === "netMinor"
+              ? "No net activity"
+              : series.key === "collectedMinor"
+                ? "No net collections in this period"
+                : series.key === "expensesMinor"
+                  ? "No net expenses in this period"
+                  : "No refunds recorded"}
+          </div>
         )}
       </div>
     </figure>
@@ -394,7 +423,8 @@ function CategoryPie({
         </div>
       ) : (
         <p className="earnings-pie-empty">
-          No positive {title === "Income Mix" ? "income" : "expenses"} recorded in this period.
+          No positive {title === "Collection Mix" ? "collections" : "expenses"} recorded in this
+          period.
         </p>
       )}
       {note && <p className="earnings-chart-note">{note}</p>}
@@ -435,20 +465,30 @@ export function EarningsCharts({
       ) : (
         <>
           <div className="earnings-charts-grid">
-            {SERIES.map((series) => (
+            {SERIES.slice(0, 3).map((series) => (
               <MetricChart
                 key={`${series.key}-${scopeLabel}-${model.currency}-${model.granularity}`}
                 model={model}
                 series={series}
               />
             ))}
+            <details className="earnings-refunds-detail">
+              <summary>
+                Refunds <span>{money(model.totals.refundsMinor)}</span>
+              </summary>
+              <MetricChart
+                key={`refunds-${scopeLabel}-${model.currency}-${model.granularity}`}
+                model={model}
+                series={SERIES[3]}
+              />
+            </details>
           </div>
           <details className="earnings-chart-breakdown">
             <summary>Breakdown</summary>
             <div className="earnings-pies">
               <CategoryPie
                 key={`income-${scopeLabel}-${model.currency}`}
-                title="Income Mix"
+                title="Collection Mix"
                 categories={model.incomeCategories}
                 total={model.totals.positiveCollectionsMinor}
                 currency={model.currency}
@@ -484,7 +524,7 @@ export function EarningsCharts({
                       <th>Collected</th>
                       <th>Refunds</th>
                       <th>Expenses</th>
-                      <th>Net</th>
+                      <th>Net Cash Flow</th>
                     </tr>
                   </thead>
                   <tbody>

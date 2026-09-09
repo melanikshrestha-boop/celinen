@@ -130,7 +130,7 @@ describe("screenshot-matched accent picker", () => {
       });
       const before = JSON.stringify(prefs);
       const result = withDefaultAccent(prefs, systemDark);
-      expect(result.background).toBe(systemDark ? "#000000" : "#ffffff");
+      expect(result.background).toBe(systemDark ? "#000000" : "#f7f7fa");
       expect(result.accent).toBe(systemDark ? "#b4b4b4" : "#171717");
       expect(result.uiFont).toBe("serif");
       expect(result.translucentSidebar).toBe(false);

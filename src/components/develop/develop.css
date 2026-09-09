@@ -108,7 +108,7 @@
   background: #292929;
   color: #e5e5e5;
   border-color: #454545;
-  font-family: var(--foto-font-sans);
+  font-family: var(--foto-font-ui);
   min-width: 220px;
 }
 .develop-photo-menu [role="menuitem"]:focus {

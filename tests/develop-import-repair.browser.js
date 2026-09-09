@@ -148,9 +148,9 @@ return await (async () => {
         );
         check("missing photos do not produce 337 placeholder tiles", library.photos.length === 341);
         check(
-          "shared sans-serif font is loaded",
-          getComputedStyle(root()).fontFamily.includes("OpenAI Sans") &&
-            document.fonts.check('14px "OpenAI Sans"'),
+          "shared Wonder interface font is loaded",
+          getComputedStyle(root()).fontFamily.includes("Source Serif 4") &&
+            document.fonts.check('14px "Source Serif 4"'),
         );
         check(
           "viewport has no horizontal page overflow",

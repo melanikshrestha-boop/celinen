@@ -14,7 +14,7 @@ return await (async () => {
   if (!indexedDB.databases)
     throw new Error("Database inventory is required before safe QA seeding.");
   if (!matchMedia("(hover: hover) and (pointer: fine)").matches || innerWidth < 900)
-    throw new Error("Use a desktop fine-pointer viewport at least 900px wide for the 36px check.");
+    throw new Error("Use a desktop fine-pointer viewport at least 900px wide for the 29px check.");
 
   const scope = "device-local";
   const directoryName = "lenslabs-shoot-directory-v1";
@@ -205,17 +205,17 @@ return await (async () => {
       Number(element.getBoundingClientRect().height.toFixed(2)),
     );
     check(
-      "navigation and recent rows all have compact 36px height",
-      heights.length >= 9 && heights.every((height) => Math.abs(height - 36) < 0.6),
+      "navigation and recent rows all have Wonder's compact 29px height",
+      heights.length >= 9 && heights.every((height) => Math.abs(height - 29) < 0.6),
     );
     check(
-      "recent names are single-line 14px sans-serif",
+      "recent names are single-line 13px Source Serif 4",
       rows.every((row) => {
         const style = getComputedStyle(row.querySelector(".foto-library-row > span"));
         return (
-          style.fontSize === "14px" &&
+          style.fontSize === "13px" &&
           style.whiteSpace === "nowrap" &&
-          style.fontFamily.toLowerCase().includes("sans")
+          style.fontFamily.includes("Source Serif 4")
         );
       }),
     );

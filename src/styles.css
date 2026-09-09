@@ -2,6 +2,22 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* Wonder's interface face, served locally with its original OFL license. */
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4/SourceSerif4Variable-Roman.woff2") format("woff2");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/fonts/source-serif-4/SourceSerif4Variable-Italic.woff2") format("woff2");
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* ChatGPT Codex UI face (OpenAI Sans). Local copies so the lab does not depend on their CDN. */
 @font-face {
   font-family: "OpenAI Sans";
@@ -60,10 +76,10 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
 
-  --font-display: var(--ll-ui-font, var(--foto-font-sans));
-  --font-sans: var(--ll-ui-font, var(--foto-font-sans));
+  --font-display: var(--ll-ui-font, var(--foto-font-ui));
+  --font-sans: var(--ll-ui-font, var(--foto-font-ui));
   /* Legacy font-mono classes label UI, not code. Keep those labels consistent. */
-  --font-mono: var(--ll-ui-font, var(--foto-font-sans));
+  --font-mono: var(--ll-ui-font, var(--foto-font-ui));
   --font-code: var(--ll-code-font, var(--foto-font-mono));
 
   --color-background: var(--background);
@@ -94,20 +110,22 @@
 
 :root {
   --radius: 0.625rem;
+  --foto-font-ui: "Source Serif 4", Georgia, "Times New Roman", ui-serif, serif;
+  /* Retained for existing imported appearances; not the active interface face. */
   --foto-font-sans:
     "OpenAI Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --foto-font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --foto-font-mono: "SF Mono", Menlo, Consolas, ui-monospace, monospace;
 
   /* Neutral rail fallbacks before preferences hydrate; custom themes replace these. */
-  --foto-sidebar-material: #f9f9f9cc;
-  --foto-sidebar-solid: #f9f9f9;
-  --foto-sidebar-hover: #2020200d;
-  --foto-sidebar-selected: #20202018;
-  --foto-sidebar-text: #202020;
+  --foto-sidebar-material: #f7f7facc;
+  --foto-sidebar-solid: #f7f7fa;
+  --foto-sidebar-hover: #1a1c220d;
+  --foto-sidebar-selected: #1a1c2218;
+  --foto-sidebar-text: #1a1c22;
   --foto-sidebar-muted: #626262;
   --foto-sidebar-filter: blur(30px);
-  --foto-settings-surface: #fafafa;
-  --foto-settings-border: #20202014;
+  --foto-settings-surface: #f7f7fa;
+  --foto-settings-border: #1a1c2214;
 
   /* LensLabs — engineered dark-first. Near-black shell, one signal red. */
   --paper: oklch(0.985 0.002 90);
@@ -149,6 +167,7 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
   }
 

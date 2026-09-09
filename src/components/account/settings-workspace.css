@@ -18,7 +18,7 @@
   inset: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: clamp(260px, 26vw, 400px) minmax(0, 1fr);
+  grid-template-columns: 232px minmax(0, 1fr);
   background: var(--settings-bg);
   color: var(--settings-text);
   font-size: var(--ll-ui-size, 14px);
@@ -37,7 +37,7 @@
   background: var(--settings-rail);
   -webkit-backdrop-filter: var(--foto-sidebar-filter, blur(30px));
   backdrop-filter: var(--foto-sidebar-filter, blur(30px));
-  padding: 20px 12px 10px;
+  padding: 12px 12px 10px;
 }
 .settings-back {
   display: inline-flex;
@@ -92,25 +92,31 @@
   padding-bottom: 12px;
 }
 .settings-nav-group + .settings-nav-group {
-  margin-top: 22px;
+  margin-top: 16px;
 }
 .settings-nav-group > p {
   color: var(--settings-muted);
-  padding: 7px 10px 6px;
-  font-size: 12px;
+  padding: 7px 8px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .settings-nav-group > button {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   text-align: left;
-  min-height: 32px;
-  padding: 6px 10px;
-  border-radius: 7px;
-  line-height: 1.3;
+  min-height: 29px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 19px;
 }
 .settings-nav-group > button svg {
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   color: var(--settings-muted);
 }
@@ -142,14 +148,14 @@
 .settings-content {
   width: 100%;
   max-width: 860px;
-  margin: 0 auto;
-  padding: 68px 40px 32px;
+  margin: 0;
+  padding: 24px 24px 32px;
 }
 .settings-content > h1 {
   font-size: 24px;
   font-weight: 500;
   letter-spacing: -0.035em;
-  margin: 0 0 42px;
+  margin: 0 0 24px;
   line-height: 1.25;
   outline: none;
 }
@@ -162,13 +168,13 @@
   margin: 0 0 14px;
 }
 .settings-group-rows {
-  background: var(--settings-surface);
-  border: 1px solid var(--settings-border);
-  border-radius: 16px;
-  padding: 0 16px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 .settings-shell .settings-row {
-  padding: 14px 0;
+  padding: 10px 0;
   gap: 24px;
 }
 .settings-shell .settings-row > div:first-child {
@@ -704,12 +710,17 @@ html[data-pointer-cursors="true"]
   opacity: 1;
   background: var(--wb-surface);
 }
+@media (hover: none), (pointer: coarse) {
+  .settings-nav-group > button {
+    min-height: 44px;
+  }
+}
 @media (max-width: 1050px) {
   .settings-shell {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr);
   }
   .settings-content {
-    padding: 40px 28px 28px;
+    padding: 24px 24px 28px;
   }
   .settings-shell .settings-row {
     gap: 16px;
@@ -734,6 +745,9 @@ html[data-pointer-cursors="true"]
   }
   .settings-rail > .settings-back {
     display: none;
+  }
+  .settings-nav-group > button {
+    min-height: 44px;
   }
   .settings-main {
     height: 100%;
@@ -773,9 +787,6 @@ html[data-pointer-cursors="true"]
   .settings-shell .settings-control [role="combobox"],
   .settings-shell .settings-button {
     min-height: 40px;
-  }
-  .settings-nav-group > button {
-    min-height: 42px;
   }
   .settings-search input {
     font-size: 16px;

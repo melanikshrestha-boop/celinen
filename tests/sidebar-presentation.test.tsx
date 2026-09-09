@@ -105,7 +105,9 @@ describe("compact sidebar presentation without identity changes", () => {
     const css = source("workbench.css");
     expect(css).not.toContain(".foto-primary-item.is-active::before");
     expect(css).not.toMatch(/(?:\.ll-chat-row|\.foto-recent-item|\.recent-shoot-row)[^{]*::before/);
-    expect(css).toContain("--foto-sidebar-row-height: 36px");
+    expect(css).toContain("--foto-sidebar-row-height: 29px");
+    expect(css).toContain("--workspace-sidebar-width: 232px");
+    expect(css).toContain("--toolbar-height: 42px");
     expect(css).toContain("--foto-sidebar-row-height: 44px");
     expect(css).toContain("min-height: var(--foto-sidebar-row-height)");
     expect(css).toContain(".foto-library-recents + .foto-sidebar-chats");
@@ -119,6 +121,13 @@ describe("compact sidebar presentation without identity changes", () => {
       ".history-row:has(:focus-visible) > .history-row-actions",
     );
     expect(source("row-actions.css")).not.toContain(".is-active");
+    const settingsCss = readFileSync("src/components/account/settings-workspace.css", "utf8");
+    const settingsTargets = Array.from(
+      settingsCss.matchAll(/\.settings-nav-group > button\s*\{[^}]*min-height:\s*(\d+)px/g),
+    );
+    // The last narrow-screen rule must not shrink the earlier touch target.
+    expect(settingsTargets.at(-1)?.[1]).toBe("44");
+    expect(settingsCss).toContain("@media (hover: none), (pointer: coarse)");
   });
 
   test("new display labels preserve the explicit Spanish language choice", () => {

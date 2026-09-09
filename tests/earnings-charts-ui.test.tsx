@@ -84,9 +84,9 @@ describe("Earnings charts render canonical recorded values", () => {
       "Insights",
       "Collected",
       "Expenses",
-      "Net",
+      "Net Cash Flow",
       "Refunds",
-      "Income Mix",
+      "Collection Mix",
       "Expense Mix",
       "Chart Data",
     ])
@@ -112,7 +112,7 @@ describe("Earnings charts render canonical recorded values", () => {
     expect(plain(html)).toContain("Before $20.00 in refunds. Collected: $80.00.");
     expect(html).toContain('aria-label="Event Coverage: $100.00, 100.0 percent"');
     expect(html).toContain('aria-label="Equipment: $90.00, 100.0 percent"');
-    expect(html).toContain('aria-label="Income Mix breakdown"');
+    expect(html).toContain('aria-label="Collection Mix breakdown"');
     expect(html).toContain('aria-label="Expense Mix breakdown"');
     expect(html).toContain("Positive recorded amounts only.");
     // Two real categories, no invented positive refund slice.
@@ -191,7 +191,13 @@ describe("Earnings charts render canonical recorded values", () => {
   test("empty and zero-only records render no fabricated graph, slices or date table", () => {
     for (const value of [model(), model([row("zero", { amountMinor: 0 })])]) {
       const html = render(value);
-      expect(plain(html)).toContain("No recorded cash flow in this period.");
+      for (const message of [
+        "No net collections in this period",
+        "No net expenses in this period",
+        "No net activity",
+        "No refunds recorded",
+      ])
+        expect(plain(html)).toContain(message);
       expect(html).not.toContain("<svg");
       expect(html).not.toContain("<table");
       expect(html).not.toContain("pathLength");
@@ -226,8 +232,54 @@ describe("Earnings charts render canonical recorded values", () => {
     expect(plain(html)).toContain("-$20.00");
     expect(plain(html)).toContain("$20.00 in refunds");
     expect(html).toContain('class="earnings-chart-zero"');
-    expect((html.match(/<svg/g) ?? []).length).toBe(4);
+    // Collected and Net Cash Flow are negative; Refunds is secondary.
+    // Expenses has no activity and therefore no invented zero plot.
+    expect((html.match(/<svg/g) ?? []).length).toBe(3);
+    expect(plain(html)).toContain("No net expenses in this period");
     expect(html).not.toContain("pathLength");
+  });
+
+  test("refunds are counted once in Collected and never deducted a second time from Net Cash Flow", () => {
+    const value = model(cashRows());
+    expect(value.totals).toMatchObject({
+      collectedMinor: 8000,
+      expensesMinor: 9000,
+      refundsMinor: 2000,
+      netMinor: -1000,
+    });
+    expect(value.totals.netMinor).toBe(value.totals.collectedMinor - value.totals.expensesMinor);
+    expect(
+      value.points.every((point) => point.netMinor === point.collectedMinor - point.expensesMinor),
+    ).toBe(true);
+    const html = render(value);
+    expect(html).not.toContain("-$30.00");
+    expect(html).toContain("already deducted from Collected");
+    expect(html).toContain("Not profit, taxable income or a bank balance");
+  });
+
+  test("expense-only periods keep collected compact without hiding recorded expenses or the cash loss", () => {
+    const html = render(
+      model([
+        row("software", {
+          amountMinor: 4900,
+          accounting: "expense",
+          type: "expense",
+          category: "Software",
+        }),
+      ]),
+    );
+    const figures = [
+      ...html.matchAll(/<figure class="earnings-metric-chart"[\s\S]*?<\/figure>/g),
+    ].map((match) => match[0]);
+    expect(figures[0]).toContain("No net collections in this period");
+    expect(figures[0]).not.toContain("<svg");
+    expect(figures[1]).toContain("$49.00");
+    expect(figures[1]).toContain("<svg");
+    expect(figures[2]).toContain("-$49.00");
+    expect(figures[2]).toContain("<svg");
+    expect(figures[3]).not.toContain("<svg");
+    // Only the two active cash-flow series plus the real expense pie.
+    expect(html.match(/<svg/g) ?? []).toHaveLength(3);
   });
 
   test("negative-only expense corrections never claim no expense records exist", () => {

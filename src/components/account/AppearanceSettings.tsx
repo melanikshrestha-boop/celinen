@@ -163,8 +163,8 @@ export function AppearanceSettings({
             </label>
           </Row>
         )}
-        <Row title="Interface Font" note="One consistent sans-serif throughout FOTO.">
-          <span>FOTO Sans</span>
+        <Row title="Interface Font">
+          <span>Source Serif 4</span>
         </Row>
         <Row title="Code font" note="Used for metadata, code and shortcut labels.">
           <Choice
