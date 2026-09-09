@@ -71,6 +71,48 @@ type Prepared =
   | { kind: "duplicate" }
   | { kind: "failed"; message: string }
   | { kind: "stopped" };
+type Identified =
+  | { kind: "identified"; value: DevelopPhotoInput }
+  | Extract<Prepared, { kind: "failed" | "stopped" }>;
+type IdentityClaim = {
+  succeeded: boolean;
+  waiting: { index: number; input: DevelopPhotoInput }[];
+};
+type PreviewCandidate = { index: number; input: DevelopPhotoInput; claim: IdentityClaim };
+
+/** Lightweight, input-ordered candidates only; never holds decoded pixels or read buffers. */
+function candidateQueue() {
+  const heap: PreviewCandidate[] = [];
+  return {
+    peek: () => heap[0],
+    push(candidate: PreviewCandidate) {
+      let at = heap.length;
+      heap.push(candidate);
+      while (at > 0) {
+        const parent = (at - 1) >> 1;
+        if (heap[parent]!.index <= candidate.index) break;
+        heap[at] = heap[parent]!;
+        at = parent;
+      }
+      heap[at] = candidate;
+    },
+    pop() {
+      const first = heap[0],
+        last = heap.pop();
+      if (!first || !heap.length) return first;
+      let at = 0;
+      while (at * 2 + 1 < heap.length) {
+        let child = at * 2 + 1;
+        if (child + 1 < heap.length && heap[child + 1]!.index < heap[child]!.index) child++;
+        if (last!.index <= heap[child]!.index) break;
+        heap[at] = heap[child]!;
+        at = child;
+      }
+      heap[at] = last!;
+      return first;
+    },
+  };
+}
 
 function copyPrepared(input: DevelopPhotoInput): DevelopPhotoInput {
   const { sourceBlob, previewBlob, ...metadata } = input;
@@ -133,79 +175,65 @@ export async function runDevelopImport(
     total: batch.length,
     fileName: batch[index]!.name,
   });
-  // Hash reads overlap, but identity claims are ordered. A faster later copy may
-  // not steal the first file's name, and a failed decode must permit a later retry.
-  const identities = Array.from({ length: batch.length + 1 }, barrier);
-  identities[0]!.release();
-  const claims = new Map<string, { promise: Promise<boolean>; resolve: (ok: boolean) => void }>();
-  const preparations = new Map<number, Promise<Prepared>>();
-  const rawWaiters = new Set<() => void>();
-  let nextStart = 0,
-    rawActive = 0;
+  // Read buffers and previews have independent bounds. RAW/duplicate waiters retain
+  // only verified metadata and the original immutable File handle, not a heavy slot.
+  // Identity claims still advance strictly in input order, before fair preview dispatch.
+  const completions = Array.from({ length: batch.length }, barrier);
+  const outcomes = new Map<number, Prepared>();
+  const reads = new Map<number, Promise<Identified>>();
+  const claims = new Map<string, IdentityClaim>();
+  const rasters = candidateQueue(),
+    raws = candidateQueue();
+  const heldPreviews = new Set<number>(); // Active + ready + currently committing, <= concurrency.
+  const activePreviews = new Set<Promise<void>>();
+  let nextRead = 0,
+    commitIndex = 0,
+    rawActive = 0,
+    identifying: Promise<void> = Promise.resolve();
+  let commitAdvance = barrier();
   const stop = () => {
     if (!signal.aborted) controller.abort(options.signal?.reason);
-    for (const identity of identities) identity.release();
-    for (const wake of rawWaiters) wake();
-    rawWaiters.clear();
+    for (const completion of completions) completion.release();
+    commitAdvance.release();
   };
   options.signal?.addEventListener("abort", stop, { once: true });
   if (options.signal?.aborted) stop();
 
-  const prepare = async (index: number): Promise<Prepared> => {
+  function complete(index: number, outcome: Prepared) {
+    outcomes.set(index, outcome);
+    completions[index]!.release();
+  }
+  const identify = async (index: number): Promise<Identified> => {
     const file = batch[index]!;
-    let claim: { promise: Promise<boolean>; resolve: (ok: boolean) => void } | undefined;
-    let claimId: string | undefined;
-    let rawOwned = false;
     try {
       signal.throwIfAborted();
       observer(() => options.onProgress?.(progress(index)));
       if (!supportedPhoto(file)) throw new Error("This file type is not a supported photo.");
       const identified = await developPhotoFromFile(file, undefined, undefined, signal);
-      await identities[index]!.promise;
       signal.throwIfAborted();
-      if (knownIds.has(identified.id)) return { kind: "duplicate" };
-      let previous = claims.get(identified.id);
-      // Reserve synchronously before releasing the next identity admission.
-      if (!previous) {
-        let resolve!: (ok: boolean) => void;
-        claim = {
-          promise: new Promise<boolean>((done) => {
-            resolve = done;
-          }),
-          resolve: (ok) => resolve(ok),
-        };
-        claimId = identified.id;
-        claims.set(claimId, claim);
-      }
-      identities[index + 1]!.release();
-      while (previous) {
-        if (await previous.promise) return { kind: "duplicate" };
-        signal.throwIfAborted();
-        previous = claims.get(identified.id);
-        if (!previous) {
-          let resolve!: (ok: boolean) => void;
-          claim = {
-            promise: new Promise<boolean>((done) => {
-              resolve = done;
-            }),
-            resolve: (ok) => resolve(ok),
-          };
-          claimId = identified.id;
-          claims.set(claimId, claim);
-        }
-      }
-      const sourceId = identified.id,
-        sourceDigest = identified.sourceDigest;
-      if (identified.isRaw) {
-        while (rawActive >= rawConcurrency) {
-          await new Promise<void>((resolve) => {
-            rawWaiters.add(resolve);
-          });
-          signal.throwIfAborted();
-        }
-        rawActive++;
-        rawOwned = true;
-      }
+      return { kind: "identified", value: identified };
+    } catch (error) {
+      return signal.aborted || (error instanceof Error && error.name === "AbortError")
+        ? { kind: "stopped" }
+        : { kind: "failed", message: errorText(error) };
+    }
+  };
+  function fillReads() {
+    while (!signal.aborted && nextRead < batch.length && reads.size < concurrency) {
+      const index = nextRead++;
+      reads.set(index, identify(index));
+    }
+  }
+  function queuePreview(candidate: PreviewCandidate) {
+    (candidate.input.isRaw ? raws : rasters).push(candidate);
+  }
+  async function prepare({ index, input: identified, claim }: PreviewCandidate): Promise<void> {
+    const file = batch[index]!;
+    const sourceId = identified.id,
+      sourceDigest = identified.sourceDigest,
+      rawOwned = identified.isRaw;
+    let ready = false;
+    try {
       signal.throwIfAborted();
       const prepared = await options.preparePreview(file, identified, signal);
       signal.throwIfAborted();
@@ -222,51 +250,105 @@ export async function runDevelopImport(
       // Concurrent callbacks may retain/reuse their returned objects. Freeze the
       // preparation's metadata snapshot while it waits for its ordered save.
       const snapshot = copyPrepared(prepared);
-      claim?.resolve(true);
+      claim.succeeded = true;
+      for (const duplicate of claim.waiting.splice(0))
+        complete(duplicate.index, { kind: "duplicate" });
       if (options.onPrepared)
         observer(() => options.onPrepared?.(copyPrepared(snapshot), progress(index)));
       signal.throwIfAborted();
-      return { kind: "prepared", value: snapshot };
+      ready = true;
+      complete(index, { kind: "prepared", value: snapshot });
     } catch (error) {
-      if (claim) {
-        if (claimId && claims.get(claimId) === claim) claims.delete(claimId);
-        claim.resolve(false);
+      const stopped = signal.aborted || (error instanceof Error && error.name === "AbortError");
+      complete(
+        index,
+        stopped ? { kind: "stopped" } : { kind: "failed", message: errorText(error) },
+      );
+      if (!stopped) {
+        // The earliest matching input owns the retry too; a raster extension must
+        // never jump ahead of an earlier original with the same verified bytes.
+        const retry = claim.waiting.shift();
+        if (retry) queuePreview({ ...retry, claim });
+        else claims.delete(sourceId);
       }
-      return signal.aborted || (error instanceof Error && error.name === "AbortError")
-        ? { kind: "stopped" }
-        : { kind: "failed", message: errorText(error) };
     } finally {
-      // A failed later hash must not release a hole ahead of an earlier identity.
-      // Cancellation releases all barriers, while already-started reads still drain.
-      await identities[index]!.promise;
-      identities[index + 1]!.release();
-      if (rawOwned) {
-        rawActive--;
-        for (const wake of rawWaiters) wake();
-        rawWaiters.clear();
+      if (!ready) heldPreviews.delete(index);
+      if (rawOwned) rawActive--;
+      dispatchPreviews();
+    }
+  }
+  function dispatchPreviews() {
+    while (!signal.aborted && heldPreviews.size < concurrency) {
+      const raster = rasters.peek();
+      const raw = rawActive < rawConcurrency ? raws.peek() : undefined;
+      const candidate = raw && (!raster || raw.index < raster.index) ? raw : raster;
+      if (!candidate) return;
+      // Ahead-of-order ready results may use spare slots, but must leave room for
+      // the next receipt. Otherwise a slow hash / duplicate retry can deadlock
+      // behind a completely full ready buffer that cannot commit out of order.
+      if (
+        candidate.index !== commitIndex &&
+        !heldPreviews.has(commitIndex) &&
+        heldPreviews.size >= concurrency - 1
+      )
+        return;
+      (candidate.input.isRaw ? raws : rasters).pop();
+      heldPreviews.add(candidate.index);
+      if (candidate.input.isRaw) rawActive++;
+      const task = prepare(candidate).finally(() => activePreviews.delete(task));
+      activePreviews.add(task);
+    }
+  }
+  async function identifyInOrder() {
+    fillReads();
+    for (let index = 0; index < batch.length && !signal.aborted; index++) {
+      const identified = await reads.get(index)!;
+      reads.delete(index);
+      if (signal.aborted) return;
+      if (identified.kind !== "identified") complete(index, identified);
+      else {
+        const input = identified.value;
+        const existing = claims.get(input.id);
+        if (knownIds.has(input.id) || existing?.succeeded) complete(index, { kind: "duplicate" });
+        else if (existing) existing.waiting.push({ index, input });
+        else {
+          const claim: IdentityClaim = { succeeded: false, waiting: [] };
+          claims.set(input.id, claim);
+          queuePreview({ index, input, claim });
+        }
       }
+      dispatchPreviews();
+      // Existing single-worker callers promise no read/progress for the next
+      // source until this receipt has drained, including a fatal storage stop.
+      while (concurrency === 1 && commitIndex <= index && !signal.aborted)
+        await commitAdvance.promise;
+      fillReads();
     }
-  };
-  const fill = () => {
-    while (!signal.aborted && nextStart < batch.length && preparations.size < concurrency) {
-      const index = nextStart++;
-      preparations.set(index, prepare(index));
-    }
-  };
+  }
+  function consumed(index: number) {
+    outcomes.delete(index);
+    heldPreviews.delete(index);
+    commitIndex = index + 1;
+    const advanced = commitAdvance;
+    commitAdvance = barrier();
+    advanced.release();
+    dispatchPreviews();
+  }
 
   try {
     for (const [index, file] of batch.entries()) {
       if (signal.aborted) break;
       observer(() => options.onRegistered?.({ ...progress(index), file }));
     }
-    fill();
+    identifying = identifyInOrder();
     for (const [index, file] of batch.entries()) {
       if (signal.aborted) {
         report.stopped = true;
         break;
       }
-      const outcome = await preparations.get(index)!;
-      if (signal.aborted || outcome.kind === "stopped") {
+      await completions[index]!.promise;
+      const outcome = outcomes.get(index);
+      if (signal.aborted || !outcome || outcome.kind === "stopped") {
         report.stopped = true;
         break;
       }
@@ -274,15 +356,13 @@ export async function runDevelopImport(
         const failure = { fileName: file.name, message: outcome.message };
         report.failures.push(failure);
         observer(() => options.onFileFailure?.({ ...failure }, progress(index)));
-        preparations.delete(index);
-        fill();
+        consumed(index);
         continue;
       }
       if (outcome.kind === "duplicate" || knownIds.has(outcome.value.id)) {
         report.duplicates++;
         observer(() => options.onDuplicate?.(progress(index)));
-        preparations.delete(index);
-        fill();
+        consumed(index);
         continue;
       }
       const prepared = outcome.value;
@@ -336,15 +416,16 @@ export async function runDevelopImport(
         else report.fatalError = `${file.name}: ${errorText(error)}`;
         break;
       }
-      preparations.delete(index);
-      fill();
+      consumed(index);
     }
   } finally {
     report.stopped ||= options.signal?.aborted === true;
     // Never return while an uncancelable hash or a decoder still owns work. Fatal
     // persistence faults also cancel and drain sibling preparations before reuse.
     stop();
-    await Promise.all(preparations.values());
+    await identifying;
+    await Promise.all(reads.values());
+    await Promise.all(activePreviews);
     options.signal?.removeEventListener("abort", stop);
   }
   return report;
