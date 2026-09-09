@@ -952,3 +952,91 @@ proof is `/private/tmp/foto-jpeg-opaque.V3OLna/`. Clean candidate validation is 
 The request to show the user's Develop route in Codex was queued. A second visible
 browser check failed to start the computer-use service, so visible opening is not
 confirmed. This does not invalidate the isolated real-browser QA above.
+
+## Current checkpoint: unified import fairness and exact-version safety
+
+This section supersedes the historical working-tree and typography notes above.
+`0f96a91` already contains the shared repository/canonical Develop foundation;
+`dd564aa` contains the reviewed Wonder UI/Earnings checkpoint. Both are on the
+private photographer-platform branch. The current approved interface uses the
+actual self-hosted **Source Serif 4** Wonder font and system-monospace numeric
+values, black dark mode and Wonder's light surface. Do not restore the older
+sans-serif instruction. The existing hourly heartbeat was updated in place to
+retain this latest user decision.
+
+### Reproduced and fixed
+
+- `a27e295`: four RAW files at the head of a batch occupied every preparation
+  slot, starving a later JPEG. Separate bounded fingerprint and preview queues
+  now allow raster preparation while RAW slots are full. Source identity/name
+  ownership and successful-save order remain input-ordered. Four active/ready
+  previews, at most two active RAW previews, and a single commit writer remain
+  bounded. A reserved commit slot prevents an ahead-ready buffer from deadlocking
+  an earlier duplicate retry. Cancellation drains owned work; completed receipts
+  remain saved, and quota failure stops further admission.
+- `65ac0f9`: routing rejected valid long photo IDs, including frame references
+  whose additive `studio:` prefix crossed 2,000 characters. Routes now share the
+  existing 4,200-character frame limit and 4,207-character Develop limit. Version
+  IDs still have their existing 2,000-character bound. No identity is shortened
+  or reassigned.
+- `afdf624`: background imports now own their document-unload warning even when
+  every React view unsubscribes or unmounts. Protection lasts through discovery,
+  cancellation, pending photo receipts, final import reports and lock release;
+  separate jobs cannot release one another's guard. In-app route navigation stays
+  unblocked. This is browser unload protection, not a guarantee against OS/process
+  termination or a claim that unsaved originals are durable.
+- Delivery references currently identify archived legacy treatments, **not** a
+  native Develop history entry. The old flow validated that version existed but
+  then hydrated/adopted the latest recipe. The new shared boundary blocks both
+  Develop hooks and the hidden legacy Studio controller for an unresolved exact
+  delivery reference. It does not substitute or export the working edit. An
+  explicitly labeled full-navigation action can leave the delivery reference and
+  open that exact photo's current working edit; invalid references have no fallback.
+  Native editing of an exact historical delivery version remains unimplemented.
+- The safety boundary independently honors explicit URL versions even when the
+  Workbench intentionally retains a different remembered same-project context.
+  It has its own small stylesheet so a cold legacy URL does not rely on Develop
+  having loaded earlier. Neutral inverse-canvas actions replace legacy red/blue
+  primary-color inheritance, including contrasting keyboard focus.
+
+### Verification and remaining gates
+
+- Full local Bun regression: **1,945 passed, 19 skipped, 1 existing opt-in-WB TODO,
+  0 failed; 369,594 assertions**. TypeScript, scoped ESLint, source formatting and normal
+  production build pass. Log receipts: `/private/tmp/foto-unified-next-regression.log`
+  (earlier pass), `/private/tmp/foto-unified-final-regression.log` and
+  `/private/tmp/foto-unified-final-build.log` (final source).
+- Isolated browser regression: **111 checks passed**, including warm same-project
+  focus, both legacy routes, cold legacy stylesheet loading, hidden controller
+  replacement, zero reserved record writes/native requests, and actual full-page
+  working-edit navigation preserving exact project/frame while removing version
+  context. No QA photo/project records were created or deleted; all five reserved
+  store counts read back zero and the QA status marker was removed. A separate
+  CSS-only repeat inspected dark/light at 390 and 1280 pixels after neutralizing
+  the action, including real keyboard focus and 44-pixel touch targets. Screenshots:
+  `/private/tmp/foto-wonder-qa.giAs6T/delivery-boundary-{dark,light}-{390,1280}.png`.
+- Browser limitation: the deliberately rejected, empty warm-project fixture hung
+  its save/navigation guard before a confirmation appeared. Only that first
+  transition uses an explicitly documented test-only blocker bypass. Legacy/cold
+  navigation and the final real working-edit anchor do not bypass it. This is not
+  normal drop/edit/save navigation proof; investigate failed-load navigation
+  separately. The regression lives in `tests/develop-delivery-boundary.browser.js`
+  and is evaluated as an async function body, not a standalone JavaScript module.
+- Import validation includes the previously failing RAW-prefix case, exact
+  duplicate retry ownership, bounded read/preview buffers, cancellation and
+  full-buffer deadlock cases, 64 committed schedule-model cases and an independent
+  180-batch adversarial timing review. These are scheduler tests, **not RAW import
+  throughput benchmarks**.
+- Later JPEG preparation is now independent of RAW preview admission, but durable
+  commits still wait for earlier rows. Unsaved previews are not yet editable, and
+  folder/sidecar discovery still gates coordinator admission. The 1,000-entry /
+  3-second drop-event target has **not** been established by this checkpoint.
+- Separate preview/analysis/durable timing, cross-view manifest adoption, broader
+  drop/picker performance trials, exact historical native-version support, and
+  the remaining full workflow release gates still need work. Existing HDR/color
+  management/AI and full Lightroom parity limits are unchanged.
+- No customer library, original, saved history, financial record, environment file,
+  authentication setting or external customer message is modified by this work.
+  Private Git checkpoints are not a live deployment. Lovable remains at the
+  owner-login handoff; its publishing branch, explicit publication to `lenslab.dev`
+  and production Google session/return flow require separate verification.

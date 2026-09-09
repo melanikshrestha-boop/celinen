@@ -15,6 +15,7 @@ import {
 } from "../src/lib/workbench";
 import {
   canonicalShootBinding,
+  deliveryBoundaryBinding,
   developWorkspaceHref,
   explicitWorkspaceBinding,
   legacyWorkbenchRedirect,
@@ -31,6 +32,47 @@ import {
 
 const a = "11111111-1111-4111-8111-111111111111",
   b = "22222222-2222-4222-8222-222222222222";
+describe("delivery editor boundary is not weakened by remembered workspace context", () => {
+  const working = { kind: "ready" as const, projectId: a };
+  const focused = {
+    ...working,
+    deliveryFocus: { frameId: "frame/1", versionId: "v3", handoffId: b },
+  };
+  test("warm same-project Develop navigation fences a delivery reference without rebinding the controller", () => {
+    const href = developWorkspaceHref(focused);
+    const active = resolveWorkspaceBinding(href, working, true);
+    expect(active).toBe(working);
+    expect(deliveryBoundaryBinding(href, active, true)).toEqual(focused);
+    expect(active).toEqual(working);
+  });
+  test("an explicit older URL is fenced as requested without rewinding the remembered revision", () => {
+    const earlier = { ...focused, deliveryFocus: { ...focused.deliveryFocus, versionId: "v1" } };
+    const href = developWorkspaceHref(earlier);
+    const active = resolveWorkspaceBinding(href, focused, true);
+    expect(active).toBe(focused);
+    expect(deliveryBoundaryBinding(href, active, true)).toEqual(earlier);
+    expect(active.deliveryFocus.versionId).toBe("v3");
+  });
+  test("tools with no explicit version retain the remembered fence; ordinary work remains unchanged", () => {
+    for (const href of ["/earnings", developWorkspaceHref(working)]) {
+      expect(deliveryBoundaryBinding(href, focused, true)).toBe(focused);
+      expect(deliveryBoundaryBinding(href, working, true)).toBe(working);
+    }
+  });
+  test("malformed, conflicting and unavailable explicit references never inherit a usable working controller", () => {
+    for (const href of [
+      `/shoots/project%3A${a}/develop?deliveryVersion=v1`,
+      `/shoots/project%3A${a}/develop?deliveryFrame=f&deliveryFrame=g&deliveryVersion=v1`,
+      `/shoots/project%3A${a}/develop?project=${b}&deliveryFrame=f&deliveryVersion=v1`,
+    ])
+      expect(deliveryBoundaryBinding(href, working, true).kind).toBe("blocked");
+    expect(deliveryBoundaryBinding(developWorkspaceHref(focused), working, false).kind).toBe(
+      "blocked",
+    );
+    const blocked = { kind: "blocked" as const, reason: "Account context unavailable" };
+    expect(deliveryBoundaryBinding(developWorkspaceHref(focused), blocked, true)).toBe(blocked);
+  });
+});
 describe("one canonical Develop entry", () => {
   test.each([1994, 2000, PHOTO_ID_MAX_LENGTH])(
     "%i-character existing frame IDs survive the prefixed working-edit link exactly",
