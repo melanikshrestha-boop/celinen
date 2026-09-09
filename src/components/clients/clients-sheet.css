@@ -1,6 +1,6 @@
 .clients-sheet {
-  --n-bg: #fff;
-  --n-text: #202020;
+  --n-bg: #f7f7fa;
+  --n-text: #1a1c22;
   --n-mute: #666;
   --n-hover: #f3f3f3;
   --n-select: #ededed;
@@ -85,7 +85,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 28px 28px 18px;
+  padding: 24px 24px 16px;
 }
 .clients-head > div {
   min-width: 0;
@@ -112,7 +112,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 0 28px 18px;
+  padding: 0 24px 16px;
 }
 .clients-view-switch {
   display: flex;
@@ -142,7 +142,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 28px 32px;
+  padding: 0 24px 32px;
 }
 .clients-muted,
 .clients-board-empty {
@@ -151,7 +151,7 @@
 }
 .clients-alert,
 .clients-notice {
-  padding: 0 28px;
+  padding: 0 24px;
   margin: 0 0 12px;
   font-size: 13px;
 }

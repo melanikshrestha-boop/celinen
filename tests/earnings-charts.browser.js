@@ -1,6 +1,7 @@
 /* Run with gstack eval in an isolated local-lab browser at /earnings.
  * Refuses existing financial records. Fixtures never enter a user's browser or server.
  * Call window.__checkEarningsChartLayoutQA() after a real viewport resize for narrow QA.
+ * Call window.__showEarningsCompactQA() for the one-expense/zero-collections screenshot.
  * Call window.__restoreEarningsChartQA() after screenshots to restore the empty state. */
 return await (async () => {
   if (location.origin !== "http://127.0.0.1:8085" || location.pathname !== "/earnings")
@@ -27,6 +28,9 @@ return await (async () => {
   const page = () => document.querySelector(".earnings-workspace");
   const chart = () => page()?.querySelector(".earnings-insights");
   const panels = () => [...chart().querySelectorAll(".earnings-metric-chart")];
+  const primaryPanels = () => [
+    ...chart().querySelectorAll(".earnings-charts-grid > .earnings-metric-chart"),
+  ];
   const panel = (key) => chart().querySelector(`[data-metric="${key}"]`);
   const graphs = () => [...chart().querySelectorAll(".earnings-metric-chart .earnings-plot")];
   const readout = (key) => panel(key).querySelector(".earnings-chart-readout").textContent;
@@ -40,9 +44,22 @@ return await (async () => {
     control.dispatchEvent(new Event("change", { bubbles: true }));
     await until(label, ready);
   };
-  await until("loaded empty charts", () => chart()?.textContent.includes("No recorded cash flow"));
+  await until("loaded empty charts", () =>
+    chart()?.textContent.includes("No net collections in this period"),
+  );
   check("empty data has no fabricated chart or pie", chart().querySelectorAll("svg").length === 0);
-  check("empty data keeps four labeled panels", panels().length === 4);
+  check(
+    "empty data keeps three primary labels and secondary Refunds",
+    primaryPanels().length === 3 && panels().length === 4,
+  );
+  check(
+    "empty primary plots are compact, not 180px zero charts",
+    primaryPanels().every(
+      (item) =>
+        item.dataset.empty === "true" &&
+        item.querySelector(".earnings-plot-wrap").getBoundingClientRect().height <= 60,
+    ),
+  );
   const theme = {
     dark: document.documentElement.classList.contains("dark"),
     style: document.documentElement.getAttribute("style"),
@@ -79,8 +96,9 @@ return await (async () => {
     invoices: [],
     updatedAt: "2026-09-08T12:00:00Z",
   });
+  let currentFixture = fixture;
   window.__restoreEarningsChartQA = () => {
-    if (localStorage.getItem(key) !== fixture)
+    if (localStorage.getItem(key) !== currentFixture)
       throw new Error("Financial state changed during QA; refusing cleanup.");
     localStorage.removeItem(key);
     document.documentElement.classList.toggle("dark", theme.dark);
@@ -88,27 +106,33 @@ return await (async () => {
     else document.documentElement.setAttribute("style", theme.style);
     window.dispatchEvent(new Event("foto:earnings-changed"));
     delete window.__checkEarningsChartLayoutQA;
+    delete window.__showEarningsCompactQA;
     delete window.__restoreEarningsChartQA;
     return "Removed only reserved QA fixture; restored original empty financial state and theme.";
   };
   // Read-only layout checks can be repeated at actual narrow/coarse-pointer
   // viewports. They never resize the window, alter the ledger or synthesize media queries.
   window.__checkEarningsChartLayoutQA = () => {
-    if (localStorage.getItem(key) !== fixture)
+    if (localStorage.getItem(key) !== currentFixture)
       throw new Error("Reserved fixture changed; refusing layout QA.");
     const layoutChecks = [];
     const assert = (label, condition) => {
       if (!condition) throw new Error(label);
       layoutChecks.push(label);
     };
-    const metricPanels = panels();
+    const metricPanels = primaryPanels();
     const plotNodes = graphs();
-    const columns = matchMedia("(max-width: 1100px)").matches ? 1 : 2;
+    const workspaceStyle = getComputedStyle(page());
+    const workspaceContentWidth =
+      page().clientWidth -
+      parseFloat(workspaceStyle.paddingLeft) -
+      parseFloat(workspaceStyle.paddingRight);
+    const columns = workspaceContentWidth < 700 ? 1 : 2;
     const grid = chart().querySelector(".earnings-charts-grid");
     assert(
-      "four logical metric panels and four focusable plots",
-      metricPanels.length === 4 &&
-        plotNodes.length === 4 &&
+      "three primary panels and each actual plot is focusable",
+      metricPanels.length === 3 &&
+        plotNodes.length === (currentFixture === fixture ? 3 : 2) &&
         plotNodes.every((plot) => plot.tabIndex === 0),
     );
     assert(
@@ -130,7 +154,7 @@ return await (async () => {
       }),
     );
     assert(
-      "all four graph heights match",
+      "actual graph heights match",
       plotNodes.every((plot) => Math.abs(plot.getBoundingClientRect().height - 180) < 1),
     );
     assert(
@@ -141,20 +165,27 @@ return await (async () => {
       "chart preserves vertical touch scrolling",
       plotNodes.every((plot) => getComputedStyle(plot).touchAction === "pan-y"),
     );
-    const uiText = [
+    const uiText = [...chart().querySelectorAll("h3, .earnings-chart-readout, summary")];
+    const numericText = [
       ...chart().querySelectorAll(
-        "h3, .earnings-chart-legend strong, .earnings-chart-readout, .earnings-plot text, summary",
+        ".earnings-chart-legend strong, .earnings-plot text, .earnings-chart-average-label span, .earnings-refunds-detail > summary span",
       ),
     ];
     const font = getComputedStyle(page()).fontFamily;
     assert(
-      "all chart typography uses the same sans stack",
-      font.includes("OpenAI Sans") &&
+      "Wonder Source Serif interface font reaches every chart label",
+      font.includes("Source Serif 4") &&
         uiText.every((item) => getComputedStyle(item).fontFamily === font),
     );
     assert(
+      "Wonder numeric typography uses SF Mono independently of UI text",
+      numericText.every((item) => getComputedStyle(item).fontFamily.includes("SF Mono")),
+    );
+    assert(
       "visible chart labels remain at least 12px",
-      uiText.every((item) => parseFloat(getComputedStyle(item).fontSize) >= 12),
+      [...uiText, ...numericText].every(
+        (item) => parseFloat(getComputedStyle(item).fontSize) >= 12,
+      ),
     );
     if (matchMedia("(max-width: 680px)").matches)
       assert(
@@ -171,14 +202,50 @@ return await (async () => {
       coarsePointer: matchMedia("(pointer: coarse)").matches,
     };
   };
+  // This is another reserved fixture, not a manipulation of customer records.
+  // It reproduces the reported zero-collections case without empty chart acreage.
+  window.__showEarningsCompactQA = async () => {
+    if (localStorage.getItem(key) !== currentFixture)
+      throw new Error("Financial state changed during QA; refusing fixture switch.");
+    currentFixture = JSON.stringify({
+      version: 1,
+      revision: 2,
+      entries: entries.filter((entry) => entry.kind === "expense" && entry.category === "Software"),
+      invoices: [],
+      updatedAt: "2026-09-08T12:00:00Z",
+    });
+    localStorage.setItem(key, currentFixture);
+    window.dispatchEvent(new Event("foto:earnings-changed"));
+    await select("Currency", "USD", () => chart().textContent.includes("USD"));
+    await select("Earnings period", "all", () => chart().textContent.includes("All Dates"));
+    await until(
+      "one expense compact fixture",
+      () => amount("expensesMinor") === "$49.00" && amount("netMinor") === "-$49.00",
+    );
+    const refunds = chart().querySelector(".earnings-refunds-detail");
+    if (refunds.open) refunds.querySelector("summary").click();
+    const collected = panel("collectedMinor");
+    if (
+      collected.querySelector("svg") ||
+      !collected.textContent.includes("No net collections in this period")
+    )
+      throw new Error("Zero collections fabricated a graph.");
+    if (collected.querySelector(".earnings-plot-wrap").getBoundingClientRect().height > 60)
+      throw new Error("Zero collections retained the tall empty plotting area.");
+    return {
+      fixture: "QA-only expense; no customer data",
+      amounts: ["collectedMinor", "expensesMinor", "netMinor"].map(amount),
+      ...window.__checkEarningsChartLayoutQA(),
+    };
+  };
   localStorage.setItem(key, fixture);
   window.dispatchEvent(new Event("foto:earnings-changed"));
-  await until("four actual metric plots", () => graphs().length === 4);
+  await until("three actual primary plots", () => graphs().length === 3);
   await select("Earnings period", "all", () => chart().textContent.includes("All Dates"));
   check("all-date collected reconciles", pulse().includes("$5,400.00"));
   check("all-date net reconciles including loss month", pulse().includes("$3,631.00"));
   check(
-    "four canonical metric totals",
+    "canonical totals including secondary zero Refunds",
     ["collectedMinor", "expensesMinor", "netMinor", "refundsMinor"].map(amount).join("|") ===
       "$5,400.00|$1,769.00|$3,631.00|$0.00",
   );
@@ -189,18 +256,34 @@ return await (async () => {
         graph.querySelectorAll("circle").length === 3 &&
         graph.querySelector('path[fill="none"]') &&
         graph.querySelector('path[fill^="url("]') &&
-        graph.querySelectorAll('stop[stop-opacity="0.26"]').length === 2 &&
+        graph.querySelectorAll('stop[stop-opacity="0.26"]').length >= 1 &&
         graph.querySelector(".earnings-chart-average") &&
         !graph.querySelector("rect"),
     ),
   );
   check(
     "monthly averages are labeled estimates over three actual calendar intervals",
-    ["collectedMinor", "expensesMinor", "netMinor", "refundsMinor"]
+    ["collectedMinor", "expensesMinor", "netMinor"]
       .map((key) => panel(key).querySelector(".earnings-chart-average-label").textContent)
       .join("|") ===
-      "Monthly average $1,800.00|Monthly average ≈ $589.67|Monthly average ≈ $1,210.33|Monthly average $0.00",
+      "Monthly average $1,800.00|Monthly average ≈ $589.67|Monthly average ≈ $1,210.33",
   );
+  const refunds = chart().querySelector(".earnings-refunds-detail");
+  check(
+    "Refunds is secondary and closed with a visible exact total",
+    !refunds.open &&
+      refunds.querySelector("summary").textContent.includes("$0.00") &&
+      !panel("refundsMinor").checkVisibility(),
+  );
+  refunds.querySelector("summary").click();
+  await until("Refunds disclosure opened", () => refunds.open);
+  check(
+    "Refunds expands to truthful compact zero state",
+    panel("refundsMinor").checkVisibility() &&
+      panel("refundsMinor").textContent.includes("No refunds recorded") &&
+      !panel("refundsMinor").querySelector("svg"),
+  );
+  refunds.querySelector("summary").click();
   const breakdown = chart().querySelector(".earnings-chart-breakdown");
   check(
     "Breakdown starts closed with both pies hidden",
@@ -212,8 +295,11 @@ return await (async () => {
   breakdown.querySelector("summary").click();
   await until("secondary Breakdown open", () => breakdown.open);
   check(
-    "pie categories reflect records",
-    chart().textContent.includes("Game Coverage") && chart().textContent.includes("Software"),
+    "Collection Mix and Expense Mix categories reflect records",
+    chart().textContent.includes("Collection Mix") &&
+      chart().textContent.includes("Expense Mix") &&
+      chart().textContent.includes("Game Coverage") &&
+      chart().textContent.includes("Software"),
   );
   check(
     "three months in underlying chart data",
@@ -246,34 +332,34 @@ return await (async () => {
   const netDots = () => [...panel("netMinor").querySelectorAll(".earnings-plot circle")];
   check(
     "dark Net dots distinguish negative July from positive August",
-    getComputedStyle(netDots()[0]).fill === "rgb(240, 140, 146)" &&
-      getComputedStyle(netDots()[1]).fill === "rgb(119, 199, 157)",
+    getComputedStyle(netDots()[0]).fill === "rgb(255, 77, 79)" &&
+      getComputedStyle(netDots()[1]).fill === "rgb(22, 199, 132)",
   );
   check(
     "other activity series use one blue in dark mode",
-    ["collectedMinor", "expensesMinor", "refundsMinor"].every((key) =>
+    ["collectedMinor", "expensesMinor"].every((key) =>
       [...panel(key).querySelectorAll(".earnings-plot circle")].every(
-        (dot) => getComputedStyle(dot).fill === "rgb(101, 183, 239)",
+        (dot) => getComputedStyle(dot).fill === "rgb(158, 203, 255)",
       ),
     ),
   );
   checks.push(...window.__checkEarningsChartLayoutQA().checks.map((label) => `dark: ${label}`));
   document.documentElement.classList.remove("dark");
   check(
-    "light finance canvas is neutral white",
-    getComputedStyle(page()).backgroundColor === "rgb(250, 250, 250)",
+    "light finance canvas matches Wonder's light surface",
+    getComputedStyle(page()).backgroundColor === "rgb(247, 247, 250)",
   );
-  check("light finance text stays readable", getComputedStyle(page()).color === "rgb(32, 32, 32)");
+  check("light finance text stays readable", getComputedStyle(page()).color === "rgb(26, 28, 34)");
   check(
     "light Net dots keep signed contrast",
-    getComputedStyle(netDots()[0]).fill === "rgb(181, 71, 80)" &&
-      getComputedStyle(netDots()[1]).fill === "rgb(50, 120, 82)",
+    getComputedStyle(netDots()[0]).fill === "rgb(201, 42, 42)" &&
+      getComputedStyle(netDots()[1]).fill === "rgb(18, 129, 62)",
   );
   check(
     "other activity series use one blue in light mode",
-    ["collectedMinor", "expensesMinor", "refundsMinor"].every((key) =>
+    ["collectedMinor", "expensesMinor"].every((key) =>
       [...panel(key).querySelectorAll(".earnings-plot circle")].every(
-        (dot) => getComputedStyle(dot).fill === "rgb(34, 119, 178)",
+        (dot) => getComputedStyle(dot).fill === "rgb(37, 99, 235)",
       ),
     ),
   );
@@ -286,7 +372,7 @@ return await (async () => {
   await until("payout filter", () => page().textContent.includes("No recorded payouts"));
   check(
     "payout tab does not erase period charts",
-    graphs().length === 4 && amount("collectedMinor") === "$5,400.00",
+    graphs().length === 3 && amount("collectedMinor") === "$5,400.00",
   );
   await select("Currency", "JPY", () => chart().textContent.includes("JPY"));
   check("currencies never combine", pulse().includes("12,345") && !pulse().includes("$5,400"));
@@ -295,8 +381,8 @@ return await (async () => {
     chart().querySelectorAll(".earnings-pie-visual").length === 1,
   );
   check(
-    "one-point currency keeps each real observation visible",
-    graphs().length === 4 &&
+    "one-point currency plots only its two nonzero series without inventing expenses or refunds",
+    graphs().length === 2 &&
       graphs().every(
         (graph) =>
           graph.querySelectorAll("circle").length === 1 &&
@@ -378,22 +464,13 @@ return await (async () => {
     () => readout("netMinor") === "Selected period",
   );
   check(
-    "refunds are a truthful zero series, not invented activity",
-    amount("refundsMinor") === "$0.00" &&
-      new Set(
-        [...panel("refundsMinor").querySelectorAll("circle")].map((dot) => dot.getAttribute("cy")),
-      ).size === 1,
-  );
-  check(
-    "zero Refunds has one zero y-axis label",
-    [...panel("refundsMinor").querySelectorAll(".earnings-plot > g > text")]
-      .map((label) => label.textContent)
-      .join("|") === "0",
+    "refunds remain an exact secondary zero value with no invented graph",
+    amount("refundsMinor") === "$0.00" && !panel("refundsMinor").querySelector("svg"),
   );
   check("filters and themes never write finance history", localStorage.getItem(key) === saved);
   check(
-    "page uses one shared sans font",
-    getComputedStyle(page()).fontFamily.includes("OpenAI Sans"),
+    "page uses the verified Wonder Source Serif UI font",
+    getComputedStyle(page()).fontFamily.includes("Source Serif 4"),
   );
   return {
     checks,
@@ -401,7 +478,7 @@ return await (async () => {
     fixture: "QA-only, not customer data",
     viewport: { width: innerWidth, height: innerHeight },
     narrow:
-      "Resize the real browser to 390px, then run window.__checkEarningsChartLayoutQA(); repeat in light/dark for screenshots.",
+      "Resize the real browser to 390px and 944px, then run window.__checkEarningsChartLayoutQA(); repeat in light/dark for screenshots. Call window.__showEarningsCompactQA() for zero-collections screenshot.",
     cleanup: "Call window.__restoreEarningsChartQA() after visual checks.",
   };
 })();
