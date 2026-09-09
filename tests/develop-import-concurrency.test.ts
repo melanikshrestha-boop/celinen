@@ -298,6 +298,341 @@ describe("bounded parallel Develop preparation", () => {
     expect(peakRaw).toBe(1);
   });
 
+  test("a RAW prefix cannot occupy every preparation slot and starve a later JPEG", async () => {
+    const hold = gate();
+    const sources = [0, 1, 2, 3, 4, 5].map((index) => file(`${index}.ARW`));
+    sources.push(file("tail.jpg"));
+    const started: string[] = [],
+      saved: string[] = [];
+    let retained = 0,
+      peakRetained = 0,
+      rawActive = 0,
+      peakRaw = 0;
+    const run = runDevelopImport(sources, {
+      existingIds: [],
+      preparationConcurrency: 4,
+      rawPreparationConcurrency: 1,
+      preparePreview: async (_, input) => {
+        started.push(input.name);
+        retained++;
+        peakRetained = Math.max(peakRetained, retained);
+        if (input.isRaw) {
+          rawActive++;
+          peakRaw = Math.max(peakRaw, rawActive);
+          if (input.name === "0.ARW") await hold.promise;
+          rawActive--;
+        }
+        return preview(input);
+      },
+      save: async (input) => {
+        saved.push(input.name);
+        retained--;
+        return stored(input);
+      },
+    });
+    try {
+      for (let i = 0; i < 30 && !started.includes("tail.jpg"); i++) await tick();
+      expect(started).toContain("tail.jpg");
+      expect(started.filter((name) => name.endsWith("ARW"))).toEqual(["0.ARW"]);
+      expect(saved).toEqual([]); // An early preview never changes committed library order.
+    } finally {
+      hold.resolve();
+      await run;
+    }
+    expect((await run).imported.map((photo) => photo.name)).toEqual(
+      sources.map((source) => source.name),
+    );
+    expect(saved).toEqual(sources.map((source) => source.name));
+    expect(peakRetained).toBeLessThanOrEqual(4);
+    expect(peakRaw).toBe(1);
+  });
+
+  test("duplicate RAW waiters do not consume raster slots and the earliest failed copy owns retry", async () => {
+    const hold = gate();
+    const sources = [
+      file("bad-first.ARW", "same"),
+      file("bad-second.ARW", "same"),
+      file("first-usable.jpg", "same"),
+      file("later-usable.jpg", "same"),
+      file("another-copy.ARW", "same"),
+      file("independent.jpg"),
+    ];
+    const started: string[] = [],
+      saved: string[] = [];
+    const run = runDevelopImport(sources, {
+      existingIds: [],
+      preparationConcurrency: 4,
+      rawPreparationConcurrency: 1,
+      preparePreview: async (_, input) => {
+        started.push(input.name);
+        if (input.name === "bad-first.ARW") await hold.promise;
+        if (input.name.startsWith("bad-")) throw new Error("Invalid RAW encoding");
+        return preview(input);
+      },
+      save: async (input) => {
+        saved.push(input.name);
+        return stored(input);
+      },
+    });
+    try {
+      for (let i = 0; i < 30 && !started.includes("independent.jpg"); i++) await tick();
+      expect(started).toEqual(["bad-first.ARW", "independent.jpg"]);
+      expect(saved).toEqual([]);
+    } finally {
+      hold.resolve();
+      await run;
+    }
+    const result = await run;
+    expect(started).toEqual([
+      "bad-first.ARW",
+      "independent.jpg",
+      "bad-second.ARW",
+      "first-usable.jpg",
+    ]);
+    expect(saved).toEqual(["first-usable.jpg", "independent.jpg"]);
+    expect(result.duplicates).toBe(2);
+    expect(result.failures.map((failure) => failure.fileName)).toEqual([
+      "bad-first.ARW",
+      "bad-second.ARW",
+    ]);
+    expect(result.imported[0]!.sourceBlob).toBe(sources[2]);
+  });
+
+  test("independent bounded fingerprint and preview stages never exceed four buffers or two RAW decodes", async () => {
+    const hold = gate();
+    const sources = Array.from({ length: 20 }, (_, i) => file(`${i}.ARW`));
+    sources.push(...Array.from({ length: 8 }, (_, i) => file(`raster-${i}.jpg`)));
+    let readActive = 0,
+      readPeak = 0,
+      previewHeld = 0,
+      previewPeak = 0,
+      rawActive = 0,
+      rawPeak = 0;
+    for (const source of sources) {
+      const read = source.arrayBuffer.bind(source);
+      Object.defineProperty(source, "arrayBuffer", {
+        value: async () => {
+          readActive++;
+          readPeak = Math.max(readPeak, readActive);
+          try {
+            await tick();
+            return await read();
+          } finally {
+            readActive--;
+          }
+        },
+      });
+    }
+    const started: string[] = [],
+      saved: string[] = [];
+    const run = runDevelopImport(sources, {
+      existingIds: [],
+      preparationConcurrency: 4,
+      rawPreparationConcurrency: 2,
+      preparePreview: async (_, input) => {
+        started.push(input.name);
+        previewHeld++;
+        previewPeak = Math.max(previewPeak, previewHeld);
+        if (input.isRaw) {
+          rawActive++;
+          rawPeak = Math.max(rawPeak, rawActive);
+          await hold.promise;
+          rawActive--;
+        }
+        return preview(input);
+      },
+      save: async (input) => {
+        saved.push(input.name);
+        previewHeld--;
+        return stored(input);
+      },
+    });
+    try {
+      for (let i = 0; i < 60 && !started.includes("raster-1.jpg"); i++) await tick();
+      expect(started).toEqual(["0.ARW", "1.ARW", "raster-0.jpg", "raster-1.jpg"]);
+      expect(saved).toEqual([]);
+      expect(readPeak).toBe(4);
+      expect(readActive).toBeLessThanOrEqual(4);
+      expect(previewHeld).toBe(4);
+    } finally {
+      hold.resolve();
+      await run;
+    }
+    expect((await run).fatalError).toBeNull();
+    expect(saved).toEqual(sources.map((source) => source.name));
+    expect(previewPeak).toBe(4);
+    expect(rawPeak).toBe(2);
+    expect(readPeak).toBe(4);
+  });
+
+  test("three ahead-ready JPEGs leave capacity for an earlier RAW duplicate retry", async () => {
+    const hold = gate(),
+      controller = new AbortController();
+    const started: string[] = [],
+      saved: string[] = [];
+    const sources = [
+      file("bad.ARW", "same"),
+      file("retry.ARW", "same"),
+      ...Array.from({ length: 6 }, (_, i) => file(`later-${i}.jpg`)),
+    ];
+    const timeout = setTimeout(() => controller.abort(), 1000);
+    const run = runDevelopImport(sources, {
+      existingIds: [],
+      preparationConcurrency: 4,
+      signal: controller.signal,
+      preparePreview: async (_, input) => {
+        started.push(input.name);
+        if (input.name === "bad.ARW") {
+          await hold.promise;
+          throw new Error("Retry a matching source");
+        }
+        return preview(input);
+      },
+      save: async (input) => {
+        saved.push(input.name);
+        return stored(input);
+      },
+    });
+    try {
+      for (let i = 0; i < 30 && started.length < 4; i++) await tick();
+      expect(started).toEqual(["bad.ARW", "later-0.jpg", "later-1.jpg", "later-2.jpg"]);
+      expect(saved).toEqual([]);
+    } finally {
+      hold.resolve();
+      await run;
+      clearTimeout(timeout);
+    }
+    const result = await run;
+    expect(result.stopped).toBe(false);
+    expect(result.failures.map((failure) => failure.fileName)).toEqual(["bad.ARW"]);
+    expect(result.duplicates).toBe(0);
+    expect(saved).toEqual(sources.slice(1).map((source) => source.name));
+    expect(result.imported[0]!.sourceBlob).toBe(sources[1]);
+  });
+
+  test("cancellation drains all four active source reads and admits no later fingerprint or preview", async () => {
+    const hold = gate(),
+      controller = new AbortController();
+    const sources = Array.from({ length: 12 }, (_, i) => file(`${i}.ARW`));
+    const reads: string[] = [],
+      previews: string[] = [],
+      saves: string[] = [];
+    for (const source of sources) {
+      const read = source.arrayBuffer.bind(source);
+      Object.defineProperty(source, "arrayBuffer", {
+        value: async () => {
+          reads.push(source.name);
+          await hold.promise;
+          return read();
+        },
+      });
+    }
+    let settled = false;
+    const run = runDevelopImport(sources, {
+      existingIds: [],
+      preparationConcurrency: 4,
+      signal: controller.signal,
+      preparePreview: async (_, input) => {
+        previews.push(input.name);
+        return preview(input);
+      },
+      save: async (input) => {
+        saves.push(input.name);
+        return stored(input);
+      },
+    }).then((result) => {
+      settled = true;
+      return result;
+    });
+    try {
+      for (let i = 0; i < 30 && reads.length < 4; i++) await tick();
+      expect(reads).toHaveLength(4);
+      controller.abort();
+      await tick();
+      expect(settled).toBe(false);
+      expect(reads).toHaveLength(4);
+    } finally {
+      hold.resolve();
+      await run;
+    }
+    expect((await run).stopped).toBe(true);
+    expect(reads).toHaveLength(4);
+    expect(previews).toEqual([]);
+    expect(saves).toEqual([]);
+  });
+
+  test("mixed RAW/raster retry schedules match an independent input-order model at every queue limit", async () => {
+    for (const concurrency of [1, 2, 3, 4]) {
+      for (const rawConcurrency of [1, 2]) {
+        for (let seed = 0; seed < 8; seed++) {
+          const sources = Array.from({ length: 12 }, (_, index) => {
+            const group = (index * 3 + seed) % 5;
+            const bad = (index + seed) % 4 === 0;
+            const name = `${bad ? "bad-" : "good-"}${index}.${index < 5 || (seed + index) % 2 ? "ARW" : "jpg"}`;
+            return { source: file(name, `group:${group}`), group, bad, index };
+          });
+          const claimed = new Set<number>();
+          const expectedSaved: File[] = [],
+            expectedFailed: string[] = [];
+          let expectedDuplicates = 0;
+          for (const entry of sources) {
+            if (claimed.has(entry.group)) expectedDuplicates++;
+            else if (entry.bad) expectedFailed.push(entry.source.name);
+            else {
+              claimed.add(entry.group);
+              expectedSaved.push(entry.source);
+            }
+          }
+          let retained = 0,
+            peak = 0;
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 1000);
+          try {
+            const result = await runDevelopImport(
+              sources.map((entry) => entry.source),
+              {
+                existingIds: [],
+                preparationConcurrency: concurrency,
+                rawPreparationConcurrency: rawConcurrency,
+                signal: controller.signal,
+                preparePreview: async (source, input) => {
+                  retained++;
+                  peak = Math.max(peak, retained);
+                  const entry = sources.find((item) => item.source === source)!;
+                  if ((entry.index + seed) % 3 === 0) await tick();
+                  if (entry.bad) {
+                    retained--;
+                    throw new Error("Deterministic corrupt file");
+                  }
+                  return preview(input);
+                },
+                save: async (input) => {
+                  await Promise.resolve();
+                  retained--;
+                  return stored(input);
+                },
+              },
+            );
+            expect(result.stopped).toBe(false);
+            expect(result.fatalError).toBeNull();
+            expect(result.imported.map((photo) => photo.name)).toEqual(
+              expectedSaved.map((source) => source.name),
+            );
+            result.imported.forEach((photo, index) =>
+              expect(photo.sourceBlob).toBe(expectedSaved[index]),
+            );
+            expect(result.failures.map((failure) => failure.fileName)).toEqual(expectedFailed);
+            expect(result.duplicates).toBe(expectedDuplicates);
+            expect(peak).toBeLessThanOrEqual(concurrency);
+          } finally {
+            clearTimeout(timeout);
+            controller.abort();
+          }
+        }
+      }
+    }
+  });
+
   test("concurrent duplicate inputs decode once, preserving first-input identity/name", async () => {
     const started: string[] = [],
       duplicates: number[] = [];
