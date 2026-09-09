@@ -19,6 +19,7 @@ import {
 import { useWorkbench } from "@/components/workbench/context";
 import { useLocation } from "@tanstack/react-router";
 import type { DeliveryFocus } from "@/lib/delivery/studio-handoff";
+import { DeliveryVersionBoundary } from "./DeliveryVersionBoundary";
 import { createShootRepository } from "@/lib/develop/shoot-repository";
 import {
   developViewFilter,
@@ -150,17 +151,24 @@ function Thumb({ photo }: { photo: DevelopPhoto }) {
   return url ? <img src={url} alt="" loading="lazy" /> : <ImagePlus size={18} />;
 }
 
-export function DevelopPage({
-  scope,
-  projectId,
-  shootId,
-  deliveryFocus,
-}: {
+type DevelopPageProps = {
   scope: string;
   projectId: string | null;
   shootId?: string;
   deliveryFocus?: DeliveryFocus;
-}) {
+};
+
+export function DevelopPage(props: DevelopPageProps) {
+  // A saved legacy treatment is not a native history entry. This boundary must
+  // stay above all editor, adoption, import, and export hooks.
+  return (
+    <DeliveryVersionBoundary {...props}>
+      <DevelopEditor {...props} />
+    </DeliveryVersionBoundary>
+  );
+}
+
+function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPageProps) {
   const workbench = useWorkbench();
   const href = useLocation({ select: (location) => location.href });
   const pointerBoundary = useDevelopPointer();

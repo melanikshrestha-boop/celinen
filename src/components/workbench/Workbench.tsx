@@ -46,8 +46,10 @@ import {
 } from "@/lib/workbench";
 import { WorkbenchContext } from "./context";
 import { cancelDevelopImportsOutsideScope } from "@/lib/develop/import-session";
+import { DeliveryVersionBoundary } from "@/components/develop/DeliveryVersionBoundary";
 import "./workbench.css";
 import {
+  deliveryBoundaryBinding,
   explicitWorkspaceBinding,
   resolveWorkspaceBinding,
   projectScope,
@@ -389,6 +391,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   }, [shortcuts.tools]);
   // Bind during render on Studio navigation; no intermediate frame may edit the previous shoot.
   const activeBinding = resolveWorkspaceBinding(href, binding, isLocalSingleUserMode);
+  const boundaryBinding = deliveryBoundaryBinding(href, activeBinding, isLocalSingleUserMode);
   const activeTool = !compact || mobilePane === "tool" ? (current?.path ?? null) : null;
   const studioVisible = current?.path === "/studio" || isCull;
   const openQuickChat = useCallback(async () => {
@@ -726,15 +729,22 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                       {activeBinding.reason}
                     </p>
                   ) : (
-                    chatTarget && (
-                      <Suspense fallback={<p className="workbench-loading">Opening Studio…</p>}>
-                        <StudioController
-                          key={studioBindingKey(activeBinding)}
-                          {...activeBinding}
-                          storageScope={account}
-                        />
-                      </Suspense>
-                    )
+                    chatTarget &&
+                    (boundaryBinding.kind === "blocked" ? (
+                      <p role="alert" className="workbench-loading">
+                        {boundaryBinding.reason}
+                      </p>
+                    ) : (
+                      <DeliveryVersionBoundary {...boundaryBinding}>
+                        <Suspense fallback={<p className="workbench-loading">Opening Studio…</p>}>
+                          <StudioController
+                            key={studioBindingKey(activeBinding)}
+                            {...activeBinding}
+                            storageScope={account}
+                          />
+                        </Suspense>
+                      </DeliveryVersionBoundary>
+                    ))
                   )}
                 </div>
                 {connectionTabs.map((tab) => (

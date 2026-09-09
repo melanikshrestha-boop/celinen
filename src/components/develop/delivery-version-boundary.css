@@ -1,0 +1,40 @@
+/* This boundary can render in Workbench before the native editor is loaded. */
+.foto-develop.develop-delivery-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  height: auto;
+  min-height: 320px;
+  padding: clamp(20px, 4vw, 40px);
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.develop-delivery-boundary h1 {
+  font-size: 24px;
+}
+.develop-delivery-boundary > :is(p, small) {
+  max-width: 64ch;
+}
+.develop-delivery-boundary small {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.develop-delivery-boundary a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  color: var(--background);
+  background: var(--foreground);
+  text-decoration: none;
+}
+.develop-delivery-boundary a:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 3px;
+}

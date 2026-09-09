@@ -176,6 +176,20 @@ export function resolveWorkspaceBinding(
     return remembered;
   return next;
 }
+/** The editing boundary is independent of the controller's remembered tool context. */
+export function deliveryBoundaryBinding(
+  href: string,
+  active: StudioWorkbenchBinding,
+  local: boolean,
+): StudioWorkbenchBinding {
+  if (active.kind === "blocked") return active;
+  const explicit = explicitWorkspaceBinding(href, local);
+  if (explicit?.kind === "blocked") return explicit;
+  // A same-project tool deliberately cannot rewind the remembered controller.
+  // Its explicit delivery URL must nevertheless fence every mounted editor.
+  if (explicit?.kind === "ready" && explicit.deliveryFocus) return explicit;
+  return active;
+}
 export function tabProjectScope(href: string) {
   const url = new URL(href, "https://workspace.invalid");
   const canonical = canonicalShootBinding(href, true);
