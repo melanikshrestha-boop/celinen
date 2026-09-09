@@ -2,6 +2,44 @@
 
 ## Verified publishing target
 
+### Latest execution outcome
+
+Release `e6b8e2aa51314b6ec5ae65c928f75bb3b4cc462b` is committed and verified on
+the existing private FOTO branch. Final regression: **2,003 pass, 19 skip,
+1 pre-existing opt-in RAW-WB TODO, 0 fail**. Standard production build and both
+documented Lovable sandbox build modes passed locally.
+
+The explicit Lovable **Publish changes** action reported **Your website was
+updated**, but immediate and repeated checks of `lenslab.dev/` and `/auth` return
+**This page didn't load**. This is a failed live deployment, not completion.
+No live database migration or customer-data mutation was performed.
+
+An attempted recovery switch to `main` was blocked by action review pending
+specific owner approval. Approval was requested; the branch remains FOTO. Do not
+bypass that block or rewrite Git history. The read-only Lovable Plan diagnosis
+identified the actual production failure: `src/lib/develop/store.ts` created a
+notification ID with `crypto.randomUUID()` at module evaluation. Cloudflare
+forbids global-scope crypto operations; importing the shared Studio chunk crashed
+every SSR route. This has also been reproduced in the real local workerd runtime
+using the committed `e6b8e2a` store, not merely a source assertion.
+
+The repair lazily creates the notification identity when the store uses it and
+shares its holder across HMR, including a hot reload before the first save.
+It does not switch branches or change customer records. The final full suite is
+**2,006 pass, 19 skip, 1 existing TODO, 0 fail** (369,863 expectations); TypeScript,
+scoped lint/format and production build pass. The standalone
+`scripts/check-workers-cold-start.mjs` reproduces the old crash and verifies two
+request-time UUIDs after the fix. Three isolated notification tests cover lazy
+import, cross-store identity, echoes and HMR before/after first use.
+
+The complete freshly built modular worker also passed an isolated Miniflare
+SSR smoke check: `/` and `/auth?mode=signin&next=%2Fearnings` both returned 200 HTML,
+with zero outbound calls and no credentials/customer bindings. The initial
+Miniflare 500 was its temporary assets-router configuration; removing that router
+resolved the harness issue without source changes. This smoke check does not
+verify static assets or OAuth completion. Renewed publication and live readback
+remain required. The record below is not a statement that its SQL repair is live.
+
 Existing Lovable project `90a3d4fe-ecf0-4ee7-8a26-d2bff0b4545c` (Lens AI Studio),
 private repository `melanikshrestha-boop/intelligent-image-aid`, destination
 `lenslab.dev`. With owner approval, switched the connected branch from `main` to
