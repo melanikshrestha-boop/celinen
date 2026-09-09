@@ -145,11 +145,24 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
   };
   return (
     <main className="auth-screen">
-      <section className="auth-panel" aria-labelledby="auth-title">
+      <div className="auth-scene">
+        <img
+          className="auth-scene-image"
+          src="/images/foto-open-sky.webp"
+          alt=""
+          aria-hidden="true"
+          fetchPriority="high"
+        />
         <Link to="/" className="auth-brand" aria-label={`${PRODUCT_NAME} home`}>
           <LogoMark size={32} />
           <span>{PRODUCT_NAME}</span>
         </Link>
+        <div className="auth-scene-copy">
+          <p>Make room for your next great shot.</p>
+          <span className="auth-scene-note">More time behind the camera.</span>
+        </div>
+      </div>
+      <section className="auth-panel" aria-labelledby="auth-title">
         <header className="auth-heading">
           <h1 id="auth-title">{signup ? "Create Your Account" : `Sign in to ${PRODUCT_NAME}`}</h1>
           <p>Your shoots, galleries, and storefronts in one place.</p>
@@ -193,7 +206,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                   maxLength={100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Pablo Picasso"
+                  placeholder="Your full name"
                 />
               </label>
             )}
@@ -211,7 +224,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="picasso@gmail.com"
+                placeholder="you@example.com"
               />
             </label>
             <label htmlFor="auth-password">Password</label>

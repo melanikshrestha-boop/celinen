@@ -32,7 +32,9 @@ export function Nav({ landing = false }: { landing?: boolean }) {
       <header className="mx-auto grid w-full max-w-[1240px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
         <Link to="/" className="flex shrink-0 items-center gap-2">
           <LogoMark className="text-ink" />
-          <span className="font-display text-[15px] font-semibold tracking-tight">{PRODUCT_NAME}</span>
+          <span className="font-display text-[15px] font-semibold tracking-tight">
+            {PRODUCT_NAME}
+          </span>
         </Link>
 
         <nav className="hidden min-w-0 items-center justify-center gap-1 whitespace-nowrap text-sm text-moss lg:flex">
@@ -73,7 +75,10 @@ export function Nav({ landing = false }: { landing?: boolean }) {
             >
               <span className="-mt-1.5 text-lg leading-none">…</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent
+              align="end"
+              className={landing ? "w-48 marketing-nav-menu" : "w-48"}
+            >
               {(landing
                 ? [
                     { to: "/docs", label: "Workflow guide" },
