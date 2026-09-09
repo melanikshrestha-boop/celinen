@@ -533,3 +533,25 @@ are separate from the full working-tree suite above. The fixture requires macOS,
 Node, installed repository dev dependencies including tsx, the native executable,
 and the checksum-verified RAW directory. No environment files were copied into
 the isolated candidate.
+
+## Reviewed batch reconnection milestone — September 8, 2026
+
+Implemented the previously unmounted folder/file reconnect planner as a reviewed Develop
+dialog with exact-fingerprint defaults, explicit filename-only approval, bounded rows and
+per-file native decode. Single and batch reconnect now require a current missing-original
+identity at atomic commit; the cross-tab wrong-preview race is closed. Existing documents
+and revisions are preserved. Successful attachments are adopted even when Stop follows
+a committed write. See [FOTO-DEVELOP-RECONNECT.md](FOTO-DEVELOP-RECONNECT.md).
+
+Actual browser/native/IndexedDB checks passed using separate synthetic namespaces:
+337 histories unchanged, valid-after-corrupt continued, real public Sony RAW picker retained
+its exact bytes, folder picker skipped connected originals, cross-tab attachment race failed
+closed, cancellation after commit retained its receipt. Desktop/mobile review was inspected.
+All 340 disposable photo/document pairs were audited, removed and verified absent afterward.
+No customer library was accessed by QA.
+
+Full working-tree suite: 1,779 pass / 21 skip / 1 TODO / 0 fail, 361,877 assertions.
+TypeScript, scoped lint and build passed. Isolated reconnect-only Git candidate:
+74 focused tests / 64,837 assertions, TypeScript/lint/build passed. Environment files and
+broader local Develop/CRM/UI changes were not copied into that candidate.
+This completes reviewed local relinking, not all-camera decoding or full Lightroom parity.
