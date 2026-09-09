@@ -40,6 +40,8 @@ type ImportSessionDependencies = {
   now?: () => number;
   /** Injectable lock for regression tests; browsers use an origin-wide Web Lock. */
   withLock?: (name: string, work: () => Promise<void>) => Promise<void>;
+  /** Session-owned navigation protection; null disables it in non-browser hosts. */
+  unloadTarget?: Pick<EventTarget, "addEventListener" | "removeEventListener"> | null;
 };
 const emptySnapshot = (): DevelopImportSnapshot => ({
   jobId: null,
@@ -436,7 +438,23 @@ export function createDevelopImportSession(
   function track(discovery: Promise<DroppedFilesResult>, owner: AbortController) {
     // Attach a rejection handler immediately: discovery begins inside the original event.
     void discovery.catch(() => undefined);
+    const unloadTarget =
+      dependencies.unloadTarget === undefined
+        ? typeof window === "undefined"
+          ? null
+          : window
+        : dependencies.unloadTarget;
+    const beforeUnload = (event: Event) => {
+      event.preventDefault();
+      (event as BeforeUnloadEvent).returnValue = "";
+    };
+    // React views may all unmount while this owner still has handles or writes.
+    // Only a document unload is fenced: ordinary in-app route changes stay free.
+    unloadTarget?.addEventListener("beforeunload", beforeUnload);
     running = execute(discovery, owner).finally(() => {
+      // A cancelled/complete phase can precede owned save, discovery, or lock drains.
+      // Release only with this running promise, never from status or subscribers.
+      unloadTarget?.removeEventListener("beforeunload", beforeUnload);
       if (admittedJobId !== null) lastSettledOwnedJobId = admittedJobId;
       running = null;
       controller = null;
