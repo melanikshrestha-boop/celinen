@@ -39,7 +39,14 @@ void validate_develop(const DevelopSettings& settings);
 DevelopSettings read_develop_protocol(std::istream& input);
 Image develop(const Image& source, const DevelopSettings& settings);
 // Explicit sensor-data path. No thumbnail fallback. Exposure/WB are applied before RGB8 conversion.
+enum class RawWhiteBalanceModel { legacy = 0, resolved = 1 };
+// Existing callers and saved recipes retain the original white-balance behavior.
 Image decode_raw_develop(const std::filesystem::path& path, std::uint32_t max_edge,
                          double exposure = 0, double temperature = 0, double tint = 0);
+// Native opt-in only: use one LibRaw-resolved baseline at zero and nonzero WB.
+// No protocol or persisted-recipe default is changed by this overload.
+Image decode_raw_develop(const std::filesystem::path& path, std::uint32_t max_edge,
+                         double exposure, double temperature, double tint,
+                         RawWhiteBalanceModel white_balance_model);
 double develop_mask_weight(const DevelopMask& mask, double x, double y);
 } // namespace lenslabs
