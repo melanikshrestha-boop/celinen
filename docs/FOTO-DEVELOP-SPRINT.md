@@ -674,3 +674,67 @@ Full Lightroom parity remains unfinished. This milestone does not activate the
 pending opt-in RAW white-balance model, add a new histogram capability, or
 introduce a decoded-RAW cache. Any future cache needs explicit memory bounds,
 cancellation, source/white-balance identity and exact preview/export readback.
+
+## 2026-09-09 — Stop owns and cancels the original file read
+
+Narrow import-responsiveness milestone. Before this change, normal Develop import
+passed cancellation to decoding but not to its initial `File.arrayBuffer()`.
+A controlled pending-read regression reproduced Stop staying pending with no
+`FileReader.abort()` call. The scratch pre-fix test was red against `9eb4463`;
+releasing its old pending read confirmed there were no preview or save calls.
+
+`developPhotoFromFile` now accepts an optional AbortSignal. Normal import forwards
+its signal; browser calls use a fresh FileReader with one settlement and explicit
+listener cleanup. Stop detaches handlers before aborting an active read because
+FileReader abort events are synchronous. Reader failures are not silently retried.
+Both read paths reject invalid or incomplete buffers before SHA-256. Exact
+whole-file `sha256:` identities, existing originals, durable receipts and histories
+remain unchanged. No schema migration or data repair was performed.
+
+The fallback when FileReader is absent remains awaited. An already-started
+Web Crypto digest also remains awaited, then checks cancellation: the API has
+no cancellation parameter. This avoids leaving expensive work behind after a
+Stop/retry cycle. It does not make SHA-256 cancellable or promise instantaneous
+physical disk cancellation. Reconnect and Studio chunk-chain fingerprinting
+are intentionally unchanged.
+
+API references: [File API abort semantics](https://www.w3.org/TR/FileAPI/#abort),
+[Web Crypto digest](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest).
+
+Verification:
+
+- 20 new entrypoint tests cover actual abort ordering, reentrancy, late events,
+  pre-abort/custom/null reasons, reader-originated abort, constructor/start/read
+  failure, length/admission checks, equal source SHA, awaited fallback and hash,
+  independent calls, and exact post-save receipts.
+- Full current local tree: 1,821 pass / 21 skip / 1 existing WB integration TODO /
+  0 fail; 366,385 assertions. TypeScript, scoped source/test lint and build passed.
+- Clean candidate based on `9eb4463`: 1,510 pass / 21 skip / 0 fail; 304,899
+  assertions. TypeScript, scoped lint and production build passed. Its native
+  executables and nine native suites were built from candidate source; 120,952
+  checks passed. The first test attempt lacked those executables and had three
+  social-operator startup failures; all passed after the normal native build.
+- Real-browser smoke on the newer local editor: public A6000 RAW was selected
+  through the actual file input. Stop reached a LOADING browser FileReader,
+  called its real abort, left zero photo/document records, and allowed retry.
+  Retrying imported the exact original. A corrupt JPEG in a mixed drag/drop
+  did not block the valid public JPEG. Existing RAW history remained identical.
+  Exposure changed pixels and the live histogram; export proof and captured
+  JPEG download were byte-identical to the edited display. Reload preserved
+  originals and saved history. The harness explicitly reselected the edited
+  JPEG after reload (which initially selects the first photo), and waited for
+  the histogram to settle. It did not change application selection behavior.
+- Desktop screenshot inspected. The expected corrupt-photo native request
+  returned 500; no unexplained QA HTTP error was found. The existing
+  ClientsWorkspace code-splitting warning remains.
+- Only the two public QA photos and their two edit documents in reserved shoot
+  `eeaf3000-1111-4222-8333-000000000104` were deleted, after namespace and source
+  checksum checks. Readback found zero remaining QA records. Both public Sony
+  files and the public JPEG retain their original disk checksums.
+
+The browser smoke uses newer uncommitted local editor features; it is not proof
+that those features are included in this Git milestone. Its local browser fixture
+stays with that editor foundation. This scoped commit contains only store/import,
+the new unit regression and this note. It does not publish environment files,
+change native binaries, activate the pending opt-in RAW white-balance model,
+add histogram features, establish whole-import speedup, or complete Lightroom parity.

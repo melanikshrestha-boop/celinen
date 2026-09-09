@@ -707,19 +707,90 @@ export function developPhotoFromShot(shot: Shot): DevelopPhotoInput {
     initialState: developInitialStateFromShot(shot),
   });
 }
+/** Keep the browser read owned and cancellable, without abandoning a fallback read. */
+async function readDevelopSource(file: File, signal?: AbortSignal): Promise<ArrayBuffer> {
+  signal?.throwIfAborted();
+  if (!signal || typeof FileReader === "undefined") {
+    const bytes = await file.arrayBuffer();
+    signal?.throwIfAborted();
+    if (!(bytes instanceof ArrayBuffer) || bytes.byteLength !== file.size)
+      throw new Error("The complete original photo could not be read. Try importing it again.");
+    return bytes;
+  }
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    let settled = false;
+    const abortReason = () =>
+      signal.aborted ? signal.reason : new DOMException("Photo read stopped.", "AbortError");
+    const cleanup = () => {
+      reader.removeEventListener("load", onLoad);
+      reader.removeEventListener("error", onError);
+      reader.removeEventListener("abort", onReaderAbort);
+      signal.removeEventListener("abort", onSignalAbort);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onLoad = () => {
+      if (settled) return;
+      if (signal.aborted) return fail(abortReason());
+      if (!(reader.result instanceof ArrayBuffer) || reader.result.byteLength !== file.size)
+        return fail(
+          new Error("The complete original photo could not be read. Try importing it again."),
+        );
+      settled = true;
+      cleanup();
+      resolve(reader.result);
+    };
+    const onError = () => fail(reader.error ?? new Error("The original photo could not be read."));
+    const onReaderAbort = () => fail(abortReason());
+    const onSignalAbort = () => {
+      if (settled) return;
+      // FileReader.abort dispatches synchronously while LOADING. Detach first so
+      // those events cannot settle twice or reenter a completed import.
+      settled = true;
+      cleanup();
+      try {
+        if (reader.readyState === FileReader.LOADING) reader.abort();
+      } finally {
+        reject(abortReason());
+      }
+    };
+    reader.addEventListener("load", onLoad);
+    reader.addEventListener("error", onError);
+    reader.addEventListener("abort", onReaderAbort);
+    signal.addEventListener("abort", onSignalAbort, { once: true });
+    if (signal.aborted) return onSignalAbort();
+    try {
+      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
 /** Content-addressed identities prevent unrelated files with the same name from sharing edits. */
 export async function developPhotoFromFile(
   file: File,
   previewBlob: Blob | null = null,
   dimensions = { width: 0, height: 0 },
+  signal?: AbortSignal,
 ): Promise<DevelopPhotoInput> {
+  signal?.throwIfAborted();
   if (!file.size) throw new Error("This photo is empty.");
   if (file.size > DEVELOP_ENGINE_LIMITS.maxFileBytes)
     throw new Error("Choose a photo smaller than 128 MB for Develop.");
   if (!globalThis.crypto?.subtle)
     throw new Error("Secure photo fingerprinting is unavailable. Open FOTO on localhost or HTTPS.");
-  const bytes = await file.arrayBuffer();
+  const bytes = await readDevelopSource(file, signal);
+  signal?.throwIfAborted();
+  // Web Crypto cannot cancel a digest. Await it rather than leaving expensive
+  // work behind when Stop is followed immediately by another import.
   const digest = await crypto.subtle.digest("SHA-256", bytes);
+  signal?.throwIfAborted();
   const identity = `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
   return checkedPhoto({
     id: identity,
