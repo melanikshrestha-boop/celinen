@@ -77,7 +77,7 @@ export async function runDevelopImport(
     try {
       signal.throwIfAborted();
       if (!supportedPhoto(file)) throw new Error("This file type is not a supported photo.");
-      const identified = await developPhotoFromFile(file);
+      const identified = await developPhotoFromFile(file, undefined, undefined, signal);
       signal.throwIfAborted();
       if (knownIds.has(identified.id)) {
         report.duplicates++;
