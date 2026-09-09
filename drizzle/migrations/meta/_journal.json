@@ -128,6 +128,19 @@
       "tag": "0017_private_workspace_chats",
       "breakpoints": true
     },
-    { "idx": 18, "version": "7", "when": 1788745000000, "tag": "0018_business_publishing", "breakpoints": true }
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788745000000,
+      "tag": "0018_business_publishing",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788998400000,
+      "tag": "0022_upload_path_ownership",
+      "breakpoints": true
+    }
   ]
 }

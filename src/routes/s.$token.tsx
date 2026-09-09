@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
+import { uploadReferenceBatch, type ReferenceUpload } from "@/lib/reference-upload";
 import {
   getShootSpace,
   createShootUploadUrl,
@@ -10,6 +11,7 @@ import {
 
 export const Route = createFileRoute("/s/$token")({
   ssr: false,
+  remountDeps: ({ params }) => params.token,
   head: () => ({
     meta: [
       { title: "Your shoot — LensLabs" },
@@ -19,7 +21,10 @@ export const Route = createFileRoute("/s/$token")({
           "Your private LensLabs shoot space: references, notes with your photographer, and the final gallery.",
       },
       { property: "og:title", content: "Your shoot — LensLabs" },
-      { property: "og:description", content: "References, notes and final photos — one private link." },
+      {
+        property: "og:description",
+        content: "References, notes and final photos — one private link.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -43,34 +48,84 @@ function ShootSpace() {
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const uploadLock = useRef(false);
+  const uploadGeneration = useRef(0);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [pendingUploads, setPendingUploads] = useState<ReferenceUpload[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const generation = uploadGeneration.current;
     const res = await getShootSpace({ data: { token } });
+    if (generation !== uploadGeneration.current) return;
     if ("error" in res) return setState("gone");
     setSpace(res);
     setState("ok");
   }, [token]);
 
   useEffect(() => {
+    const lifetime = uploadGeneration;
     void load();
+    return () => {
+      lifetime.current++;
+    };
   }, [load]);
 
-  const onFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
-    for (const file of Array.from(files)) {
-      setBusy(`Uploading ${file.name}…`);
-      const signed = await createShootUploadUrl({ data: { token, filename: file.name } });
-      if ("error" in signed) {
-        setBusy(null);
-        return;
-      }
-      await fetch(signed.signedUrl, { method: "PUT", body: file });
-      await recordShootUpload({
-        data: { token, storage_path: signed.path, filename: file.name },
+  const uploadFiles = async (entries: ReferenceUpload[]) => {
+    if (!entries.length || uploadLock.current) return;
+    const generation = uploadGeneration.current;
+    const isCurrent = () => generation === uploadGeneration.current;
+    uploadLock.current = true;
+    setPendingUploads(entries);
+    setUploadError(null);
+    try {
+      const result = await uploadReferenceBatch(entries, {
+        isCurrent,
+        createUrl: (file) => createShootUploadUrl({ data: { token, filename: file.name } }),
+        put: (url, file) => fetch(url, { method: "PUT", body: file }),
+        record: (path, file) =>
+          recordShootUpload({ data: { token, storage_path: path, filename: file.name } }),
+        isRecorded: async (path) => {
+          const current = await getShootSpace({ data: { token } });
+          if ("error" in current)
+            throw new Error(
+              "This shoot link could not confirm the upload. Ask your photographer for help.",
+            );
+          return current.uploads.some(
+            (upload) =>
+              upload.storage_path === path && typeof upload.url === "string" && !!upload.url.trim(),
+          );
+        },
+        onProgress: (file) => setUploading(`Uploading ${file.name}…`),
       });
+      if (!isCurrent()) return;
+      setPendingUploads(result.pending);
+      setUploadError(result.error);
+      if (!result.pending.length && fileRef.current) fileRef.current.value = "";
+      if (result.completed) {
+        try {
+          await load();
+        } catch {
+          if (!isCurrent()) return;
+          setUploadError(
+            [
+              result.error,
+              "Confirmed uploads were saved, but the list could not refresh. Reload to see them.",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          );
+        }
+      }
+    } finally {
+      if (isCurrent()) {
+        uploadLock.current = false;
+        setUploading(null);
+      }
     }
-    setBusy(null);
-    await load();
+  };
+  const onFiles = (files: FileList | null) => {
+    return files?.length ? uploadFiles(Array.from(files, (file) => ({ file }))) : Promise.resolve();
   };
 
   const postNote = async () => {
@@ -99,7 +154,9 @@ function ShootSpace() {
     return (
       <div className="mx-auto max-w-md p-10 text-center">
         <LogoMark />
-        <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight">Link unavailable</h1>
+        <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight">
+          Link unavailable
+        </h1>
         <p className="mt-2 text-sm text-moss">
           This shoot link isn&apos;t valid anymore. Ask your photographer for a fresh one, or{" "}
           <Link to="/book" className="text-primary underline underline-offset-4">
@@ -150,6 +207,7 @@ function ShootSpace() {
               <h2 className="font-display text-[17px] font-semibold tracking-tight">References</h2>
               <button
                 onClick={() => fileRef.current?.click()}
+                disabled={!!uploading}
                 className="rounded-lg bg-ink px-3 py-1.5 font-mono text-[12px] text-paper2"
               >
                 Add photos
@@ -163,6 +221,7 @@ function ShootSpace() {
               type="file"
               multiple
               accept="image/*"
+              disabled={!!uploading}
               hidden
               onChange={(e) => void onFiles(e.target.files)}
             />
@@ -195,13 +254,33 @@ function ShootSpace() {
                 </figure>
               ))}
             </div>
-            {busy && <p className="mt-3 font-mono text-[12px] text-moss">{busy}</p>}
+            {(uploading || busy) && (
+              <p className="mt-3 font-mono text-[12px] text-moss">{uploading || busy}</p>
+            )}
+            {uploadError && (
+              <p role="alert" className="mt-3 text-[13px] text-destructive">
+                {uploadError}
+              </p>
+            )}
+            {!!pendingUploads.length && !uploading && (
+              <button
+                type="button"
+                onClick={() => void uploadFiles(pendingUploads)}
+                className="mt-3 text-[13px] underline"
+              >
+                {pendingUploads[0]?.confirmationUnknown
+                  ? "Check upload status"
+                  : "Retry remaining uploads"}
+              </button>
+            )}
           </section>
 
           <div className="space-y-5">
             {/* gallery */}
             <section className="panel p-6">
-              <h2 className="font-display text-[17px] font-semibold tracking-tight">Final photos</h2>
+              <h2 className="font-display text-[17px] font-semibold tracking-tight">
+                Final photos
+              </h2>
               {space.gallery ? (
                 <>
                   <p className="mt-1 text-[13px] text-moss">
