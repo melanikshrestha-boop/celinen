@@ -311,11 +311,21 @@ type LocalObserver = {
   listener: (change: DevelopStoreChange) => void;
 };
 const localObservers: Set<LocalObserver> = import.meta.hot?.data["developObservers"] ?? new Set();
-const notificationOrigin: string = import.meta.hot?.data["developNotificationOrigin"] ?? uniqueId();
+// This module also loads during SSR. Workers forbid random generation at module
+// scope, so create the cross-tab identity only when the store actually uses it.
+// Share the holder across HMR even before the first save: surviving old stores
+// and new stores must not allocate different origins after a reload.
+const notificationIdentity: { value?: string } = import.meta.hot?.data[
+  "developNotificationIdentity"
+] ?? { value: import.meta.hot?.data["developNotificationOrigin"] };
+function getNotificationOrigin(): string {
+  return (notificationIdentity.value ??= uniqueId());
+}
 if (import.meta.hot)
   import.meta.hot.dispose((data) => {
     data["developObservers"] = localObservers;
-    data["developNotificationOrigin"] = notificationOrigin;
+    data["developNotificationOrigin"] = notificationIdentity.value;
+    data["developNotificationIdentity"] = notificationIdentity;
   });
 export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
 export type DevelopRecovery = {
@@ -1298,7 +1308,12 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       }
     }
     // A writer need not itself subscribe. Never clone/send RAW Blobs through this channel.
-    const message = { namespace, kind: change.kind, ids: change.ids, origin: notificationOrigin };
+    const message = {
+      namespace,
+      kind: change.kind,
+      ids: change.ids,
+      origin: getNotificationOrigin(),
+    };
     if (channel) {
       try {
         channel.postMessage(message);
@@ -2053,7 +2068,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         ) => {
           if (
             !event.data ||
-            event.data.origin === notificationOrigin ||
+            event.data.origin === getNotificationOrigin() ||
             !["photos", "documents", "presets", "manifest", "import-job"].includes(
               event.data.kind,
             ) ||
