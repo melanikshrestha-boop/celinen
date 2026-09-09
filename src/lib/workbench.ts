@@ -1,6 +1,7 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router";
 import type { DeliveryFocus } from "./delivery/studio-handoff";
 import { isSettingsPath } from "./settings-catalog";
+import { PHOTO_ID_MAX_LENGTH } from "./photo-identity";
 
 export const WORKBENCH_TOOLS = [
   { path: "/tonight", label: "Tonight", group: "Workspace" },
@@ -116,7 +117,7 @@ export function studioWorkbenchBinding(
       typeof versionId !== "string" ||
       !frameId ||
       !versionId ||
-      frameId.length > 2000 ||
+      frameId.length > PHOTO_ID_MAX_LENGTH ||
       versionId.length > 2000 ||
       (handoffId !== undefined &&
         (typeof handoffId !== "string" ||

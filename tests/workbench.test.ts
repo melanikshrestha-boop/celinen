@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { PHOTO_ID_MAX_LENGTH } from "../src/lib/photo-identity";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -172,6 +173,48 @@ test("real router href navigation retains proofing and exact Studio references",
 });
 
 describe("exact Studio binding", () => {
+  test("existing maximum-length delivery frames retain exact identity and finite bounds", async () => {
+    const binding = {
+      kind: "ready" as const,
+      projectId: accountA,
+      deliveryFocus: {
+        frameId: `frame:${"f".repeat(PHOTO_ID_MAX_LENGTH - 15)}?v=1&x=2/`,
+        versionId: "v".repeat(2000),
+      },
+    };
+    expect(binding.deliveryFocus.frameId).toHaveLength(PHOTO_ID_MAX_LENGTH);
+    const href = studioBindingHref(binding);
+    expect(studioWorkbenchBinding(href, true)).toEqual(binding);
+    const { Route } = await import("../src/routes/studio");
+    const validate = Route.options.validateSearch;
+    if (typeof validate !== "function") throw new Error("Studio route validation is unavailable.");
+    expect(
+      validate({
+        project: accountA,
+        deliveryFrame: binding.deliveryFocus.frameId,
+        deliveryVersion: binding.deliveryFocus.versionId,
+      }),
+    ).toEqual({
+      project: accountA,
+      deliveryFrame: binding.deliveryFocus.frameId,
+      deliveryVersion: binding.deliveryFocus.versionId,
+    });
+    for (const deliveryFocus of [
+      { ...binding.deliveryFocus, frameId: `${binding.deliveryFocus.frameId}x` },
+      { ...binding.deliveryFocus, versionId: `${binding.deliveryFocus.versionId}x` },
+    ]) {
+      expect(
+        studioWorkbenchBinding(studioBindingHref({ ...binding, deliveryFocus }), true).kind,
+      ).toBe("blocked");
+      expect(() =>
+        validate({
+          project: accountA,
+          deliveryFrame: deliveryFocus.frameId,
+          deliveryVersion: deliveryFocus.versionId,
+        }),
+      ).toThrow("Invalid delivery source reference");
+    }
+  });
   test("unavailable or malformed named projects never fall back to the legacy shoot", () => {
     expect(studioWorkbenchBinding(`/studio?project=${accountA}`, false).kind).toBe("blocked");
     for (const href of [
