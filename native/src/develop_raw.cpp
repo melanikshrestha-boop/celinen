@@ -51,6 +51,49 @@ std::vector<unsigned char> read_snapshot(const std::filesystem::path& path) {
 void success(int code,bool corrupted) {
   if(code!=LIBRAW_SUCCESS||corrupted) throw std::runtime_error("Sensor RAW processing failed. No preview fallback was used.");
 }
+// The caller validates RGB dimensions/byte length and allocates the bounded output.
+// Keep this helper private: it only expands or downsizes an already decoded image.
+void resample_raw_rgb(const unsigned char* rgb,int width,int height,Image& result) {
+  // At native resolution every box is exactly one RGB pixel with weight one.
+  // Expand channels directly instead of repeating the general integration math.
+  if(result.width==unsigned(width) && result.height==unsigned(height)) {
+    for(std::size_t pixel=0;pixel<std::size_t(width)*height;++pixel) {
+      for(int channel=0;channel<3;++channel)
+        result.rgba[pixel*4+channel]=rgb[pixel*3+channel];
+      result.rgba[pixel*4+3]=255;
+    }
+    return;
+  }
+  struct AxisSpan { int first,last; std::size_t offset; };
+  struct AxisTable { std::vector<AxisSpan> spans; std::vector<double> weights; };
+  // Reuse exact box overlaps for each axis. Preserve division, multiplication,
+  // sy/sx/channel accumulation and final rounding from the original pixel loop.
+  const auto axis_table=[](int extent,unsigned count) {
+    AxisTable table;
+    table.spans.reserve(count);table.weights.reserve(std::size_t(extent)+count+4);
+    for(unsigned out=0;out<count;++out) {
+      const double first=double(out)*extent/count,last=double(out+1)*extent/count;
+      const int start=int(first),finish=std::min(extent,int(std::ceil(last)));
+      table.spans.push_back({start,finish,table.weights.size()});
+      for(int at=start;at<finish;++at)
+        table.weights.push_back(std::min(last,double(at+1))-std::max(first,double(at)));
+    }
+    return table;
+  };
+  const auto horizontal=axis_table(width,result.width),vertical=axis_table(height,result.height);
+  for(unsigned y=0;y<result.height;++y) for(unsigned x=0;x<result.width;++x) {
+    const auto& xs=horizontal.spans[x];const auto& ys=vertical.spans[y];
+    std::array<double,3> sum{};double total=0;
+    for(int sy=ys.first;sy<ys.last;++sy) for(int sx=xs.first;sx<xs.last;++sx) {
+      const double weight=horizontal.weights[xs.offset+sx-xs.first]*vertical.weights[ys.offset+sy-ys.first];
+      for(int c=0;c<3;++c) sum[c]+=rgb[(std::size_t(sy)*width+sx)*3+c]*weight;
+      total+=weight;
+    }
+    const auto i=(std::size_t(y)*result.width+x)*4;
+    for(int c=0;c<3;++c) result.rgba[i+c]=std::uint8_t(std::clamp(std::round(sum[c]/total),0.0,255.0));
+    result.rgba[i+3]=255;
+  }
+}
 // LibRaw 0.22.2 resolves camera/automatic/white-patch/sRAW WB inside
 // scale_colors(), before this protected virtual hotspot scales/clips sensor
 // samples. Reuse that resolved baseline instead of estimating it again or
@@ -194,20 +237,7 @@ Image decode_raw_develop(const std::filesystem::path& path,std::uint32_t max_edg
   const double ratio=std::min(1.0,double(max_edge)/std::max(width,height));
   Image result{std::max(1u,unsigned(std::round(width*ratio))),std::max(1u,unsigned(std::round(height*ratio))),unsigned(width),unsigned(height),{}};
   result.rgba.resize(std::size_t(result.width)*result.height*4);
-  // Box resampling integrates sensor-derived RGB pixels rather than aliasing to nearest neighbours.
-  for(unsigned y=0;y<result.height;++y) for(unsigned x=0;x<result.width;++x) {
-    const double left=double(x)*width/result.width,right=double(x+1)*width/result.width;
-    const double top=double(y)*height/result.height,bottom=double(y+1)*height/result.height;
-    std::array<double,3> sum{};double total=0;
-    for(int sy=int(top);sy<std::min(height,int(std::ceil(bottom)));++sy) for(int sx=int(left);sx<std::min(width,int(std::ceil(right)));++sx) {
-      const double weight=(std::min(right,double(sx+1))-std::max(left,double(sx)))*(std::min(bottom,double(sy+1))-std::max(top,double(sy)));
-      for(int c=0;c<3;++c) sum[c]+=rendered->data[(std::size_t(sy)*width+sx)*3+c]*weight;
-      total+=weight;
-    }
-    const auto i=(std::size_t(y)*result.width+x)*4;
-    for(int c=0;c<3;++c) result.rgba[i+c]=std::uint8_t(std::clamp(std::round(sum[c]/total),0.0,255.0));
-    result.rgba[i+3]=255;
-  }
+  resample_raw_rgb(rendered->data,width,height,result);
   return result;
 }
 } // namespace lenslabs

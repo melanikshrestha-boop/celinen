@@ -629,3 +629,48 @@ validation and representative camera/gray-chart evidence are required before
 all-camera or color-accuracy claims. The current high-bit-depth/RAW fidelity and
 full Lightroom capability gaps remain open. This milestone adds no UI control,
 histogram feature, production deployment or new import-speed claim.
+
+## Exact-output RAW resampling, September 9, 04:35 UTC
+
+Two bounded performance changes were investigated independently. This private
+Git milestone contains only the native resampler, its C++ probe/Bun runner, and
+this note. The current local editor's neutral-recipe reuse work remains outside
+this commit because its newer preview/export foundation is not yet in HEAD.
+
+The C++ RAW decoder now computes each axis's box-overlap weights once. It keeps
+the original multiplication order, sy/sx/channel accumulation, rounding and
+opaque alpha; native-size output uses an exact RGB-to-RGBA copy. Source-file
+snapshot checks, LibRaw processing, existing white-balance selection, sensor
+bounds and the branch's 4096 edge limit are unchanged.
+
+Evidence:
+
+- The production helper matches an independent literal pre-change resampler in
+  25,733 deterministic cases / 52,415,596 output bytes. The same matrix passes
+  ASan/UBSan: every small downscale pair, one-pixel axes, endpoint/rounding cases,
+  patterns/random data and large one-dimensional extents. Input and output-tail
+  sentinels remain intact. LibRaw itself is not sanitizer-instrumented.
+- Eight source-linked old/new public Sony comparisons (two cameras, edges
+  1600/4096, neutral and nonzero RAW controls) preserve entire RGBA and JPEG
+  bytes; original SHA-256 hashes are unchanged.
+- Five alternating scratch trials per variant measured only the resize stage:
+  A6000 median 50.64 -> 32.81 ms at 1600, 134.85 -> 74.12 ms at 4096;
+  A7 IV small 30.04 -> 15.97 ms at 1600. These are not end-to-end import
+  measurements; demosaic remains a larger cost. No two-second/all-camera claim.
+- Isolated HEAD-based candidate: all nine native suites passed (120,952
+  checks); full Bun 1,490 pass / 21 skip / 0 fail, 304,583 assertions.
+  TypeScript, production build and scoped lint passed. The first sandbox run
+  could not bind test HTTP servers; the loopback-permitted rerun passed.
+  Existing build deprecation/chunk warnings remain.
+- All 793 archived tracked files were compared against HEAD: only the intended
+  RAW source differs, plus two new tests. Environment files were not copied.
+
+Reproduce: build the pinned native dependency, run
+`make -C native all test` and `bun test tests/develop-raw-resample.test.ts`.
+The probe includes the actual private implementation in its translation unit;
+the baseline loop is independent, not a second invocation of the new helper.
+
+Full Lightroom parity remains unfinished. This milestone does not activate the
+pending opt-in RAW white-balance model, add a new histogram capability, or
+introduce a decoded-RAW cache. Any future cache needs explicit memory bounds,
+cancellation, source/white-balance identity and exact preview/export readback.
