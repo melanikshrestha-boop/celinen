@@ -37,6 +37,9 @@ type History = {
   locked: boolean;
   switching: boolean;
   error: string;
+  blocked: boolean;
+  unavailable: boolean;
+  recovering: boolean;
   local: boolean;
   temporary: boolean;
   snapshot: (messages: ChatMessage[], draft: string) => void;
@@ -126,6 +129,8 @@ function HistorySession({
   const transition = useRef(false);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const failure = useRef("");
   const queue = useRef<Promise<void>>(Promise.resolve());
   const revisions = useRef(new Map<string, number>());
@@ -136,8 +141,8 @@ function HistorySession({
   useEffect(() => {
     alive.current = true;
     let cancelled = false;
-    setReady(false);
-    setError("");
+    if (!activeRef.current) setReady(false);
+    setRecovering(true);
     failure.current = "";
     void repository
       .list(project)
@@ -150,24 +155,44 @@ function HistorySession({
         if (record.project !== project)
           throw new Error("This conversation belongs to another shoot.");
         setRows(list);
-        revisions.current.set(record.id, record.revision);
-        activeRef.current = record;
-        setActive(record);
+        // Retrying history must never replace a temporary conversation, including
+        // messages typed while the request was in flight, or upload it implicitly.
+        if (!activeRef.current || activeRef.current.id !== temporaryId.current) {
+          revisions.current.set(record.id, record.revision);
+          activeRef.current = record;
+          setActive(record);
+        }
+        setUnavailable(false);
+        if (!failure.current) setError("");
         setReady(true);
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
+        if (!cancelled && !failure.current) {
           const message =
             error instanceof Error ? error.message : "Chat history could not be loaded.";
-          failure.current = message;
-          setError(message);
+          if (!local && (!activeRef.current || activeRef.current.id === temporaryId.current)) {
+            const record = activeRef.current ?? newChat(project);
+            temporaryId.current = record.id;
+            activeRef.current = record;
+            setActive(record);
+            setTemporary(true);
+            setUnavailable(true);
+            setError("Cloud history unavailable · This conversation stays in this tab");
+            setReady(true);
+          } else {
+            failure.current = message;
+            setError(message);
+          }
         }
+      })
+      .finally(() => {
+        if (!cancelled) setRecovering(false);
       });
     return () => {
       cancelled = true;
       alive.current = false;
     };
-  }, [repository, project, attempt]);
+  }, [repository, project, attempt, local]);
   const persist = useCallback(
     (record: ChatRecord) => {
       if (record.id === temporaryId.current) return Promise.resolve();
@@ -477,6 +502,9 @@ function HistorySession({
     locked,
     switching,
     error,
+    blocked: Boolean(failure.current),
+    unavailable,
+    recovering,
     local,
     temporary,
     snapshot,
@@ -489,7 +517,8 @@ function HistorySession({
     remove,
     exportChat,
     retry: () => {
-      if (!ready) setAttempt((value) => value + 1);
+      if (!recovering && (!ready || (unavailable && !failure.current)))
+        setAttempt((value) => value + 1);
     },
   };
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>;
@@ -527,6 +556,11 @@ export function ChatSaveStatus() {
       {history.error ? (
         <>
           <span>{history.error}</span>
+          {history.unavailable && (
+            <button disabled={history.recovering || history.blocked} onClick={history.retry}>
+              {history.recovering ? "Checking…" : "Retry"}
+            </button>
+          )}
           {history.ready ? (
             <button onClick={history.exportChat}>
               <Download size={13} />

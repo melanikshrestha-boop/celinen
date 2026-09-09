@@ -279,7 +279,7 @@ function CullChatSession({
         sendingRef.current ||
         importing ||
         paused ||
-        history?.error ||
+        history?.blocked ||
         history?.switching
       )
         return;
@@ -639,7 +639,7 @@ function CullChatSession({
       onWorkflow,
       onNavigate,
       onWorkspaceRequest,
-      history?.error,
+      history?.blocked,
       history?.switching,
       storageScope,
       account?.preferences,
@@ -758,30 +758,28 @@ function CullChatSession({
             </div>
           ))}
         </div>
-        {!frameCount &&
-          !importing &&
-          (onImportFolder || onImportFiles) && (
-            <div className="flex items-center gap-3 font-mono text-[11px] text-moss">
-              {onImportFolder && (
-                <button
-                  type="button"
-                  onClick={onImportFolder}
-                  className="underline underline-offset-2"
-                >
-                  Import folder
-                </button>
-              )}
-              {onImportFiles && (
-                <button
-                  type="button"
-                  onClick={onImportFiles}
-                  className="underline underline-offset-2"
-                >
-                  Import files
-                </button>
-              )}
-            </div>
-          )}
+        {!frameCount && !importing && (onImportFolder || onImportFiles) && (
+          <div className="flex items-center gap-3 font-mono text-[11px] text-moss">
+            {onImportFolder && (
+              <button
+                type="button"
+                onClick={onImportFolder}
+                className="underline underline-offset-2"
+              >
+                Import folder
+              </button>
+            )}
+            {onImportFiles && (
+              <button
+                type="button"
+                onClick={onImportFiles}
+                className="underline underline-offset-2"
+              >
+                Import files
+              </button>
+            )}
+          </div>
+        )}
         {!recovery &&
           (!workspace || !importAttachment) &&
           (status || importing || importProgress) && (
@@ -955,7 +953,7 @@ function CullChatSession({
                 importing ||
                 paused ||
                 !input.trim() ||
-                !!history?.error ||
+                history?.blocked ||
                 history?.switching
               }
               className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
