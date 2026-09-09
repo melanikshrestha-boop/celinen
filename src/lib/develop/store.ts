@@ -311,11 +311,18 @@ type LocalObserver = {
   listener: (change: DevelopStoreChange) => void;
 };
 const localObservers: Set<LocalObserver> = import.meta.hot?.data["developObservers"] ?? new Set();
-const notificationOrigin: string = import.meta.hot?.data["developNotificationOrigin"] ?? uniqueId();
+// Generated lazily: the Workers runtime forbids random values at module scope,
+// and eager evaluation here 500s every server-rendered route.
+let cachedNotificationOrigin: string | undefined = import.meta.hot?.data[
+  "developNotificationOrigin"
+] as string | undefined;
+function notificationOrigin(): string {
+  return (cachedNotificationOrigin ??= uniqueId());
+}
 if (import.meta.hot)
   import.meta.hot.dispose((data) => {
     data["developObservers"] = localObservers;
-    data["developNotificationOrigin"] = notificationOrigin;
+    data["developNotificationOrigin"] = cachedNotificationOrigin;
   });
 export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
 export type DevelopRecovery = {
@@ -1298,7 +1305,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       }
     }
     // A writer need not itself subscribe. Never clone/send RAW Blobs through this channel.
-    const message = { namespace, kind: change.kind, ids: change.ids, origin: notificationOrigin };
+    const message = { namespace, kind: change.kind, ids: change.ids, origin: notificationOrigin() };
     if (channel) {
       try {
         channel.postMessage(message);
@@ -2053,7 +2060,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         ) => {
           if (
             !event.data ||
-            event.data.origin === notificationOrigin ||
+            event.data.origin === notificationOrigin() ||
             !["photos", "documents", "presets", "manifest", "import-job"].includes(
               event.data.kind,
             ) ||
