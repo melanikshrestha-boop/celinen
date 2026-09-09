@@ -1,7 +1,93 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 const SIGNED_TTL = 60 * 60 * 6; // 6 hours
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const GENERATED_FILE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[A-Za-z0-9._-]+$/;
+type GalleryScope = { id: string; user_id: string };
+type GalleryPhotoSource = { storage_path: string; user_id: string; gallery_id: string };
+
+/** Match the existing direct uploader exactly; never normalize an untrusted storage path. */
+function isGalleryPath(path: unknown, gallery: GalleryScope): path is string {
+  if (typeof path !== "string") return false;
+  const parts = path.split("/");
+  return (
+    parts.length === 3 &&
+    UUID.exec(gallery.user_id)?.[0] === gallery.user_id &&
+    UUID.exec(gallery.id)?.[0] === gallery.id &&
+    parts[0] === gallery.user_id &&
+    parts[1] === gallery.id &&
+    typeof parts[2] === "string" &&
+    // Full-match equality also rejects the final newline accepted by JavaScript's `$` anchor.
+    GENERATED_FILE.exec(parts[2])?.[0] === parts[2]
+  );
+}
+
+function isGalleryPhoto(photo: GalleryPhotoSource, gallery: GalleryScope) {
+  return (
+    photo.user_id === gallery.user_id &&
+    photo.gallery_id === gallery.id &&
+    isGalleryPath(photo.storage_path, gallery)
+  );
+}
+
+/** Stored legacy rows are not capabilities. Filter before invoking even a service-role signer. */
+async function signGalleryPhotos(
+  supabase: SupabaseClient<Database>,
+  gallery: GalleryScope,
+  photos: GalleryPhotoSource[],
+) {
+  const paths = [
+    ...new Set(
+      photos.filter((photo) => isGalleryPhoto(photo, gallery)).map((photo) => photo.storage_path),
+    ),
+  ];
+  const urls = new Map<string, string>();
+  if (!paths.length) return urls;
+  try {
+    const { data: signed, error } = await supabase.storage
+      .from("deliveries")
+      .createSignedUrls(paths, SIGNED_TTL);
+    if (error) return urls;
+    const allowed = new Set(paths);
+    for (const item of signed ?? []) {
+      if (item.path && allowed.has(item.path) && !item.error && item.signedUrl) {
+        urls.set(item.path, item.signedUrl);
+      }
+    }
+  } catch {
+    // Keep all rows visible with unavailable sources when Storage is unavailable.
+  }
+  return urls;
+}
+
+async function verifyGalleryObjects(supabase: SupabaseClient<Database>, paths: string[]) {
+  const bucket = supabase.storage.from("deliveries");
+  // Bound metadata requests independently of batch size; do not upload or decode again.
+  for (let offset = 0; offset < paths.length; offset += 4) {
+    const verified = await Promise.all(
+      paths.slice(offset, offset + 4).map(async (path) => {
+        try {
+          const { data: object, error } = await bucket.info(path);
+          return (
+            !error &&
+            object?.name === path &&
+            object.bucketId === "deliveries" &&
+            Number.isSafeInteger(object.size) &&
+            Number(object.size) > 0
+          );
+        } catch {
+          return false;
+        }
+      }),
+    );
+    if (verified.some((present) => !present)) return false;
+  }
+  return true;
+}
 
 function makeSlug(title: string) {
   const base = title
@@ -97,14 +183,41 @@ export const deleteGallery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => d)
   .handler(async ({ data, context }) => {
-    const { data: photos } = await context.supabase
+    const { data: gallery, error: galleryError } = await context.supabase
+      .from("galleries")
+      .select("id, user_id")
+      .eq("id", data.id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (galleryError || !gallery || gallery.id !== data.id || gallery.user_id !== context.userId)
+      return { error: "Gallery not found" };
+
+    const { data: photos, error: photosError } = await context.supabase
       .from("gallery_photos")
-      .select("storage_path")
-      .eq("gallery_id", data.id);
-    if (photos?.length) {
-      await context.supabase.storage.from("deliveries").remove(photos.map((p) => p.storage_path));
+      .select("storage_path, user_id, gallery_id")
+      .eq("gallery_id", gallery.id);
+    if (photosError) return { error: "Could not verify gallery photos. Please try again." };
+
+    const paths = [
+      ...new Set(
+        (photos ?? [])
+          .filter((photo) => isGalleryPhoto(photo, gallery))
+          .map((photo) => photo.storage_path),
+      ),
+    ];
+    if (paths.length) {
+      try {
+        const { error } = await context.supabase.storage.from("deliveries").remove(paths);
+        if (error) return { error: "Could not remove gallery files. Please try again." };
+      } catch {
+        return { error: "Could not remove gallery files. Please try again." };
+      }
     }
-    const { error } = await context.supabase.from("galleries").delete().eq("id", data.id);
+    const { error } = await context.supabase
+      .from("galleries")
+      .delete()
+      .eq("id", gallery.id)
+      .eq("user_id", context.userId);
     return error ? { error: error.message } : { ok: true };
   });
 
@@ -119,20 +232,46 @@ export const addGalleryPhotos = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     // RLS-scoped read: only returns the gallery when the caller owns it.
-    const { data: gallery } = await context.supabase
+    const { data: gallery, error: galleryError } = await context.supabase
       .from("galleries")
-      .select("id")
+      .select("id, user_id")
       .eq("id", data.gallery_id)
       .eq("user_id", context.userId)
       .maybeSingle();
-    if (!gallery) return { error: "Gallery not found" };
+    if (
+      galleryError ||
+      !gallery ||
+      gallery.user_id !== context.userId ||
+      gallery.id !== data.gallery_id
+    )
+      return { error: "Gallery not found" };
 
-    const { count } = await context.supabase
+    if (
+      !Array.isArray(data.files) ||
+      data.files.some(
+        (file) =>
+          !file ||
+          !isGalleryPath(file.storage_path, gallery) ||
+          typeof file.filename !== "string" ||
+          !file.filename.length,
+      )
+    )
+      return { error: "Photo upload does not belong to this gallery" };
+    if (!data.files.length) return { added: 0 };
+    if (
+      !(await verifyGalleryObjects(
+        context.supabase,
+        data.files.map((file) => file.storage_path),
+      ))
+    ) {
+      return { error: "Photo upload is missing or incomplete. Finish uploading and try again." };
+    }
+
+    const { count, error: countError } = await context.supabase
       .from("gallery_photos")
       .select("id", { count: "exact", head: true })
       .eq("gallery_id", data.gallery_id);
-
-
+    if (countError || count === null) return { error: "Could not verify the gallery photo order" };
     const rows = data.files.map((f, i) => ({
       gallery_id: data.gallery_id,
       user_id: context.userId,
@@ -159,12 +298,14 @@ export const getGallery = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => d)
   .handler(async ({ data, context }) => {
-    const { data: gallery } = await context.supabase
+    const { data: gallery, error: galleryError } = await context.supabase
       .from("galleries")
       .select("*")
       .eq("id", data.id)
+      .eq("user_id", context.userId)
       .maybeSingle();
-    if (!gallery) return { error: "Gallery not found" };
+    if (galleryError || !gallery || gallery.id !== data.id || gallery.user_id !== context.userId)
+      return { error: "Gallery not found" };
 
     const [{ data: photos }, { data: favorites }] = await Promise.all([
       context.supabase
@@ -175,14 +316,14 @@ export const getGallery = createServerFn({ method: "GET" })
       context.supabase.from("gallery_favorites").select("*").eq("gallery_id", data.id),
     ]);
 
-    const paths = (photos ?? []).map((p) => p.storage_path);
-    const { data: signed } = paths.length
-      ? await context.supabase.storage.from("deliveries").createSignedUrls(paths, SIGNED_TTL)
-      : { data: [] };
+    const urls = await signGalleryPhotos(context.supabase, gallery, photos ?? []);
 
     return {
       gallery,
-      photos: (photos ?? []).map((p, i) => ({ ...p, url: signed?.[i]?.signedUrl ?? null })),
+      photos: (photos ?? []).map((p) => ({
+        ...p,
+        url: isGalleryPhoto(p, gallery) ? (urls.get(p.storage_path) ?? null) : null,
+      })),
       favorites: favorites ?? [],
     };
   });
@@ -195,13 +336,14 @@ export const openGallery = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { mintVisitorToken, verifyVisitorToken } = await import("@/lib/gallery-visitor.server");
 
-    const { data: gallery } = await supabaseAdmin
+    const { data: gallery, error: galleryError } = await supabaseAdmin
       .from("galleries")
       .select("*")
       .eq("slug", data.slug)
       .maybeSingle();
 
-    if (!gallery || gallery.status !== "live") return { error: "not_found" as const };
+    if (galleryError || !gallery || gallery.status !== "live")
+      return { error: "not_found" as const };
     if (gallery.expires_at && new Date(gallery.expires_at).getTime() < Date.now())
       return { error: "expired" as const };
     if (gallery.passcode && gallery.passcode !== (data.passcode ?? ""))
@@ -215,7 +357,7 @@ export const openGallery = createServerFn({ method: "POST" })
     const [{ data: photos }, { data: favorites }] = await Promise.all([
       supabaseAdmin
         .from("gallery_photos")
-        .select("id, filename, storage_path, width, height, sort_order")
+        .select("id, user_id, gallery_id, filename, storage_path, width, height, sort_order")
         .eq("gallery_id", gallery.id)
         .order("sort_order"),
       supabaseAdmin
@@ -225,10 +367,7 @@ export const openGallery = createServerFn({ method: "POST" })
         .eq("viewer", visitorId),
     ]);
 
-    const paths = (photos ?? []).map((p) => p.storage_path);
-    const { data: signed } = paths.length
-      ? await supabaseAdmin.storage.from("deliveries").createSignedUrls(paths, SIGNED_TTL)
-      : { data: [] };
+    const urls = await signGalleryPhotos(supabaseAdmin, gallery, photos ?? []);
 
     await supabaseAdmin
       .from("galleries")
@@ -243,10 +382,10 @@ export const openGallery = createServerFn({ method: "POST" })
         downloads_enabled: gallery.downloads_enabled,
       },
       visitor_token: visitorToken,
-      photos: (photos ?? []).map((p, i) => ({
+      photos: (photos ?? []).map((p) => ({
         id: p.id,
         filename: p.filename,
-        url: signed?.[i]?.signedUrl ?? null,
+        url: isGalleryPhoto(p, gallery) ? (urls.get(p.storage_path) ?? null) : null,
         width: p.width,
         height: p.height,
       })),

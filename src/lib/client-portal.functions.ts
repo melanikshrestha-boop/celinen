@@ -5,6 +5,21 @@ import {
   escapeClientEmailPattern,
   isOwnedByStudio,
 } from "@/lib/client-portal-ownership";
+import {
+  canReadClientUpload,
+  canReadGuestUpload,
+  hasNonemptyUploadObject,
+  isSelectedUploadClient,
+  isVerifiedUploadUser,
+  parseReservedUploadPath,
+  safeUploadFilename,
+  sameUploadBinding,
+  uploadClientId,
+  uploadFilename,
+  uploadNote,
+  type UploadBooking,
+  type UploadClient,
+} from "@/lib/upload-security";
 
 /**
  * Bind client records to an account only when the account's email is confirmed,
@@ -169,57 +184,166 @@ export const setBookingStatus = createServerFn({ method: "POST" })
 
 export const createClientUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { filename: string }) => {
-    if (!d.filename?.trim()) throw new Error("Missing file name");
-    return d;
-  })
+  .inputValidator((d: { filename: string; client_id?: string | null }) => ({
+    filename: uploadFilename(d?.filename),
+    client_id: uploadClientId(d?.client_id),
+  }))
   .handler(async ({ data, context }) => {
-    const safe = data.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
-    const path = `client-uploads/${context.userId}/${crypto.randomUUID()}-${safe}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: auth, error: authError } = await supabaseAdmin.auth.admin.getUserById(
+      context.userId,
+    );
+    if (authError || !isVerifiedUploadUser(auth?.user, context.userId))
+      return { error: "Verify your email before uploading" };
+    if (data.client_id) {
+      const { data: client, error } = await supabaseAdmin
+        .from("clients")
+        .select("id, user_id, auth_user_id")
+        .eq("id", data.client_id)
+        .maybeSingle();
+      if (error || !isSelectedUploadClient(client, data.client_id, auth.user.id))
+        return { error: "Client destination is not available" };
+    }
+    const path = `client-uploads/${auth.user.id}/${crypto.randomUUID()}-${safeUploadFilename(data.filename)}`;
     const { data: signed, error } = await supabaseAdmin.storage
       .from("deliveries")
       .createSignedUploadUrl(path);
     if (error || !signed) return { error: error?.message ?? "Could not start upload" };
-    return { path, token: signed.token, signedUrl: signed.signedUrl };
+    return { path, token: signed.token, signedUrl: signed.signedUrl, client_id: data.client_id };
   });
 
 export const recordClientUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { storage_path: string; filename: string; note?: string }) => d)
+  .inputValidator(
+    (d: { storage_path: string; filename: string; note?: string; client_id?: string | null }) => ({
+      storage_path: d?.storage_path,
+      filename: uploadFilename(d?.filename),
+      note: uploadNote(d?.note),
+      client_id: uploadClientId(d?.client_id),
+    }),
+  )
   .handler(async ({ data, context }) => {
-    const email = (context.claims as { email?: string }).email ?? "";
-    const { data: client } = await context.supabase
-      .from("clients")
-      .select("id, user_id")
-      .limit(1)
-      .maybeSingle();
-
-    const { error } = await context.supabase.from("client_uploads").insert({
+    const path = parseReservedUploadPath(data.storage_path);
+    if (
+      !path ||
+      path.kind !== "client-uploads" ||
+      path.ownerId !== context.userId ||
+      path.filename !== safeUploadFilename(data.filename)
+    )
+      return { error: "Bad upload path" };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: auth, error: authError } = await supabaseAdmin.auth.admin.getUserById(
+      context.userId,
+    );
+    if (authError || !isVerifiedUploadUser(auth?.user, context.userId))
+      return { error: "Verify your email before uploading" };
+    let client: UploadClient | null = null;
+    if (data.client_id) {
+      const result = await supabaseAdmin
+        .from("clients")
+        .select("id, user_id, auth_user_id")
+        .eq("id", data.client_id)
+        .maybeSingle();
+      if (result.error || !isSelectedUploadClient(result.data, data.client_id, auth.user.id))
+        return { error: "Client destination is not available" };
+      client = result.data;
+    }
+    const row = {
       client_id: client?.id ?? null,
       user_id: client?.user_id ?? null,
-      uploader_email: email,
+      booking_id: null,
+      uploader_email: auth.user.email,
       storage_path: data.storage_path,
       filename: data.filename,
-      note: data.note?.trim() || null,
-    });
+      note: data.note,
+    };
+    // Reserved namespaces cannot be written directly by authenticated storage
+    // clients. A completed object plus its exact account key proves this upload,
+    // without pretending the signed URL is a one-time reservation.
+    const { data: object, error: objectError } = await supabaseAdmin.storage
+      .from("deliveries")
+      .info(data.storage_path);
+    if (objectError || !hasNonemptyUploadObject(object, data.storage_path))
+      return { error: "Upload is not complete. Retry after the file finishes uploading." };
+    const { data: existing, error: lookupError } = await supabaseAdmin
+      .from("client_uploads")
+      .select("storage_path, filename, client_id, user_id, booking_id, uploader_email")
+      .eq("storage_path", data.storage_path);
+    if (lookupError) return { error: "Could not verify this upload. Retry to finish saving it." };
+    if (existing?.length)
+      return existing.every((item) => sameUploadBinding(item, row))
+        ? { ok: true }
+        : { error: "Upload is already assigned to a different destination" };
+    const { error } = await supabaseAdmin.from("client_uploads").insert(row);
     return error ? { error: error.message } : { ok: true };
   });
 
 export const listClientUploads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase
+    const { data, error: rowsError } = await context.supabase
       .from("client_uploads")
-      .select("id, filename, storage_path, note, created_at")
+      .select(
+        "id, filename, storage_path, note, created_at, client_id, user_id, booking_id, uploader_email",
+      )
       .order("created_at", { ascending: false });
-    if (!data?.length) return [];
+    if (rowsError || !data?.length) return [];
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: signed } = await supabaseAdmin.storage.from("deliveries").createSignedUrls(
-      data.map((u) => u.storage_path),
+    const output = data.map((u) => ({ ...u, url: null as string | null }));
+    const { data: auth, error: authError } = await supabaseAdmin.auth.admin.getUserById(
+      context.userId,
+    );
+    if (authError || !isVerifiedUploadUser(auth?.user, context.userId)) return output;
+    const clients = new Map<string, UploadClient | null>();
+    const bookings = new Map<string, UploadBooking | null>();
+    const getClient = async (id: string | null) => {
+      if (!id) return null;
+      if (!clients.has(id)) {
+        const result = await supabaseAdmin
+          .from("clients")
+          .select("id, user_id, auth_user_id")
+          .eq("id", id)
+          .maybeSingle();
+        clients.set(id, result.error ? null : result.data);
+      }
+      return clients.get(id) ?? null;
+    };
+    const allowed: number[] = [];
+    for (const [index, row] of data.entries()) {
+      const path = parseReservedUploadPath(row.storage_path);
+      if (!path) continue;
+      if (path.kind === "client-uploads") {
+        if (canReadClientUpload(row, auth.user, await getClient(row.client_id)))
+          allowed.push(index);
+      } else if (row.booking_id === path.ownerId) {
+        if (!bookings.has(row.booking_id)) {
+          const result = await supabaseAdmin
+            .from("booking_requests")
+            .select("id, client_id, user_id, requester_email")
+            .eq("id", row.booking_id)
+            .maybeSingle();
+          bookings.set(row.booking_id, result.error ? null : result.data);
+        }
+        const booking = bookings.get(row.booking_id);
+        if (
+          booking &&
+          canReadGuestUpload(row, auth.user, booking, await getClient(booking.client_id))
+        )
+          allowed.push(index);
+      }
+    }
+    if (!allowed.length) return output;
+    const { data: signed, error } = await supabaseAdmin.storage.from("deliveries").createSignedUrls(
+      allowed.map((index) => data[index]!.storage_path),
       60 * 60 * 6,
     );
-    return data.map((u, i) => ({ ...u, url: signed?.[i]?.signedUrl ?? null }));
+    if (!error)
+      allowed.forEach((index, i) => {
+        const signedRow = signed?.[i];
+        if (signedRow && !signedRow.error && signedRow.path === data[index]!.storage_path)
+          output[index]!.url = signedRow.signedUrl || null;
+      });
+    return output;
   });
 
 /* ---------------- guest shoot requests (photographer side) ---------------- */

@@ -13,6 +13,8 @@ import {
   getInvoicePaymentLink,
 } from "@/lib/client-portal.functions";
 import { getStudioRates, type StudioRates } from "@/lib/rates.functions";
+import { uploadReferenceBatch, type ReferenceUpload } from "@/lib/reference-upload";
+import { useAccount } from "@/components/account/AccountProvider";
 
 export const Route = createFileRoute("/portal")({
   ssr: false,
@@ -47,6 +49,12 @@ type Upload = Awaited<ReturnType<typeof listClientUploads>>[number];
 const SHOOT_TYPES = ["Portrait", "Wedding", "Event", "Brand / product", "Family", "Editorial"];
 
 function Portal() {
+  const accountId = useAccount()?.scope ?? null;
+  // Account changes discard this view's RAM-only retry queue, never persisted uploads.
+  return <AccountPortal key={accountId ?? "signed-out"} accountId={accountId} />;
+}
+
+function AccountPortal({ accountId }: { accountId: string | null }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState<string | null>(null);
   const [data, setData] = useState<Data | null>(null);
@@ -66,41 +74,72 @@ function Portal() {
   /* uploads */
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const uploadLock = useRef(false);
+  const uploadGeneration = useRef(0);
+  const [pendingUploads, setPendingUploads] = useState<ReferenceUpload[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [studios, setStudios] = useState<StudioRates[]>([]);
 
   const refresh = useCallback(async () => {
+    const generation = uploadGeneration.current;
     const [b, u, r] = await Promise.all([
       listBookingRequests(),
       listClientUploads(),
       getStudioRates().catch(() => ({ studios: [] as StudioRates[] })),
     ]);
+    if (generation !== uploadGeneration.current) return;
     setBookings(b);
     setUploads(u);
     setStudios(r.studios);
   }, []);
 
   useEffect(() => {
+    const lifetime = uploadGeneration;
+    const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => {
+      if ((session?.user.id ?? null) === accountId) return;
+      // Fence synchronously at the auth event, before verified AccountProvider
+      // remounts the page. No old File may enter a newly authenticated request.
+      uploadGeneration.current++;
+      uploadLock.current = false;
+      setPendingUploads([]);
+      setUploadError(null);
+      setUploading(null);
+      if (fileRef.current) fileRef.current.value = "";
+      setState("anon");
+      setData(null);
+      setUploads([]);
+      setBookings([]);
+    });
+    return () => {
+      lifetime.current++;
+      auth.subscription.unsubscribe();
+    };
+  }, [accountId]);
+
+  useEffect(() => {
     let alive = true;
+    const generation = uploadGeneration.current;
+    const isCurrent = () => alive && generation === uploadGeneration.current;
     void (async () => {
       const { data: u } = await supabase.auth.getUser();
-      if (!alive) return;
-      if (!u.user) return setState("anon");
+      if (!isCurrent()) return;
+      if (!u.user || u.user.id !== accountId) return setState("anon");
       setEmail(u.user.email ?? null);
       try {
         const res = await getClientPortal();
-        if (!alive) return;
+        if (!isCurrent()) return;
         setData(res);
         setState("ready");
         await refresh();
       } catch {
-        if (alive) setState("error");
+        if (isCurrent()) setState("error");
       }
     })();
     return () => {
       alive = false;
     };
-  }, [refresh]);
+  }, [refresh, accountId]);
 
   const submitBooking = async () => {
     setBookErr(null);
@@ -127,22 +166,59 @@ function Portal() {
     await refresh();
   };
 
-  const onFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
-    for (const file of Array.from(files)) {
-      setUploading(file.name);
-      const slot = await createClientUploadUrl({ data: { filename: file.name } });
-      if (!("signedUrl" in slot) || !slot.signedUrl || !slot.path) break;
-      const put = await fetch(slot.signedUrl, { method: "PUT", body: file });
-      if (!put.ok) break;
-      await recordClientUpload({ data: { storage_path: slot.path, filename: file.name } });
+  const uploadFiles = async (entries: ReferenceUpload[]) => {
+    if (!entries.length || uploadLock.current) return;
+    const generation = uploadGeneration.current;
+    const isCurrent = () => generation === uploadGeneration.current;
+    uploadLock.current = true;
+    setPendingUploads(entries);
+    setUploadError(null);
+    try {
+      const result = await uploadReferenceBatch(entries, {
+        isCurrent,
+        createUrl: (file) => createClientUploadUrl({ data: { filename: file.name } }),
+        put: (url, file) => fetch(url, { method: "PUT", body: file }),
+        record: (path, file) =>
+          recordClientUpload({ data: { storage_path: path, filename: file.name } }),
+        isRecorded: async (path) =>
+          (await listClientUploads()).some(
+            (upload) =>
+              upload.storage_path === path && typeof upload.url === "string" && !!upload.url.trim(),
+          ),
+        onProgress: (file) => setUploading(file.name),
+      });
+      if (!isCurrent()) return;
+      setPendingUploads(result.pending);
+      setUploadError(result.error);
+      if (!result.pending.length && fileRef.current) fileRef.current.value = "";
+      if (result.completed) {
+        try {
+          await refresh();
+        } catch {
+          if (!isCurrent()) return;
+          setUploadError(
+            [
+              result.error,
+              "Confirmed uploads were saved, but the list could not refresh. Reload to see them.",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          );
+        }
+      }
+    } finally {
+      if (isCurrent()) {
+        uploadLock.current = false;
+        setUploading(null);
+      }
     }
-    setUploading(null);
-    if (fileRef.current) fileRef.current.value = "";
-    await refresh();
+  };
+  const onFiles = (files: FileList | null) => {
+    return files?.length ? uploadFiles(Array.from(files, (file) => ({ file }))) : Promise.resolve();
   };
 
   const signOut = async () => {
+    uploadGeneration.current++;
     await supabase.auth.signOut();
     void navigate({ to: "/portal", replace: true });
     setState("anon");
@@ -358,19 +434,36 @@ function Portal() {
         </h2>
         <div className="mt-3 rounded-2xl border border-dashed border-input bg-card p-4 sm:p-6">
           <p className="text-[13px] leading-relaxed text-moss">
-            Send reference shots, moodboards or your own photos straight to your photographer.
-            Private — only the two of you can open them.
+            Keep reference shots, moodboards or your own photos in your private account. These
+            uploads are not assigned or sent to a photographer.
           </p>
           <input
             ref={fileRef}
             type="file"
             multiple
             accept="image/*"
+            disabled={!!uploading}
             onChange={(e) => void onFiles(e.target.files)}
             className="mt-4 block w-full text-[13px] text-moss file:mr-3 file:rounded-lg file:border-0 file:bg-rust file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-paper2"
           />
           {uploading && (
             <p className="mt-3 font-mono text-[12px] text-moss">uploading {uploading}…</p>
+          )}
+          {uploadError && (
+            <p role="alert" className="mt-3 text-[13px] text-destructive">
+              {uploadError}
+            </p>
+          )}
+          {!!pendingUploads.length && !uploading && (
+            <button
+              type="button"
+              onClick={() => void uploadFiles(pendingUploads)}
+              className="mt-3 text-[13px] underline"
+            >
+              {pendingUploads[0]?.confirmationUnknown
+                ? "Check upload status"
+                : "Retry remaining uploads"}
+            </button>
           )}
         </div>
 
