@@ -555,3 +555,77 @@ TypeScript, scoped lint and build passed. Isolated reconnect-only Git candidate:
 74 focused tests / 64,837 assertions, TypeScript/lint/build passed. Environment files and
 broader local Develop/CRM/UI changes were not copied into that candidate.
 This completes reviewed local relinking, not all-camera decoding or full Lightroom parity.
+
+## Continuous RAW white-balance native foundation — September 9, 2026
+
+**Native opt-in groundwork only; the editor's known legacy WB jump is not yet
+fixed in the running app.** The existing five-argument decoder remains the default.
+A separate six-argument overload accepts `RawWhiteBalanceModel::resolved`; no
+protocol, recipe schema, default treatment, UI, preview cache or export caller
+selects it in this milestone. There is no automatic migration of saved edits.
+
+Investigation reproduced a baseline-policy switch: with missing camera WB,
+exact zero uses LibRaw's camera/automatic policy, while the old nonzero branch
+uses daylight multipliers. The new overload applies FOTO's existing relative
+Temp/Tint gains to the coefficients already resolved by pinned LibRaw 0.22.2,
+before its sensor scaling/clipping/demosaic. Zero delegates unchanged. This uses
+one decode and no additional frame allocation or sensor scan; it is not an
+import-throughput improvement or calibrated Kelvin control.
+
+The protected `scale_colors_loop` hook is specific to the audited LibRaw version.
+Known non-RGB/RGBG layouts, unnormalized fallback coefficients, invalid scales,
+unsafe float-to-int bounds and bypassed/duplicate hook applications fail closed
+for nonzero opt-in WB. Ordinary five-argument calls retain the old path. The
+guards do not claim to harden all legacy or upstream LibRaw processing.
+
+Verification:
+
+- The checked-in `tests/develop-raw-wb-continuous.test.ts` builds current native
+  source in a temporary directory instead of using a possibly stale object.
+  Six tests / 3,598 assertions pass: 12 original synthetic Bayer DNGs, 48
+  controls each, camera/missing/partial WB, orientations 1/6, exposure -5/0/+5,
+  signed zero, +/-0.000001, small and extreme Temp/Tint.
+- All 576 old-API versus explicit-legacy cases are byte-exact. Twelve combined
+  legacy pixel checksums match independent pre-change goldens on macOS arm64
+  with pinned LibRaw. All 216 zero/tiny cases are neutral-exact; source SHA-256s
+  remain unchanged. These are synthetic arithmetic checks, not camera calibration.
+- An isolated negative control forced the new overload back to legacy. The
+  tiny-step continuity assertion failed as expected (mean 3.8173, maximum 38
+  RGB8 codes on missing-WB input); it passes with the new implementation.
+- 37 invalid-control/model cases reject before source access. Three checked-in
+  malformed/unsupported DNG variants each reject three times with the exact
+  expected error; the safe neutral paths remain legacy-exact.
+- Public A6000 and A7 IV originals were SHA-verified before/after. Four recipes
+  per camera matched the pre-change five-argument bytes in both legacy APIs.
+  Resolved neutral/tiny cases stayed exact; modest adjustments changed pixels.
+  Ten resolved Sony checks were repeated after arithmetic hardening.
+- Independent ASan/UBSan/float-cast-overflow checks passed the 576-case matrix,
+  all legacy goldens, 37 invalid arguments, and four safety fixtures. Only the
+  wrapper/probe were instrumented; the pinned static LibRaw archive was not.
+  No LibRaw-internal sanitizer coverage or leak guarantee is claimed.
+- Full working tree: 1,785 pass / 21 skip / one explicit integration TODO /
+  zero fail, 365,475 assertions. TypeScript and scoped lint passed.
+- Isolated five-file Git candidate: 1,488 pass / 21 skip / zero fail,
+  304,581 assertions. Its own `make -j4 all test`, TypeScript, scoped lint and
+  production build passed. The native Develop suite includes 88,713 assertions.
+  Existing dependency deprecation notices remain. No environment files were
+  copied into this candidate; the app's active native binary was not rebuilt.
+
+Reproduce on macOS after installing the pinned native dependency:
+`bun test tests/develop-raw-wb-continuous.test.ts`. The standalone probe also
+supports `--invalid`, `--neutral PATH` and `--reject PATH EXPECTED_ERROR`.
+The `FOTO_WB_BASELINE_ONLY` compile switch captures old-API goldens against a
+pre-change object; do not regenerate goldens from the new wrapper itself.
+
+Before editor integration, explicitly version/preserve the old rendering choice
+through import/reconnect, presets, reset, reference matching, undo, snapshots,
+recovery, selective sync, neutral histograms, Before and preview/export keys.
+An opt-in compatibility mode was proposed to the user; no reply has been
+assumed. Keep existing saved treatments on legacy rendering.
+
+Camera limitations remain: LibRaw can label three-plane CMY DNG metadata RGBG,
+so its descriptor is not sufficient proof of RGB calibration. Broader color-plane
+validation and representative camera/gray-chart evidence are required before
+all-camera or color-accuracy claims. The current high-bit-depth/RAW fidelity and
+full Lightroom capability gaps remain open. This milestone adds no UI control,
+histogram feature, production deployment or new import-speed claim.
