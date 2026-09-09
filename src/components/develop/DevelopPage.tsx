@@ -46,6 +46,7 @@ import {
   developRecoveryDocuments,
   developPhotoFromShot,
   reconnectDevelopPhoto,
+  mergeDevelopImportCommit,
   type DevelopDocument,
   type DevelopPhoto,
   type DevelopLibrary,
@@ -64,6 +65,7 @@ import {
   type DevelopHistogramData,
 } from "@/lib/develop/histogram";
 import { DevelopRecoveryDialog } from "./DevelopRecoveryDialog";
+import { DevelopReconnectDialog } from "./DevelopReconnectDialog";
 import { useDevelopPointer } from "./useDevelopPointer";
 import {
   currentDevelopRender,
@@ -158,6 +160,8 @@ export function DevelopPage({
     documents: {},
     presets: [],
   });
+  const reconnectLibrary = useRef(library);
+  reconnectLibrary.current = library;
   const docs = useRef<Record<string, DevelopDocument>>({}),
     revisions = useRef<Record<string, number>>({});
   const [selected, setSelected] = useState<string | null>(null),
@@ -215,6 +219,7 @@ export function DevelopPage({
       | "export"
       | "sync"
       | "recovery"
+      | "reconnect"
       | "rename"
       | "presets"
       | "reference"
@@ -240,6 +245,7 @@ export function DevelopPage({
     [dialogError, setDialogError] = useState("");
   const dialogElement = useRef<HTMLElement>(null),
     dialogOpener = useRef<HTMLElement | null>(null);
+  const reconnecting = dialog === "reconnect" && operationLock.current === "import";
   const photo = library.photos.find((p) => p.id === selected) ?? null,
     doc = selected ? library.documents[selected] : undefined;
   const source = photo?.sourceBlob?.size
@@ -447,6 +453,22 @@ export function DevelopPage({
     try {
       if (await flush()) {
         if (alive.current) setDialog("recovery");
+      }
+    } finally {
+      operationLock.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
+
+  async function openReconnect() {
+    if (editsLocked() || !library.photos.some((entry) => !entry.sourceBlob?.size)) return;
+    dialogOpener.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    operationLock.current = "dialog";
+    setBusy("Saving edits…");
+    try {
+      if (await flush()) {
+        if (alive.current) setDialog("reconnect");
       }
     } finally {
       operationLock.current = null;
@@ -723,6 +745,8 @@ export function DevelopPage({
   }
 
   useEffect(() => {
+    // Reconnect owns the decode lane until all selected attachments finish.
+    if (reconnecting) return;
     setRenderBlob(null);
     setNeutralBlob(null);
     setRenderError("");
@@ -761,12 +785,13 @@ export function DevelopPage({
         if (!controller.signal.aborted) setRenderError(errorMessage(e));
       });
     return () => controller.abort();
-  }, [selected, previewSource, photo?.width, photo?.height]);
+  }, [selected, previewSource, photo?.width, photo?.height, reconnecting]);
   const renderRecipe = useMemo(
     () => (tool === "edit" ? draft : { ...draft, crop: defaultDevelopSettings().crop }),
     [draft, tool],
   );
   useEffect(() => {
+    if (reconnecting) return;
     if (!previewSource) {
       setRendering(false);
       return;
@@ -798,7 +823,7 @@ export function DevelopPage({
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [selected, previewSource, renderRecipe, tool]);
+  }, [selected, previewSource, renderRecipe, tool, reconnecting]);
 
   async function importPhotos(incomingFiles: File[] | DataTransfer) {
     if (
@@ -924,6 +949,15 @@ export function DevelopPage({
       if (!(await flush()))
         throw new Error("Resolve the save problem before reconnecting an original.");
       controller.signal.throwIfAborted();
+      const current = await store.readPhoto(target.id);
+      if (
+        !current ||
+        current.photo.sourceBlob?.size ||
+        (current.photo.sourceFileName || current.photo.name) !==
+          (target.sourceFileName || target.name) ||
+        current.photo.sourceDigest !== target.sourceDigest
+      )
+        throw new Error("This original changed after the file chooser opened. Choose it again.");
       let preview: Blob;
       let previewOrigin: "unknown" | "raw-demosaic" | "raster" = target.isRaw
         ? "unknown"
@@ -948,12 +982,26 @@ export function DevelopPage({
       const dims = { width: bitmap.width, height: bitmap.height };
       bitmap.close();
       controller.signal.throwIfAborted();
-      const incoming = await reconnectDevelopPhoto(target, file, preview, dims, previewOrigin);
+      const incoming = await reconnectDevelopPhoto(
+        current.photo,
+        file,
+        preview,
+        dims,
+        previewOrigin,
+      );
       controller.signal.throwIfAborted();
       if (!alive.current) return;
       // Attach media to the existing photo ID. Never create a new document or reset its history.
-      await store.addPhotos([incoming]);
+      const receipt = await store.attachMissingOriginal(incoming, {
+        sourceFileName: target.sourceFileName || target.name,
+        sourceDigest: target.sourceDigest,
+      });
       attached = true;
+      if (alive.current && !failed.current)
+        adopt(
+          mergeDevelopImportCommit({ ...library, documents: docs.current }, receipt),
+          target.id,
+        );
       const refreshed = await store.loadLibrary();
       if (alive.current && !failed.current) {
         adopt(refreshed, target.id);
@@ -1293,6 +1341,11 @@ export function DevelopPage({
             <Plus size={14} />
             Import
           </button>
+          {library.photos.some((entry) => !entry.sourceBlob?.size) && (
+            <button disabled={!!busy || !!saveError} onClick={() => void openReconnect()}>
+              Reconnect
+            </button>
+          )}
           {availablePhotos.length > 0 && (
             <button
               disabled={!source || !!busy || !!saveError || rendering || !!renderError}
@@ -1318,7 +1371,7 @@ export function DevelopPage({
             <button onClick={recoveryFile}>Save recovery file</button>
           ) : operationLock.current === "import" && !busy.startsWith("Reconnecting") ? (
             <button onClick={() => importAbort.current?.abort()}>Stop import</button>
-          ) : busy.startsWith("Reconnecting") ? (
+          ) : busy.startsWith("Reconnecting") && dialog !== "reconnect" ? (
             <button onClick={() => importAbort.current?.abort()}>Stop reconnect</button>
           ) : notice ? (
             <button aria-label="Dismiss message" onClick={() => setNotice("")}>
@@ -1561,9 +1614,13 @@ export function DevelopPage({
                     originals
                   </summary>
                   <p>Your edits are saved. Reconnect the original file to resume.</p>
+                  <button disabled={!!busy || !!saveError} onClick={() => void openReconnect()}>
+                    Reconnect a folder
+                  </button>
                   <ul>
                     {library.photos
                       .filter((p) => !p.sourceBlob?.size && !p.previewBlob?.size)
+                      .slice(0, 20)
                       .map((p) => (
                         <li key={p.id}>
                           <span>{p.name}</span>
@@ -1578,6 +1635,11 @@ export function DevelopPage({
                         </li>
                       ))}
                   </ul>
+                  {library.photos.length - availablePhotos.length > 20 && (
+                    <small>
+                      Showing 20. Use Reconnect a folder to review all missing originals.
+                    </small>
+                  )}
                   <small>
                     Older entries without a fingerprint are matched by filename only. Choose the
                     exact original.
@@ -1983,33 +2045,53 @@ export function DevelopPage({
         >
           <section
             ref={dialogElement}
-            className={`develop-dialog${dialog === "export" || dialog === "reference" || dialog === "auto-crop" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : ""}`}
+            className={`develop-dialog${dialog === "export" || dialog === "reference" || dialog === "auto-crop" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : dialog === "reconnect" ? " develop-reconnect-dialog" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="develop-dialog-title"
             tabIndex={-1}
           >
             <h2 id="develop-dialog-title">
-              {dialog === "preset"
-                ? "Create preset"
-                : dialog === "presets"
-                  ? "Portable presets"
-                  : dialog === "auto-crop"
-                    ? "Automatic crop"
-                    : dialog === "reference"
-                      ? "Match an edited reference"
-                      : dialog === "rename"
-                        ? "Rename photo"
-                        : dialog === "snapshot"
-                          ? "Save snapshot"
-                          : dialog === "sync"
-                            ? "Sync settings"
-                            : dialog === "recovery"
-                              ? "Recover saved edits"
-                              : "Export photograph"}
+              {dialog === "reconnect"
+                ? "Reconnect Originals"
+                : dialog === "preset"
+                  ? "Create preset"
+                  : dialog === "presets"
+                    ? "Portable presets"
+                    : dialog === "auto-crop"
+                      ? "Automatic crop"
+                      : dialog === "reference"
+                        ? "Match an edited reference"
+                        : dialog === "rename"
+                          ? "Rename photo"
+                          : dialog === "snapshot"
+                            ? "Save snapshot"
+                            : dialog === "sync"
+                              ? "Sync settings"
+                              : dialog === "recovery"
+                                ? "Recover saved edits"
+                                : "Export photograph"}
             </h2>
             {dialogError && <p role="alert">{dialogError}</p>}
-            {dialog === "recovery" ? (
+            {dialog === "reconnect" ? (
+              <DevelopReconnectDialog
+                store={store}
+                onClose={() => setDialog(null)}
+                onCommitted={(receipt) => {
+                  // Adopt every durable attachment, even if the batch is stopped later.
+                  const next = mergeDevelopImportCommit(
+                    { ...reconnectLibrary.current, documents: docs.current },
+                    receipt,
+                  );
+                  reconnectLibrary.current = next;
+                  adopt(next, selectedRef.current ?? receipt.photos[0]?.id);
+                }}
+                onBusyChange={(value) => {
+                  operationLock.current = value ? "import" : null;
+                  setBusy(value ? "Reconnecting originals…" : "");
+                }}
+              />
+            ) : dialog === "recovery" ? (
               <DevelopRecoveryDialog
                 store={store}
                 scope={scope}
@@ -2239,6 +2321,7 @@ export function DevelopPage({
               </fieldset>
             )}
             {dialog !== "recovery" &&
+              dialog !== "reconnect" &&
               dialog !== "presets" &&
               dialog !== "reference" &&
               dialog !== "auto-crop" && (

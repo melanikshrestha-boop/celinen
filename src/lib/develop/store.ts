@@ -102,6 +102,13 @@ export type DevelopHistoryEntry = z.infer<typeof historySchema>;
 export type DevelopSnapshot = z.infer<typeof snapshotSchema>;
 export type DevelopDocument = z.infer<typeof developDocumentSchema>;
 export type DevelopPreset = z.infer<typeof presetSchema>;
+const reconnectExpectedSchema = z
+  .object({
+    sourceFileName: nonempty,
+    sourceDigest: z.string().max(200).nullable(),
+  })
+  .strict();
+export type DevelopReconnectExpected = z.infer<typeof reconnectExpectedSchema>;
 
 export type DevelopPhotoInput = {
   id: string;
@@ -119,8 +126,13 @@ export type DevelopPhotoInput = {
   initialState?: z.infer<typeof initialStateSchema>;
   /** Explicit source-attachment operation; never emitted by ordinary Studio imports. */
   reconnectOriginal?: true;
+  /** Scan-time identity guard; consumed by attachment, never persisted. */
+  reconnectExpected?: DevelopReconnectExpected;
 };
-export type DevelopPhoto = Omit<DevelopPhotoInput, "initialState" | "reconnectOriginal"> & {
+export type DevelopPhoto = Omit<
+  DevelopPhotoInput,
+  "initialState" | "reconnectOriginal" | "reconnectExpected"
+> & {
   sourceAvailable: boolean;
   createdAt: number;
 };
@@ -129,6 +141,9 @@ export type DevelopLibrary = {
   documents: Record<string, DevelopDocument>;
   presets: DevelopPreset[];
 };
+/** Media and exact saved edit documents acknowledged by one completed transaction. */
+export type DevelopImportCommit = Pick<DevelopLibrary, "photos" | "documents">;
+export type DevelopPhotoRecord = { photo: DevelopPhoto; document: DevelopDocument };
 export type DevelopStoreChange = { kind: "photos" | "documents" | "presets"; ids: string[] };
 export type DevelopStoreOptions = { scope: string; libraryId: string; factory?: IDBFactory };
 export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
@@ -497,6 +512,10 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
   if (typeof input.isRaw !== "boolean") throw new Error("Invalid photo format.");
   if (input.reconnectOriginal !== undefined && input.reconnectOriginal !== true)
     throw new Error("Invalid source reconnect operation.");
+  const reconnectExpected =
+    input.reconnectExpected === undefined
+      ? undefined
+      : reconnectExpectedSchema.parse(input.reconnectExpected);
   if (
     input.previewOrigin !== undefined &&
     !["embedded", "raw-demosaic", "raster", "unknown"].includes(input.previewOrigin)
@@ -515,8 +534,87 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
   return {
     ...input,
     previewOrigin: input.previewOrigin ?? "unknown",
+    ...(reconnectExpected ? { reconnectExpected } : {}),
     ...(initialState ? { initialState } : {}),
   };
+}
+/** Identity compare-and-save guard. Recipe changes do not invalidate a media-only attachment. */
+export function assertDevelopReconnectTarget(
+  photo: DevelopPhoto,
+  expected: DevelopReconnectExpected,
+): void {
+  const guard = reconnectExpectedSchema.parse(expected);
+  checkedPhoto(photo);
+  if (
+    photo.sourceBlob !== null ||
+    photo.sourceAvailable ||
+    photo.sourceFileName !== guard.sourceFileName ||
+    photo.sourceDigest !== guard.sourceDigest
+  )
+    throw new DevelopSaveConflict(photo.id);
+}
+/**
+ * Merge a receipt from this library's store without rereading unrelated photos/history.
+ * The caller must still verify its account/library operation is current before adoption.
+ * Trusted internal receipts only: addPhotosWithDocuments already validates every recipe.
+ * External recovery/preset JSON must pass its own schema validation, never enter here raw.
+ */
+export function mergeDevelopImportCommit(
+  library: DevelopLibrary,
+  receipt: DevelopImportCommit,
+): DevelopLibrary {
+  const ids = new Set(receipt.photos.map((photo) => photo.id));
+  if (
+    ids.size !== receipt.photos.length ||
+    Object.keys(receipt.documents).length !== ids.size ||
+    [...ids].some((id) => !Object.hasOwn(receipt.documents, id))
+  )
+    throw new Error("The committed photo and edit receipt does not match.");
+  if (!ids.size) return library;
+  const incoming = new Map<string, DevelopPhoto>();
+  const documents: Record<string, DevelopDocument> = Object.assign(
+    Object.create(null),
+    library.documents,
+  );
+  for (const photo of receipt.photos) {
+    const checked = checkedPhoto(photo);
+    if (!Number.isFinite(photo.createdAt)) throw new Error("The saved photo date is invalid.");
+    const document = receipt.documents[photo.id];
+    if (!document || document.photoId !== photo.id)
+      throw new Error("The committed photo and edit receipt does not match.");
+    if (
+      !Number.isSafeInteger(document.revision) ||
+      document.revision < 0 ||
+      document.revision >= Number.MAX_SAFE_INTEGER
+    )
+      throw new Error("The committed edit revision is invalid.");
+    const previous = Object.hasOwn(library.documents, photo.id)
+      ? library.documents[photo.id]
+      : undefined;
+    if (
+      previous &&
+      (!Number.isSafeInteger(previous.revision) ||
+        previous.revision < 0 ||
+        previous.revision >= Number.MAX_SAFE_INTEGER)
+    )
+      throw new Error("The current edit revision is invalid.");
+    if (previous && document.revision < previous.revision) throw new DevelopSaveConflict(photo.id);
+    incoming.set(photo.id, {
+      ...photo,
+      ...checked,
+      sourceAvailable: Boolean(checked.sourceBlob?.size),
+    });
+    // Clone the validated tree without repeating its deep Zod traversal. Neither
+    // the receipt nor another UI owner may mutate this adopted history indirectly.
+    documents[photo.id] = structuredClone(document);
+  }
+  const photos = library.photos.map((photo) => {
+    const committed = incoming.get(photo.id);
+    incoming.delete(photo.id);
+    return committed ?? photo;
+  });
+  photos.push(...incoming.values());
+  return { photos, documents, presets: library.presets };
 }
 /**
  * A restored Studio snapshot has no bytes with which to compare fingerprint versions.
@@ -703,6 +801,7 @@ export async function reconnectDevelopPhoto(
     sourceLastModified: existing.sourceLastModified || file.lastModified,
     sourceDigest: existing.sourceDigest ?? incoming.sourceDigest,
     reconnectOriginal: true,
+    reconnectExpected: { sourceFileName: expectedName, sourceDigest: existing.sourceDigest },
   });
 }
 
@@ -801,8 +900,13 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       }
     }
     // A writer need not itself subscribe for other tabs to receive its commit.
-    if (channel) channel.postMessage({ namespace, ...change });
-    else if (typeof BroadcastChannel !== "undefined") {
+    if (channel) {
+      try {
+        channel.postMessage({ namespace, ...change });
+      } catch {
+        /* A notification failure cannot invalidate an already committed transaction. */
+      }
+    } else if (typeof BroadcastChannel !== "undefined") {
       try {
         const publisher = new BroadcastChannel(`foto-develop:${scope}`);
         publisher.postMessage({ namespace, ...change });
@@ -812,8 +916,70 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       }
     }
   }
-  return {
+  const store = {
     namespace,
+    /** Read only this scoped photo/document pair, never hydrate unrelated original Blobs. */
+    async readPhoto(photoId: string): Promise<DevelopPhotoRecord | null> {
+      const recordKey = key(photoId);
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.photos, STORES.documents], "readonly", async (tx) => {
+          const [photo, document] = await Promise.all([
+            requestResult(tx.objectStore(STORES.photos).get(recordKey)) as Promise<
+              PhotoRecord | undefined
+            >,
+            requestResult(tx.objectStore(STORES.documents).get(recordKey)) as Promise<
+              DocumentRecord | undefined
+            >,
+          ]);
+          if (!photo && !document) return null;
+          if (!photo || !document)
+            throw new Error(
+              "The saved photo or its Develop edits are missing. Reload before reconnecting.",
+            );
+          const media = checkedPhoto(photo.value);
+          const saved = documentCopy(document.value);
+          if (
+            photo.key !== recordKey ||
+            photo.namespace !== namespace ||
+            media.id !== photoId ||
+            document.key !== recordKey ||
+            document.namespace !== namespace ||
+            saved.photoId !== photoId ||
+            !Number.isFinite(photo.value.createdAt)
+          )
+            throw new Error("The saved Develop photo index is invalid.");
+          return {
+            photo: {
+              ...media,
+              createdAt: photo.value.createdAt,
+              sourceAvailable: Boolean(media.sourceBlob?.size),
+            },
+            document: saved,
+          };
+        });
+      } finally {
+        db.close();
+      }
+    },
+    /** Atomic media-only attachment. Never inserts a target or writes its current treatment. */
+    async attachMissingOriginal(
+      input: DevelopPhotoInput,
+      expected: DevelopReconnectExpected,
+    ): Promise<DevelopImportCommit> {
+      const guard = reconnectExpectedSchema.parse(expected);
+      const checked = checkedPhoto(input);
+      if (
+        !checked.reconnectOriginal ||
+        !checked.reconnectExpected ||
+        checked.reconnectExpected.sourceFileName !== guard.sourceFileName ||
+        checked.reconnectExpected.sourceDigest !== guard.sourceDigest
+      )
+        throw new Error(
+          "Reconnect requires the reviewed source identity. Scan again before attaching.",
+        );
+      return store.addPhotosWithDocuments([checked]);
+    },
     async loadLibrary(): Promise<DevelopLibrary> {
       const db = await database();
       try {
@@ -870,13 +1036,17 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     },
     /** Merge-only imports: existing edits and saved originals are never replaced. */
     async addPhotos(inputs: DevelopPhotoInput[]): Promise<DevelopPhoto[]> {
+      return (await store.addPhotosWithDocuments(inputs)).photos;
+    },
+    /** Progressive import receipt; no full-library read or fabricated local history is needed. */
+    async addPhotosWithDocuments(inputs: DevelopPhotoInput[]): Promise<DevelopImportCommit> {
       const checked = inputs.map(checkedPhoto);
       if (new Set(checked.map((photo) => photo.id)).size !== checked.length)
         throw new Error("The import contains duplicate photo IDs.");
-      if (!checked.length) return [];
+      if (!checked.length) return { photos: [], documents: Object.create(null) };
       const db = await database();
       try {
-        const photos = await transaction(
+        const committed = await transaction(
           db,
           [STORES.photos, STORES.documents],
           "readwrite",
@@ -884,24 +1054,67 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             const photosStore = tx.objectStore(STORES.photos),
               documentsStore = tx.objectStore(STORES.documents);
             const existing = await Promise.all(
-              checked.map(async (input) => ({
-                input,
-                photo: (await requestResult(photosStore.get(key(input.id)))) as
-                  PhotoRecord | undefined,
-              })),
+              checked.map(async (input) => {
+                const [photo, document] = await Promise.all([
+                  requestResult(photosStore.get(key(input.id))) as Promise<PhotoRecord | undefined>,
+                  requestResult(documentsStore.get(key(input.id))) as Promise<
+                    DocumentRecord | undefined
+                  >,
+                ]);
+                return { input, photo, document };
+              }),
             );
             const output: DevelopPhoto[] = [];
-            for (const { input, photo } of existing) {
+            const documents: Record<string, DevelopDocument> = Object.create(null);
+            for (const { input, photo, document } of existing) {
               const {
                 initialState: _initialState,
                 reconnectOriginal: _reconnectOriginal,
+                reconnectExpected: _reconnectExpected,
                 ...media
               } = input;
               const previous = photo ? checkedPhoto(photo.value) : null;
+              if (
+                photo &&
+                (photo.key !== key(input.id) ||
+                  photo.namespace !== namespace ||
+                  previous!.id !== input.id)
+              )
+                throw new Error("The saved Develop photo index is invalid.");
+              if (Boolean(photo) !== Boolean(document))
+                throw new Error(
+                  "A saved photo or its Develop edits are missing. Importing is paused to protect your library.",
+                );
+              const savedDocument = document
+                ? documentCopy(document.value)
+                : developDocumentForImport(input);
+              if (
+                savedDocument.photoId !== input.id ||
+                (document && (document.key !== key(input.id) || document.namespace !== namespace))
+              )
+                throw new Error("The saved Develop edit index is invalid.");
+              documents[input.id] = savedDocument;
               if (input.reconnectOriginal && (!previous || !input.sourceBlob || !input.previewBlob))
                 throw new Error(
                   "The reconnect target is no longer available in this Develop library. Reload before attaching the original.",
                 );
+              if (input.reconnectOriginal) {
+                if (!input.reconnectExpected)
+                  throw new Error("Reconnect has no reviewed identity. Choose the original again.");
+                assertDevelopReconnectTarget(
+                  { ...photo!.value, sourceAvailable: Boolean(previous!.sourceBlob) },
+                  input.reconnectExpected,
+                );
+                if (
+                  input.sourceFileName !== input.reconnectExpected.sourceFileName ||
+                  (input.reconnectExpected.sourceDigest !== null &&
+                    input.sourceDigest !== input.reconnectExpected.sourceDigest) ||
+                  !input.sourceDigest ||
+                  input.sourceBlob!.size > DEVELOP_ENGINE_LIMITS.maxFileBytes ||
+                  input.previewBlob!.size > 32 * 1024 * 1024
+                )
+                  throw new Error("Reconnect media does not match the reviewed source identity.");
+              }
               const refreshAttachedPreview = Boolean(
                 input.reconnectOriginal && previous && !previous.sourceBlob && input.sourceBlob,
               );
@@ -958,15 +1171,15 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 documentsStore.add({
                   key: key(value.id),
                   namespace,
-                  value: developDocumentForImport(input),
+                  value: savedDocument,
                 } satisfies DocumentRecord);
               output.push(value);
             }
-            return output;
+            return { photos: output, documents };
           },
         );
-        notify({ kind: "photos", ids: photos.map((photo) => photo.id) });
-        return photos;
+        notify({ kind: "photos", ids: committed.photos.map((photo) => photo.id) });
+        return committed;
       } finally {
         db.close();
       }
@@ -1266,5 +1479,6 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       channel = null;
     },
   };
+  return store;
 }
 export type DevelopStore = ReturnType<typeof createDevelopStore>;

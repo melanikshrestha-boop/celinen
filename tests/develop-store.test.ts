@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { defaultDevelopSettings } from "../src/lib/develop/contract";
 import {
   addSnapshot,
@@ -18,6 +18,7 @@ import {
   parseDevelopRecovery,
   prepareDevelopRecovery,
   jumpToHistory,
+  mergeDevelopImportCommit,
   pushHistory,
   redoHistory,
   reconnectDevelopPhoto,
@@ -29,6 +30,234 @@ import {
 } from "../src/lib/develop/store";
 import { DEFAULT_EDITS, type Shot } from "../src/lib/imaging";
 import { fingerprintSource } from "../src/lib/studio/ingest";
+
+describe("Develop progressive import receipt merge", () => {
+  test("clones trusted nested history without repeating deep schema validation", async () => {
+    const source = await developPhotoFromFile(new File(["source"], "safe.jpg"));
+    const photo = { ...source, createdAt: 1, sourceAvailable: true };
+    const document = addSnapshot(createDevelopDocument(photo.id), "Saved look");
+    const receipt = { photos: [photo], documents: { [photo.id]: document } };
+    const parse = spyOn(developDocumentSchema, "parse");
+    let merged: DevelopLibrary;
+    try {
+      merged = mergeDevelopImportCommit({ photos: [], documents: {}, presets: [] }, receipt);
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+    document.history[0]!.settings.hsl[0]!.hue = 75;
+    document.history[0]!.settings.channelCurves.red[0]!.y = 0.25;
+    document.snapshots[0]!.name = "Changed receipt";
+    document.metadata.rating = 5;
+    photo.name = "Changed receipt photo";
+    expect(merged.documents[source.id]!.history[0]!.settings.hsl[0]!.hue).toBe(0);
+    expect(merged.documents[source.id]!.history[0]!.settings.channelCurves.red[0]!.y).toBe(0);
+    expect(merged.documents[source.id]!.snapshots[0]!.name).toBe("Saved look");
+    expect(merged.documents[source.id]!.metadata.rating).toBe(0);
+    expect(merged.photos[0]!.name).toBe("safe.jpg");
+    expect(merged.photos[0]!.sourceBlob).toBe(source.sourceBlob);
+    merged.documents[source.id]!.snapshots[0]!.settings.exposure = 2;
+    expect(document.snapshots[0]!.settings.exposure).toBe(0);
+  });
+
+  test("trusted receipt merge still rejects invalid or unsafe revision boundaries", async () => {
+    const source = await developPhotoFromFile(new File(["source"], "safe.jpg"));
+    const photo = { ...source, createdAt: 1, sourceAvailable: true };
+    const document = createDevelopDocument(photo.id);
+    const empty: DevelopLibrary = { photos: [], documents: {}, presets: [] };
+    for (const revision of [
+      -1,
+      0.5,
+      NaN,
+      Infinity,
+      Number.MAX_SAFE_INTEGER,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      expect(() =>
+        mergeDevelopImportCommit(empty, {
+          photos: [photo],
+          documents: { [photo.id]: { ...document, revision } },
+        }),
+      ).toThrow("revision is invalid");
+    }
+    expect(() =>
+      mergeDevelopImportCommit(
+        {
+          ...empty,
+          photos: [photo],
+          documents: { [photo.id]: { ...document, revision: NaN } },
+        },
+        { photos: [photo], documents: { [photo.id]: document } },
+      ),
+    ).toThrow("current edit revision is invalid");
+  });
+
+  test("receipt document keys cannot modify the prototype of the merged index", async () => {
+    const source = await developPhotoFromFile(new File(["source"], "safe.jpg"));
+    const library: DevelopLibrary = { photos: [], documents: {}, presets: [] };
+    const photos = ["__proto__", "constructor", "toString"].map((id) => ({
+      ...source,
+      id,
+      createdAt: 1,
+      sourceAvailable: true,
+    }));
+    const documents = Object.fromEntries(
+      photos.map((photo) => [photo.id, createDevelopDocument(photo.id)]),
+    );
+    const merged = mergeDevelopImportCommit(library, { photos, documents });
+    expect(Object.getPrototypeOf(merged.documents)).toBeNull();
+    expect(Object.keys(merged.documents)).toEqual(photos.map((photo) => photo.id));
+    for (const photo of photos) expect(merged.documents[photo.id]!.photoId).toBe(photo.id);
+    expect(Object.keys(library.documents)).toHaveLength(0);
+  });
+
+  test("keeps stable photo order and untouched entries while adopting exact saved history", async () => {
+    const first = {
+      ...(await developPhotoFromFile(new File(["one"], "one.jpg"))),
+      createdAt: 1,
+      sourceAvailable: true,
+    };
+    const second = {
+      ...(await developPhotoFromFile(new File(["two"], "two.jpg"))),
+      createdAt: 2,
+      sourceAvailable: true,
+    };
+    const third = {
+      ...(await developPhotoFromFile(new File(["three"], "three.jpg"))),
+      createdAt: 3,
+      sourceAvailable: true,
+    };
+    const fourth = {
+      ...(await developPhotoFromFile(new File(["four"], "four.jpg"))),
+      createdAt: 4,
+      sourceAvailable: true,
+    };
+    const originalDocument = { ...createDevelopDocument(first.id), revision: 2 };
+    const savedDocument = {
+      ...addSnapshot(
+        pushHistory(
+          originalDocument,
+          { ...currentRecipe(originalDocument), exposure: 0.75 },
+          "Saved adjustment",
+        ),
+        "Keep this look",
+      ),
+      revision: 3,
+      metadata: { rating: 4, flag: "pick" as const, colorLabel: null },
+    };
+    const library: DevelopLibrary = {
+      photos: [first, second],
+      documents: { [first.id]: originalDocument, [second.id]: createDevelopDocument(second.id) },
+      presets: [createDevelopPreset("Keep preset", defaultDevelopSettings())],
+    };
+    const before = JSON.stringify(library.documents);
+    Object.freeze(library.photos);
+    Object.freeze(library.documents);
+    const savedPhoto = { ...first, previewBlob: new Blob(["preview"], { type: "image/jpeg" }) };
+    const merged = mergeDevelopImportCommit(library, {
+      photos: [third, savedPhoto, fourth],
+      documents: {
+        [third.id]: createDevelopDocument(third.id),
+        [first.id]: savedDocument,
+        [fourth.id]: createDevelopDocument(fourth.id),
+      },
+    });
+    expect(merged.photos.map((photo) => photo.id)).toEqual([
+      first.id,
+      second.id,
+      third.id,
+      fourth.id,
+    ]);
+    expect(merged.photos[0]!.sourceBlob).toBe(first.sourceBlob);
+    expect(merged.photos[0]!.sourceFileName).toBe(first.sourceFileName);
+    expect(merged.photos[1]).toBe(second);
+    expect(merged.documents[second.id]).toBe(library.documents[second.id]);
+    expect(merged.presets).toBe(library.presets);
+    expect(merged.documents[first.id]).toEqual(savedDocument);
+    expect(merged.documents[first.id]!.history.map((entry) => entry.id)).toEqual(
+      savedDocument.history.map((entry) => entry.id),
+    );
+    expect(JSON.stringify(library.documents)).toBe(before);
+    expect(library.photos).toHaveLength(2);
+  });
+
+  test("refuses duplicate, mismatched and stale receipts without changing the library", async () => {
+    const photo = {
+      ...(await developPhotoFromFile(new File(["one"], "one.jpg"))),
+      createdAt: 1,
+      sourceAvailable: true,
+    };
+    const document = { ...createDevelopDocument(photo.id), revision: 3 };
+    const library: DevelopLibrary = {
+      photos: [photo],
+      documents: { [photo.id]: document },
+      presets: [],
+    };
+    expect(mergeDevelopImportCommit(library, { photos: [], documents: {} })).toBe(library);
+    expect(() =>
+      mergeDevelopImportCommit(library, {
+        photos: [photo, photo],
+        documents: { [photo.id]: document },
+      }),
+    ).toThrow("receipt does not match");
+    expect(() => mergeDevelopImportCommit(library, { photos: [photo], documents: {} })).toThrow(
+      "receipt does not match",
+    );
+    expect(() =>
+      mergeDevelopImportCommit(library, {
+        photos: [photo],
+        documents: { [photo.id]: createDevelopDocument("other") },
+      }),
+    ).toThrow("receipt does not match");
+    expect(() =>
+      mergeDevelopImportCommit(library, {
+        photos: [photo],
+        documents: { [photo.id]: { ...document, revision: 2 } },
+      }),
+    ).toThrow("another");
+    expect(library.documents[photo.id]).toBe(document);
+    expect(library.photos[0]).toBe(photo);
+  });
+
+  test("one progressive attachment retains all 337 legacy identities and other saved documents", async () => {
+    const template = await developPhotoFromFile(new File(["original"], "DSC6973.ARW"));
+    const photos = Array.from({ length: 337 }, (_, i) => ({
+      ...template,
+      id: `studio:legacy-${i}`,
+      sourceBlob: null,
+      previewBlob: null,
+      sourceAvailable: false,
+      createdAt: i,
+    }));
+    const documents = Object.fromEntries(
+      photos.map((photo) => [photo.id, createDevelopDocument(photo.id)]),
+    );
+    const library: DevelopLibrary = { photos, documents, presets: [] };
+    const target = photos[200]!;
+    const receipt = {
+      photos: [
+        {
+          ...target,
+          sourceBlob: template.sourceBlob,
+          previewBlob: new Blob(["preview"]),
+          sourceAvailable: true,
+        },
+      ],
+      documents: { [target.id]: documents[target.id]! },
+    };
+    const merged = mergeDevelopImportCommit(library, receipt);
+    expect(merged.photos).toHaveLength(337);
+    expect(merged.photos.map((photo) => photo.id)).toEqual(photos.map((photo) => photo.id));
+    expect(Object.keys(merged.documents)).toHaveLength(337);
+    expect(merged.photos[200]!.sourceBlob).toBe(template.sourceBlob);
+    expect(photos[200]!.sourceBlob).toBeNull();
+    for (const [index, photo] of photos.entries()) {
+      if (index === 200) continue;
+      expect(merged.photos[index]).toBe(photo);
+      expect(merged.documents[photo.id]).toBe(documents[photo.id]);
+    }
+  });
+});
 
 describe("Develop non-destructive edit history", () => {
   test("starts neutral and never aliases the caller's settings or history", () => {
