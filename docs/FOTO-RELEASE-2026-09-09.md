@@ -4,6 +4,34 @@
 
 ### Latest execution outcome
 
+**Recovery published and checked:** the validated hotfix `2f4a026` was merged
+with Lovable's concurrent startup repair, preserving both Git histories. The
+combined private branch SHA is `c8576d76bb3fdb6d3b58e1fb2184acf577635d5e`, verified
+by remote readback. The source is identical to the final tested hotfix; the merge
+only adds Lovable's diagnosis document. No force push or environment-file change.
+
+After explicit **Publish changes**, Lovable reported **Your website was updated**.
+Independent browser checks on the real `lenslab.dev` now render the homepage and
+interactive sign-in page, with no browser errors in those checks. The loaded
+font is **Source Serif 4** (`document.fonts.check` true); the live homepage body
+is `rgb(0, 0, 0)`. The sign-in screen uses the same font. `/earnings` correctly
+requires authentication. Clicking Google on the real sign-in page reaches
+Google's account chooser, with the `/earnings` return context retained in the
+initiating URL. The owner must select their account; final session installation
+and the authenticated Earnings graphs are **not yet verified**. The account
+chooser is left open in the existing browser for this owner-only step.
+
+**Database repair not applied:** the live preflight still reports no
+`verified_booking_email(text)` function, two client-upload policies, a private
+deliveries bucket and migration watermark `1788520019592`. Action review blocked
+the permissions-only 0022 transaction pending explicit owner approval of its
+grant/RLS/Storage access impact. No transaction executed. The editor was replaced
+with a harmless read-only query, and approval was requested. Do not retry through
+another interface or treat broad deployment approval as this missing authority.
+The earlier `main` rollback is no longer needed and was never performed.
+
+The historical failure and reproducible repair evidence follow.
+
 Release `e6b8e2aa51314b6ec5ae65c928f75bb3b4cc462b` is committed and verified on
 the existing private FOTO branch. Final regression: **2,003 pass, 19 skip,
 1 pre-existing opt-in RAW-WB TODO, 0 fail**. Standard production build and both
