@@ -1,7 +1,9 @@
 import { useState, type MouseEvent, type ReactNode } from "react";
-import { ArrowUpRight, Camera, Search } from "lucide-react";
+import { Archive, ArrowUpRight, Camera, Search } from "lucide-react";
 import { useWorkbench } from "@/components/workbench/context";
 import { RecentShoots } from "@/components/workbench/RecentShoots";
+import { ArchiveUndo, HistoryRowActions } from "@/components/workbench/HistoryRowActions";
+import { useShootRowActions } from "@/components/workbench/useShootRowActions";
 import {
   shootWorkspaceHref,
   shootSummaryDetail,
@@ -61,28 +63,45 @@ export function ShootLink({
   );
 }
 
-function ShootRows({ rows }: { rows: readonly ShootSummary[] }) {
+function ShootRows({
+  rows,
+  actions,
+}: {
+  rows: readonly ShootSummary[];
+  actions: ReturnType<typeof useShootRowActions>;
+}) {
   return (
-    <ul className="shoots-list">
-      {rows.map((row) => (
-        <li key={row.key}>
-          <ShootLink
-            href={row.recoveryPending ? "/library" : shootWorkspaceHref(row.key)}
-            className="shoots-list-row"
-          >
-            <Camera size={19} strokeWidth={1.6} aria-hidden="true" />
-            <span className="shoots-list-identity">
-              <strong>{row.title}</strong>
-              <small>
-                {shootSummaryDetail(row)}
-                {row.recoveryPending && " · Recovery unfinished"}
-              </small>
-            </span>
-            <ArrowUpRight size={16} aria-hidden="true" />
-          </ShootLink>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="shoots-list">
+        {rows.map((row) => (
+          <li key={row.key} className="history-row shoots-organized-row" data-shoot-key={row.key}>
+            <ShootLink
+              href={row.recoveryPending ? "/library" : shootWorkspaceHref(row.key)}
+              className="shoots-list-row"
+            >
+              <Camera size={19} strokeWidth={1.6} aria-hidden="true" />
+              <span className="shoots-list-identity">
+                <strong>{row.title}</strong>
+                <small>
+                  {shootSummaryDetail(row)}
+                  {row.recoveryPending && " · Recovery unfinished"}
+                </small>
+              </span>
+              <ArrowUpRight size={16} aria-hidden="true" />
+            </ShootLink>
+            <HistoryRowActions
+              title={row.title}
+              kind={row.kind === "project" ? "album" : "shoot"}
+              pinned={Boolean(row.pinned)}
+              archived={Boolean(row.archived)}
+              disabled={actions.busy}
+              pin={() => void actions.pin(row)}
+              archive={() => void actions.archive(row)}
+            />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -96,18 +115,24 @@ export function ShootsHub({
   includeLocalProjects: boolean;
 }) {
   const data = useShootNavigationData(scope, includeLocalProjects);
+  const actions = useShootRowActions(scope);
   const workbench = useWorkbench();
   const [query, setQuery] = useState("");
+  const [archived, setArchived] = useState(false);
   const titles = { tonight: "Tonight", shoots: "Shoots", library: "Library" };
   const open = async (href: string) => {
     if (workbench) return workbench.openTool(href);
     window.location.assign(href);
     return true;
   };
-  const rows = (view === "tonight" ? shootsInNext24Hours(data.rows) : data.rows).filter((row) =>
-    `${row.title} ${row.genre ?? ""}`
-      .toLocaleLowerCase()
-      .includes(query.toLocaleLowerCase().trim()),
+  const directoryRows = data.rows.filter(
+    (row) => Boolean(row.archived) === (view === "tonight" ? false : archived),
+  );
+  const rows = (view === "tonight" ? shootsInNext24Hours(directoryRows) : directoryRows).filter(
+    (row) =>
+      `${row.title} ${row.genre ?? ""}`
+        .toLocaleLowerCase()
+        .includes(query.toLocaleLowerCase().trim()),
   );
   return (
     <section className={`shoots-hub shoots-hub-${view}`} aria-labelledby="shoots-hub-title">
@@ -122,6 +147,17 @@ export function ShootsHub({
                 : "Open a shoot to cull, develop, and deliver."}
           </p>
         </div>
+        {view !== "tonight" && (
+          <button
+            type="button"
+            className="shoots-archive-toggle"
+            aria-pressed={archived}
+            onClick={() => setArchived((value) => !value)}
+          >
+            <Archive size={16} aria-hidden="true" />
+            {archived ? "Show active" : "Archived"}
+          </button>
+        )}
         {view === "shoots" && data.rows.length > 0 && (
           <label className="shoots-search">
             <Search size={16} aria-hidden="true" />
@@ -154,13 +190,17 @@ export function ShootsHub({
             activeId={null}
             open={open}
             hrefForShoot={shootWorkspaceHref}
-            heading="Saved shoots"
+            heading={archived ? "Archived shoots" : "Saved shoots"}
             showMetadata
+            archivedOnly={archived}
           />
-          {data.rows.some((row) => row.kind === "project") && (
+          {directoryRows.some((row) => row.kind === "project") && (
             <section aria-label="Saved albums">
-              <h2>Saved albums</h2>
-              <ShootRows rows={data.rows.filter((row) => row.kind === "project")} />
+              <h2>{archived ? "Archived albums" : "Saved albums"}</h2>
+              <ShootRows
+                actions={actions}
+                rows={directoryRows.filter((row) => row.kind === "project")}
+              />
             </section>
           )}
           {!data.loading && !data.error && !data.rows.length && (
@@ -170,7 +210,7 @@ export function ShootsHub({
           )}
         </div>
       ) : rows.length > 0 ? (
-        <ShootRows rows={rows} />
+        <ShootRows actions={actions} rows={rows} />
       ) : (
         !data.loading &&
         !data.error && (
@@ -180,9 +220,11 @@ export function ShootsHub({
                 ? data.scheduleKnown
                   ? "No shoots in the next 24 hours"
                   : "Kickoff times aren’t saved yet"
-                : query
-                  ? "No matching shoots"
-                  : "Your next shoot starts here"}
+                : archived
+                  ? "No archived shoots"
+                  : query
+                    ? "No matching shoots"
+                    : "Your next shoot starts here"}
             </h2>
             <p>
               {view === "tonight"
@@ -200,6 +242,18 @@ export function ShootsHub({
             )}
           </div>
         )
+      )}
+      {actions.archived && (
+        <ArchiveUndo
+          title={actions.archived.title}
+          disabled={actions.busy}
+          undo={() => void actions.undo()}
+        />
+      )}
+      {actions.error && (
+        <p role="alert" className="shoots-error">
+          {actions.error}
+        </p>
       )}
     </section>
   );

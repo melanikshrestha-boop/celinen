@@ -80,7 +80,6 @@ function Portal() {
     setStudios(r.studios);
   }, []);
 
-
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -142,7 +141,6 @@ function Portal() {
     if (fileRef.current) fileRef.current.value = "";
     await refresh();
   };
-
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -312,9 +310,7 @@ function Portal() {
                   className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 />
               </label>
-              {bookErr && (
-                <p className="text-[13px] text-destructive sm:col-span-2">{bookErr}</p>
-              )}
+              {bookErr && <p className="text-[13px] text-destructive sm:col-span-2">{bookErr}</p>}
               <div className="sm:col-span-2">
                 <button
                   onClick={() => void submitBooking()}
@@ -400,8 +396,6 @@ function Portal() {
         )}
       </section>
 
-
-
       {linked && (
         <div className="mt-10 space-y-10">
           <section>
@@ -461,9 +455,7 @@ function Portal() {
 
           {studios.length > 0 && (
             <section>
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
-                Rates
-              </h2>
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Rates</h2>
               <div className="mt-3 grid gap-3">
                 {studios.map((st) => (
                   <div key={st.userId} className="rounded-2xl border border-border bg-card p-5">
@@ -538,7 +530,7 @@ function Portal() {
                   <span className="ml-auto font-mono text-[14px]">
                     {money(Number(inv.amount), inv.currency)}
                   </span>
-                  {inv.status !== "paid" && <PayButton id={inv.id} url={inv.hosted_invoice_url} />}
+                  {inv.status !== "paid" && <PayButton id={inv.id} />}
                 </div>
               ))}
             </div>
@@ -549,22 +541,25 @@ function Portal() {
   );
 }
 
-/** Opens the photographer's Stripe payment page, creating it on demand. */
-function PayButton({ id, url }: { id: string; url: string | null }) {
+/** Opens only the current server-verified payment page; never creates an invoice. */
+function PayButton({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const pay = async () => {
-    if (url) {
-      window.open(url, "_blank", "noopener");
-      return;
-    }
+    if (busy) return;
     setBusy(true);
     setErr(null);
-    const res = await getInvoicePaymentLink({ data: { invoice_id: id } });
-    setBusy(false);
-    if ("url" in res && res.url) window.open(res.url, "_blank", "noopener");
-    else setErr("error" in res ? (res.error ?? "Could not open payment") : "Could not open payment");
+    try {
+      const res = await getInvoicePaymentLink({ data: { invoice_id: id } });
+      if ("url" in res && res.url) window.location.assign(res.url);
+      else
+        setErr("error" in res ? (res.error ?? "Could not open payment") : "Could not open payment");
+    } catch {
+      setErr("The payment page could not be verified. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

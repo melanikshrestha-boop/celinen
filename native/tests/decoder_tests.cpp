@@ -1,4 +1,4 @@
-#include "lenslabs/engine.hpp"
+#include "lenslabs/develop.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <ImageIO/ImageIO.h>
@@ -298,6 +298,33 @@ void raw_previews(TemporaryFiles& temporary) {
   }
 }
 
+void develop_capacity(const std::filesystem::path& fixtures, TemporaryFiles& temporary) {
+  const auto path=fixtures/"volleyball-portrait-cc0.jpg";
+  for(unsigned edge:{32u,256u,1600u,4096u}) {
+    const auto standard=lenslabs::decode_preview(path,edge);
+    const auto develop=lenslabs::decode_develop_preview(path,edge);
+    require(develop.rgba==standard.rgba&&develop.width==standard.width&&develop.height==standard.height&&
+            develop.source_width==standard.source_width&&develop.source_height==standard.source_height,
+            "Develop wrapper must preserve every ordinary preview pixel and dimension.");
+    require(lenslabs::encode_develop_jpeg(develop,.95)==lenslabs::encode_jpeg(standard,.95),
+            "Develop wrapper must preserve the exact ordinary encoded JPEG.");
+  }
+  rejects([&]{lenslabs::decode_preview(path,8192);},"4096");
+  rejects([&]{lenslabs::decode_develop_preview(path,8193);},"8192");
+  lenslabs::Image strip{8192,1,8192,1,std::vector<std::uint8_t>(8192*4,255)};
+  const auto original=strip.rgba;
+  rejects([&]{lenslabs::encode_jpeg(strip,.95);},"4096");
+  const auto encoded=lenslabs::encode_develop_jpeg(strip,.95);
+  verify_encoded_metadata(encoded);
+  const auto readback=lenslabs::decode_develop_preview(temporary.write("high-resolution-strip.jpg",encoded),8192);
+  require(readback.width==8192&&readback.height==1&&readback.source_width==8192,
+          "Dedicated Develop wrappers round trip an 8192-pixel image with upright source metadata.");
+  require(strip.rgba==original,"High resolution JPEG encoding preserves its source.");
+  rejects([&]{lenslabs::encode_develop_jpeg({6001,6000,6001,6000,{}},.95);},"36 million");
+  strip.rgba.pop_back();
+  rejects([&]{lenslabs::encode_develop_jpeg(strip,.95);},"exactly");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -309,6 +336,7 @@ int main(int argc, char** argv) {
     encoding_pixels(temporary);
     raw_previews(temporary);
     invalid_inputs(fixtures, temporary);
+    develop_capacity(fixtures, temporary);
     std::cout << "PASS: " << assertions << " native decoder assertions\n";
     return 0;
   } catch (const std::exception& error) {

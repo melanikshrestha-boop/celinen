@@ -45,7 +45,15 @@ function apply(
 }
 
 describe("Neutral sidebar theme surfaces", () => {
-  test("opacity is adjustable and higher by default without changing image or canvas colors", () => {
+  test("every mode renders one sans-serif even with a saved legacy serif preference", () => {
+    const appearance = appearanceSchema.parse({ uiFont: "serif" });
+    const saved = JSON.stringify(appearance);
+    for (const theme of ["light", "dark", "system"] as const) {
+      expect(apply(theme, appearance).properties.get("--ll-ui-font")).toBe("var(--foto-font-sans)");
+      expect(JSON.stringify(appearance)).toBe(saved);
+    }
+  });
+  test("opacity remains adjustable over a pitch-black dark rail without changing saved colors", () => {
     expect(DEFAULT_APPEARANCE.sidebarOpacity).toBe(80);
     for (let opacity = 20; opacity <= 100; opacity += 5) {
       const appearance = appearanceSchema.parse({ ...DEFAULT_APPEARANCE, sidebarOpacity: opacity });
@@ -53,7 +61,7 @@ describe("Neutral sidebar theme surfaces", () => {
         .toString(16)
         .padStart(2, "0");
       expect(sidebarSurfaceTokens(appearance, true)["--foto-sidebar-material"]).toBe(
-        `#242424${expected}`,
+        `#000000${expected}`,
       );
       expect(appearance.background).toBe(DEFAULT_APPEARANCE.background);
     }
@@ -62,19 +70,19 @@ describe("Neutral sidebar theme surfaces", () => {
   });
   test("header chrome cannot inherit an old blue-gray custom canvas", () => {
     const sheet = css("components/workbench/workbench.css");
-    expect(sheet).toContain("html.dark .workbench-header {");
-    expect(sheet).toContain("--wb-bg: #161616;");
-    expect(sheet).toContain("--wb-text: #f5f5f5;");
+    const header = sheet.match(/html\.dark \.workbench-header\s*\{([^}]+)\}/)?.[1];
+    expect(header).toContain("--wb-bg: #000000;");
+    expect(header).toContain("--wb-text: #f5f5f5;");
   });
   test("new workspaces default to dark with translucent navigation, not System or blue", () => {
     expect(DEFAULT_PREFERENCES.theme).toBe("dark");
     expect(DEFAULT_APPEARANCE.translucentSidebar).toBe(true);
     const tokens = sidebarSurfaceTokens(DEFAULT_APPEARANCE, true);
-    expect(tokens["--foto-sidebar-material"]).toBe("#242424cc");
-    expect(tokens["--foto-sidebar-solid"]).toBe("#242424");
+    expect(tokens["--foto-sidebar-material"]).toBe("#000000cc");
+    expect(tokens["--foto-sidebar-solid"]).toBe("#000000");
     expect(tokens["--foto-sidebar-text"]).toBe("#f5f5f5");
     expect(tokens["--foto-sidebar-muted"]).toBe("#a3a3a3");
-    expect(tokens["--foto-settings-surface"]).toBe("#181818");
+    expect(tokens["--foto-settings-surface"]).toBe("#000000");
     expect(tokens["--foto-sidebar-filter"]).toBe("blur(30px)");
   });
   test("Light and System resolve coherently without changing saved preference objects", () => {
@@ -87,7 +95,7 @@ describe("Neutral sidebar theme surfaces", () => {
         expect(result.dark).toBe(expectedDark);
         expect(result.appearance.background).toBe(expectedDark ? "#000000" : "#ffffff");
         const tokens = sidebarSurfaceTokens(result.appearance, result.dark);
-        expect(tokens["--foto-sidebar-material"]).toBe(expectedDark ? "#242424cc" : "#f9f9f9cc");
+        expect(tokens["--foto-sidebar-material"]).toBe(expectedDark ? "#000000cc" : "#f9f9f9cc");
         expect(JSON.stringify(prefs)).toBe(before);
       }
     }
@@ -115,13 +123,24 @@ describe("Neutral sidebar theme surfaces", () => {
         },
       };
       expect(readPreferences(JSON.stringify(value))).toEqual(value);
+      const before = JSON.stringify(value);
       const resolved = resolvedAppearance(value, false);
-      expect(resolved.appearance).toEqual(value.appearance);
+      expect(resolved.appearance).toEqual(
+        theme === "dark"
+          ? {
+              ...value.appearance,
+              background: "#000000",
+              backgroundEnd: "#000000",
+              backgroundStyle: "solid",
+            }
+          : value.appearance,
+      );
       const tokens = sidebarSurfaceTokens(resolved.appearance, resolved.dark);
-      expect(tokens["--foto-sidebar-material"]).toBe("#261e20");
-      expect(tokens["--foto-sidebar-text"]).toBe("#fff1e6");
+      expect(tokens["--foto-sidebar-material"]).toBe(theme === "dark" ? "#000000" : "#261e20");
+      expect(tokens["--foto-sidebar-text"]).toBe(theme === "dark" ? "#f5f5f5" : "#fff1e6");
       expect(tokens["--foto-sidebar-filter"]).toBe("none");
       expect(importTheme(exportTheme(value.appearance))).toEqual(value.appearance);
+      expect(JSON.stringify(value)).toBe(before);
     }
   });
   test("explicit high contrast uses solid surfaces without rewriting the translucency choice", () => {
@@ -140,7 +159,7 @@ describe("Neutral sidebar theme surfaces", () => {
         );
     }
   });
-  test("1,000 custom backgrounds retain their chosen hues and readable secondary labels", () => {
+  test("1,000 custom palettes remain exact in light mode and become readable neutral black only for dark display", () => {
     for (let index = 0; index < 1000; index++) {
       const background = `#${((index * 7919) % 0xffffff).toString(16).padStart(6, "0")}`;
       const foreground =
@@ -154,10 +173,19 @@ describe("Neutral sidebar theme surfaces", () => {
         foreground,
         accent: foreground,
       };
-      const tokens = sidebarSurfaceTokens(appearance, index % 2 === 0);
-      expect(tokens["--foto-sidebar-solid"]).toBe(background);
-      expect(tokens["--foto-sidebar-text"]).toBe(foreground);
-      expect(contrastRatio(tokens["--foto-sidebar-muted"], background)).toBeGreaterThanOrEqual(4.5);
+      const before = JSON.stringify(appearance);
+      for (const dark of [false, true]) {
+        const tokens = sidebarSurfaceTokens(appearance, dark);
+        expect(tokens["--foto-sidebar-solid"]).toBe(dark ? "#000000" : background);
+        expect(tokens["--foto-sidebar-text"]).toBe(dark ? "#f5f5f5" : foreground);
+        expect(
+          contrastRatio(tokens["--foto-sidebar-muted"], tokens["--foto-sidebar-solid"]),
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(tokens["--foto-sidebar-text"], tokens["--foto-sidebar-solid"]),
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(JSON.stringify(appearance)).toBe(before);
     }
   });
   test("applying display tokens does not persist preferences or substitute an unrequested gradient", () => {
@@ -171,7 +199,7 @@ describe("Neutral sidebar theme surfaces", () => {
     expect(result.dataset.settingsTranslucency).toBe("true");
     expect(JSON.stringify(DEFAULT_APPEARANCE)).toBe(before);
   });
-  test("an explicitly chosen custom gradient is preserved only as the user's content fill", () => {
+  test("an explicitly chosen custom gradient remains unchanged in light mode", () => {
     const appearance = {
       ...DEFAULT_APPEARANCE,
       preset: "custom" as const,
@@ -200,6 +228,8 @@ describe("Neutral sidebar theme surfaces", () => {
   });
   test("CSS fallbacks share the hydrated light/dark token values without touching editor tokens", () => {
     const styles = css("styles.css");
+    const dark = styles.match(/\n\.dark\s*\{([^}]+)\}/)?.[1];
+    expect(dark).toContain("--paper: #000000;");
     for (const dark of [false, true]) {
       const tokens = sidebarSurfaceTokens(DEFAULT_APPEARANCE, dark);
       for (const [key, value] of Object.entries(tokens))
@@ -213,6 +243,19 @@ describe("Neutral sidebar theme surfaces", () => {
     expect(light).toContain("--wb-bg: var(--wb-user-bg, #fff)");
     expect(light).toContain("--wb-text: var(--wb-user-fg, #171717)");
     expect(light).not.toContain("--wb-bg-fill:");
+  });
+  test("black canvas retains separate neutral hover, selected, composer and menu controls", () => {
+    const workbench = css("components/workbench/workbench.css");
+    const shared = workbench.match(
+      /html:has\(\.photo-workbench, \.workbench-lock\)\s*\{([^}]+)\}/,
+    )?.[1];
+    for (const declaration of [
+      "--surface-hover: #141414;",
+      "--surface-selected: #1a1a1a;",
+      "--surface-composer: #212121;",
+      "--surface-menu: #242424;",
+    ])
+      expect(shared).toContain(declaration);
   });
   test("late collapsed and mobile rules retain 44px targets and unsupported blur has a rail fallback", () => {
     const workbench = css("components/workbench/workbench.css");
@@ -252,10 +295,10 @@ describe("Neutral sidebar theme surfaces", () => {
     expect(result.properties.get("--ll-settings-foreground")).toBe(appearance.foreground);
     expect(contrastRatio(appearance.foreground, appearance.background)).toBeGreaterThanOrEqual(4.5);
   });
-  test("readable accent uses the actual custom canvas, not an assumed dark-mode black", () => {
+  test("light-mode Default accent still uses the actual custom canvas", () => {
     const appearance = withDefaultAccent(
       {
-        theme: "dark",
+        theme: "light",
         appearance: {
           ...DEFAULT_APPEARANCE,
           preset: "custom",
@@ -265,11 +308,130 @@ describe("Neutral sidebar theme surfaces", () => {
       },
       false,
     );
-    const result = apply("dark", appearance);
+    const result = apply("light", appearance);
     expect(appearance.accent).toBe("#000000");
     expect(result.properties.get("--ll-readable-accent")).toBe("#000000");
     expect(
       contrastRatio(result.properties.get("--ll-readable-accent")!, appearance.background),
     ).toBeGreaterThanOrEqual(3);
+  });
+  test("old Midnight and custom gradients cannot tint dark or System-dark canvas, settings, or navigation", () => {
+    const palettes: Appearance[] = [
+      appearanceSchema.parse({
+        preset: "midnight",
+        ...THEME_PRESETS.midnight,
+        backgroundStyle: "gradient",
+      }),
+      appearanceSchema.parse({
+        preset: "warm",
+        ...THEME_PRESETS.warm,
+        backgroundStyle: "gradient",
+      }),
+      appearanceSchema.parse({
+        preset: "custom",
+        background: "#151f38",
+        foreground: "#f2e8ff",
+        backgroundEnd: "#204568",
+        backgroundStyle: "gradient",
+        uiFont: "serif",
+        sidebarOpacity: 55,
+      }),
+    ];
+    for (const appearance of palettes) {
+      const original = JSON.stringify(appearance);
+      Object.freeze(appearance);
+      for (const theme of ["dark", "system"] as const) {
+        const result = apply(theme, appearance, true);
+        expect(result.dark).toBe(true);
+        for (const token of [
+          "--wb-user-bg",
+          "--wb-bg-fill",
+          "--ll-settings-background",
+          "--foto-sidebar-solid",
+          "--foto-settings-surface",
+        ])
+          expect(result.properties.get(token)).toBe("#000000");
+        const alpha = Math.round((appearance.sidebarOpacity * 255) / 100)
+          .toString(16)
+          .padStart(2, "0");
+        expect(result.properties.get("--foto-sidebar-material")).toBe(`#000000${alpha}`);
+        expect(result.properties.get("--wb-user-fg")).toBe(appearance.foreground);
+        expect(result.properties.get("--foto-sidebar-text")).toBe("#f5f5f5");
+        expect(JSON.stringify(appearance)).toBe(original);
+      }
+      const light = apply("system", appearance, false);
+      expect(light.dark).toBe(false);
+      expect(light.properties.get("--wb-bg-fill")).toBe(
+        `linear-gradient(165deg, ${appearance.background}, ${appearance.backgroundEnd})`,
+      );
+      expect(light.properties.get("--wb-user-fg")).toBe(appearance.foreground);
+      expect(JSON.stringify(appearance)).toBe(original);
+    }
+  });
+  test("dark foreground is preserved only when it reads on black, without mutating stored colors", () => {
+    for (const foreground of ["#000000", "#171717", "#747474", "#777777", "#fff1e6", "#ffffff"]) {
+      const appearance = appearanceSchema.parse({
+        preset: "custom",
+        background: "#ffffff",
+        foreground,
+      });
+      const original = JSON.stringify(appearance);
+      const result = resolvedAppearance({ theme: "dark", appearance }, false);
+      expect(result.appearance.foreground).toBe(
+        contrastRatio(foreground, "#000000") >= 4.5 ? foreground : DEFAULT_APPEARANCE.foreground,
+      );
+      expect(result.appearance.background).toBe("#000000");
+      expect(result.appearance.backgroundEnd).toBe("#000000");
+      expect(result.appearance.backgroundStyle).toBe("solid");
+      expect(contrastRatio(result.appearance.foreground, "#000000")).toBeGreaterThanOrEqual(4.5);
+      expect(JSON.stringify(appearance)).toBe(original);
+    }
+  });
+  test("dark high contrast and disabled translucency use solid black while preserving those preferences", () => {
+    for (const contrast of ["system", "standard", "more"] as const) {
+      for (const translucentSidebar of [false, true]) {
+        const appearance = appearanceSchema.parse({
+          preset: "midnight",
+          ...THEME_PRESETS.midnight,
+          contrast,
+          translucentSidebar,
+          sidebarOpacity: 20,
+        });
+        const original = JSON.stringify(appearance);
+        const result = apply("dark", appearance);
+        const translucent = translucentSidebar && contrast !== "more";
+        expect(result.properties.get("--foto-sidebar-material")).toBe(
+          translucent ? "#00000033" : "#000000",
+        );
+        expect(result.properties.get("--foto-sidebar-filter")).toBe(
+          translucent ? "blur(30px)" : "none",
+        );
+        expect(result.properties.get("--foto-settings-surface")).toBe("#000000");
+        expect(result.dataset.contrast).toBe(contrast);
+        expect(result.dataset.settingsTranslucency).toBe(String(translucentSidebar));
+        expect(JSON.stringify(appearance)).toBe(original);
+      }
+    }
+  });
+  test("Default accent on a dark display does not overwrite a saved custom palette or gradient", () => {
+    const appearance = appearanceSchema.parse({
+      preset: "custom",
+      background: "#636363",
+      foreground: "#ffffff",
+      accent: "#ffffff",
+      backgroundEnd: "#211e1a",
+      backgroundStyle: "gradient",
+    });
+    const before = JSON.stringify(appearance);
+    const updated = withDefaultAccent({ theme: "dark", appearance }, false);
+    const { accent: _accent, ...updatedFields } = updated;
+    const { accent: _originalAccent, ...savedFields } = appearance;
+    expect(updatedFields).toEqual(savedFields);
+    const result = apply("dark", updated);
+    expect(result.properties.get("--wb-bg-fill")).toBe("#000000");
+    expect(
+      contrastRatio(result.properties.get("--ll-readable-accent")!, "#000000"),
+    ).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(appearance)).toBe(before);
   });
 });

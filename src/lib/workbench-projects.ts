@@ -44,6 +44,28 @@ export function shootKeyForBinding(binding: StudioWorkbenchBinding) {
   if (binding.kind !== "ready") return null;
   return binding.shootId ?? (binding.projectId ? `project:${binding.projectId}` : null);
 }
+/** One edit destination. Preserve exact source/version context rather than opening another Studio pane. */
+export function developWorkspaceHref(binding: StudioWorkbenchBinding, photoId?: string | null) {
+  if (binding.kind === "blocked") throw new Error(binding.reason);
+  if (photoId && photoId.length > 2000) throw new Error("This photo reference is invalid.");
+  return shootWorkspaceHref(
+    shootKeyForBinding(binding) ?? "legacy",
+    "develop",
+    defaultStringifySearch({
+      ...(photoId ? { photo: photoId } : {}),
+      ...(binding.deliveryFocus && binding.projectId
+        ? {
+            project: binding.projectId,
+            deliveryFrame: binding.deliveryFocus.frameId,
+            deliveryVersion: binding.deliveryFocus.versionId,
+            ...(binding.deliveryFocus.handoffId
+              ? { deliveryHandoff: binding.deliveryFocus.handoffId }
+              : {}),
+          }
+        : {}),
+    }),
+  );
+}
 const isStudio = (url: URL) =>
   url.pathname.replace(/\/+$/, "").toLowerCase() === "/studio" ||
   shootRoute(url.href)?.tab === "cull";
@@ -168,7 +190,9 @@ export function scopeToolHref(href: string, binding: StudioWorkbenchBinding) {
   // A selected canonical shoot has its own identity; primary landing pages are not contextual tools.
   if (
     shootRoute(href) ||
-    ["/tonight", "/shoots", "/library", "/money"].includes(url.pathname.replace(/\/$/, ""))
+    ["/tonight", "/shoots", "/clients", "/library", "/money", "/earnings"].includes(
+      url.pathname.replace(/\/$/, ""),
+    )
   )
     return href;
   if (
@@ -202,9 +226,8 @@ export function legacyWorkbenchRedirect(
   const path = url.pathname.replace(/\/$/, "").toLowerCase();
   const destination = (
     {
-      "/clients": "/shoots",
       "/jobs": "/shoots",
-      "/earnings": "/money",
+      "/money": "/earnings",
       "/outbound": "/deliver",
     } as Record<string, string>
   )[path];

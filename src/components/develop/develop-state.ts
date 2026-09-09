@@ -5,20 +5,41 @@ export type DevelopRenderOwner = {
   id: string | null;
   source: Blob;
   sourceGeometry: boolean;
+  renderKey?: string;
 };
 export function currentDevelopRender(
   owner: DevelopRenderOwner | null,
   id: string | null,
   source: Blob | null,
   sourceGeometry: boolean,
+  renderKey?: string,
 ): boolean {
   return Boolean(
     owner &&
     source &&
     owner.id === id &&
     owner.source === source &&
-    owner.sourceGeometry === sourceGeometry,
+    owner.sourceGeometry === sourceGeometry &&
+    (renderKey === undefined || owner.renderKey === renderKey),
   );
+}
+/** One explicit source for editor, before/histogram, assistance and export.
+ * RAW mode never silently substitutes a saved JPEG for an available original. */
+export function developProcessingSource(
+  photo: {
+    isRaw: boolean;
+    sourceAvailable: boolean;
+    sourceBlob: Blob | null;
+    previewBlob: Blob | null;
+  } | null,
+  requestedMode: "raw" | "preview",
+): { source: Blob | null; sourceMode: "raw" | "preview" } {
+  if (!photo) return { source: null, sourceMode: "preview" };
+  const original = photo.sourceAvailable && photo.sourceBlob?.size ? photo.sourceBlob : null;
+  const preview = photo.previewBlob?.size ? photo.previewBlob : null;
+  if (!photo.isRaw) return { source: original ?? preview, sourceMode: "preview" };
+  if (requestedMode === "raw" && original) return { source: original, sourceMode: "raw" };
+  return { source: preview ?? original, sourceMode: "preview" };
 }
 export function developImageReady(loadedUrl: string | null, displayedUrl: string | null): boolean {
   return Boolean(displayedUrl && loadedUrl === displayedUrl);

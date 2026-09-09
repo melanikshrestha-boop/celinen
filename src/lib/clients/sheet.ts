@@ -152,7 +152,8 @@ const SEED_EXTRAS: Record<string, SheetExtra> = {
 
 export function initials(name: string) {
   const parts = name.replace(/&/g, " ").split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
+  if (parts.length >= 2)
+    return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
   return name.slice(0, 2).toUpperCase() || "·";
 }
 
@@ -161,7 +162,8 @@ export function money(cents: number | null) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(cents / 100);
 }
 
@@ -173,7 +175,7 @@ export function stageLabel(stage: SheetStage | "") {
 export function formatDate(value: string) {
   if (!value) return "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+    return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -262,8 +264,19 @@ export function toRow(client: WorkspaceClient): ClientRow {
 function seedClient(
   id: string,
   name: string,
-  input: { org: string; source: string; budget: string; stage: WorkspaceClient["stage"]; now: string },
-  booking?: { title: string; date: string; location: string; status: WorkspaceClient["bookings"][number]["status"] },
+  input: {
+    org: string;
+    source: string;
+    budget: string;
+    stage: WorkspaceClient["stage"];
+    now: string;
+  },
+  booking?: {
+    title: string;
+    date: string;
+    location: string;
+    status: WorkspaceClient["bookings"][number]["status"];
+  },
 ): WorkspaceClient {
   const built = buildWorkspaceClient(
     {
@@ -287,7 +300,10 @@ function seedClient(
   return upsertClientBooking(built.value, booked.value);
 }
 
-export function ensureSeedClients(state: ClientWorkspace, now = "2026-09-07T20:00:00.000Z"): ClientWorkspace {
+export function ensureSeedClients(
+  state: ClientWorkspace,
+  now = "2026-09-07T20:00:00.000Z",
+): ClientWorkspace {
   const seeds: WorkspaceClient[] = [
     seedClient(
       SEED_IDS.amara,
@@ -353,7 +369,9 @@ export function takePendingClientCommand() {
 
 export function parseClientCommand(text: string): ClientCommand | null {
   const value = text.trim();
-  const add = value.match(/^add lead\s+([^,]+)(?:,\s*(wedding|portrait|brand|family))?(?:\s+(.+))?$/i);
+  const add = value.match(
+    /^add lead\s+([^,]+)(?:,\s*(wedding|portrait|brand|family))?(?:\s+(.+))?$/i,
+  );
   if (add) {
     const type = add[2]
       ? ((add[2][0]!.toUpperCase() + add[2].slice(1).toLowerCase()) as JobType)
@@ -367,7 +385,10 @@ export function parseClientCommand(text: string): ClientCommand | null {
     };
   }
   const open = value.match(/^open\s+(.+?)[.!]?$/i);
-  if (open && !/^(the\s+)?(studio|clients?|settings|chat|workspace|delivery|earnings)\b/i.test(open[1]!))
+  if (
+    open &&
+    !/^(the\s+)?(studio|clients?|settings|chat|workspace|delivery|earnings)\b/i.test(open[1]!)
+  )
     return { kind: "open", name: open[1]!.trim() };
   if (/^who is quiet[.!]?$/i.test(value)) return { kind: "quiet" };
   if (/^who hasn['’]?t opened their gallery[.!]?$/i.test(value)) return { kind: "unopened" };

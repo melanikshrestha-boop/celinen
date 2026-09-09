@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   RotateCcw,
@@ -15,6 +15,7 @@ import {
   type DevelopMask,
 } from "@/lib/develop/contract";
 import { ColorGrading } from "./ColorGrading";
+import { curveDisplayPath } from "@/lib/develop/curve-interpolation";
 
 export type DevelopChange = (settings: DevelopSettings, label: string, commit?: boolean) => void;
 export type DevelopTool = "edit" | "crop" | "mask";
@@ -41,6 +42,7 @@ export function Panel({
 export function DevelopSlider({
   label,
   displayLabel,
+  help,
   value,
   min = -100,
   max = 100,
@@ -50,6 +52,7 @@ export function DevelopSlider({
 }: {
   label: string;
   displayLabel?: string;
+  help?: string;
   value: number;
   min?: number;
   max?: number;
@@ -61,12 +64,16 @@ export function DevelopSlider({
   last.current = value;
   return (
     <div className="develop-slider">
-      <label onDoubleClick={() => onChange(reset, true)} title="Double-click to reset">
+      <label
+        onDoubleClick={() => onChange(reset, true)}
+        title={help ? `${help} Double-click to reset.` : "Double-click to reset"}
+      >
         {displayLabel ?? label}
       </label>
       <input
         type="range"
         aria-label={label}
+        title={help}
         min={min}
         max={max}
         step={step}
@@ -82,6 +89,7 @@ export function DevelopSlider({
       <input
         type="number"
         aria-label={`${label} value`}
+        title={help}
         min={min}
         max={max}
         step={step}
@@ -112,11 +120,53 @@ const curveChannels: { id: CurveChannel; label: string; short: string; color: st
 
 export function ToneCurve({ value, change }: { value: DevelopSettings; change: DevelopChange }) {
   const [channel, setChannel] = useState<CurveChannel>("master");
-  const drag = useRef<{ index: number; channel: CurveChannel } | null>(null);
+  type CurveDrag = {
+    index: number;
+    channel: CurveChannel;
+    pointer: number;
+    target: SVGSVGElement;
+    base: DevelopSettings;
+    baseKey: string;
+    expected: string;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  };
+  const drag = useRef<CurveDrag | null>(null);
   const current = useRef(value);
+  const publish = useRef(change);
+  const mounted = useRef(true);
   current.current = value;
+  publish.current = change;
+  const recipeKey = useMemo(() => JSON.stringify(value), [value]);
+  const discardDrag = useCallback(() => {
+    const gesture = drag.current;
+    drag.current = null;
+    if (gesture) {
+      try {
+        if (gesture.target.hasPointerCapture(gesture.pointer))
+          gesture.target.releasePointerCapture(gesture.pointer);
+      } catch {
+        // The photo or SVG may already have unmounted; its recipe must stay untouched.
+      }
+    }
+  }, []);
+  useLayoutEffect(() => {
+    if (drag.current && drag.current.expected !== recipeKey) discardDrag();
+  }, [recipeKey, discardDrag]);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      discardDrag();
+    };
+  }, [discardDrag]);
   const selectedChannel = curveChannels.find((c) => c.id === channel)!;
   const points = getCurve(value, channel);
+  const displayPath = useMemo(
+    () => curveDisplayPath(points, value.curveInterpolation),
+    [points, value.curveInterpolation],
+  );
   const curveLabel = channel === "master" ? "Tone curve" : `${selectedChannel.label} tone curve`;
   const pointLabel = channel === "master" ? "Curve" : `${selectedChannel.label} curve`;
   function getCurve(settings: DevelopSettings, active: CurveChannel) {
@@ -129,7 +179,12 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
     label: string,
     commit = true,
     active = channel,
+    owner?: CurveDrag,
   ) {
+    if (!mounted.current) return;
+    if (owner) {
+      if (!ownsDrag(owner)) return;
+    } else discardDrag(); // Explicit point edits/reset supersede a pointer transaction.
     const settings = current.current;
     current.current =
       active === "master"
@@ -142,26 +197,81 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
               [active]: curve,
             },
           };
-    change(current.current, label, commit);
+    if (owner) owner.expected = JSON.stringify(current.current);
+    publish.current(current.current, label, commit);
   }
-  function finishDrag() {
+  function ownsDrag(gesture: CurveDrag) {
+    if (
+      mounted.current &&
+      drag.current === gesture &&
+      !gesture.target.closest("fieldset:disabled") &&
+      gesture.expected === JSON.stringify(current.current)
+    )
+      return true;
+    discardDrag();
+    return false;
+  }
+  function finishDrag(cancel = false, event?: React.PointerEvent<SVGSVGElement>) {
     const gesture = drag.current;
-    if (!gesture) return;
-    drag.current = null;
-    change(
+    if (!gesture || (event && gesture.pointer !== event.pointerId) || !ownsDrag(gesture)) return;
+    if (!cancel && event) moveDrag(event); // Preserve the exact release point, even without a final move.
+    if (!ownsDrag(gesture)) return;
+    discardDrag();
+    if (gesture.expected === gesture.baseKey) return;
+    if (cancel) current.current = gesture.base;
+    publish.current(
       current.current,
       gesture.channel === "master"
         ? "Tone curve"
         : `${curveChannels.find((c) => c.id === gesture.channel)!.label} tone curve`,
-      true,
+      !cancel,
     );
   }
   function point(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
+    if (
+      ![e.clientX, e.clientY, rect.left, rect.top, rect.width, rect.height].every(
+        Number.isFinite,
+      ) ||
+      rect.width <= 0 ||
+      rect.height <= 0
+    )
+      return null;
     return {
       x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
       y: Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height)),
     };
+  }
+  function moveDrag(e: React.PointerEvent<SVGSVGElement>) {
+    const gesture = drag.current;
+    if (!gesture || gesture.pointer !== e.pointerId || !ownsDrag(gesture)) return;
+    const p = point(e);
+    if (!p) return;
+    if (!gesture.moved && e.clientX === gesture.startX && e.clientY === gesture.startY) return;
+    gesture.moved = true;
+    const { index: i, channel: active } = gesture;
+    const curve = getCurve(current.current, active).map((v) => ({ ...v }));
+    if (!curve[i]) {
+      discardDrag();
+      return;
+    }
+    p.x =
+      i === 0
+        ? 0
+        : i === curve.length - 1
+          ? 1
+          : Math.max(curve[i - 1]!.x + 0.005, Math.min(curve[i + 1]!.x - 0.005, p.x));
+    if (curve[i]!.x === p.x && curve[i]!.y === p.y) return;
+    curve[i] = p;
+    editCurve(
+      curve,
+      active === "master"
+        ? "Tone curve"
+        : `${curveChannels.find((c) => c.id === active)!.label} tone curve`,
+      false,
+      active,
+      gesture,
+    );
   }
   return (
     <>
@@ -177,7 +287,7 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
             }
             style={{ color: c.color }}
             onClick={() => {
-              finishDrag();
+              finishDrag(false);
               setChannel(c.id);
             }}
           >
@@ -185,20 +295,70 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
           </button>
         ))}
       </div>
+      <label className="develop-inline">
+        <span>Interpolation</span>
+        <select
+          aria-label="Curve interpolation"
+          title="Linear segments or a smooth shape-preserving curve. Applies to Master and RGB."
+          value={value.curveInterpolation}
+          onChange={(event) => {
+            const mode = event.target.value;
+            if (
+              !mounted.current ||
+              event.currentTarget.closest("fieldset:disabled") ||
+              (mode !== "linear" && mode !== "smooth") ||
+              mode === current.current.curveInterpolation
+            )
+              return;
+            finishDrag(true);
+            current.current = { ...current.current, curveInterpolation: mode };
+            publish.current(
+              current.current,
+              `Curve interpolation · ${mode === "smooth" ? "Smooth" : "Linear"}`,
+              true,
+            );
+          }}
+        >
+          <option value="linear">Linear</option>
+          <option value="smooth">Smooth</option>
+        </select>
+      </label>
       <svg
         className="develop-curve"
         data-channel={channel}
+        data-interpolation={value.curveInterpolation}
         style={{ color: selectedChannel.color }}
         viewBox="0 0 200 200"
         role="img"
         aria-label={`${selectedChannel.label} tone curve. Drag points or use the point controls below.`}
         onPointerDown={(e) => {
-          if (e.button !== 0 || e.currentTarget.closest("fieldset:disabled")) return;
+          if (
+            !mounted.current ||
+            drag.current ||
+            e.button !== 0 ||
+            e.currentTarget.closest("fieldset:disabled")
+          )
+            return;
           e.preventDefault();
           const p = point(e);
+          if (!p) return;
           const curve = getCurve(current.current, channel);
           const near = curve.findIndex((v) => Math.hypot(v.x - p.x, v.y - p.y) < 0.065);
-          if (near >= 0) drag.current = { index: near, channel };
+          const base = structuredClone(current.current);
+          const baseKey = JSON.stringify(base);
+          const gesture: CurveDrag = {
+            index: near,
+            channel,
+            pointer: e.pointerId,
+            target: e.currentTarget,
+            base,
+            baseKey,
+            expected: baseKey,
+            startX: e.clientX,
+            startY: e.clientY,
+            moved: false,
+          };
+          if (near >= 0) drag.current = gesture;
           else if (
             curve.length < 16 &&
             p.x > 0.015 &&
@@ -206,42 +366,24 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
             !curve.some((v) => Math.abs(v.x - p.x) < 0.015)
           ) {
             const next = [...curve, p].sort((a, b) => a.x - b.x);
-            drag.current = { index: next.indexOf(p), channel };
-            editCurve(next, curveLabel, false);
+            gesture.index = next.indexOf(p);
+            drag.current = gesture;
+            editCurve(next, curveLabel, false, channel, gesture);
           }
-          e.currentTarget.setPointerCapture(e.pointerId);
+          if (drag.current) e.currentTarget.setPointerCapture(e.pointerId);
         }}
-        onPointerMove={(e) => {
-          if (drag.current === null) return;
-          const p = point(e),
-            { index: i, channel: active } = drag.current,
-            curve = getCurve(current.current, active).map((v) => ({ ...v }));
-          p.x =
-            i === 0
-              ? 0
-              : i === curve.length - 1
-                ? 1
-                : Math.max(curve[i - 1]!.x + 0.005, Math.min(curve[i + 1]!.x - 0.005, p.x));
-          curve[i] = p;
-          editCurve(
-            curve,
-            active === "master"
-              ? "Tone curve"
-              : `${curveChannels.find((c) => c.id === active)!.label} tone curve`,
-            false,
-            active,
-          );
-        }}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
-        onLostPointerCapture={finishDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={(event) => finishDrag(false, event)}
+        onPointerCancel={(event) => finishDrag(true, event)}
+        onLostPointerCapture={(event) => finishDrag(true, event)}
       >
         {[50, 100, 150].map((n) => (
           <path key={n} d={`M${n} 0V200 M0 ${n}H200`} className="curve-grid" />
         ))}
         <path d="M0 200L200 0" className="curve-diagonal" />
-        <polyline
-          points={points.map((p) => `${p.x * 200},${(1 - p.y) * 200}`).join(" ")}
+        <path
+          className="curve-function"
+          d={displayPath}
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
@@ -309,7 +451,9 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
                     false,
                   );
                 }}
-                onBlur={() => change(current.current, curveLabel, true)}
+                onBlur={() => {
+                  if (mounted.current) publish.current(current.current, curveLabel, true);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") e.currentTarget.blur();
                 }}
@@ -358,10 +502,18 @@ export function DevelopControls({
 }) {
   const [hslIndex, setHslIndex] = useState(0);
   const defaults = defaultDevelopSettings();
-  const scalar = (key: keyof DevelopSettings, label: string, min = -100, max = 100, step = 1) => (
+  const scalar = (
+    key: keyof DevelopSettings,
+    label: string,
+    min = -100,
+    max = 100,
+    step = 1,
+    options: { displayLabel?: string; help?: string } = {},
+  ) => (
     <DevelopSlider
       key={key}
       label={label}
+      {...options}
       value={(value[key] ?? defaults[key]) as number}
       min={min}
       max={max}
@@ -507,6 +659,18 @@ export function DevelopControls({
       </Panel>
       <Panel title="Detail">
         {scalar("sharpening", "Sharpening", 0)}
+        {scalar("sharpeningRadius", "Sharpening radius", 0.5, 3, 0.1, {
+          displayLabel: "Radius",
+          help: "Controls the scale of sharpened edges in rendered pixels.",
+        })}
+        {scalar("sharpeningDetail", "Sharpening fine detail", 0, 100, 1, {
+          displayLabel: "Fine detail",
+          help: "Lower values suppress weak detail; higher values retain finer texture.",
+        })}
+        {scalar("sharpeningMasking", "Sharpening edge masking", 0, 100, 1, {
+          displayLabel: "Edge masking",
+          help: "Protects flatter areas by restricting sharpening to stronger edges.",
+        })}
         {scalar("noiseReduction", "Luminance noise", 0)}
         {scalar("colorNoiseReduction", "Color noise", 0)}
         <p className="develop-hint">Inspect at 100% for fine detail.</p>

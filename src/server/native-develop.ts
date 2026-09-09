@@ -16,22 +16,99 @@ import {
   type DevelopSettings,
 } from "../lib/develop/contract";
 import { authorizeNativeRequest, NativeBridgeError } from "./native-studio-plugin";
+import { jpegDimensions } from "../lib/delivery/media-integrity";
 
 const MAX_HEADER = 64 * 1024;
 const MAX_RESULT = 32 * 1024 * 1024;
 const requestSchema = z
   .object({
     settings: developSettingsSchema,
-    edge: z.number().int().min(32).max(4096),
+    edge: z.number().int().min(32).max(DEVELOP_ENGINE_LIMITS.maxEdge),
     quality: z.number().finite().min(0.5).max(1),
     sourceMode: developSourceModeSchema.default("preview"),
   })
   .strict();
+
+/** Request buffers stay bounded independently from native processing ownership. */
+export function createDevelopProcessingLanes() {
+  let requests = 0,
+    processing = 0,
+    rawProcessing = 0,
+    highResolution = false;
+  return {
+    snapshot: () => ({ requests, processing, rawProcessing, highResolution }),
+    acquireRequest() {
+      if (requests >= 2)
+        throw new NativeBridgeError(429, "Two Develop requests are active. Please retry shortly.");
+      requests++;
+      let released = false,
+        started = false,
+        raw = false,
+        high = false;
+      return {
+        /** Synchronous check-and-claim after parsing: two uploads cannot both win or both defer. */
+        start(request: { edge: number; sourceMode: DevelopSourceMode }) {
+          if (released || started) throw new Error("Develop processing lease is not available.");
+          if (
+            !Number.isInteger(request.edge) ||
+            request.edge < 32 ||
+            request.edge > DEVELOP_ENGINE_LIMITS.maxEdge ||
+            (request.sourceMode !== "preview" && request.sourceMode !== "raw")
+          )
+            throw new NativeBridgeError(400, "Invalid Develop processing bounds.");
+          const needsHighResolution = request.edge > DEVELOP_ENGINE_LIMITS.defaultExportEdge;
+          if (highResolution || (needsHighResolution && processing > 0))
+            throw new NativeBridgeError(
+              429,
+              "High-resolution export needs the image engine to itself. Please retry when processing finishes.",
+            );
+          if (request.sourceMode === "raw" && rawProcessing >= 1)
+            throw new NativeBridgeError(
+              429,
+              "A sensor RAW image is processing. Please retry when it finishes.",
+            );
+          started = true;
+          high = needsHighResolution;
+          raw = request.sourceMode === "raw";
+          processing++;
+          if (raw) rawProcessing++;
+          if (high) highResolution = true;
+        },
+        release() {
+          if (released) return;
+          released = true;
+          requests--;
+          if (started) processing--;
+          if (raw) rawProcessing--;
+          if (high) highResolution = false;
+        },
+      };
+    },
+  };
+}
+
+/** Header-only receipt validation; never decode a second copy of the rendered pixels. */
+export function validateDevelopResult(bytes: Buffer, requestedEdge: number) {
+  if (bytes.length > MAX_RESULT) throw new NativeBridgeError(413, "Develop export exceeds 32 MiB.");
+  const dimensions = jpegDimensions(bytes);
+  if (
+    Math.max(dimensions.width, dimensions.height) > requestedEdge ||
+    dimensions.width * dimensions.height > DEVELOP_ENGINE_LIMITS.maxOutputPixels
+  )
+    throw new NativeBridgeError(
+      502,
+      "Develop returned image dimensions outside the export limits.",
+    );
+  return dimensions;
+}
 export function developProtocol(input: DevelopSettings): string {
   const s = developSettingsSchema.parse(input),
     c = s.crop;
+  const extendedDetail =
+    s.sharpeningRadius !== 1 || s.sharpeningDetail !== 100 || s.sharpeningMasking !== 0;
+  const smoothCurve = s.curveInterpolation === "smooth";
   const lines: Array<string | number[]> = [
-    "FOTO_DEVELOP_3",
+    smoothCurve ? "FOTO_DEVELOP_5" : extendedDetail ? "FOTO_DEVELOP_4" : "FOTO_DEVELOP_3",
     [
       s.exposure,
       s.contrast,
@@ -97,6 +174,9 @@ export function developProtocol(input: DevelopSettings): string {
       s.grainLuminance,
     ],
   ];
+  if (extendedDetail || smoothCurve)
+    lines.push([s.sharpeningRadius, s.sharpeningDetail, s.sharpeningMasking]);
+  if (smoothCurve) lines.push([1]);
   return lines.map((l) => (typeof l === "string" ? l : l.join(" "))).join("\n") + "\n";
 }
 export function parseDevelopRequest(bytes: Buffer) {
@@ -142,15 +222,18 @@ export function runNativeDevelop(
     const chunks: Buffer[] = [];
     let size = 0,
       settled = false;
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
+    let failure: Error | null = null;
+    const cleanup = () => {
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
-      if (error) {
-        child.kill("SIGKILL");
-        reject(error);
-      } else resolveResult(Buffer.concat(chunks));
+    };
+    const finish = (error: Error) => {
+      if (settled || failure) return;
+      failure = error;
+      cleanup();
+      // Keep the caller's exclusive processing lease until close, not merely
+      // until the kill signal was sent to a potentially large native process.
+      child.kill("SIGKILL");
     };
     const abort = () => finish(new NativeBridgeError(499, "Develop cancelled."));
     const timer = setTimeout(
@@ -162,6 +245,7 @@ export function runNativeDevelop(
     );
     signal.addEventListener("abort", abort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => {
+      if (settled || failure) return;
       size += chunk.length;
       if (size > MAX_RESULT) finish(new NativeBridgeError(413, "Develop export exceeds 32 MiB."));
       else chunks.push(chunk);
@@ -170,17 +254,19 @@ export function runNativeDevelop(
     child.stdin.on("error", () => finish(new Error("Develop input stream closed.")));
     child.once("error", () => finish(new Error("The local C++ Develop engine could not start.")));
     child.once("close", (code) => {
-      const jpeg = Buffer.concat(chunks);
-      finish(
-        code === 0 &&
-          size > 4 &&
-          jpeg[0] === 255 &&
-          jpeg[1] === 216 &&
-          jpeg.at(-2) === 255 &&
-          jpeg.at(-1) === 217
-          ? undefined
-          : new Error("This photo could not be developed. Its source is unchanged."),
-      );
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (failure) return reject(failure);
+      try {
+        if (code !== 0)
+          throw new Error("This photo could not be developed. Its source is unchanged.");
+        const jpeg = Buffer.concat(chunks);
+        validateDevelopResult(jpeg, request.edge);
+        resolveResult(jpeg);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error("Invalid Develop image receipt."));
+      }
     });
     child.stdin.end(developProtocol(request.settings));
   });
@@ -200,9 +286,8 @@ async function readBody(req: IncomingMessage, signal: AbortSignal): Promise<Buff
 }
 export function nativeDevelopPlugin(): Plugin {
   const token = randomBytes(32).toString("hex");
-  let root = process.cwd(),
-    active = 0,
-    rawActive = 0;
+  let root = process.cwd();
+  const lanes = createDevelopProcessingLanes();
   return {
     name: "foto-local-native-develop",
     apply: "serve",
@@ -225,8 +310,7 @@ export function nativeDevelopPlugin(): Plugin {
         }, 90_000);
         let directory: string | null = null,
           file: string | null = null,
-          claimed = false,
-          claimedRaw = false;
+          lease: ReturnType<typeof lanes.acquireRequest> | null = null;
         try {
           const address = server.httpServer?.address();
           if (!address || typeof address === "string")
@@ -247,7 +331,9 @@ export function nativeDevelopPlugin(): Plugin {
                 ready,
                 token: ready ? token : null,
                 engine: "foto-develop-cpp-1",
-                maxEdge: 4096,
+                maxEdge: DEVELOP_ENGINE_LIMITS.maxEdge,
+                maxOutputPixels: DEVELOP_ENGINE_LIMITS.maxOutputPixels,
+                defaultExportEdge: DEVELOP_ENGINE_LIMITS.defaultExportEdge,
                 maxFileBytes: DEVELOP_ENGINE_LIMITS.maxFileBytes,
                 workingSpace: "sRGB preview",
                 rawSupported: true,
@@ -266,23 +352,10 @@ export function nativeDevelopPlugin(): Plugin {
             declared > DEVELOP_ENGINE_LIMITS.maxFileBytes + MAX_HEADER + 4
           )
             throw new NativeBridgeError(413, "Choose a photo under 128 MiB.");
-          if (active >= 2)
-            throw new NativeBridgeError(
-              429,
-              "Two Develop images are processing. Please retry shortly.",
-            );
-          active++;
-          claimed = true;
+          lease = lanes.acquireRequest();
           const request = parseDevelopRequest(await readBody(req, controller.signal));
-          if (request.sourceMode === "raw") {
-            if (rawActive >= 1)
-              throw new NativeBridgeError(
-                429,
-                "A sensor RAW image is processing. Please retry when it finishes.",
-              );
-            rawActive++;
-            claimedRaw = true;
-          }
+          if (controller.signal.aborted) throw new NativeBridgeError(499, "Develop cancelled.");
+          lease.start(request);
           directory = await mkdtemp(join(tmpdir(), "foto-develop-"));
           file = join(directory, "source.photo");
           const handle = await open(file, "wx", 0o600);
@@ -323,8 +396,7 @@ export function nativeDevelopPlugin(): Plugin {
           }
         } finally {
           clearTimeout(deadline);
-          if (claimed) active--;
-          if (claimedRaw) rawActive--;
+          lease?.release();
           req.removeListener("aborted", abort);
           res.removeListener("close", abort);
           if (file) await unlink(file).catch(() => {});

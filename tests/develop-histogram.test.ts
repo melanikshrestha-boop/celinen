@@ -21,8 +21,46 @@ describe("Develop histogram from rendered pixels", () => {
     expect(h.highlights).toBe(1);
     expect(h.channels[0]![255]).toBe(1);
     expect(h.channels[1]![128]).toBe(1);
-    for (const bins of [...h.channels, h.luminance, h.maximum])
+    for (const bins of [...h.channels, h.luminance, h.encodedLuminance, h.maximum])
       expect(bins.reduce((a, b) => a + b)).toBe(3);
+  });
+  it("distinguishes fully black pixels from any-channel shadow clipping", () => {
+    const h = analyzeDevelopPixels(
+      image([0, 0, 0], [0, 70, 90], [70, 0, 90], [70, 90, 0], [1, 2, 3]),
+    );
+    expect(h.shadows).toBe(1);
+    expect(h.shadowClipped).toBe(4);
+    expect(h.highlights).toBe(0);
+    expect(analyzeDevelopPixels([0, 0, 0, 0]).shadowClipped).toBe(0);
+    // Existing overlays still mark fully black only unless their caller explicitly opts into RGB.
+    expect([...clippingPixels(image([0, 70, 90]), true, false)]).toEqual([0, 0, 0, 0]);
+  });
+  it("encodes exact luminance without changing linear Auto bins, input bytes, or channel counts", () => {
+    const data = new Uint8ClampedArray(65536 * 4);
+    const expected = Array<number>(256).fill(0);
+    const expectedLinear = Array<number>(1024).fill(0);
+    let seed = 0x17a9df;
+    for (let i = 0; i < data.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        data[i + c] = seed >>> 24;
+      }
+      data[i + 3] = 255;
+      const y =
+        0.2126 * srgbToLinear(data[i]! / 255) +
+        0.7152 * srgbToLinear(data[i + 1]! / 255) +
+        0.0722 * srgbToLinear(data[i + 2]! / 255);
+      const encoded = y <= 0.0031308 ? y * 12.92 : 1.055 * y ** (1 / 2.4) - 0.055;
+      expected[Math.round(encoded * 255)]!++;
+      expectedLinear[Math.round(y * 1023)]!++;
+    }
+    const before = data.slice();
+    const actual = analyzeDevelopPixels(data);
+    expect(actual.encodedLuminance).toEqual(expected);
+    expect(actual.luminance).toEqual(expectedLinear);
+    expect(actual.pixels).toBe(65536);
+    expect(data).toEqual(before);
+    for (const bins of actual.channels) expect(bins.reduce((a, b) => a + b)).toBe(65536);
   });
   it("ignores transparent and incomplete pixels", () => {
     expect(analyzeDevelopPixels([255, 255, 255, 0, 2, 3]).pixels).toBe(0);

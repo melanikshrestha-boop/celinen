@@ -1,10 +1,15 @@
-# LensLabs C++ native preview engine
+# FOTO local C++ engines
 
-**FOTO Photo Lab Develop update:** the dedicated `/develop` page now uses the
-additional `lenslabs-develop` C++20 operator for editing and JPEG export. The
-existing Studio/culling descriptions below still apply to Studio; they do not
-describe this new sensor-RAW path. See [Develop sprint status and exact
-limitations](../docs/FOTO-DEVELOP-SPRINT.md).
+The current FOTO workspace shares canonical, account-and-shoot-scoped photo and
+review records between Cull and Develop. Develop uses `lenslabs-develop` for
+editing and JPEG export; legacy Studio renderer descriptions later in this file
+are historical, not an alternate renderer for current canonical treatments.
+See [Develop capabilities and gaps](../docs/FOTO-DEVELOP-PARITY.md) and
+[dated verification milestones](../docs/FOTO-DEVELOP-SPRINT.md). This is a local
+macOS implementation, not a published native service or a completed Lightroom
+replacement.
+
+## Current local build and workflow
 
 On a fresh macOS checkout, build the pinned native dependency and executables
 before opening Develop:
@@ -16,10 +21,27 @@ make -C native -j4
 npm run dev:lab
 ```
 
-Open `http://127.0.0.1:8085/develop`. Existing project/shoot query parameters can
-be retained when navigating from the workspace. The separate lab command keeps
-local development identity out of the production configuration. Native binaries,
-original photos and local environment files are not part of the Git handoff.
+Open `http://127.0.0.1:8085/shoots` and enter the selected shoot's Develop tab.
+The `/develop` compatibility route retains supported project/shoot bindings.
+The separate lab command keeps local development identity out of the production
+configuration. Native binaries, original photos and local environment files are
+not part of the Git handoff. Owner login, publication and live Google sign-in
+must be verified separately; local lab operation does not prove any of them.
+
+Canonical imports retain exact source fingerprints and original bytes, commit
+photo/document receipts atomically, and preserve existing IDs and histories.
+Legacy metadata and unresolved edit/crop intent remain archived without claiming
+pixel-equivalent conversion; historical Studio versions and old stores are not
+rewritten. Review projection must not send a native treatment through the legacy
+browser renderer as though the two recipes were interchangeable.
+
+Import registration means discovering browser file handles, not completing RAW
+decode or durable storage. The UI reports those phases separately; its new-import
+analysis remains pending until real analysis is recorded. Registration targets
+are not decode/save guarantees. Native source registration/receipt reuse is not
+yet implemented, so persistent browser storage does not eliminate subsequent
+native source transfers or decoding. See the
+[performance measurement boundaries](../docs/FOTO-DEVELOP-PERFORMANCE.md).
 
 Develop provides exposure/color/presence, master and independent RGB point curves,
 HSL, tonal color grading, deterministic film effects and highlight falloff,
@@ -32,13 +54,28 @@ Preview export displays the exact JPEG bytes that will be downloaded, with
 source/recipe/size/quality invalidation and cancellable sensor processing.
 Recovery files can restore explicitly selected treatments as undoable history
 steps without replacing originals or current review metadata.
-Current output is JPEG/sRGB up to a 4,096px long edge, not a complete 16-bit or
-full-resolution Lightroom pipeline. Other operating systems still require a
-decoder/encoder adapter.
+Current output is JPEG/sRGB with a 4,096px default long edge and an explicit
+8,192px / 36-million-pixel option, without upscaling. Both output caps apply;
+this is not unlimited original resolution or a complete 16-bit Lightroom
+pipeline. RAW source bounds remain 128 MiB / 60 MP and JPEG output is capped at
+32 MiB. Larger renders use an exclusive processing lease. Experimental object
+removal has a separate 4,096px cap and produces a separate copy. Other operating
+systems still require a decoder/encoder adapter. Stored process models retain
+their version semantics; the continuous RAW white-balance foundation is not
+silently activated for existing recipes or advertised as a completed editor fix.
+
+## Historical Studio transport and standalone CLI reference
+
+The following notes preserve the September 7 preview/culling milestone, its
+legacy UI/export behavior, source audit and measured results. They do not imply
+that the current canonical import automatically runs analysis, that legacy
+deadline/social exports support native Develop treatments, or that those old
+test counts describe the current checkout. Standalone CLI commands and their
+bounds are distinct from the current Develop transport above.
 
 Original C++20 implementation with pinned LibRaw 0.22.2 for embedded RAW JPEG previews. No Python, Rust, Node runtime or downloaded AI model is required by this executable. macOS builds link Apple's installed ImageIO, CoreGraphics and CoreFoundation frameworks for bounded raster decoding and sRGB JPEG output.
 
-**Status:** the C++ engine is connected to the existing local Studio for import previews, analysis and conservative burst review. The React interface is retained; it is not a native desktop rewrite or full RapidRAW replacement. This connection is **development-only on loopback**, not a deployed native service. Deadline JPEG export deliberately retains the existing browser renderer for current edit compatibility. See the [RapidRAW audit and migration gates](../docs/RAPIDRAW-CPP-PLAN.md).
+**Historical status (September 7):** the C++ engine was connected to the existing local Studio for import previews, analysis and conservative burst review. The React interface was retained; it was not a native desktop rewrite or full RapidRAW replacement. This connection was **development-only on loopback**, not a deployed native service. Deadline JPEG export retained the existing browser renderer for that milestone's edit compatibility. See the [RapidRAW audit and migration gates](../docs/RAPIDRAW-CPP-PLAN.md).
 
 ## Build and verify
 
@@ -54,11 +91,11 @@ native/build/lenslabs-native --help
 
 Requires Apple's Command Line Tools, `clang++` with C++20, and `make`. The explicit bootstrap downloads a checksum-pinned source archive and builds only a local static dependency under ignored `native/build/deps`; it does not install globally. Pass a previously downloaded archive as its argument for offline setup. Ordinary `make` never downloads anything. CMake/`lenscull_core` packaging from the larger culling brief is still pending. Sanitizer builds are separate from release builds and should never supply performance numbers.
 
-With the optional Sony corpus below, native verification is 32,207 checks across the core (462), decoder (128), pipeline (172), worker protocol (337), burst grouping (3,493), and social framing (27,615) suites. Release and sanitizer component checks passed. The sanitizer build instruments LensLabs code; the separately built LibRaw static dependency is not sanitizer-instrumented. These counts establish regression coverage, not photographic accuracy or unique-photo throughput.
+With the optional Sony corpus below, historical native verification was 32,207 checks across the core (462), decoder (128), pipeline (172), worker protocol (337), burst grouping (3,493), and social framing (27,615) suites. Release and sanitizer component checks passed at that milestone. The sanitizer build instruments LensLabs code; the separately built LibRaw static dependency is not sanitizer-instrumented. These counts establish regression coverage, not photographic accuracy, unique-photo throughput or current release totals.
 
 The [local workflow backtest](../docs/NATIVE-WORKFLOW-BACKTEST.md) records the real browser run, fixture timings, downloaded JPEG checksums and the remaining labeled-shoot benchmark.
 
-## Use the engine in local Studio
+## Historical local Studio integration
 
 Build the native executables, start the existing web app with `npm run dev`, and open the loopback Studio URL printed by Vite. Keep the normal Studio folder-drop workflow. No interface migration, Python conversion, or native desktop installation is required.
 
@@ -75,7 +112,7 @@ The transport's in-memory preview cache is limited to **64 MiB and 256 entries**
 
 When the native engine is absent, the existing browser import path remains available. A job that starts on the native path and fails is reported explicitly rather than silently changing processing backends. Grouping with camera-time confidence requires compatible clock semantics and a device-level camera identity; missing evidence produces appearance-only candidates, not invented burst timing. Suggestions preserve the photographer's picks and require review. These groups do not understand peak action, faces, players or jersey numbers.
 
-## Prepare a deadline set
+## Historical deadline-set workflow
 
 The existing Studio menu and supported chat command open a secondary deadline workflow without replacing the main layout. A set contains only previously chosen keepers, in Studio order: 1–200 frames, JPEGs with a maximum 2,048px edge, and one local ZIP capped at 100 MiB. It snapshots exact files, edits and crop focus; changed membership, source identity or edits invalidate the preview before download.
 
@@ -83,7 +120,7 @@ Preparation is serial, cancellable and retryable. Failures are listed per frame;
 
 This workflow reuses the **existing Studio browser renderer**, including warmth and crop, rather than substituting the native preview renderer's different tone math. RAW inputs use their embedded preview in this export path; neither it nor the native preview engine is full RAW development. A browser download request is not proof of external delivery.
 
-## Frame posts and Stories
+## Historical post and Story framing
 
 The Studio **Shoot actions → Share to social** flow calls `lenslabs-social`. It produces 1080×1350 portrait, 1080×1080 square, or 1080×1920 Story JPEGs with fit/fill, positioning, zoom, and black/white padding. Source files remain unchanged. The operator writes JPEG bytes to stdout:
 

@@ -467,6 +467,12 @@ export function SettingsWorkspace({
         return (
           <Group title="Photos & sidecars">
             <Row
+              title="Bring your website content"
+              note="Review saved HTML, Pixieset folder CSV or a FOTO migration plan. Existing sites and domains stay untouched."
+            >
+              {action("Review website import", "/portfolio")}
+            </Row>
+            <Row
               title="Import photos or a folder"
               note="Use the + menu in Chat or drop a folder into Studio. Existing photos are preserved."
             >

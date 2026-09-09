@@ -46,9 +46,10 @@ describe("FOTO shared typography", () => {
     }
   });
 
-  test("explicit serif and both code-font choices remain available and round-trip", () => {
+  test("legacy serif settings remain portable but render the single FOTO face", () => {
     const { properties, appearance } = applyFont("serif", "system-mono");
-    expect(properties.get("--ll-ui-font")).toBe("Georgia, serif");
+    expect(properties.get("--ll-ui-font")).toBe("var(--foto-font-sans)");
+    expect(appearance.uiFont).toBe("serif");
     expect(properties.get("--ll-code-font")).toBe('Menlo, Consolas, "Liberation Mono", monospace');
     expect(importTheme(exportTheme(appearance))).toEqual(appearance);
     expect(applyFont("sans").properties.get("--ll-code-font")).toBe("var(--foto-font-mono)");

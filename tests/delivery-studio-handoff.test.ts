@@ -349,12 +349,14 @@ describe("read-only exact-version Studio feedback handoff", () => {
     const binding = { kind: "ready" as const, projectId: project.id, deliveryFocus: focus };
     const other = { ...binding, deliveryFocus: { ...focus, handoffId: id() } };
     expect(studioBindingKey(binding)).not.toBe(studioBindingKey(other));
-    for (const tool of ["/workspace", "/settings", "/deliver?workflow=1", "/clients"]) {
+    for (const tool of ["/workspace", "/settings", "/deliver?workflow=1"]) {
       const href = scopeToolHref(tool, binding);
       expect(explicitWorkspaceBinding(href, true)).toEqual(binding);
       expect(explicitWorkspaceBinding(href, false)?.kind).toBe("blocked");
       expect(resolveWorkspaceBinding(href, other, true)).toEqual(other);
     }
+    expect(scopeToolHref("/clients", binding)).toBe("/clients");
+    expect(explicitWorkspaceBinding("/clients", true)).toBeNull();
   });
   test("incomplete, conflicting, malformed and duplicated context links cannot load another shoot", async () => {
     const { project, focus } = await fixture();

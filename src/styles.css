@@ -301,21 +301,21 @@
 
 /* ---- dark mode ---- */
 .dark {
-  --foto-sidebar-material: #242424cc;
-  --foto-sidebar-solid: #242424;
+  --foto-sidebar-material: #000000cc;
+  --foto-sidebar-solid: #000000;
   --foto-sidebar-hover: #f5f5f50d;
   --foto-sidebar-selected: #f5f5f518;
   --foto-sidebar-text: #f5f5f5;
   --foto-sidebar-muted: #a3a3a3;
-  --foto-settings-surface: #181818;
+  --foto-settings-surface: #000000;
   --foto-settings-border: #f5f5f514;
-  --paper: oklch(0.145 0.004 285);
-  --paper2: oklch(0.185 0.005 285);
+  --paper: #000000;
+  --paper2: #141414;
   --ink: oklch(0.975 0.001 90);
   --rust: oklch(0.635 0.215 28);
   --moss: oklch(0.7 0.006 285);
   --sun: oklch(0.72 0.17 32);
-  --mist: oklch(0.225 0.005 285);
+  --mist: #1a1a1a;
 
   --background: var(--paper);
   --foreground: var(--ink);

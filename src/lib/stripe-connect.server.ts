@@ -1,5 +1,27 @@
 import Stripe from "stripe";
 import { applicationOrigin } from "./application-origin";
+import {
+  createConnectedAccountProof,
+  verifyConnectedAccountProof,
+} from "./earnings/connection-proof.server";
+
+function bindingSecret(): string {
+  // Domain-separated HMAC under the existing server-only key. Rotation safely
+  // requires reconnection; a user-writable profile cannot mint a valid proof.
+  const secret = process.env["STRIPE_SECRET_KEY"];
+  if (!secret) throw new Error("Stripe account verification is not configured.");
+  return secret;
+}
+export function issueConnectedAccountProof(ownerId: string, accountId: string) {
+  return createConnectedAccountProof(ownerId, accountId, bindingSecret());
+}
+export function verifyConnectedAccount(
+  ownerId: string,
+  accountId: string,
+  proof: string | null | undefined,
+) {
+  return verifyConnectedAccountProof(ownerId, accountId, proof, bindingSecret());
+}
 
 /**
  * Direct Stripe client for the PLATFORM account.

@@ -4,7 +4,46 @@ import {
   currentDevelopExportProof,
   developImageReady,
   filteredDevelopSelection,
+  developProcessingSource,
 } from "../src/components/develop/develop-state";
+
+describe("editor and export processing source parity", () => {
+  const original = new Blob(["sensor RAW"]),
+    preview = new Blob(["camera JPEG"]);
+  const photo = { isRaw: true, sourceAvailable: true, sourceBlob: original, previewBlob: preview };
+  test("sensor mode uses original bytes, never a camera proxy for the editor", () => {
+    const selected = developProcessingSource(photo, "raw");
+    expect(selected.source).toBe(original);
+    expect(selected.sourceMode).toBe("raw");
+    expect(selected.source).not.toBe(preview);
+  });
+  test("explicit preview mode changes both editor and export to the same proxy", () => {
+    const selected = developProcessingSource(photo, "preview");
+    expect(selected.source).toBe(preview);
+    expect(selected.sourceMode).toBe("preview");
+  });
+  test("missing original stays explicitly preview only; raster originals never enter RAW mode", () => {
+    expect(
+      developProcessingSource({ ...photo, sourceAvailable: false, sourceBlob: null }, "raw"),
+    ).toEqual({ source: preview, sourceMode: "preview" });
+    expect(developProcessingSource({ ...photo, isRaw: false }, "raw")).toEqual({
+      source: original,
+      sourceMode: "preview",
+    });
+    expect(developProcessingSource(null, "raw")).toEqual({ source: null, sourceMode: "preview" });
+  });
+  test("mode, output dimensions or compression change invalidates a displayed old frame", () => {
+    const owner = {
+      id: "photo",
+      source: original,
+      sourceGeometry: false,
+      renderKey: "raw:4096:95",
+    };
+    expect(currentDevelopRender(owner, "photo", original, false, "raw:4096:95")).toBe(true);
+    for (const key of ["preview:4096:95", "raw:1600:95", "raw:4096:80"])
+      expect(currentDevelopRender(owner, "photo", original, false, key)).toBe(false);
+  });
+});
 
 describe("Develop export proof provenance", () => {
   const request = {

@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listRecentShoots, type RecentShoot } from "@/lib/studio/shoot-directory";
+import {
+  listRecentShoots,
+  listShootOrganization,
+  type RecentShoot,
+  type ShootOrganization,
+} from "@/lib/studio/shoot-directory";
 import { listProjects } from "@/lib/projects/repository";
 import type { Project } from "@/lib/projects/model";
 import {
@@ -33,6 +38,8 @@ export type ShootSummary = {
   sport: string | null;
   kickoffAt: number | null;
   recoveryPending: boolean;
+  pinned?: boolean;
+  archived?: boolean;
 };
 
 /** Keep a source-version handoff only while moving inside the same shoot. */
@@ -89,6 +96,7 @@ export function shootSummaryDetail(row: ShootSummary) {
 export function summarizeShoots(
   shoots: readonly RecentShoot[],
   projects: readonly Project[],
+  organization: Readonly<Record<string, ShootOrganization>> = {},
 ): ShootSummary[] {
   return [
     ...shoots.map((row): ShootSummary => ({
@@ -102,6 +110,8 @@ export function summarizeShoots(
       sport: null,
       kickoffAt: null,
       recoveryPending: row.recoveryPending,
+      pinned: organization[row.id]?.pinned ?? false,
+      archived: organization[row.id]?.archived ?? false,
     })),
     ...projects.map((row): ShootSummary => ({
       key: `project:${row.id}`,
@@ -114,11 +124,15 @@ export function summarizeShoots(
       sport: null,
       kickoffAt: null,
       recoveryPending: false,
+      pinned: organization[`project:${row.id}`]?.pinned ?? false,
+      archived: organization[`project:${row.id}`]?.archived ?? false,
     })),
   ].sort(
     (a, b) =>
+      Number(b.pinned) - Number(a.pinned) ||
       (Number.isFinite(b.updatedAt) ? b.updatedAt : 0) -
-        (Number.isFinite(a.updatedAt) ? a.updatedAt : 0) || a.key.localeCompare(b.key),
+        (Number.isFinite(a.updatedAt) ? a.updatedAt : 0) ||
+      a.key.localeCompare(b.key),
   );
 }
 export function shootsInNext24Hours(rows: readonly ShootSummary[], now = Date.now()) {
@@ -131,12 +145,13 @@ export function shootsInNext24Hours(rows: readonly ShootSummary[], now = Date.no
   );
 }
 export async function loadShootSummaries(scope: string, includeLocalProjects: boolean) {
-  const [shoots, projects] = await Promise.all([
+  const [shoots, projects, organization] = await Promise.all([
     listRecentShoots(scope),
     // The separate Project repository belongs to the local single-user workspace, not to cloud accounts.
     includeLocalProjects ? listProjects() : Promise.resolve([]),
+    listShootOrganization(scope),
   ]);
-  return summarizeShoots(shoots, projects);
+  return summarizeShoots(shoots, projects, organization);
 }
 export function useShootNavigationData(scope: string, includeLocalProjects: boolean) {
   const owner = JSON.stringify([scope, includeLocalProjects]);
@@ -192,7 +207,7 @@ export function useShootNavigationData(scope: string, includeLocalProjects: bool
     current.rows.length > 0 && current.rows.every((row) => row.kickoffAt !== null);
   return {
     ...current,
-    recents: current.rows.slice(0, 8),
+    recents: current.rows.filter((row) => !row.archived).slice(0, 8),
     scheduleKnown,
     tonightCount: scheduleKnown ? shootsInNext24Hours(current.rows).length : null,
     refresh,

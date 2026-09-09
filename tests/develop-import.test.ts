@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { completeDevelopImportIds, runDevelopImport } from "../src/lib/develop/import";
 import {
+  createDevelopDocument,
   developPhotoFromFile,
   type DevelopPhoto,
   type DevelopPhotoInput,
@@ -338,6 +339,155 @@ describe("Develop multi-photo import isolation", () => {
     expect(report.selectedId).toBeNull();
     expect(report.imported).toHaveLength(0);
     expect(options.previewed).toEqual(["one.jpg"]);
+  });
+
+  test("committed photos become observable before the next decode with exact saved edit IDs", async () => {
+    const options = fixture();
+    const events: string[] = [];
+    const savedDocuments = new Map<string, ReturnType<typeof createDevelopDocument>>();
+    const report = await runDevelopImport([file("one.jpg"), file("two.jpg")], {
+      ...options,
+      preparePreview: async (source, input) => {
+        events.push(`decode:${source.name}`);
+        return options.preparePreview(source, input);
+      },
+      save: async (input) => {
+        const photos = await options.save(input);
+        const document = { ...createDevelopDocument(input.id), revision: 7 };
+        document.metadata.rating = 4;
+        savedDocuments.set(input.id, document);
+        events.push(`committed:${input.name}`);
+        return { photos, documents: { [input.id]: document } };
+      },
+      onCommitted: (receipt, progress) => {
+        events.push(`observed:${progress.fileName}`);
+        const photo = receipt.photos[0]!;
+        expect(receipt.documents[photo.id]).toEqual(savedDocuments.get(photo.id));
+        expect(receipt.documents[photo.id]!.revision).toBe(7);
+        expect(progress.total).toBe(2);
+        expect(progress.index).toBe(events.length / 3);
+      },
+    });
+    expect(events).toEqual([
+      "decode:one.jpg",
+      "committed:one.jpg",
+      "observed:one.jpg",
+      "decode:two.jpg",
+      "committed:two.jpg",
+      "observed:two.jpg",
+    ]);
+    expect(report.imported).toHaveLength(2);
+    expect(report.fatalError).toBeNull();
+  });
+
+  test("sync and async observers cannot lose commits, stop imports, or mutate saved receipts", async () => {
+    const options = fixture();
+    const savedDocuments = new Map<string, ReturnType<typeof createDevelopDocument>>();
+    const observed: string[] = [];
+    const report = await runDevelopImport(
+      [file("one.jpg"), file("two.jpg"), file("three.jpg"), file("copy.jpg", "three.jpg")],
+      {
+        ...options,
+        save: async (input) => {
+          const photos = await options.save(input);
+          const document = createDevelopDocument(input.id);
+          savedDocuments.set(input.id, document);
+          return { photos, documents: { [input.id]: document } };
+        },
+        onCommitted: (receipt, progress) => {
+          observed.push(progress.fileName);
+          if (progress.index === 1) throw new Error("Unmounted display");
+          if (progress.index === 2) return Promise.reject(new Error("Display refresh failed"));
+          const photo = receipt.photos[0]!;
+          receipt.documents[photo.id]!.history[0]!.settings.exposure = 3;
+          photo.id = "changed-by-observer";
+          photo.name = "Changed";
+        },
+      },
+    );
+    expect(observed).toEqual(["one.jpg", "two.jpg", "three.jpg"]);
+    expect(report.imported.map((photo) => photo.name)).toEqual(observed);
+    expect(report.imported.every((photo) => photo.id.startsWith("sha256:"))).toBe(true);
+    expect(
+      [...savedDocuments.values()].every((doc) => doc.history[0]!.settings.exposure === 0),
+    ).toBe(true);
+    expect(report.duplicates).toBe(1);
+    expect(report.fatalError).toBeNull();
+    expect(report.stopped).toBe(false);
+  });
+
+  test("cancellation after a durable save still emits its committed receipt exactly once", async () => {
+    const options = fixture();
+    const controller = new AbortController();
+    const observed: string[] = [];
+    const report = await runDevelopImport([file("one.jpg"), file("two.jpg")], {
+      ...options,
+      signal: controller.signal,
+      save: async (input) => {
+        const photos = await options.save(input);
+        controller.abort();
+        return { photos, documents: { [input.id]: createDevelopDocument(input.id) } };
+      },
+      onCommitted: (receipt) => {
+        observed.push(receipt.photos[0]!.name);
+      },
+    });
+    expect(report.imported.map((photo) => photo.name)).toEqual(["one.jpg"]);
+    expect(observed).toEqual(["one.jpg"]);
+    expect(options.previewed).toEqual(["one.jpg"]);
+    expect(report.stopped).toBe(true);
+    expect(report.fatalError).toBeNull();
+  });
+
+  test("failed decodes, duplicates and failed storage never emit a committed preview", async () => {
+    const options = fixture();
+    const known = file("known.jpg");
+    const observed: string[] = [];
+    const report = await runDevelopImport(
+      [known, file("broken.jpg"), file("good.jpg"), file("quota.jpg"), file("later.jpg")],
+      {
+        ...options,
+        existingIds: [(await developPhotoFromFile(known)).id],
+        save: async (input) => {
+          if (input.name === "quota.jpg") throw new Error("Quota exceeded");
+          const photos = await options.save(input);
+          return { photos, documents: { [input.id]: createDevelopDocument(input.id) } };
+        },
+        onCommitted: (receipt) => {
+          observed.push(receipt.photos[0]!.name);
+        },
+      },
+    );
+    expect(observed).toEqual(["good.jpg"]);
+    expect(report.duplicates).toBe(1);
+    expect(report.failures).toHaveLength(1);
+    expect(report.fatalError).toContain("Quota exceeded");
+    expect(options.previewed).not.toContain("later.jpg");
+  });
+
+  test("missing, mismatched or corrupt saved edit receipts cannot be adopted", async () => {
+    for (const kind of ["missing", "extra", "wrong-id", "corrupt"]) {
+      const options = fixture();
+      let observed = 0;
+      const report = await runDevelopImport([file("one.jpg"), file("two.jpg")], {
+        ...options,
+        save: async (input) => {
+          const photos = await options.save(input);
+          const document = createDevelopDocument(kind === "wrong-id" ? "other" : input.id);
+          if (kind === "corrupt") document.cursor = 900;
+          const documents = kind === "missing" ? {} : { [input.id]: document };
+          if (kind === "extra") documents["other"] = createDevelopDocument("other");
+          return { photos, documents };
+        },
+        onCommitted: () => {
+          observed++;
+        },
+      });
+      expect(observed).toBe(0);
+      expect(report.fatalError).not.toBeNull();
+      expect(report.imported).toHaveLength(0);
+      expect(options.previewed).toEqual(["one.jpg"]);
+    }
   });
 
   test("1,000 varied deterministic mixed batches match an independent receipt model", async () => {

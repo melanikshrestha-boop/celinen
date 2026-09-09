@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowDownToLine,
   Check,
@@ -14,26 +14,33 @@ import {
   Redo2,
   Star,
   Undo2,
+  WandSparkles,
 } from "lucide-react";
 import { useWorkbench } from "@/components/workbench/context";
+import { useLocation } from "@tanstack/react-router";
+import type { DeliveryFocus } from "@/lib/delivery/studio-handoff";
+import { createShootRepository } from "@/lib/develop/shoot-repository";
+import {
+  developViewFilter,
+  reconcileDevelopView,
+  type DevelopViewBaseline,
+} from "@/lib/develop/cull-view";
+import { getDevelopImportSession } from "@/lib/develop/import-session";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { readStudioSessionSnapshot } from "@/lib/studio/session";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import {
+  DEVELOP_ENGINE_LIMITS,
   defaultDevelopSettings,
   cloneDevelopSettings,
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
+import { canReuseNeutralDevelop, isNeutralDevelopRecipe } from "@/lib/develop/neutral";
 import { AutoCropDialog } from "./AutoCropDialog";
+import { ObjectRemoveDialog } from "./ObjectRemoveDialog";
+import type { DevelopImportReport } from "@/lib/develop/import";
 import {
-  completeDevelopImportIds,
-  runDevelopImport,
-  type DevelopImportReport,
-} from "@/lib/develop/import";
-import { collectDroppedFiles } from "@/lib/studio/drop-import";
-import {
-  createDevelopStore,
   currentRecipe,
   pushHistory,
   undoHistory,
@@ -45,25 +52,31 @@ import {
   createDevelopPreset,
   developRecoveryDocuments,
   developPhotoFromShot,
+  developPhotoFromFile,
   reconnectDevelopPhoto,
   mergeDevelopImportCommit,
   type DevelopDocument,
   type DevelopPhoto,
   type DevelopLibrary,
   type DevelopPreset,
+  type DevelopImportCommit,
 } from "@/lib/develop/store";
-import { photoExportFilename } from "@/lib/develop/photo-management";
+import { photoExportFilename, uniquePhotoDisplayName } from "@/lib/develop/photo-management";
+import { removalRenderEdge } from "@/lib/develop/object-remove";
 import { DevelopPhotoActions } from "./DevelopPhotoActions";
 import { PresetExchange } from "./PresetExchange";
 import { ReferencePresetDialog } from "./ReferencePresetDialog";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
 import { DevelopViewer } from "./DevelopViewer";
 import { DevelopHistogram } from "./DevelopHistogram";
+import { DevelopFilmstrip } from "./DevelopFilmstrip";
+import { DevelopLibraryGrid } from "./DevelopLibraryGrid";
+import { suggestDevelopTone, type DevelopHistogramData } from "@/lib/develop/histogram";
+import { analyzeDevelopBlob } from "@/lib/develop/pixel-analysis";
 import {
-  analyzeDevelopPixels,
-  suggestDevelopTone,
-  type DevelopHistogramData,
-} from "@/lib/develop/histogram";
+  createDevelopPixelSampleChannel,
+  type DevelopPixelSample,
+} from "@/lib/develop/pixel-sample";
 import { DevelopRecoveryDialog } from "./DevelopRecoveryDialog";
 import { DevelopReconnectDialog } from "./DevelopReconnectDialog";
 import { useDevelopPointer } from "./useDevelopPointer";
@@ -71,6 +84,7 @@ import {
   currentDevelopRender,
   currentDevelopExportProof,
   filteredDevelopSelection,
+  developProcessingSource,
   type DevelopExportProof,
   type DevelopExportRequest,
   type DevelopRenderOwner,
@@ -140,21 +154,77 @@ export function DevelopPage({
   scope,
   projectId,
   shootId,
+  deliveryFocus,
 }: {
   scope: string;
   projectId: string | null;
   shootId?: string;
+  deliveryFocus?: DeliveryFocus;
 }) {
   const workbench = useWorkbench();
+  const href = useLocation({ select: (location) => location.href });
   const pointerBoundary = useDevelopPointer();
-  const store = useMemo(
+  const repository = useMemo(
     () =>
-      createDevelopStore({
+      createShootRepository({
         scope,
         libraryId: projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`,
       }),
     [scope, projectId, shootId],
   );
+  const store = repository.store;
+  const importSession = useMemo(
+    () =>
+      getDevelopImportSession({
+        scope,
+        libraryId: projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`,
+      }),
+    [scope, projectId, shootId],
+  );
+  const importState = useSyncExternalStore(
+    importSession.subscribe,
+    importSession.getSnapshot,
+    importSession.getSnapshot,
+  );
+  const [importRowsPage, setImportRowsPage] = useState(0);
+  useEffect(() => setImportRowsPage(0), [importState.jobId]);
+  const repositoryCleanup = useRef(new Map<typeof repository, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = repositoryCleanup.current;
+    const pendingClose = timers.get(repository);
+    if (pendingClose) clearTimeout(pendingClose);
+    timers.delete(repository);
+    return () => {
+      timers.set(
+        repository,
+        setTimeout(() => {
+          timers.delete(repository);
+          repository.close();
+        }, 0),
+      );
+    };
+  }, [repository]);
+  const focusedFrame = deliveryFocus?.frameId,
+    focusedVersion = deliveryFocus?.versionId,
+    focusedHandoff = deliveryFocus?.handoffId;
+  const stableDeliveryFocus = useMemo(
+    () =>
+      focusedFrame && focusedVersion
+        ? {
+            frameId: focusedFrame,
+            versionId: focusedVersion,
+            ...(focusedHandoff ? { handoffId: focusedHandoff } : {}),
+          }
+        : undefined,
+    [focusedFrame, focusedVersion, focusedHandoff],
+  );
+  const [catalogSignal, setCatalogSignal] = useState(0);
+  const catalogChanges = useRef(new Map<string, DevelopImportCommit | null>());
+  const presetsChanged = useRef(false);
+  const importSelection = useRef<{ jobId: string | null; selected: boolean }>({
+    jobId: null,
+    selected: false,
+  });
   const [library, setLibrary] = useState<DevelopLibrary>({
     photos: [],
     documents: {},
@@ -183,6 +253,7 @@ export function DevelopPage({
     [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(""),
     [engine, setEngine] = useState<boolean | null>(null);
+  const [removalPreviewPending, setRemovalPreviewPending] = useState(false);
   const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
     [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
@@ -196,14 +267,23 @@ export function DevelopPage({
   const [filter, setFilter] = useState("all"),
     [clipboard, setClipboard] = useState<DevelopSettings | null>(null),
     [activePreset, setActivePreset] = useState("Original");
+  const viewFilter = useRef(filter);
+  viewFilter.current = filter;
+  const viewBaseline = useRef<DevelopViewBaseline | null>(null);
+  const explicitViewFilter = useRef(false);
+  const hydrated = useRef(false);
   const [copiedPhoto, setCopiedPhoto] = useState<{ id: string; revision: number } | null>(null);
   const [renderBlob, setRenderBlob] = useState<Blob | null>(null),
     [neutralBlob, setNeutralBlob] = useState<Blob | null>(null),
     [rendering, setRendering] = useState(false),
     [renderError, setRenderError] = useState("");
   const renderOwner = useRef<DevelopRenderOwner | null>(null),
-    neutralOwner = useRef<{ id: string | null; source: Blob } | null>(null);
+    neutralOwner = useRef<{ id: string | null; source: Blob; renderKey: string } | null>(null),
+    editorProof = useRef<DevelopExportProof | null>(null);
   const [histogram, setHistogram] = useState<DevelopHistogramData | null>(null),
+    [histogramPhoto, setHistogramPhoto] = useState<string | null>(null),
+    [histogramUrl, setHistogramUrl] = useState<string | null>(null),
+    [histogramError, setHistogramError] = useState<{ url: string; message: string } | null>(null),
     [sourceHistogram, setSourceHistogram] = useState<DevelopHistogramData | null>(null),
     [adaptiveLooks, setAdaptiveLooks] = useState(true),
     [clipping, setClipping] = useState({ shadows: false, highlights: false }),
@@ -213,6 +293,18 @@ export function DevelopPage({
     (width: number, height: number) => setDimensions({ width, height }),
     [],
   );
+  const onHistogram = useCallback(
+    (measured: DevelopHistogramData, measuredUrl: string) => {
+      setHistogram(measured);
+      setHistogramPhoto(selected);
+      setHistogramUrl(measuredUrl);
+      setHistogramError(null);
+    },
+    [selected],
+  );
+  const onHistogramError = useCallback((message: string, measuredUrl: string) => {
+    setHistogramError({ url: measuredUrl, message });
+  }, []);
   const [dialog, setDialog] = useState<
       | "preset"
       | "snapshot"
@@ -224,10 +316,11 @@ export function DevelopPage({
       | "presets"
       | "reference"
       | "auto-crop"
+      | "remove"
       | null
     >(null),
     [name, setName] = useState(""),
-    [exportEdge, setExportEdge] = useState(4096),
+    [exportEdge, setExportEdge] = useState<number>(DEVELOP_ENGINE_LIMITS.defaultExportEdge),
     [exportQuality, setExportQuality] = useState(95),
     [exportSourceMode, setExportSourceMode] = useState<"raw" | "preview">("raw");
   const [exportProof, setExportProof] = useState<DevelopExportProof | null>(null),
@@ -243,9 +336,9 @@ export function DevelopPage({
     alive = useRef(true);
   const operationLock = useRef<"import" | "dialog" | null>(null),
     [dialogError, setDialogError] = useState("");
+  const importing = importState.phase === "discovering" || importState.phase === "processing";
   const dialogElement = useRef<HTMLElement>(null),
     dialogOpener = useRef<HTMLElement | null>(null);
-  const reconnecting = dialog === "reconnect" && operationLock.current === "import";
   const photo = library.photos.find((p) => p.id === selected) ?? null,
     doc = selected ? library.documents[selected] : undefined;
   const source = photo?.sourceBlob?.size
@@ -254,31 +347,53 @@ export function DevelopPage({
       ? photo.previewBlob
       : null;
   const availablePhotos = library.photos.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
-  const previewSource = photo?.isRaw ? (photo.previewBlob ?? source) : source;
+  const { source: previewSource, sourceMode: processingMode } = developProcessingSource(
+    photo,
+    exportSourceMode,
+  );
+  const renderKey = `${processingMode}:${exportEdge}:${exportQuality}`;
   const exportRequest: DevelopExportRequest | null =
-    photo && source
+    photo && previewSource
       ? {
           id: photo.id,
-          source:
-            photo.isRaw && exportSourceMode === "preview" ? (photo.previewBlob ?? source) : source,
+          source: previewSource,
           recipeKey: JSON.stringify(cloneDevelopSettings(draft)),
           edge: exportEdge,
           quality: exportQuality,
-          sourceMode: photo.isRaw && photo.sourceAvailable ? exportSourceMode : "preview",
+          sourceMode: processingMode,
         }
       : null;
   const proofReady = currentDevelopExportProof(exportProof, exportRequest);
   const proofUrl = useBlobUrl(proofReady ? exportProof?.blob : null);
   const url = useBlobUrl(
-      currentDevelopRender(renderOwner.current, selected, previewSource, tool !== "edit")
+      currentDevelopRender(renderOwner.current, selected, previewSource, tool !== "edit", renderKey)
         ? renderBlob
         : null,
     ),
     beforeUrl = useBlobUrl(
-      neutralOwner.current?.id === selected && neutralOwner.current?.source === previewSource
+      neutralOwner.current?.id === selected &&
+        neutralOwner.current?.source === previewSource &&
+        neutralOwner.current?.renderKey === renderKey
         ? neutralBlob
         : null,
     );
+  // A committed import is immediately viewable. Its camera preview is explicitly
+  // temporary: it is never used as an export proof or a source-space editing surface.
+  const quickPreviewBlob = !url && !beforeUrl ? (photo?.previewBlob ?? null) : null;
+  const quickPreviewUrl = useBlobUrl(quickPreviewBlob);
+  const viewerUrl = url ?? beforeUrl ?? quickPreviewUrl;
+  const viewerBlob = url ? renderBlob : beforeUrl ? neutralBlob : quickPreviewBlob;
+  const displayedUrl = before && beforeUrl ? beforeUrl : viewerUrl;
+  const pixelSampleChannel = useMemo(createDevelopPixelSampleChannel, []);
+  const onPixelSample = useCallback(
+    (sample: DevelopPixelSample | null) => {
+      pixelSampleChannel.publish(sample && displayedUrl ? { url: displayedUrl, sample } : null);
+    },
+    [displayedUrl, pixelSampleChannel],
+  );
+  const currentHistogramError =
+    histogramError?.url === displayedUrl ? histogramError.message : null;
+  const histogramPending = !currentHistogramError && (rendering || displayedUrl !== histogramUrl);
   const visible = library.photos.filter(
     (p) =>
       filter === "all" ||
@@ -291,16 +406,25 @@ export function DevelopPage({
   const filmstripPhotos = visible.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
   const flushLatest = useRef<() => Promise<boolean>>(async () => true);
   const flush = useCallback(() => flushLatest.current(), []);
+  useEffect(() => repository.registerFlushParticipant("develop", flush), [repository, flush]);
   useToolLeaveGuard(
-    busy || pending || draftDirty || saveError
-      ? "Develop still has work that has not finished saving."
-      : null,
+    removalPreviewPending
+      ? "Your removal preview has not been saved as a copy."
+      : busy || pending || draftDirty || saveError
+        ? "Develop still has work that has not finished saving."
+        : null,
     flush,
   );
   useEffect(() => {
     alive.current = true;
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (draftDirtyRef.current || pendingRef.current || failed.current || operationLock.current) {
+      if (
+        draftDirtyRef.current ||
+        pendingRef.current ||
+        failed.current ||
+        operationLock.current ||
+        importSession.isRunning()
+      ) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -312,7 +436,7 @@ export function DevelopPage({
       exportAbort.current?.abort();
       window.removeEventListener("beforeunload", beforeUnload);
     };
-  }, []);
+  }, [importSession]);
   useEffect(() => {
     let cancelled = false;
     void developEngineStatus().then((s) => {
@@ -426,6 +550,8 @@ export function DevelopPage({
       if (!id || revision === undefined) throw new Error("Copy a photo first.");
       const result = await store.createVirtualCopy(id, revision);
       if (alive.current) {
+        explicitViewFilter.current = true;
+        viewFilter.current = "all";
         setFilter("all");
         adopt(
           {
@@ -484,7 +610,7 @@ export function DevelopPage({
     return failed.current || operationLock.current !== null || !alive.current;
   }
 
-  const adopt = useCallback((next: DevelopLibrary, choose?: string | null) => {
+  const adopt = useCallback((next: DevelopLibrary, choose?: string | null, exact = false) => {
     docs.current = next.documents;
     revisions.current = Object.fromEntries(
       Object.entries(next.documents).map(([id, d]) => [id, d.revision]),
@@ -492,7 +618,7 @@ export function DevelopPage({
     setLibrary(next);
     const chosen = next.photos.find((p) => p.id === choose);
     const id =
-      chosen && (chosen.sourceBlob?.size || chosen.previewBlob?.size)
+      chosen && (exact || chosen.sourceBlob?.size || chosen.previewBlob?.size)
         ? chosen.id
         : (next.photos.find((p) => p.sourceBlob?.size || p.previewBlob?.size)?.id ??
           chosen?.id ??
@@ -511,16 +637,22 @@ export function DevelopPage({
     let cancelled = false;
     void (async () => {
       try {
+        if (!(await repository.flush()))
+          throw new Error(
+            "The current shoot could not finish saving. Resolve its save error before opening Develop.",
+          );
         let snapshot = await store.loadLibrary();
         // Read the current shoot once. All writes below go to the separate Develop database.
         const session = projectId
-          ? await new ProjectStudioSession(projectId).load()
+          ? await new ProjectStudioSession(projectId, stableDeliveryFocus).load()
           : await readStudioSessionSnapshot(scope, shootId);
         if (session) {
           try {
             if (!cancelled && session.shots.length) {
-              await store.addPhotos(session.shots.map(developPhotoFromShot));
-              snapshot = await store.loadLibrary();
+              const receipt = await store.addPhotosWithDocuments(
+                session.shots.map(developPhotoFromShot),
+              );
+              snapshot = mergeDevelopImportCommit(snapshot, receipt);
             }
           } finally {
             for (const shot of session.shots)
@@ -528,7 +660,31 @@ export function DevelopPage({
           }
         }
         if (cancelled) return;
-        adopt(snapshot, session?.selectedId ? `studio:${session.selectedId}` : null);
+        const requestedPhoto = new URL(href, "https://workspace.invalid").searchParams.get("photo");
+        const focusedId = focusedFrame ? `studio:${focusedFrame}` : requestedPhoto;
+        if (focusedId && !snapshot.photos.some((photo) => photo.id === focusedId))
+          throw new Error(
+            "The requested photo is not in this shoot. No different photo was selected.",
+          );
+        const manifest = await repository.readManifest();
+        adopt(
+          snapshot,
+          focusedId ??
+            manifest.selectedId ??
+            (session?.selectedId ? `studio:${session.selectedId}` : null),
+          Boolean(focusedId),
+        );
+        const projectedFilter = developViewFilter(manifest.filter);
+        viewBaseline.current = {
+          selectedId: focusedId ? manifest.selectedId : selectedRef.current,
+          filter: projectedFilter,
+          sourceSelectedId: manifest.selectedId,
+          sourceFilter: manifest.filter,
+        };
+        explicitViewFilter.current = false;
+        viewFilter.current = projectedFilter;
+        setFilter(projectedFilter);
+        hydrated.current = true;
         setReady(true);
       } catch (e) {
         if (!cancelled) setLoadError(errorMessage(e));
@@ -537,7 +693,141 @@ export function DevelopPage({
     return () => {
       cancelled = true;
     };
-  }, [store, scope, projectId, shootId, adopt]);
+  }, [
+    store,
+    repository,
+    scope,
+    projectId,
+    shootId,
+    stableDeliveryFocus,
+    focusedFrame,
+    href,
+    adopt,
+  ]);
+
+  useEffect(() => {
+    const unsubscribe = repository.subscribe((change) => {
+      if (change.kind === "manifest" || change.kind === "import-job") return;
+      if (change.kind === "presets") presetsChanged.current = true;
+      else {
+        const receipt = change.commit ?? { photos: [], documents: {} };
+        for (const id of change.ids) catalogChanges.current.set(id, receipt);
+      }
+      setCatalogSignal((value) => value + 1);
+    });
+    void importSession.restore().catch((error) => setNotice(errorMessage(error)));
+    return unsubscribe;
+  }, [repository, importSession]);
+  useEffect(() => {
+    setImportFailures(importState.failures);
+    if (importState.jobId && !importing)
+      setNotice(
+        importState.error ??
+          `${importState.saved} photos saved · ${importState.failed} failed · ${importState.duplicates} duplicates`,
+      );
+  }, [importState, importing]);
+  useEffect(() => {
+    if (!ready || failed.current || pendingRef.current) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const captured = new Map(catalogChanges.current);
+      if (importState.selectedId && !captured.size && !importSelection.current.selected)
+        captured.set(importState.selectedId, null);
+      void (async () => {
+        const ids = [...captured.keys()];
+        let incoming = { ...reconnectLibrary.current, documents: { ...docs.current } };
+        const receipts = new Set(
+          [...captured.values()].filter(
+            (value): value is DevelopImportCommit => value !== null && value.photos.length > 0,
+          ),
+        );
+        for (const receipt of receipts) incoming = mergeDevelopImportCommit(incoming, receipt);
+        const missing = ids.filter(
+          (id) => !captured.get(id)?.photos.some((photo) => photo.id === id),
+        );
+        if (missing.length)
+          incoming = mergeDevelopImportCommit(
+            incoming,
+            await store.readPhotosWithDocuments(missing),
+          );
+        if (presetsChanged.current)
+          incoming = { ...incoming, presets: (await store.loadLibrary()).presets };
+        return incoming;
+      })()
+        .then((incoming) => {
+          if (cancelled || !alive.current || failed.current || pendingRef.current) return;
+          for (const [id, value] of captured)
+            if (catalogChanges.current.get(id) === value) catalogChanges.current.delete(id);
+          presetsChanged.current = false;
+          const dirtyId = draftDirtyRef.current ? selectedRef.current : null;
+          const nextDocs = { ...incoming.documents };
+          if (dirtyId && docs.current[dirtyId]) nextDocs[dirtyId] = docs.current[dirtyId]!;
+          docs.current = nextDocs;
+          for (const [id, document] of Object.entries(nextDocs))
+            if (id !== dirtyId) revisions.current[id] = document.revision;
+          if (!dirtyId && selectedRef.current && nextDocs[selectedRef.current]) {
+            const recipe = currentRecipe(nextDocs[selectedRef.current]!);
+            if (JSON.stringify(recipe) !== JSON.stringify(draftRef.current)) {
+              draftRef.current = recipe;
+              setDraft(recipe);
+            }
+          }
+          setLibrary((old) => ({
+            ...incoming,
+            documents: nextDocs,
+            photos: incoming.photos.map((entry) => {
+              const prior = old.photos.find((photo) => photo.id === entry.id);
+              // Originals are immutable under an existing ID. Retain their browser handles,
+              // but never hide an actual missing-source attachment or changed metadata.
+              return prior?.sourceBlob &&
+                entry.sourceBlob &&
+                prior.sourceDigest === entry.sourceDigest
+                ? {
+                    ...entry,
+                    sourceBlob: prior.sourceBlob,
+                    previewBlob: prior.previewBlob ?? entry.previewBlob,
+                  }
+                : entry;
+            }),
+          }));
+          if (importSelection.current.jobId !== importState.jobId)
+            importSelection.current = {
+              jobId: importState.jobId,
+              selected: !importing && Boolean(selectedRef.current),
+            };
+          const incomingId = !importSelection.current.selected ? importState.selectedId : null;
+          if (incomingId && nextDocs[incomingId] && !dirtyId && !operationLock.current) {
+            importSelection.current.selected = true;
+            selectedRef.current = incomingId;
+            setSelected(incomingId);
+            setSelectedSet(new Set([incomingId]));
+            const recipe = currentRecipe(nextDocs[incomingId]!);
+            draftRef.current = recipe;
+            setDraft(recipe);
+            explicitViewFilter.current = true;
+            viewFilter.current = "all";
+            setFilter("all");
+            setMode("develop");
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) setSaveError(errorMessage(error));
+        });
+    }, 100);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    catalogSignal,
+    ready,
+    pending,
+    repository,
+    store,
+    importState.jobId,
+    importState.selectedId,
+    importing,
+  ]);
 
   function persistBatch(updates: DevelopDocument[], internal = false): Promise<boolean> {
     if (failed.current || (!internal && editsLocked())) return Promise.resolve(false);
@@ -588,6 +878,24 @@ export function DevelopPage({
         tail = queue.current;
         await tail;
       } while (tail !== queue.current);
+      if (!failed.current && hydrated.current && viewBaseline.current) {
+        const manifest = await repository.readManifest();
+        const photoId = selectedRef.current;
+        const next = reconcileDevelopView(
+          manifest,
+          viewBaseline.current,
+          photoId,
+          viewFilter.current,
+          explicitViewFilter.current,
+        );
+        if (
+          (!photoId || manifest.photoIds.includes(photoId)) &&
+          (manifest.selectedId !== next.view.selectedId || manifest.filter !== next.view.filter)
+        )
+          await repository.saveManifest(next.view, manifest.revision);
+        viewBaseline.current = next.baseline;
+        explicitViewFilter.current = false;
+      }
       return !failed.current;
     } catch (e) {
       failed.current = true;
@@ -631,6 +939,7 @@ export function DevelopPage({
   }
   function select(id: string, multi = false) {
     if (editsLocked() || !docs.current[id]) return;
+    importSelection.current.selected = true;
     const currentId = selectedRef.current;
     commitDraft();
     if (currentId !== id) previous.current = currentId;
@@ -648,6 +957,8 @@ export function DevelopPage({
   function changeFilter(next: string) {
     if (editsLocked()) return;
     commitDraft();
+    explicitViewFilter.current = true;
+    viewFilter.current = next;
     const visibleIds = library.photos
       .filter((p) => {
         if (!p.sourceBlob?.size && !p.previewBlob?.size) return false;
@@ -698,7 +1009,8 @@ export function DevelopPage({
   const sourceStatsReady =
     sourceHistogram &&
     neutralOwner.current?.id === selected &&
-    neutralOwner.current?.source === previewSource;
+    neutralOwner.current?.source === previewSource &&
+    neutralOwner.current?.renderKey === renderKey;
   function autoTone() {
     if (!sourceStatsReady || !sourceHistogram) return;
     const suggestion = suggestDevelopTone(sourceHistogram);
@@ -745,188 +1057,171 @@ export function DevelopPage({
   }
 
   useEffect(() => {
-    // Reconnect owns the decode lane until all selected attachments finish.
-    if (reconnecting) return;
+    // Foreground preview admission is prioritized over background import by the native client.
     setRenderBlob(null);
     setNeutralBlob(null);
     setRenderError("");
     setDimensions({ width: 0, height: 0 });
     setHistogram(null);
+    setHistogramUrl(null);
+    setHistogramError(null);
     setSourceHistogram(null);
     setClipping({ shadows: false, highlights: false });
     setSourceAspect(photo?.width && photo?.height ? photo.width / photo.height : 1.5);
     if (!previewSource) return;
     const controller = new AbortController();
-    void renderDevelop(previewSource, defaultDevelopSettings(), { signal: controller.signal })
+    void renderDevelop(previewSource, defaultDevelopSettings(), {
+      signal: controller.signal,
+      sourceMode: processingMode,
+      edge: exportEdge,
+      quality: exportQuality / 100,
+    })
       .then(async (blob) => {
         if (controller.signal.aborted) return;
-        const bitmap = await createImageBitmap(blob);
+        neutralOwner.current = { id: selected, source: previewSource, renderKey };
+        setNeutralBlob(blob);
         try {
-          if (!controller.signal.aborted) {
-            const canvas = document.createElement("canvas");
-            canvas.width = bitmap.width;
-            canvas.height = bitmap.height;
-            const context = canvas.getContext("2d");
-            if (context) {
-              context.drawImage(bitmap, 0, 0);
-              setSourceHistogram(
-                analyzeDevelopPixels(context.getImageData(0, 0, canvas.width, canvas.height).data),
-              );
-            }
-            neutralOwner.current = { id: selected, source: previewSource };
-            setNeutralBlob(blob);
-            setSourceAspect(bitmap.width / bitmap.height);
-          }
-        } finally {
-          bitmap.close();
+          const analysis = await analyzeDevelopBlob(blob, { signal: controller.signal });
+          if (controller.signal.aborted) return;
+          setSourceHistogram(analysis.histogram);
+          setSourceAspect(analysis.width / analysis.height);
+        } catch (error) {
+          if (!controller.signal.aborted)
+            setNotice(`Source histogram unavailable. ${errorMessage(error)}`);
         }
       })
       .catch((e) => {
-        if (!controller.signal.aborted) setRenderError(errorMessage(e));
+        if (!controller.signal.aborted) {
+          setRenderError(errorMessage(e));
+          setRendering(false);
+        }
       });
     return () => controller.abort();
-  }, [selected, previewSource, photo?.width, photo?.height, reconnecting]);
+  }, [
+    selected,
+    previewSource,
+    photo?.width,
+    photo?.height,
+    processingMode,
+    exportEdge,
+    exportQuality,
+    renderKey,
+  ]);
   const renderRecipe = useMemo(
     () => (tool === "edit" ? draft : { ...draft, crop: defaultDevelopSettings().crop }),
     [draft, tool],
   );
+  const neutralRecipe = useMemo(() => isNeutralDevelopRecipe(renderRecipe), [renderRecipe]);
   useEffect(() => {
-    if (reconnecting) return;
     if (!previewSource) {
       setRendering(false);
       return;
     }
+    // RAW has one bounded worker lane. Wait for the source histogram render
+    // instead of exhausting retries while an expensive neutral demosaic runs.
+    if (
+      processingMode === "raw" &&
+      !(
+        neutralBlob &&
+        neutralOwner.current?.id === selected &&
+        neutralOwner.current?.source === previewSource &&
+        neutralOwner.current.renderKey === renderKey
+      )
+    ) {
+      setRendering(true);
+      return;
+    }
     const controller = new AbortController();
     setRendering(true);
-    const timeout = setTimeout(() => {
-      void renderDevelop(previewSource, renderRecipe, { signal: controller.signal })
-        .then((blob) => {
-          if (!controller.signal.aborted) {
-            renderOwner.current = {
-              id: selected,
-              source: previewSource,
-              sourceGeometry: tool !== "edit",
-            };
-            setRenderBlob(blob);
-            setRenderError("");
-            setRendering(false);
-          }
-        })
-        .catch((e) => {
-          if (!controller.signal.aborted) {
-            setRenderError(errorMessage(e));
-            setRendering(false);
-          }
-        });
-    }, 140);
+    const canReuseNeutral = () =>
+      canReuseNeutralDevelop({
+        neutralBlob,
+        owner: neutralOwner.current,
+        id: selected,
+        source: previewSource,
+        renderKey,
+        neutralRecipe,
+      });
+    const reusableNeutral = canReuseNeutral();
+    const timeout = setTimeout(
+      () => {
+        const rendered = canReuseNeutral()
+          ? Promise.resolve(neutralBlob!)
+          : renderDevelop(previewSource, renderRecipe, {
+              signal: controller.signal,
+              sourceMode: processingMode,
+              edge: exportEdge,
+              quality: exportQuality / 100,
+            });
+        void rendered
+          .then(async (blob) => {
+            const bitmap = await createImageBitmap(blob);
+            try {
+              if (!controller.signal.aborted) {
+                renderOwner.current = {
+                  id: selected,
+                  source: previewSource,
+                  sourceGeometry: tool !== "edit",
+                  renderKey,
+                };
+                if (selected)
+                  editorProof.current = {
+                    id: selected,
+                    source: previewSource,
+                    recipeKey: JSON.stringify(cloneDevelopSettings(renderRecipe)),
+                    edge: exportEdge,
+                    quality: exportQuality,
+                    sourceMode: processingMode,
+                    blob,
+                    width: bitmap.width,
+                    height: bitmap.height,
+                  };
+                setRenderBlob(blob);
+                setRenderError("");
+                setRendering(false);
+              }
+            } finally {
+              bitmap.close();
+            }
+          })
+          .catch((e) => {
+            if (!controller.signal.aborted) {
+              setRenderError(errorMessage(e));
+              setRendering(false);
+            }
+          });
+      },
+      reusableNeutral ? 0 : processingMode === "raw" ? 250 : 140,
+    );
     return () => {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [selected, previewSource, renderRecipe, tool, reconnecting]);
+  }, [
+    selected,
+    previewSource,
+    renderRecipe,
+    neutralRecipe,
+    tool,
+    processingMode,
+    exportEdge,
+    exportQuality,
+    renderKey,
+    neutralBlob,
+  ]);
 
   async function importPhotos(incomingFiles: File[] | DataTransfer) {
-    if (
-      (Array.isArray(incomingFiles) && !incomingFiles.length) ||
-      !ready ||
-      editsLocked() ||
-      dialog
-    )
-      return;
-    operationLock.current = "import";
-    setBusy("Preparing import…");
-    setNotice("");
-    setImportFailures([]);
-    const controller = new AbortController();
-    importAbort.current = controller;
-    let importedSelection: string | null = null;
+    if ((Array.isArray(incomingFiles) && !incomingFiles.length) || failed.current || dialog) return;
     try {
-      // Capture dropped handles during the event, before an await protects the drag store.
-      const dropped = Array.isArray(incomingFiles)
-        ? null
-        : collectDroppedFiles(incomingFiles, {
-            signal: controller.signal,
-            onProgress: (progress) =>
-              alive.current && setBusy(`Reading folder · ${progress.files} files`),
-          });
-      const collected = dropped ? await dropped : null;
-      const files = collected?.files ?? (incomingFiles as File[]);
-      const warnings = (collected?.warnings ?? []).map((warning) => ({
-        fileName: warning.path || "Folder",
-        message: warning.message,
-      }));
-      if (!(await flush()))
-        throw new Error("Resolve the save problem before importing more photos.");
-      const result = await runDevelopImport(files, {
-        // A byte-identical import can restore a missing Develop original. addPhotos
-        // merges media into the old record without replacing its editing document.
-        existingIds: completeDevelopImportIds(library.photos),
-        signal: controller.signal,
-        onProgress: ({ index, total, fileName }) =>
-          alive.current && setBusy(`Importing ${index} of ${total} · ${fileName}`),
-        save: (incoming) => store.addPhotos([incoming]),
-        preparePreview: async (file, incoming, signal) => {
-          let preview: Blob;
-          let previewOrigin: "unknown" | "raw-demosaic" | "raster" = incoming.isRaw
-            ? "unknown"
-            : "raster";
-          try {
-            preview = await renderDevelop(file, defaultDevelopSettings(), {
-              edge: 1600,
-              signal,
-            });
-          } catch (previewError) {
-            signal.throwIfAborted();
-            if (!incoming.isRaw || !(await developEngineStatus())?.rawSupported) throw previewError;
-            if (alive.current) setBusy(`Importing ${file.name} · developing RAW preview`);
-            preview = await renderDevelop(file, defaultDevelopSettings(), {
-              edge: 1600,
-              sourceMode: "raw",
-              signal,
-            });
-            previewOrigin = "raw-demosaic";
-          }
-          const bitmap = await createImageBitmap(preview);
-          const dims = { width: bitmap.width, height: bitmap.height };
-          bitmap.close();
-          return { ...incoming, previewBlob: preview, previewOrigin, ...dims };
-        },
-      });
-      importedSelection = result.selectedId;
-      if (alive.current) {
-        setImportFailures([...warnings, ...result.failures]);
-        if (importedSelection) {
-          setFilter("all");
-          setMode("develop");
-          setTool("edit");
-          setBefore(false);
-          setCompare(false);
-        }
-        setNotice(
-          `${result.imported.length} ${result.imported.length === 1 ? "photo" : "photos"} imported${result.duplicates ? ` · ${result.duplicates} already in this library` : ""}${result.failures.length ? ` · ${result.failures.length} could not be imported` : ""}${warnings.length ? ` · ${warnings.length} folder warnings` : ""}${result.stopped ? " · Import stopped" : ""}${result.fatalError ? ` · ${result.fatalError}` : ""}`,
-        );
-      }
-    } catch (e) {
-      if (alive.current) setNotice(controller.signal.aborted ? "Import stopped." : errorMessage(e));
-    } finally {
-      // Editing entry points stay locked until every queued write and refresh has settled.
-      // Never replace in-memory recovery edits after a failed save.
-      if (alive.current && !failed.current) {
-        try {
-          if (await flush()) {
-            const refreshed = await store.loadLibrary();
-            if (alive.current && !failed.current)
-              adopt(refreshed, importedSelection ?? selectedRef.current);
-          }
-        } catch (e) {
-          failed.current = true;
-          if (alive.current)
-            setSaveError(`Could not reopen the imported library. ${errorMessage(e)}`);
-        }
-      }
-      operationLock.current = null;
-      importAbort.current = null;
-      if (alive.current) setBusy("");
+      // Capture drop handles before any await. The account/shoot session owns work beyond this route.
+      const job = Array.isArray(incomingFiles)
+        ? importSession.startFiles(incomingFiles)
+        : importSession.startDrop(incomingFiles);
+      setNotice("");
+      setImportFailures([]);
+      await job;
+    } catch (error) {
+      if (alive.current) setNotice(errorMessage(error));
     }
   }
   function chooseOriginal() {
@@ -1034,8 +1329,8 @@ export function DevelopPage({
   }
   async function previewExport() {
     if (dialog !== "export" || editsLocked() || !exportRequest) return;
-    const request = exportRequest;
     const recipe = cloneDevelopSettings(draftRef.current);
+    const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
     operationLock.current = "dialog";
     setDialogError("");
     setExportProof(null);
@@ -1046,12 +1341,17 @@ export function DevelopPage({
       if (!(await flush()))
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
       controller.signal.throwIfAborted();
-      const blob = await renderDevelop(request.source, recipe, {
-        edge: request.edge,
-        quality: request.quality / 100,
-        sourceMode: request.sourceMode,
-        signal: controller.signal,
-      });
+      const cached = currentDevelopExportProof(editorProof.current, request)
+        ? editorProof.current
+        : null;
+      const blob =
+        cached?.blob ??
+        (await renderDevelop(request.source, recipe, {
+          edge: request.edge,
+          quality: request.quality / 100,
+          sourceMode: request.sourceMode,
+          signal: controller.signal,
+        }));
       const bitmap = await createImageBitmap(blob);
       try {
         if (alive.current && !controller.signal.aborted)
@@ -1140,18 +1440,21 @@ export function DevelopPage({
       }
       if (action === "export") {
         if (!photo || !exportRequest) throw new Error("Choose a photo with a source first.");
-        const { sourceMode } = exportRequest;
+        const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
+        const { sourceMode } = request;
         // Download the exact proof bytes when all inputs still match. A changed
         // source, recipe, size or quality can never reuse a stale preview.
         const blob =
-          currentDevelopExportProof(exportProof, exportRequest) && exportProof
+          currentDevelopExportProof(exportProof, request) && exportProof
             ? exportProof.blob
-            : await renderDevelop(exportRequest.source, recipe, {
-                edge: exportRequest.edge,
-                quality: exportRequest.quality / 100,
-                signal: controller.signal,
-                sourceMode,
-              });
+            : currentDevelopExportProof(editorProof.current, request) && editorProof.current
+              ? editorProof.current.blob
+              : await renderDevelop(request.source, recipe, {
+                  edge: request.edge,
+                  quality: request.quality / 100,
+                  signal: controller.signal,
+                  sourceMode,
+                });
         const bitmap = await createImageBitmap(blob);
         const size = `${bitmap.width} × ${bitmap.height}`;
         bitmap.close();
@@ -1208,6 +1511,13 @@ export function DevelopPage({
       if (key === "z" && source) {
         e.preventDefault();
         setZoom((v) => (v === "fit" ? "100" : "fit"));
+      }
+      if (key === "j" && source) {
+        e.preventDefault();
+        setClipping((current) => {
+          const enabled = !(current.shadows || current.highlights);
+          return { shadows: enabled, highlights: enabled };
+        });
       }
       if (key === "arrowleft" || key === "arrowright") {
         e.preventDefault();
@@ -1326,7 +1636,7 @@ export function DevelopPage({
           </span>
         </div>
         <div className="develop-top-actions">
-          <button onClick={() => workbench?.showStudio()}>Studio</button>
+          <button onClick={() => workbench?.showStudio()}>Cull</button>
           {library.photos.length > 0 && (
             <div className="develop-segment">
               <button aria-pressed={mode === "library"} onClick={() => setMode("library")}>
@@ -1337,7 +1647,10 @@ export function DevelopPage({
               </button>
             </div>
           )}
-          <button disabled={!!busy || !!saveError} onClick={() => input.current?.click()}>
+          <button
+            disabled={!!busy || !!saveError || importing}
+            onClick={() => input.current?.click()}
+          >
             <Plus size={14} />
             Import
           </button>
@@ -1348,7 +1661,7 @@ export function DevelopPage({
           )}
           {availablePhotos.length > 0 && (
             <button
-              disabled={!source || !!busy || !!saveError || rendering || !!renderError}
+              disabled={!url || !!busy || !!saveError || rendering || !!renderError}
               onClick={() => openDialog("export")}
             >
               <ArrowDownToLine size={14} />
@@ -1357,11 +1670,14 @@ export function DevelopPage({
           )}
         </div>
       </header>
-      {(saveError || notice || busy || engine === false) && (
+      {(saveError || notice || busy || importing || engine === false) && (
         <div className={`develop-status ${saveError ? "is-error" : ""}`} role="status">
           <span>
             {saveError ||
               busy ||
+              (importing
+                ? `${importState.found} found · ${importState.previewReady} previews · ${importState.saved} saved · ${importState.failed} failed`
+                : "") ||
               notice ||
               (engine === false
                 ? "The local image engine is not ready. Rebuild it and reload Develop."
@@ -1369,8 +1685,8 @@ export function DevelopPage({
           </span>
           {saveError ? (
             <button onClick={recoveryFile}>Save recovery file</button>
-          ) : operationLock.current === "import" && !busy.startsWith("Reconnecting") ? (
-            <button onClick={() => importAbort.current?.abort()}>Stop import</button>
+          ) : importing ? (
+            <button onClick={() => importSession.cancel()}>Stop import</button>
           ) : busy.startsWith("Reconnecting") && dialog !== "reconnect" ? (
             <button onClick={() => importAbort.current?.abort()}>Stop reconnect</button>
           ) : notice ? (
@@ -1379,6 +1695,48 @@ export function DevelopPage({
             </button>
           ) : null}
         </div>
+      )}
+      {importState.jobId && importState.rows.length > 0 && (
+        <details className="develop-import-report">
+          <summary>
+            Import: {importState.found} found · {importState.saved} saved · {importState.analyzed}{" "}
+            analyzed
+          </summary>
+          <ul>
+            {importState.rows.slice(importRowsPage * 40, (importRowsPage + 1) * 40).map((row) => (
+              <li key={row.id}>
+                {row.photoId && library.documents[row.photoId] ? (
+                  <button onClick={() => select(row.photoId!)}>{row.name}</button>
+                ) : (
+                  <strong>{row.name}</strong>
+                )}
+                <span>
+                  {row.status.replaceAll("-", " ")}
+                  {row.error ? ` · ${row.error}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {importState.rows.length > 40 && (
+            <div>
+              <button
+                disabled={!importRowsPage}
+                onClick={() => setImportRowsPage((page) => page - 1)}
+              >
+                Previous files
+              </button>
+              <span>
+                Page {importRowsPage + 1} of {Math.ceil(importState.rows.length / 40)}
+              </span>
+              <button
+                disabled={(importRowsPage + 1) * 40 >= importState.rows.length}
+                onClick={() => setImportRowsPage((page) => page + 1)}
+              >
+                Next files
+              </button>
+            </div>
+          )}
+        </details>
       )}
       {importFailures.length > 0 && (
         <details className="develop-import-report">
@@ -1652,20 +2010,18 @@ export function DevelopPage({
               )}
             </div>
           ) : mode === "library" ? (
-            <div className="develop-library-grid">
-              {visible.map((p) => (
-                <button
-                  key={p.id}
-                  aria-pressed={selectedSet.has(p.id)}
-                  onClick={(e) => select(p.id, e.shiftKey || e.metaKey || e.ctrlKey)}
-                  onDoubleClick={() => setMode("develop")}
-                >
-                  <Thumb photo={p} />
-                  <span>{p.name}</span>
-                  <small>{"★".repeat(library.documents[p.id]?.metadata.rating ?? 0)}</small>
-                </button>
-              ))}
-            </div>
+            <DevelopLibraryGrid
+              photos={visible}
+              documents={library.documents}
+              selected={selected}
+              selectedIds={selectedSet}
+              onSelect={select}
+              onOpen={(id) => {
+                if (editsLocked()) return;
+                select(id);
+                setMode("develop");
+              }}
+            />
           ) : (
             <>
               <div className="develop-view-toolbar">
@@ -1706,6 +2062,14 @@ export function DevelopPage({
                       : photo?.name}
                 </span>
                 <div>
+                  <button
+                    aria-label="Remove Object"
+                    title="Remove Object"
+                    disabled={!url || !!busy || !!saveError || rendering || !!renderError}
+                    onClick={() => openDialog("remove")}
+                  >
+                    <WandSparkles size={15} />
+                  </button>
                   <button
                     aria-label="Crop tool"
                     disabled={!source}
@@ -1759,7 +2123,8 @@ export function DevelopPage({
               ) : (
                 <DevelopViewer
                   key={selected ?? "empty"}
-                  url={url ?? beforeUrl}
+                  url={viewerUrl}
+                  blob={viewerBlob}
                   emptyLabel={
                     photo
                       ? renderError
@@ -1768,16 +2133,22 @@ export function DevelopPage({
                       : "Choose a photograph to begin."
                   }
                   beforeUrl={beforeUrl}
+                  beforeBlob={neutralBlob}
                   before={before}
                   compare={compare}
                   zoom={zoom}
-                  grid={grid}
-                  tool={tool}
+                  grid={Boolean(url || beforeUrl) && grid}
+                  tool={url || beforeUrl ? tool : "edit"}
                   settings={draft}
                   change={change}
                   maskId={maskId}
                   onDimensions={onDimensions}
-                  onHistogram={setHistogram}
+                  onHistogram={onHistogram}
+                  onHistogramError={onHistogramError}
+                  onPixelSample={onPixelSample}
+                  knownHistogram={
+                    (before && beforeUrl) || viewerBlob === neutralBlob ? sourceHistogram : null
+                  }
                   clipping={clipping}
                 />
               )}
@@ -1825,15 +2196,21 @@ export function DevelopPage({
                   </button>
                 </div>
                 <span>
-                  {rendering
-                    ? "Rendering…"
-                    : dimensions.width
-                      ? `${dimensions.width} × ${dimensions.height}`
-                      : ""}
-                  {source && photo?.isRaw
-                    ? photo.previewOrigin === "raw-demosaic"
-                      ? " · Sensor-derived preview"
-                      : " · RAW preview"
+                  {quickPreviewUrl
+                    ? importing
+                      ? "Import preview"
+                      : "Import preview · Preparing full-quality image…"
+                    : rendering
+                      ? "Rendering…"
+                      : dimensions.width
+                        ? `${dimensions.width} × ${dimensions.height}`
+                        : ""}
+                  {!quickPreviewUrl && source && photo?.isRaw
+                    ? processingMode === "raw"
+                      ? " · Sensor RAW · export-matched"
+                      : photo.previewOrigin === "raw-demosaic"
+                        ? " · Sensor-derived preview"
+                        : " · RAW preview"
                     : source && !photo?.sourceAvailable
                       ? " · Preview source"
                       : ""}
@@ -1865,22 +2242,41 @@ export function DevelopPage({
               </div>
               <DevelopHistogram
                 key={selected}
-                histogram={histogram}
+                histogram={histogramPhoto === selected ? histogram : null}
                 value={draft}
                 change={change}
                 disabled={!url || !!saveError || !!busy || before || tool !== "edit"}
                 clipping={clipping}
                 onClipping={setClipping}
+                pending={histogramPending}
+                sampleChannel={pixelSampleChannel}
+                sampleUrl={displayedUrl}
+                sourceLabel={
+                  quickPreviewUrl
+                    ? "Import preview"
+                    : before
+                      ? "Before adjustments"
+                      : "Rendered preview"
+                }
               />
+              {currentHistogramError && (
+                <p className="develop-hint" role="status">
+                  Histogram unavailable. {currentHistogramError}
+                </p>
+              )}
               <div className="develop-inline">
                 <span>
                   {!source
                     ? "No image source"
-                    : photo?.isRaw
-                      ? photo.previewOrigin === "raw-demosaic"
-                        ? "Sensor preview · sRGB"
-                        : "RAW preview · sRGB"
-                      : "sRGB"}
+                    : quickPreviewUrl
+                      ? "Import preview · sRGB"
+                      : photo?.isRaw
+                        ? processingMode === "raw"
+                          ? "Sensor RAW · sRGB"
+                          : photo.previewOrigin === "raw-demosaic"
+                            ? "Sensor preview · sRGB"
+                            : "RAW preview · sRGB"
+                        : "sRGB"}
                 </span>
                 <span>
                   {saveError
@@ -2016,24 +2412,13 @@ export function DevelopPage({
               </span>
             </div>
           </div>
-          <div className="develop-filmstrip-items" role="group" aria-label="Filmstrip">
-            {filmstripPhotos.map((p, i) => (
-              <button
-                key={p.id}
-                aria-label={`${i + 1}. ${p.name}`}
-                aria-pressed={selectedSet.has(p.id)}
-                className={selected === p.id ? "is-active" : ""}
-                onClick={(e) => select(p.id, e.shiftKey || e.metaKey || e.ctrlKey)}
-              >
-                <span className="develop-frame-number">{i + 1}</span>
-                <Thumb photo={p} />
-                <span className="develop-frame-name">{p.name}</span>
-                {library.documents[p.id]?.metadata.flag === "pick" && (
-                  <Check className="develop-frame-flag" size={12} />
-                )}
-              </button>
-            ))}
-          </div>
+          <DevelopFilmstrip
+            photos={filmstripPhotos}
+            documents={library.documents}
+            selected={selected}
+            selectedIds={selectedSet}
+            onSelect={select}
+          />
         </footer>
       )}
       {dialog && (
@@ -2045,7 +2430,7 @@ export function DevelopPage({
         >
           <section
             ref={dialogElement}
-            className={`develop-dialog${dialog === "export" || dialog === "reference" || dialog === "auto-crop" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : dialog === "reconnect" ? " develop-reconnect-dialog" : ""}`}
+            className={`develop-dialog${dialog === "export" || dialog === "reference" || dialog === "auto-crop" || dialog === "remove" ? " develop-export-dialog" : dialog === "recovery" ? " develop-recovery-dialog" : dialog === "reconnect" ? " develop-reconnect-dialog" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="develop-dialog-title"
@@ -2054,23 +2439,25 @@ export function DevelopPage({
             <h2 id="develop-dialog-title">
               {dialog === "reconnect"
                 ? "Reconnect Originals"
-                : dialog === "preset"
-                  ? "Create preset"
-                  : dialog === "presets"
-                    ? "Portable presets"
-                    : dialog === "auto-crop"
-                      ? "Automatic crop"
-                      : dialog === "reference"
-                        ? "Match an edited reference"
-                        : dialog === "rename"
-                          ? "Rename photo"
-                          : dialog === "snapshot"
-                            ? "Save snapshot"
-                            : dialog === "sync"
-                              ? "Sync settings"
-                              : dialog === "recovery"
-                                ? "Recover saved edits"
-                                : "Export photograph"}
+                : dialog === "remove"
+                  ? "Remove Object"
+                  : dialog === "preset"
+                    ? "Create preset"
+                    : dialog === "presets"
+                      ? "Portable presets"
+                      : dialog === "auto-crop"
+                        ? "Automatic crop"
+                        : dialog === "reference"
+                          ? "Match an edited reference"
+                          : dialog === "rename"
+                            ? "Rename photo"
+                            : dialog === "snapshot"
+                              ? "Save snapshot"
+                              : dialog === "sync"
+                                ? "Sync settings"
+                                : dialog === "recovery"
+                                  ? "Recover saved edits"
+                                  : "Export photograph"}
             </h2>
             {dialogError && <p role="alert">{dialogError}</p>}
             {dialog === "reconnect" ? (
@@ -2078,7 +2465,8 @@ export function DevelopPage({
                 store={store}
                 onClose={() => setDialog(null)}
                 onCommitted={(receipt) => {
-                  // Adopt every durable attachment, even if the batch is stopped later.
+                  // Use each durable transaction immediately, even when the batch is
+                  // canceled later. A stale render must never discard earlier receipts.
                   const next = mergeDevelopImportCommit(
                     { ...reconnectLibrary.current, documents: docs.current },
                     receipt,
@@ -2087,6 +2475,8 @@ export function DevelopPage({
                   adopt(next, selectedRef.current ?? receipt.photos[0]?.id);
                 }}
                 onBusyChange={(value) => {
+                  // Reuse the import processing lane so full-quality editor renders
+                  // do not compete with the originals currently being decoded.
                   operationLock.current = value ? "import" : null;
                   setBusy(value ? "Reconnecting originals…" : "");
                 }}
@@ -2122,6 +2512,78 @@ export function DevelopPage({
                 save={savePortablePreset}
                 close={() => setDialog(null)}
               />
+            ) : dialog === "remove" ? (
+              <ObjectRemoveDialog
+                key={selected}
+                onPreviewPending={setRemovalPreviewPending}
+                getRendered={async (signal) => {
+                  if (!photo || !exportRequest || selectedRef.current !== photo.id)
+                    throw new Error("Choose a photo first.");
+                  if (!(await flush())) throw new Error("Save the current edits first.");
+                  signal.throwIfAborted();
+                  const recipe = cloneDevelopSettings(draftRef.current);
+                  const request = {
+                    ...exportRequest,
+                    edge: removalRenderEdge(exportRequest.edge),
+                    recipeKey: JSON.stringify(recipe),
+                  };
+                  if (
+                    editorProof.current &&
+                    currentDevelopExportProof(editorProof.current, request)
+                  )
+                    return editorProof.current.blob;
+                  return renderDevelop(request.source, recipe, {
+                    edge: request.edge,
+                    quality: request.quality / 100,
+                    sourceMode: request.sourceMode,
+                    signal,
+                  });
+                }}
+                processing={(value) => {
+                  operationLock.current = value ? "dialog" : null;
+                  setBusy(value ? "Removing Object…" : "");
+                }}
+                saveCopy={async (blob) => {
+                  if (!photo || selectedRef.current !== photo.id || failed.current)
+                    throw new Error("The selected photo changed. Reopen removal before saving.");
+                  if (!(await flush())) throw new Error("Save the current edits first.");
+                  const name = uniquePhotoDisplayName(
+                    `${photo.name.replace(/\.[^.]+$/, "")}-removed.png`,
+                    library.photos.map((item) => item.name),
+                  );
+                  const file = new File([blob], name, {
+                    type: "image/png",
+                    lastModified: Date.now(),
+                  });
+                  const bitmap = await createImageBitmap(blob);
+                  const dimensions = { width: bitmap.width, height: bitmap.height };
+                  bitmap.close();
+                  const incoming = await developPhotoFromFile(file, blob, dimensions);
+                  if (!alive.current || selectedRef.current !== photo.id)
+                    throw new Error("The workspace changed. Nothing was replaced.");
+                  await store.addPhotos([
+                    { ...incoming, previewBlob: blob, previewOrigin: "raster" },
+                  ]);
+                  const next = await store.loadLibrary();
+                  if (alive.current) {
+                    adopt(next, incoming.id);
+                    explicitViewFilter.current = true;
+                    viewFilter.current = "all";
+                    setFilter("all");
+                    setMode("develop");
+                    setTool("edit");
+                    setBefore(false);
+                    setCompare(false);
+                    setDialog(null);
+                    setNotice(
+                      library.photos.some((item) => item.id === incoming.id)
+                        ? "Existing removal copy opened. Original and edits preserved."
+                        : "Removal saved as a separate copy. Original and edits preserved.",
+                    );
+                  }
+                }}
+                close={() => setDialog(null)}
+              />
             ) : dialog === "auto-crop" ? (
               <AutoCropDialog
                 current={draft}
@@ -2132,6 +2594,7 @@ export function DevelopPage({
                     edge: 1600,
                     quality: 1,
                     signal,
+                    sourceMode: processingMode,
                   });
                 }}
                 processing={(value) => {
@@ -2156,7 +2619,7 @@ export function DevelopPage({
                     edge: 1600,
                     quality: 1,
                     signal,
-                    sourceMode: "preview",
+                    sourceMode: processingMode,
                   });
                 }}
                 processing={(value) => {
@@ -2214,7 +2677,7 @@ export function DevelopPage({
                 {photo?.isRaw && photo.sourceAvailable && (
                   <>
                     <label>
-                      Source quality
+                      Processing source · editor and export
                       <select
                         value={exportSourceMode}
                         onChange={(e) => setExportSourceMode(e.target.value as "raw" | "preview")}
@@ -2231,12 +2694,12 @@ export function DevelopPage({
                     </label>
                     <p className="develop-export-disclosure">
                       {exportSourceMode === "raw"
-                        ? "LibRaw decodes the sensor data. Preview export to check the exact JPEG before downloading. Color can differ from the editor’s saved preview."
+                        ? "The editor and export use the same sensor RAW render, size, quality and sRGB color. The displayed edited JPEG is reused for download when all settings match."
                         : photo.previewOrigin === "raw-demosaic"
-                          ? "Exports the saved 1,600px sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
+                          ? "The editor and export both use the saved sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
                           : photo.previewOrigin === "embedded"
-                            ? "Exports the camera’s embedded preview, not sensor RAW data."
-                            : "Exports the saved preview, not a new render from sensor RAW data."}
+                            ? "The editor and export both use the camera’s embedded preview, not sensor RAW data."
+                            : "The editor and export both use the saved preview, not a new render from sensor RAW data."}
                     </p>
                   </>
                 )}
@@ -2254,8 +2717,16 @@ export function DevelopPage({
                     <option value={1600}>1,600 px</option>
                     <option value={2048}>2,048 px</option>
                     <option value={4096}>Up to 4,096 px</option>
+                    <option value={DEVELOP_ENGINE_LIMITS.maxEdge}>Up to 8,192 px / 36 MP</option>
                   </select>
                 </label>
+                {exportEdge > DEVELOP_ENGINE_LIMITS.defaultExportEdge && (
+                  <p className="develop-export-disclosure">
+                    Keeps the source resolution up to 8,192 px and 36 MP, without upscaling. Larger
+                    renders use more memory and run one at a time. Preview and download still use
+                    the same file.
+                  </p>
+                )}
                 <label>
                   JPEG quality
                   <input
@@ -2324,6 +2795,7 @@ export function DevelopPage({
               dialog !== "reconnect" &&
               dialog !== "presets" &&
               dialog !== "reference" &&
+              dialog !== "remove" &&
               dialog !== "auto-crop" && (
                 <div className="develop-dialog-actions">
                   {busy === "Rendering export preview…" && (

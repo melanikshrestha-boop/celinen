@@ -45,6 +45,7 @@ import {
   type StudioWorkbenchBinding,
 } from "@/lib/workbench";
 import { WorkbenchContext } from "./context";
+import { cancelDevelopImportsOutsideScope } from "@/lib/develop/import-session";
 import "./workbench.css";
 import {
   explicitWorkspaceBinding,
@@ -54,6 +55,7 @@ import {
   tabProjectScope,
   workspaceToolHref,
   shootRoute,
+  shootKeyForBinding,
 } from "@/lib/workbench-projects";
 import { GmailConnection } from "./GmailConnection";
 import { ResearchPanel } from "./ResearchPanel";
@@ -121,6 +123,9 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
   }, [identity?.scope]);
   const navigate = useNavigate();
   const account = identity?.scope;
+  useEffect(() => {
+    cancelDevelopImportsOutsideScope(account ?? "signed-out");
+  }, [account]);
   const [sidebarOpen, setSidebarOpen] = useState(identity?.preferences.sidebarOpen ?? true);
   useEffect(() => {
     setSidebarOpen(identity?.preferences.sidebarOpen ?? true);
@@ -234,7 +239,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   const [tabNote, setTabNote] = useState("");
   const [titles, setTitles] = useState<Record<string, string>>({});
   const setToolTitle = useCallback((tabHref: string, title: string) => {
-    setTitles((old) => ({ ...old, [tabHref]: title.slice(0, 70) }));
+    const clipped = title.slice(0, 70);
+    setTitles((old) => (old[tabHref] === clipped ? old : { ...old, [tabHref]: clipped }));
   }, []);
   const { setOpenMobile, open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
   const [narrow, setNarrow] = useState(
@@ -319,7 +325,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
       pendingShoot.current = null;
       return true;
     } catch {
-      setTabNote("This shoot could not be saved. Click New shoot to retry saving the same shoot.");
+      setTabNote("This shoot could not be saved. Click New Shoot to retry saving the same shoot.");
       return false;
     } finally {
       creatingRef.current = false;
@@ -348,7 +354,11 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
     },
     [binding, openExact],
   );
-  const showStudio = useCallback(() => openTool(studioBindingHref(binding)), [openTool, binding]);
+  const showStudio = useCallback(() => {
+    if (binding.kind === "blocked") return Promise.resolve(false);
+    const search = new URL(studioBindingHref(binding), "https://workspace.invalid").search;
+    return openTool(shootWorkspaceHref(shootKeyForBinding(binding) ?? "legacy", "cull", search));
+  }, [openTool, binding]);
   useEffect(() => {
     const tab = workbenchTab(href);
     setMobilePane(tab ? "tool" : "chat");
@@ -492,8 +502,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
               <button
                 ref={sidebarTriggerRef}
                 className="workbench-sidebar-toggle"
-                aria-label="Open sidebar"
-                title="Open sidebar"
+                aria-label="Open Sidebar"
+                title="Open Sidebar"
                 onClick={() => setOpenMobile(true)}
               >
                 <LogoMark size={22} />
@@ -521,8 +531,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 <button
                   type="button"
                   className="workbench-brand workbench-rail-logo"
-                  aria-label="Open sidebar"
-                  title="Open sidebar"
+                  aria-label="Open Sidebar"
+                  title="Open Sidebar"
                   onClick={() => setSidebarOpen(true)}
                 >
                   <LogoMark size={22} />
@@ -545,8 +555,8 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
               <div className="workbench-brand-actions">
                 <button
                   className="workbench-sidebar-toggle"
-                  aria-label={narrow ? "Close sidebar" : "Collapse sidebar"}
-                  title={narrow ? "Close sidebar" : "Collapse sidebar"}
+                  aria-label={narrow ? "Close Sidebar" : "Collapse Sidebar"}
+                  title={narrow ? "Close Sidebar" : "Collapse Sidebar"}
                   onClick={() => (narrow ? setOpenMobile(false) : setSidebarOpen(false))}
                 >
                   <PanelLeft size={20} />
@@ -576,22 +586,28 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 href: row.recoveryPending ? "/library" : shootWorkspaceHref(row.key),
                 detail: shootSummaryDetail(row),
                 recoveryPending: row.recoveryPending,
+                pinned: Boolean(row.pinned),
+                archived: Boolean(row.archived),
               }))}
               activeId={routeShootKey}
               open={openExact}
               loading={navigationData.loading}
               error={navigationData.error}
+              scope={account}
             />
+            <div className="foto-sidebar-chats">
+              <ChatRecents menuSide="right" />
+            </div>
           </SidebarContent>
           <SidebarFooter className="workbench-sidebar-bottom">
             <button
               className="workbench-nav-item foto-secondary-nav"
               onClick={() => setSearchOpen(true)}
-              aria-label="All tools"
-              title="All tools (⌘K)"
+              aria-label="All Tools"
+              title="All Tools (⌘K)"
             >
               <PanelsTopLeft size={20} strokeWidth={1.65} />
-              <span className="foto-nav-label">All tools</span>
+              <span className="foto-nav-label">All Tools</span>
               <kbd className="foto-nav-label">⌘K</kbd>
             </button>
             <AccountMenu />
@@ -681,10 +697,6 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                   </div>
                 </div>
               )}
-              <details className="foto-conversation-history" hidden={pathname !== "/workspace"}>
-                <summary>Conversation history</summary>
-                <ChatRecents menuSide="bottom" />
-              </details>
               <div ref={setChatTarget} className="workbench-chat-mount" />
               {activeBinding.kind === "blocked" && <p role="alert">{activeBinding.reason}</p>}
             </main>
@@ -825,7 +837,7 @@ function WorkspaceSidebar({
         >
           <SheetHeader className="sr-only">
             <SheetTitle>foto navigation</SheetTitle>
-            <SheetDescription>Tonight, Shoots, Library, Deliver and Money.</SheetDescription>
+            <SheetDescription>Tonight, Shoots, Library, Deliver and Earnings.</SheetDescription>
           </SheetHeader>
           {children}
         </SheetContent>

@@ -1,3 +1,5 @@
+import { currencyExponent, parseFinanceAmount } from "./finance-money";
+
 export const LOCAL_FINANCE_STORAGE_KEY = "lenslabs.local-finance.v1";
 
 export type LocalLedgerKind = "income" | "expense";
@@ -9,7 +11,12 @@ export interface LocalLedgerEntry {
   kind: LocalLedgerKind;
   category: string;
   amountCents: number;
+  /** Missing on legacy USD records. amountCents is integer minor units in this currency. */
+  currency?: string;
   shootId: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+  paymentMethod?: "cash" | "check" | "bank" | "other";
   source: "manual";
   createdAt: string;
   updatedAt: string;
@@ -23,6 +30,8 @@ export interface LocalInvoiceDraft {
   clientEmail: string | null;
   description: string;
   amountCents: number;
+  currency?: string;
+  shootId?: string | null;
   dueDate: string | null;
   status: "draft";
   createdAt: string;
@@ -79,6 +88,17 @@ const isPositiveCents = (value: unknown): value is number =>
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === "string";
 
+const isOptionalCurrency = (value: unknown): boolean => {
+  if (value === undefined) return true;
+  if (typeof value !== "string") return false;
+  try {
+    currencyExponent(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const isLedgerEntry = (value: unknown): value is LocalLedgerEntry => {
   if (!isRecord(value)) return false;
   return (
@@ -91,7 +111,12 @@ const isLedgerEntry = (value: unknown): value is LocalLedgerEntry => {
     typeof value["category"] === "string" &&
     value["category"].length > 0 &&
     isPositiveCents(value["amountCents"]) &&
+    isOptionalCurrency(value["currency"]) &&
     isNullableString(value["shootId"]) &&
+    (value["clientId"] === undefined || isNullableString(value["clientId"])) &&
+    (value["clientName"] === undefined || isNullableString(value["clientName"])) &&
+    (value["paymentMethod"] === undefined ||
+      ["cash", "check", "bank", "other"].includes(String(value["paymentMethod"]))) &&
     value["source"] === "manual" &&
     isIsoTimestamp(value["createdAt"]) &&
     isIsoTimestamp(value["updatedAt"])
@@ -112,6 +137,8 @@ const isInvoiceDraft = (value: unknown): value is LocalInvoiceDraft => {
     typeof value["description"] === "string" &&
     value["description"].length > 0 &&
     isPositiveCents(value["amountCents"]) &&
+    isOptionalCurrency(value["currency"]) &&
+    (value["shootId"] === undefined || isNullableString(value["shootId"])) &&
     (value["dueDate"] === null || isDateOnly(value["dueDate"])) &&
     value["status"] === "draft" &&
     isIsoTimestamp(value["createdAt"]) &&
@@ -346,18 +373,22 @@ export function buildLocalLedgerEntry(
     kind: LocalLedgerKind;
     category: string;
     amount: string;
+    currency?: string;
     shootId: string | null;
+    clientId?: string | null;
+    clientName?: string | null;
+    paymentMethod?: "cash" | "check" | "bank" | "other";
   },
   identity: { id?: string; createdAt?: string; now?: string } = {},
 ): LocalFinanceBuildResult<LocalLedgerEntry> {
   const description = input.description.trim();
   const category = input.category.trim();
-  const amountCents = parseCurrencyToCents(input.amount);
+  const amountCents = parseFinanceAmount(input.amount, input.currency ?? "USD");
   if (!isDateOnly(input.occurredOn)) return { ok: false, error: "Choose a valid date." };
   if (!description) return { ok: false, error: "Add a description." };
   if (!category) return { ok: false, error: "Choose a category." };
   if (amountCents === null)
-    return { ok: false, error: "Enter a positive amount with up to two decimals." };
+    return { ok: false, error: "Enter a positive amount using the selected currency's precision." };
 
   const now = identity.now ?? new Date().toISOString();
   return {
@@ -369,7 +400,11 @@ export function buildLocalLedgerEntry(
       kind: input.kind,
       category,
       amountCents,
+      ...(input.currency === undefined ? {} : { currency: input.currency }),
       shootId: input.shootId,
+      ...(input.clientId === undefined ? {} : { clientId: input.clientId }),
+      ...(input.clientName === undefined ? {} : { clientName: input.clientName?.trim() || null }),
+      ...(input.paymentMethod === undefined ? {} : { paymentMethod: input.paymentMethod }),
       source: "manual",
       createdAt: identity.createdAt ?? now,
       updatedAt: now,
@@ -384,6 +419,8 @@ export function buildLocalInvoiceDraft(
     clientEmail: string;
     description: string;
     amount: string;
+    currency?: string;
+    shootId?: string | null;
     dueDate: string;
   },
   identity: { id?: string; createdAt?: string; now?: string } = {},
@@ -391,13 +428,13 @@ export function buildLocalInvoiceDraft(
   const clientName = input.clientName.trim();
   const clientEmail = input.clientEmail.trim() || null;
   const description = input.description.trim();
-  const amountCents = parseCurrencyToCents(input.amount);
+  const amountCents = parseFinanceAmount(input.amount, input.currency ?? "USD");
   const dueDate = input.dueDate || null;
 
   if (!clientName) return { ok: false, error: "Add a client name." };
   if (!description) return { ok: false, error: "Describe the photography work." };
   if (amountCents === null)
-    return { ok: false, error: "Enter a positive amount with up to two decimals." };
+    return { ok: false, error: "Enter a positive amount using the selected currency's precision." };
   if (dueDate !== null && !isDateOnly(dueDate))
     return { ok: false, error: "Choose a valid due date." };
 
@@ -411,6 +448,8 @@ export function buildLocalInvoiceDraft(
       clientEmail,
       description,
       amountCents,
+      ...(input.currency === undefined ? {} : { currency: input.currency }),
+      ...(input.shootId === undefined ? {} : { shootId: input.shootId }),
       dueDate,
       status: "draft",
       createdAt: identity.createdAt ?? now,

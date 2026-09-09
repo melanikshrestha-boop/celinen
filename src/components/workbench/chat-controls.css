@@ -1,7 +1,8 @@
 .ll-chat-recents {
   min-width: 0;
-  font-size: 13px;
-  line-height: 1.2;
+  font-family: var(--workspace-ui-font, var(--font-sans));
+  font-size: 14px;
+  line-height: 20px;
 }
 .ll-chat-heading,
 .ll-chat-heading > div {
@@ -12,7 +13,7 @@
 .ll-chat-heading {
   justify-content: space-between;
   color: var(--muted-foreground);
-  padding: 6px 10px 2px;
+  padding: 2px 12px;
   font-size: 13px;
   line-height: 1.2;
   font-weight: 400;
@@ -23,7 +24,7 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: 8px;
   flex-shrink: 0;
 }
 .ll-chat-group h3 {
@@ -31,18 +32,18 @@
   font-weight: 400;
   line-height: 1.2;
   color: var(--muted-foreground);
-  padding: 6px 10px 2px;
+  padding: 6px 12px 2px;
 }
 .ll-chat-row {
   display: flex;
   align-items: center;
   min-width: 0;
   border-radius: 9px;
-  padding: 2px 3px;
+  padding: 0 4px 0 0;
 }
 .ll-chat-row.is-active,
 .ll-chat-row:hover,
-.ll-chat-row:focus-within {
+.ll-chat-row:has(:focus-visible) {
   background: var(--muted);
 }
 .ll-chat-title {
@@ -52,7 +53,10 @@
   min-width: 0;
   flex: 1;
   text-align: left;
-  padding: 8px 5px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  font: inherit;
 }
 .ll-chat-title span {
   overflow: hidden;
@@ -65,7 +69,7 @@
   height: 28px;
   padding: 8px 5px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -111,7 +115,7 @@
 }
 .ll-chat-menu [role="menuitem"] {
   min-height: 34px;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow-wrap: anywhere;
 }
 .ll-chat-dialog {
@@ -207,11 +211,16 @@
   flex: 1;
   width: 100%;
 }
-@media (hover: none) {
+@media (hover: none), (pointer: coarse) {
   .ll-chat-hover,
   .ll-chat-heading-actions {
     opacity: 1;
     pointer-events: auto;
+  }
+  .ll-chat-heading button,
+  .ll-chat-hover {
+    width: 44px;
+    height: 44px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -9,6 +9,8 @@ import { nativeStudioPlugin } from "./src/server/native-studio-plugin";
 import { nativeDevelopPlugin } from "./src/server/native-develop";
 import { nativeReferencePlugin } from "./src/server/native-reference";
 import { nativeCropPlugin } from "./src/server/native-crop";
+import { nativeObjectRemovePlugin } from "./src/server/native-object-remove";
+import { nativeReceiptPlugin } from "./src/server/native-receipt";
 
 export default defineConfig({
   vite: {
@@ -17,6 +19,8 @@ export default defineConfig({
       nativeDevelopPlugin(),
       nativeReferencePlugin(),
       nativeCropPlugin(),
+      nativeObjectRemovePlugin(),
+      nativeReceiptPlugin(),
     ],
   },
   tanstackStart: {

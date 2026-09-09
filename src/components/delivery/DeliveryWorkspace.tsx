@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, Copy, Plus, Upload } from "lucide-react";
+import { MessageComposer } from "@/components/customer/MessageComposer";
 import { Shell } from "@/components/lensos/Shell";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -1142,16 +1143,26 @@ function AccountDeliveryWorkspace({
                   </a>
                 </div>
                 {invitationText && (
-                  <details className="delivery-invitation-preview">
-                    <summary>Read invitation message</summary>
-                    <textarea
-                      aria-label="Invitation message"
-                      readOnly
-                      value={invitationText}
-                      onFocus={(e) => e.target.select()}
-                    />
-                    <p className="delivery-meta">Copy only. LensLabs does not send this message.</p>
-                  </details>
+                  <MessageComposer
+                    key={`${room?.id}:${room?.revision}:${shareUrl}`}
+                    title="Your Photo Gallery"
+                    hideCopy
+                    text={invitationText}
+                    beforeAction={() => {
+                      ensureActive();
+                      if (
+                        !room ||
+                        roomRef.current?.id !== room.id ||
+                        roomRef.current?.revision !== room.revision ||
+                        shareUrlRef.current !== shareUrl ||
+                        galleryInvitation(room.state, shareUrl, new Date().toISOString()) !==
+                          invitationText
+                      )
+                        throw new Error(
+                          "This invitation changed or expired. Reopen Share before sending.",
+                        );
+                    }}
+                  />
                 )}
               </>
             ) : (

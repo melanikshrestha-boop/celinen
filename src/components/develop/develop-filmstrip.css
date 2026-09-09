@@ -1,0 +1,30 @@
+.develop-filmstrip-items.develop-filmstrip-virtual {
+  --develop-filmstrip-item-width: 110px;
+  --develop-filmstrip-item-height: 89px;
+  --develop-filmstrip-gap: 2px;
+  --develop-filmstrip-padding: 8px;
+  position: relative;
+  display: block;
+  padding: 3px var(--develop-filmstrip-padding) 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overflow-anchor: none;
+}
+.develop-filmstrip-virtual > .develop-filmstrip-spacer {
+  height: var(--develop-filmstrip-item-height);
+  pointer-events: none;
+}
+.develop-filmstrip-items.develop-filmstrip-virtual > button {
+  box-sizing: border-box;
+  position: absolute;
+  top: 3px;
+  width: var(--develop-filmstrip-item-width);
+  height: var(--develop-filmstrip-item-height);
+  min-height: var(--develop-filmstrip-item-height);
+}
+@media (max-width: 850px) {
+  .develop-filmstrip-items.develop-filmstrip-virtual {
+    --develop-filmstrip-item-width: 95px;
+    --develop-filmstrip-item-height: 76px;
+  }
+}

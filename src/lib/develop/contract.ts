@@ -79,6 +79,7 @@ export const developSettingsSchema = z
     clarity: signed,
     dehaze: signed,
     curve: developCurveSchema,
+    curveInterpolation: z.enum(["linear", "smooth"]).default("linear"),
     // Additive v1 fields: old on-device recipes, presets and history remain readable.
     channelCurves: channelCurvesSchema.default(() => ({
       red: identityCurve(),
@@ -109,6 +110,10 @@ export const developSettingsSchema = z
     bloom: amount,
     halation: amount,
     sharpening: amount,
+    // Additive defaults preserve the original fixed-radius sharpening behavior.
+    sharpeningRadius: z.number().finite().min(0.5).max(3).default(1),
+    sharpeningDetail: amount.default(100),
+    sharpeningMasking: amount.default(0),
     noiseReduction: amount,
     colorNoiseReduction: amount,
     crop: z
@@ -157,6 +162,7 @@ export function defaultDevelopSettings(): DevelopSettings {
       { x: 0, y: 0 },
       { x: 1, y: 1 },
     ],
+    curveInterpolation: "linear",
     channelCurves: { red: identityCurve(), green: identityCurve(), blue: identityCurve() },
     hsl: Array.from({ length: 8 }, () => ({ hue: 0, saturation: 0, luminance: 0 })),
     grading: {
@@ -177,6 +183,9 @@ export function defaultDevelopSettings(): DevelopSettings {
     bloom: 0,
     halation: 0,
     sharpening: 0,
+    sharpeningRadius: 1,
+    sharpeningDetail: 100,
+    sharpeningMasking: 0,
     noiseReduction: 0,
     colorNoiseReduction: 0,
     crop: { x: 0, y: 0, width: 1, height: 1, angle: 0, rotate: 0, flipX: false, flipY: false },
@@ -188,7 +197,9 @@ export function cloneDevelopSettings(input: DevelopSettings): DevelopSettings {
 }
 export const DEVELOP_ENGINE_LIMITS = Object.freeze({
   maxFileBytes: 128 * 1024 * 1024,
-  maxEdge: 4096,
+  maxEdge: 8192,
+  maxOutputPixels: 36_000_000,
+  defaultExportEdge: 4096,
   previewEdge: 1600,
   maxMasks: 12,
   maxRawSensorPixels: 60_000_000,

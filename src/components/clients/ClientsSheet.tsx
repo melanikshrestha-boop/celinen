@@ -1,16 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { useWorkbench } from "@/components/workbench/context";
 import {
-  buildClientBooking,
+  CLIENT_STAGES,
   buildWorkspaceClient,
-  upsertClientBooking,
   type ClientWorkspace,
+  type ClientStage,
   type WorkspaceClient,
 } from "@/lib/client-workspace";
 import {
   CLIENT_COMMAND_EVENT,
-  SHEET_STAGES,
   emptyExtra,
   findClient,
   formatDate,
@@ -22,9 +21,20 @@ import {
   type ClientCommand,
   type ClientRow,
   type JobType,
-  type SheetExtra,
 } from "@/lib/clients/sheet";
 import "./clients-sheet.css";
+import { ClientContact, ClientFollowUp, ClientPeople } from "./ClientPeople";
+import { ClientEditor, type ClientEdit } from "./ClientEditor";
+import {
+  CLIENT_STAGE_LABELS,
+  clientFollowUp,
+  clientRelationships,
+  filterClients,
+} from "@/lib/clients/crm";
+import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
+import { clientCsv, downloadText, localDate, reminderCalendar } from "@/lib/business/reminders";
+import type { LocalDeliveryGallerySummary } from "@/lib/delivery/local";
+import type { LocalInvoiceDraft } from "@/lib/local-finance-store";
 
 const COLUMNS = [
   { key: "client", label: "Client", className: "clients-col-client" },
@@ -52,7 +62,9 @@ const COLUMNS = [
 
 function SelectChip({ value }: { value: string }) {
   if (!value) return null;
-  return <span className={`clients-select is-${value.toLowerCase().replace(/\s+/g, "-")}`}>{value}</span>;
+  return (
+    <span className={`clients-select is-${value.toLowerCase().replace(/\s+/g, "-")}`}>{value}</span>
+  );
 }
 
 function CoverThumb({ cover }: { cover: string | null }) {
@@ -107,33 +119,6 @@ function Cell({ row, column }: { row: ClientRow; column: (typeof COLUMNS)[number
   }
 }
 
-function extraFromRow(row: ClientRow): SheetExtra {
-  return {
-    type: row.type,
-    location: row.location,
-    date: row.date,
-    cover: row.cover,
-    receivedCents: row.receivedCents,
-    totalCents: row.totalCents,
-    gallery: row.gallery,
-    last: row.last,
-    guest: row.guest,
-    clientPw: row.clientPw,
-    pin: row.pin,
-    sheetStage: row.sheetStage,
-    alias: row.alias,
-    nda: row.nda,
-    ndaOn: row.ndaOn,
-    channel: row.channel,
-    watermark: row.watermark,
-    download: row.download,
-    expires: row.expires,
-    gps: row.gps,
-    serial: row.serial,
-    notes: row.notes,
-  };
-}
-
 const PAGE_PROPS: { label: string; value: (row: ClientRow) => string }[] = [
   { label: "Alias", value: (row) => row.alias },
   { label: "Location", value: (row) => row.location },
@@ -164,94 +149,91 @@ export function ClientsSheet({
   error,
   cloud,
   onSave,
+  galleries = [],
+  invoices = [],
+  relationshipError = null,
 }: {
   state: ClientWorkspace;
   ready: boolean;
   error: string | null;
   cloud: boolean;
   onSave: (client: WorkspaceClient, revision?: number) => Promise<boolean>;
+  galleries?: readonly LocalDeliveryGallerySummary[];
+  invoices?: readonly LocalInvoiceDraft[];
+  relationshipError?: string | null;
 }) {
   const workbench = useWorkbench();
+  const setToolTitle = workbench?.setToolTitle;
   const href = useRouterState({ select: (s) => s.location.href });
-  const [view, setView] = useState<"table" | "board">("table");
+  const [view, setView] = useState<"people" | "followups" | "board" | "sheet">("people");
   const [search, setSearch] = useState("");
+  const [stage, setStage] = useState<ClientStage | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [naming, setNaming] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [edit, setEdit] = useState<ClientEdit | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [today, setToday] = useState(localDate);
   const rows = useMemo(() => state.clients.map(toRow), [state.clients]);
-  const quiet = rows.filter((row) => row.sheetStage === "quiet").length;
-  const visible = rows.filter((row) => {
-    const hay = `${row.name} ${row.alias} ${row.type} ${row.location} ${row.guest} ${row.pin}`.toLowerCase();
-    return hay.includes(search.toLowerCase());
+  const visible = filterClients(rows, {
+    query: search,
+    stage,
+    today,
+    followUps: view === "followups",
+    extra: (row) => row.alias + " " + row.type + " " + row.location,
   });
   const opened = openId ? rows.find((row) => row.id === openId) : undefined;
-
+  const toolTitle = opened?.name ?? "Clients";
+  const due = state.clients.filter((client) =>
+    ["overdue", "today"].includes(clientFollowUp(client, today)),
+  ).length;
+  useToolLeaveGuard(
+    saving
+      ? "A client save is still in progress."
+      : edit
+        ? "You have unsaved client or booking details."
+        : null,
+  );
   useEffect(() => {
-    workbench?.setToolTitle(href, opened ? opened.alias || opened.name : "Clients");
-  }, [href, opened, workbench]);
-
+    const timer = setInterval(() => setToday(localDate()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
-    const onCommand = (event: Event) => {
-      const command = (event as CustomEvent<ClientCommand>).detail;
-      if (!command) return;
-      void applyCommand(command);
-    };
-    window.addEventListener(CLIENT_COMMAND_EVENT, onCommand);
-    return () => window.removeEventListener(CLIENT_COMMAND_EVENT, onCommand);
-  });
+    setToolTitle?.(href, toolTitle);
+  }, [href, toolTitle, setToolTitle]);
 
-  useEffect(() => {
-    if (!ready || !rows.length) return;
-    const pending = takePendingClientCommand();
-    if (pending) void applyCommand(pending);
-  }, [ready, rows.length]);
-
-  async function applyCommand(command: ClientCommand) {
-    if (command.kind === "open") {
-      const hit = findClient(rows, command.name);
-      if (hit) {
-        setOpenId(hit.id);
-        setNote(null);
-      } else setNote(`No one named ${command.name} on the sheet.`);
-      return;
+  async function persist(client: WorkspaceClient, revision: number) {
+    if (!ready || savingRef.current) return false;
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
+    setNote(null);
+    try {
+      const ok = await onSave(client, revision);
+      if (ok) setNote(cloud ? "Saved to your account." : "Saved on this device.");
+      else
+        setSaveError(
+          "This change was not saved. Review the error, then cancel and reopen the form if the records changed.",
+        );
+      return ok;
+    } catch (failure) {
+      setSaveError(
+        failure instanceof Error
+          ? failure.message
+          : "The change could not be saved. Nothing was sent.",
+      );
+      return false;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    if (command.kind === "quiet") {
-      setSearch("");
-      setOpenId(null);
-      setView("table");
-      setNote(quiet ? `${quiet} quiet` : "No quiet names.");
-      return;
-    }
-    if (command.kind === "unopened") {
-      setOpenId(null);
-      setView("table");
-      const closed = rows.filter((row) => row.gallery !== "Live").map((row) => row.name);
-      setNote(closed.length ? closed.join(" · ") : "Every gallery has been opened.");
-      return;
-    }
-    if (command.kind === "attach") {
-      const hit = findClient(rows, command.name);
-      if (!hit) {
-        setNote(`No one named ${command.name} on the sheet.`);
-        return;
-      }
-      const booked = buildClientBooking({
-        title: "New project",
-        date: new Date().toISOString().slice(0, 10),
-        location: hit.location,
-        status: "requested",
-      });
-      if (!booked.ok) return setNote(booked.error);
-      const next = upsertClientBooking(hit, booked.value);
-      writeExtra(hit.id, { ...extraFromRow(hit), last: "now" });
-      await onSave(next, state.revision);
-      setOpenId(hit.id);
-      return;
-    }
-    await createLead(command.name, command.type ?? "", command.date ?? "");
   }
-
+  function beginEdit(client?: WorkspaceClient, followUp = false) {
+    setEdit({ kind: "client", ...(client ? { client } : {}), revision: state.revision, followUp });
+    if (client) setOpenId(client.id);
+    setSaveError(null);
+  }
   async function createLead(name: string, type: JobType | "", date: string) {
     const built = buildWorkspaceClient({
       name,
@@ -264,210 +246,491 @@ export function ClientsSheet({
       budget: "",
       stage: "new",
     });
-    if (!built.ok) {
-      setNote(built.error);
+    if (!built.ok) return setSaveError(built.error);
+    if (await persist(built.value, state.revision)) {
+      writeExtra(built.value.id, { ...emptyExtra(), type, date });
+      setOpenId(built.value.id);
+    }
+  }
+  async function applyCommand(command: ClientCommand) {
+    if (!ready || edit || savingRef.current) {
+      setNote("Finish the open form before another client action.");
       return;
     }
-    const extra: SheetExtra = { ...emptyExtra(), type, date };
-    writeExtra(built.value.id, extra);
-    const ok = await onSave(built.value, state.revision);
-    if (ok) {
-      setNaming(false);
-      setDraftName("");
-      setOpenId(built.value.id);
-      setNote(null);
+    if (command.kind === "quiet") {
+      setStage("archived");
+      setSearch("");
+      setOpenId(null);
+      setView("people");
+      return;
+    }
+    if (command.kind === "unopened") {
+      setNote(
+        "Gallery viewing activity is not tracked here. Saved gallery labels do not prove that a client opened a gallery.",
+      );
+      return;
+    }
+    if (command.kind === "add") {
+      await createLead(command.name, command.type ?? "", command.date ?? "");
+      return;
+    }
+    const hit = findClient(rows, command.name);
+    if (!hit) {
+      setNote("No client named " + command.name + ".");
+      return;
+    }
+    setOpenId(hit.id);
+    if (command.kind === "attach") {
+      // A requested booking is not a created shoot/project: let the user supply and review it.
+      setEdit({ kind: "booking", client: hit, revision: state.revision });
     }
   }
+  useEffect(() => {
+    const onCommand = (event: Event) => {
+      const command = (event as CustomEvent<ClientCommand>).detail;
+      if (!command) return;
+      takePendingClientCommand();
+      void applyCommand(command);
+    };
+    window.addEventListener(CLIENT_COMMAND_EVENT, onCommand);
+    return () => window.removeEventListener(CLIENT_COMMAND_EVENT, onCommand);
+  });
+  useEffect(() => {
+    if (!ready) return;
+    const pending = takePendingClientCommand();
+    if (pending) void applyCommand(pending);
+  });
 
-  const subtitle = `${rows.length}${quiet ? ` · ${quiet} quiet` : ""} · ${cloud ? "saved to your account" : "saved on this device"}`;
-
-  if (opened) {
-    return (
-      <div className="clients-sheet">
-        <article className="clients-page">
-          <button type="button" className="clients-back" onClick={() => setOpenId(null)}>
-            Clients
-          </button>
-          {opened.cover ? (
-            <div className="clients-cover-banner">
-              <img src={opened.cover} alt="" />
-            </div>
-          ) : null}
-          <div className="clients-page-body">
-            <h1>{opened.name}</h1>
-            {opened.alias ? <p className="clients-alias">{opened.alias}</p> : null}
-            <dl className="clients-props">
-              {PAGE_PROPS.map((prop) => {
-                const value = prop.value(opened);
-                const isSelect = [
-                  "Type",
-                  "Stage",
-                  "Gallery",
-                  "NDA",
-                  "Channel",
-                  "Watermark",
-                  "Download",
-                  "GPS",
-                  "Serial",
-                ].includes(prop.label);
-                const chipValue =
-                  prop.label === "NDA" ? opened.nda : value.includes(" · ") ? value.split(" · ")[0]! : value;
-                return (
-                  <div className="clients-prop" key={prop.label}>
-                    <dt>{prop.label}</dt>
-                    <dd>
-                      {isSelect && chipValue ? (
-                        <>
-                          <SelectChip value={chipValue} />
-                          {prop.label === "NDA" && opened.ndaOn ? ` · ${formatDate(opened.ndaOn)}` : ""}
-                        </>
-                      ) : prop.label === "Cover" && opened.cover ? (
-                        <CoverThumb cover={opened.cover} />
-                      ) : (
-                        value
-                      )}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        </article>
-      </div>
-    );
-  }
-
-  return (
-    <div className="clients-sheet">
-      <header className="clients-head">
-        <p className="clients-kicker">Business</p>
-        <h1 className="clients-title">Clients</h1>
-        <p className="clients-sub">{subtitle}</p>
-      </header>
-      <div className="clients-toolbar">
-        <button type="button" aria-current={view === "table" ? "true" : undefined} onClick={() => setView("table")}>
-          Table
-        </button>
-        <button type="button" aria-current={view === "board" ? "true" : undefined} onClick={() => setView("board")}>
-          Board
-        </button>
-        <input
-          id="client-search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="search"
-          aria-label="Search"
-        />
-        <button
-          type="button"
-          className="clients-new"
-          disabled={!ready}
-          onClick={() => {
-            setNaming(true);
-            setView("table");
-          }}
-        >
-          New
-        </button>
-      </div>
+  const alerts = (
+    <>
       {error && (
         <p className="clients-alert" role="alert">
           {error}
         </p>
       )}
+      {saveError && (
+        <p className="clients-alert" role="alert">
+          {saveError}
+        </p>
+      )}
       {note && (
-        <p className="clients-alert" role="status">
+        <p className="clients-notice" role="status">
           {note}
         </p>
       )}
-      <div className="clients-canvas">
-        {!visible.length && !naming ? (
-          <div className="clients-empty">The first name on the sheet.</div>
-        ) : view === "board" ? (
-          <div className="clients-board">
-            {SHEET_STAGES.map((stage) => {
-              const group = visible.filter((row) => row.sheetStage === stage);
-              if (!group.length) return null;
-              return (
-                <section key={stage} className="clients-board-col">
-                  <h3>{stageLabel(stage)}</h3>
-                  {group.map((row) => (
-                    <button
-                      key={row.id}
-                      type="button"
-                      className="clients-card"
-                      onClick={() => setOpenId(row.id)}
-                    >
-                      <CoverThumb cover={row.cover} />
-                      <p>{row.name}</p>
-                    </button>
-                  ))}
-                </section>
-              );
-            })}
-          </div>
-        ) : (
-          <>
-            <table className="clients-table">
-              <thead>
-                <tr>
-                  {COLUMNS.map((column) => (
-                    <th key={column.key} className={column.className}>
-                      {column.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="clients-row"
-                    onClick={() => setOpenId(row.id)}
-                  >
-                    {COLUMNS.map((column) => (
-                      <td key={column.key} className={column.className}>
-                        <Cell row={row} column={column.key} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <form
-              className="clients-new-page"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const name = draftName.trim();
-                if (!name) {
-                  setNaming(true);
-                  return;
-                }
-                void createLead(name, "", "");
-              }}
-            >
-              {naming ? (
-                <input
-                  value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
-                  onBlur={() => {
-                    if (!draftName.trim()) setNaming(false);
-                  }}
-                  placeholder="New page"
-                  aria-label="New client"
-                  autoFocus
-                />
-              ) : (
-                <button type="button" disabled={!ready} onClick={() => setNaming(true)}>
-                  + New
+    </>
+  );
+  const editor = edit ? (
+    <ClientEditor
+      key={
+        edit.kind +
+        (edit.client?.id ?? "new") +
+        (edit.kind === "booking" ? (edit.booking?.id ?? "new") : "")
+      }
+      edit={edit}
+      saving={saving}
+      onSave={async (client, revision) => {
+        const ok = await persist(client, revision);
+        if (ok) setOpenId(client.id);
+        return ok;
+      }}
+      onCancel={() => setEdit(null)}
+    />
+  ) : null;
+
+  if (opened && !edit) {
+    const relationships = clientRelationships(opened, galleries, invoices);
+    return (
+      <div className="clients-sheet">
+        <article className="clients-detail">
+          <button type="button" className="clients-back" onClick={() => setOpenId(null)}>
+            ← All clients
+          </button>
+          {alerts}
+          <header className="clients-detail-head">
+            <span className="clients-avatar" aria-hidden="true">
+              {opened.initials}
+            </span>
+            <div>
+              <h1>{opened.name}</h1>
+              {opened.org && <p>{opened.org}</p>}
+              <span className="clients-stage">{CLIENT_STAGE_LABELS[opened.stage]}</span>
+            </div>
+            <button type="button" disabled={!ready || saving} onClick={() => beginEdit(opened)}>
+              Edit contact
+            </button>
+          </header>
+          <div className="clients-detail-grid">
+            <section aria-label="Contact and follow-up">
+              <h2>Contact</h2>
+              <ClientContact client={opened} />
+              {opened.source && <p className="clients-muted">Source · {opened.source}</p>}
+              <div className="clients-section-heading">
+                <h2>Next follow-up</h2>
+                <button type="button" disabled={saving} onClick={() => beginEdit(opened, true)}>
+                  Schedule
                 </button>
+              </div>
+              <ClientFollowUp client={opened} today={today} />
+              {opened.followUpOn && (
+                <div className="clients-inline-actions">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      void persist({ ...opened, followUpOn: null }, state.revision);
+                    }}
+                  >
+                    Clear reminder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadText(
+                        reminderCalendar([opened]),
+                        "client-follow-up.ics",
+                        "text/calendar",
+                      )
+                    }
+                  >
+                    Add to calendar
+                  </button>
+                </div>
               )}
-            </form>
-          </>
-        )}
+              <h2>Brief / notes</h2>
+              <p className="clients-brief">{opened.brief || "No notes yet."}</p>
+              {opened.budgetCents !== null && (
+                <p className="clients-muted">
+                  Planning budget ·{" "}
+                  {new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(
+                    opened.budgetCents / 100,
+                  )}{" "}
+                  · not a payment
+                </p>
+              )}
+            </section>
+            <section aria-label="Client relationships">
+              <div className="clients-section-heading">
+                <h2>
+                  Bookings <span>{opened.bookings.length}</span>
+                </h2>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() =>
+                    setEdit({ kind: "booking", client: opened, revision: state.revision })
+                  }
+                >
+                  Add booking
+                </button>
+              </div>
+              {opened.bookings.length ? (
+                [...opened.bookings]
+                  .sort((a, b) => a.date.localeCompare(b.date))
+                  .map((booking) => (
+                    <div className="clients-relationship" key={booking.id}>
+                      <div>
+                        <strong>{booking.title}</strong>
+                        <p>
+                          {formatDate(booking.date)}
+                          {booking.location ? " · " + booking.location : ""} · {booking.status}
+                        </p>
+                        <details>
+                          <summary>Record ID</summary>
+                          <code>{booking.id}</code>
+                        </details>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() =>
+                          setEdit({
+                            kind: "booking",
+                            client: opened,
+                            booking,
+                            revision: state.revision,
+                          })
+                        }
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  ))
+              ) : (
+                <p className="clients-muted">No bookings recorded.</p>
+              )}
+              <h2>
+                Galleries <span>{relationships.galleries.length}</span>
+              </h2>
+              {relationships.galleries.length ? (
+                relationships.galleries.map(({ id, record }) => (
+                  <div className="clients-relationship" key={id}>
+                    <div>
+                      <strong>{record?.title ?? "Linked gallery"}</strong>
+                      <p>
+                        {record
+                          ? record.photoCount + " photos · local draft"
+                          : "Details not available in this workspace"}
+                      </p>
+                      <code>{id}</code>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="clients-muted">No galleries linked.</p>
+              )}
+              <h2>
+                Invoices <span>{relationships.invoices.length}</span>
+              </h2>
+              {relationships.invoices.length ? (
+                relationships.invoices.map(({ id, record, conflict }) => (
+                  <div className="clients-relationship" key={id}>
+                    <div>
+                      <strong>{record?.description || "Linked invoice"}</strong>
+                      <p>
+                        {conflict
+                          ? "Conflicting client link — review in Earnings"
+                          : record
+                            ? "Draft · not sent" +
+                              (record.dueDate ? " · due " + formatDate(record.dueDate) : "")
+                            : "Details not available in this workspace"}
+                      </p>
+                      <code>{id}</code>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="clients-muted">No invoices linked.</p>
+              )}
+              {relationshipError && (
+                <p className="clients-alert" role="alert">
+                  {relationshipError}
+                </p>
+              )}
+            </section>
+          </div>
+          <details className="clients-extra">
+            <summary>All saved sheet fields & record details</summary>
+            <p className="clients-muted">
+              Legacy planning fields are retained as entered. “Paid”, gallery, NDA, password and
+              access labels are not verified payments, signatures, viewing activity or active access
+              controls.
+            </p>
+            <dl className="clients-props">
+              <div className="clients-prop">
+                <dt>Client ID</dt>
+                <dd>
+                  <code>{opened.id}</code>
+                </dd>
+              </div>
+              <div className="clients-prop">
+                <dt>Created</dt>
+                <dd>{opened.createdAt}</dd>
+              </div>
+              <div className="clients-prop">
+                <dt>Updated</dt>
+                <dd>{opened.updatedAt}</dd>
+              </div>
+              {PAGE_PROPS.map((prop) => (
+                <div className="clients-prop" key={prop.label}>
+                  <dt>{prop.label}</dt>
+                  <dd>
+                    {prop.label === "Cover" && opened.cover ? (
+                      <CoverThumb cover={opened.cover} />
+                    ) : (
+                      prop.value(opened) || "—"
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+        </article>
       </div>
+    );
+  }
+  return (
+    <div className="clients-sheet">
+      <header className="clients-head">
+        <div>
+          <h1 className="clients-title">Clients</h1>
+          <p className="clients-sub">
+            {ready
+              ? rows.length +
+                " contacts · " +
+                due +
+                " follow-ups due · " +
+                (cloud ? "Saved to your account" : "Saved on this device")
+              : "Opening saved clients…"}
+          </p>
+        </div>
+        {!edit && (
+          <button
+            type="button"
+            className="clients-primary"
+            disabled={!ready || saving}
+            onClick={() => beginEdit()}
+          >
+            New client
+          </button>
+        )}
+      </header>
+      {alerts}
+      {editor || (
+        <>
+          <div className="clients-toolbar">
+            <div className="clients-view-switch" aria-label="Client views">
+              {(
+                [
+                  ["people", "People"],
+                  ["followups", "Follow-ups"],
+                  ["board", "Board"],
+                  ["sheet", "All fields"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={view === key}
+                  onClick={() => setView(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="clients-search">
+              <span className="clients-sr-only">Search clients</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, email, phone…"
+              />
+            </label>
+            <select
+              aria-label="Filter by client stage"
+              value={stage}
+              onChange={(event) => setStage(event.target.value as ClientStage | "all")}
+            >
+              <option value="all">All stages</option>
+              {CLIENT_STAGES.map((item) => (
+                <option key={item} value={item}>
+                  {CLIENT_STAGE_LABELS[item]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!ready || !visible.length}
+              onClick={() => downloadText(clientCsv(visible), "clients.csv", "text/csv")}
+            >
+              Export CSV
+            </button>
+          </div>
+          <div className="clients-canvas">
+            {view === "followups" && (
+              <p className="clients-muted">
+                Scheduled reminders, earliest first. Email and phone actions open your own apps;
+                nothing is sent automatically.
+              </p>
+            )}
+            {!ready ? (
+              <p className="clients-empty">
+                Your saved clients will appear here once storage is available.
+              </p>
+            ) : !visible.length ? (
+              <div className="clients-empty">
+                <h2>
+                  {rows.length
+                    ? view === "followups"
+                      ? "No scheduled follow-ups match"
+                      : "No matching clients"
+                    : "Your next client starts here"}
+                </h2>
+                <p>
+                  {rows.length
+                    ? view === "followups"
+                      ? "Open a contact to schedule their next follow-up."
+                      : "Try another name, email, phone, or stage."
+                    : "Add a contact, plan a shoot, and keep their next step in view."}
+                </p>
+                {rows.length ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setStage("all");
+                      setView("people");
+                    }}
+                  >
+                    Show all clients
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => beginEdit()}>
+                    Add your first client
+                  </button>
+                )}
+              </div>
+            ) : view === "sheet" ? (
+              <>
+                <p className="clients-muted">
+                  All retained legacy planning fields. Payment, gallery, NDA and access labels are
+                  not live verification.
+                </p>
+                <table className="clients-table">
+                  <thead>
+                    <tr>
+                      {COLUMNS.map((column) => (
+                        <th scope="col" key={column.key} className={column.className}>
+                          {column.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((row) => (
+                      <tr key={row.id}>
+                        {COLUMNS.map((column) => (
+                          <td key={column.key} className={column.className}>
+                            {column.key === "client" ? (
+                              <button
+                                className="clients-name-button"
+                                type="button"
+                                onClick={() => setOpenId(row.id)}
+                              >
+                                {row.name}
+                              </button>
+                            ) : (
+                              <Cell row={row} column={column.key} />
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <ClientPeople
+                clients={visible}
+                today={today}
+                board={view === "board"}
+                busy={saving}
+                onOpen={(client) => setOpenId(client.id)}
+                onFollowUp={(client) => beginEdit(client, true)}
+                onStage={(client, nextStage) => {
+                  if (nextStage !== client.stage)
+                    void persist({ ...client, stage: nextStage }, state.revision);
+                }}
+              />
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
+// Compatibility export for existing assistant commands; no component state is exported.
+// eslint-disable-next-line react-refresh/only-export-components
 export { dispatchClientCommand as applyIncomingClientCommand } from "@/lib/clients/sheet";

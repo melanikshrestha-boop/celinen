@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { ArrowUpRight, Camera, MessageSquare } from "lucide-react";
+import { ShootEarningsStrip } from "@/components/earnings/ShootEarningsStrip";
 import { ShootLink } from "./ShootsHub";
 import {
   SHOOT_TABS,
@@ -100,6 +101,7 @@ export function ShootWorkspaceFrame({
           Open saved assistant
         </ShootLink>
       </div>
+      <ShootEarningsStrip shootKey={shootKey} />
       <dl className="shoot-overview-details">
         <div>
           <dt>Stage</dt>
@@ -156,10 +158,10 @@ export function ShootPlaceholder({ tab }: { tab: "social" | "smart-file" }) {
         <p>
           {tab === "social"
             ? "Star-to-Story, X, and TikTok need a verified shoot handoff and destination permissions. No post has been created or sent."
-            : "Proposals, contracts, e-signatures, and deposits are not a connected booking flow yet. Existing invoice drafts and recorded payments remain in Money."}
+            : "Proposals, contracts, e-signatures, and deposits are not a connected booking flow yet. Existing invoice drafts and recorded payments remain in Earnings."}
         </p>
-        <ShootLink href={tab === "social" ? "/deliver" : "/money"} className="shoots-text-link">
-          {tab === "social" ? "Open Deliver" : "Open Money"}
+        <ShootLink href={tab === "social" ? "/deliver" : "/earnings"} className="shoots-text-link">
+          {tab === "social" ? "Open Deliver" : "Open Earnings"}
           <ArrowUpRight size={15} />
         </ShootLink>
       </div>

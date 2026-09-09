@@ -1,0 +1,78 @@
+/* Active or pinned is not an interaction: neither may reveal another row's controls. */
+.history-row-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+.history-row:hover > .history-row-actions,
+.history-row:has(:focus-visible) > .history-row-actions,
+.history-row:has([data-state="open"]) > .history-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.history-row-action {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wb-muted, var(--muted-foreground));
+}
+.history-row-action:hover {
+  background: var(--wb-sidebar-hover, var(--muted));
+  color: var(--wb-text, var(--foreground));
+}
+.history-row-action:focus-visible,
+.history-archive-notice button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.history-row-action:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+.history-archive-notice {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 6px 0;
+  padding: 4px 10px;
+  color: var(--wb-muted, var(--muted-foreground));
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.history-archive-notice button {
+  color: var(--wb-text, var(--foreground));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (hover: none), (pointer: coarse) {
+  .history-row-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .history-row-action {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+  .history-archive-notice button {
+    min-height: 44px;
+    padding-inline: 5px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .history-row-actions {
+    transition: none;
+  }
+}

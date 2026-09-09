@@ -14,13 +14,14 @@ import {
 } from "../src/components/workbench/primary-navigation";
 
 describe("FOTO primary navigation", () => {
-  test("exactly five destinations, no editor or duplicate create action", () => {
+  test("six destinations include a dedicated CRM, no editor or duplicate create action", () => {
     expect(FOTO_PRIMARY_NAV.map(({ label, href }) => [label, href])).toEqual([
       ["Tonight", "/tonight"],
       ["Shoots", "/shoots"],
+      ["Clients", "/clients"],
       ["Library", "/library"],
       ["Deliver", "/deliver"],
-      ["Money", "/money"],
+      ["Earnings", "/earnings"],
     ]);
     const html = renderToStaticMarkup(
       <TooltipProvider>
@@ -29,7 +30,8 @@ describe("FOTO primary navigation", () => {
     );
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
     expect(html).toContain('aria-label="Shoots" aria-current="page"');
-    for (const legacy of ["Clients", "Jobs", "New project", "Outbound", "Earnings", ">Develop<"])
+    expect(html.match(/href="\/clients"/g)).toHaveLength(1);
+    for (const legacy of ["Jobs", "New project", "Outbound", "Money", ">Develop<"])
       expect(html).not.toContain(legacy);
   });
   test("all shoot modules belong to Shoots, unrelated paths are not selected", () => {
@@ -41,6 +43,7 @@ describe("FOTO primary navigation", () => {
     expect(primaryNavigationPath("/shoots/")).toBe("/shoots");
     expect(primaryNavigationPath("/SHOOTS/legacy/CULL")).toBe("/shoots");
     expect(primaryNavigationPath("/LIBRARY/")).toBe("/library");
+    expect(primaryNavigationPath("/CLIENTS/")).toBe("/clients");
     expect(primaryNavigationPath("/shootstuff")).toBeNull();
     expect(primaryNavigationPath("/settings/general")).toBeNull();
   });
@@ -98,7 +101,7 @@ describe("FOTO primary navigation", () => {
       </TooltipProvider>,
     );
     expect(html.match(/<button/g)).toHaveLength(1);
-    expect(html).toContain('aria-label="New shoot" disabled=""');
+    expect(html).toContain('aria-label="New Shoot" disabled=""');
     expect(html).toContain("Opening…");
   });
   test("normal clicks use guarded navigation, browser modified clicks retain their behavior", () => {
