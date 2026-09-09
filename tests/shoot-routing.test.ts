@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { PHOTO_ID_MAX_LENGTH } from "../src/lib/photo-identity";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -31,6 +32,49 @@ import {
 const a = "11111111-1111-4111-8111-111111111111",
   b = "22222222-2222-4222-8222-222222222222";
 describe("one canonical Develop entry", () => {
+  test.each([1994, 2000, PHOTO_ID_MAX_LENGTH])(
+    "%i-character existing frame IDs survive the prefixed working-edit link exactly",
+    (length) => {
+      const suffix = "?source=original&v=1/東京";
+      const frameId = `${"f".repeat(length - suffix.length)}${suffix}`;
+      const binding = { kind: "ready" as const, projectId: a };
+      const photoId = `studio:${frameId}`;
+      const href = developWorkspaceHref(binding, photoId);
+      const url = new URL(href, "https://foto.invalid");
+      expect(url.searchParams.get("photo")).toBe(photoId);
+      expect([...url.searchParams.keys()]).toEqual(["photo"]);
+      expect(canonicalShootBinding(href, true)).toEqual(binding);
+      expect(shootRoute(href)).toEqual({ key: `project:${a}`, tab: "develop" });
+    },
+  );
+  test("Develop ID bounds include only the additive Studio prefix", () => {
+    const binding = { kind: "ready" as const, projectId: a };
+    expect(() =>
+      developWorkspaceHref(binding, `studio:${"f".repeat(PHOTO_ID_MAX_LENGTH + 1)}`),
+    ).toThrow("photo reference is invalid");
+  });
+  test("the maximum legacy frame survives canonical delivery routing without widening versions", () => {
+    const binding = {
+      kind: "ready" as const,
+      projectId: a,
+      deliveryFocus: { frameId: "f".repeat(PHOTO_ID_MAX_LENGTH), versionId: "v/2", handoffId: b },
+    };
+    const href = developWorkspaceHref(binding, `studio:${binding.deliveryFocus.frameId}`);
+    expect(canonicalShootBinding(href, true)).toEqual(binding);
+    for (const deliveryFocus of [
+      { ...binding.deliveryFocus, frameId: "f".repeat(PHOTO_ID_MAX_LENGTH + 1) },
+      { ...binding.deliveryFocus, versionId: "v".repeat(2001) },
+    ]) {
+      const query = defaultStringifySearch({
+        project: a,
+        deliveryFrame: deliveryFocus.frameId,
+        deliveryVersion: deliveryFocus.versionId,
+      });
+      expect(
+        canonicalShootBinding(shootWorkspaceHref(`project:${a}`, "develop", query), true)?.kind,
+      ).toBe("blocked");
+    }
+  });
   test("Studio handoff keeps the exact shoot and photo identity", () => {
     const binding = { kind: "ready" as const, projectId: null, shootId: a };
     const href = developWorkspaceHref(binding, "studio:frame/with spaces");

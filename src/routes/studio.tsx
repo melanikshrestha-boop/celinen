@@ -54,6 +54,7 @@ import type { StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { PRODUCT_NAME } from "@/lib/product";
+import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
 import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
@@ -145,7 +146,7 @@ export const Route = createFileRoute("/studio")({
       if (
         typeof search["deliveryFrame"] !== "string" ||
         !search["deliveryFrame"] ||
-        search["deliveryFrame"].length > 2000 ||
+        search["deliveryFrame"].length > PHOTO_ID_MAX_LENGTH ||
         typeof search["deliveryVersion"] !== "string" ||
         !search["deliveryVersion"] ||
         search["deliveryVersion"].length > 2000 ||

@@ -1,5 +1,6 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router";
 import { studioWorkbenchBinding, workbenchTab, type StudioWorkbenchBinding } from "./workbench";
+import { PHOTO_ID_MAX_LENGTH } from "./photo-identity";
 
 const idPattern = /^[a-f0-9-]{36}$/i;
 const uuidPattern = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
@@ -47,7 +48,9 @@ export function shootKeyForBinding(binding: StudioWorkbenchBinding) {
 /** One edit destination. Preserve exact source/version context rather than opening another Studio pane. */
 export function developWorkspaceHref(binding: StudioWorkbenchBinding, photoId?: string | null) {
   if (binding.kind === "blocked") throw new Error(binding.reason);
-  if (photoId && photoId.length > 2000) throw new Error("This photo reference is invalid.");
+  // Develop adds this prefix without changing the saved Studio frame identity.
+  if (photoId && photoId.length > PHOTO_ID_MAX_LENGTH + "studio:".length)
+    throw new Error("This photo reference is invalid.");
   return shootWorkspaceHref(
     shootKeyForBinding(binding) ?? "legacy",
     "develop",
