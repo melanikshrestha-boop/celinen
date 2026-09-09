@@ -353,14 +353,24 @@ std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
   const auto required = rgba_size(image.width, image.height);
   if (image.rgba.size() != required)
     throw std::invalid_argument("JPEG input must contain exactly width * height * 4 RGBA bytes.");
-  auto opaque = image.rgba;
-  for (std::size_t i = 0; i < opaque.size(); i += 4) {
-    const auto alpha = static_cast<unsigned>(opaque[i + 3]);
-    for (std::size_t channel = 0; channel < 3; ++channel)
-      opaque[i + channel] = static_cast<std::uint8_t>(
-          (static_cast<unsigned>(opaque[i + channel]) * alpha + 255U * (255U - alpha) + 127U) / 255U);
-    opaque[i + 3] = 255;
+  bool has_alpha = false;
+  for (std::size_t i = 3; i < image.rgba.size(); i += 4)
+    if (image.rgba[i] != 255) { has_alpha = true; break; }
+  std::vector<std::uint8_t> composited;
+  if (has_alpha) {
+    composited = image.rgba;
+    for (std::size_t i = 0; i < composited.size(); i += 4) {
+      const auto alpha = static_cast<unsigned>(composited[i + 3]);
+      for (std::size_t channel = 0; channel < 3; ++channel)
+        composited[i + channel] = static_cast<std::uint8_t>(
+            (static_cast<unsigned>(composited[i + channel]) * alpha + 255U * (255U - alpha) + 127U) / 255U);
+      composited[i + 3] = 255;
+    }
   }
+  // Opaque input is already byte-identical to white compositing. The caller's
+  // immutable image (or this owned fallback) outlives Finalize and all provider,
+  // image and destination handles below. No CoreGraphics bitmap flags change.
+  const auto& opaque = has_alpha ? composited : image.rgba;
   CFHandle<CGColorSpaceRef> color_space(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
   CFHandle<CGDataProviderRef> provider(CGDataProviderCreateWithData(nullptr, opaque.data(), opaque.size(), nullptr));
   if (!color_space || !provider) throw std::runtime_error("Could not allocate JPEG color data.");

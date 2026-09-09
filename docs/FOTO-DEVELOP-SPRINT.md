@@ -738,3 +738,96 @@ stays with that editor foundation. This scoped commit contains only store/import
 the new unit regression and this note. It does not publish environment files,
 change native binaries, activate the pending opt-in RAW white-balance model,
 add histogram features, establish whole-import speedup, or complete Lightroom parity.
+
+## September 9: measured import phases and exact opaque JPEG optimization
+
+This milestone follows the active import-speed priority. It removes one avoidable
+native allocation, not the remaining import bottleneck or the Lightroom parity
+gap. The investigate skill kept the change tied to measured work and exact output
+invariants; browse was used for actual chooser imports, not mocked success.
+
+### Root cause and bounded change
+
+The macOS JPEG encoder copied every RGBA image and ran white compositing even
+when every alpha byte was already 255. For opaque input that integer operation
+is exactly identity. It now validates dimensions/byte length, checks all alpha
+bytes, and borrows the immutable caller buffer through synchronous ImageIO
+encoding. Any nonopaque pixel still uses the exact previous owned-copy and
+integer-white-composite fallback. Bitmap flags, sRGB, quality, orientation,
+rendering intent, output limits and caller ownership are unchanged. Provider,
+image and destination RAII handles are released before either input owner dies.
+This does not claim that ImageIO itself makes no internal copies.
+
+Public Sony A6000, 4096-edge, isolated alternating native measurements:
+alpha preparation median **15.47 ms -> 3.09 ms**, avoiding one **44.8 MB** RGBA
+allocation. The smaller A7IV sample avoided about 33 MB. RAW unpack/demosaic and
+edited-pixel processing still dominate much larger parts of the workflow.
+These are stage measurements, not a whole-import speedup or a device-wide
+performance guarantee.
+
+### Regression and current local browser evidence
+
+- New production-TU probe: each optimized and ASan/UBSan run passed 1,040 exact
+  JPEG comparisons with unchanged source bytes: 76 opaque borrowed buffers and
+  964 transparent owned composites, plus 28 invalid admissions and 24 concurrent
+  cases. Qualities 0/0.5/0.95/1, one-pixel/odd dimensions, first/middle/last alpha
+  boundaries and all 256 alpha/channel combinations are covered.
+- An independent literal old encoder matches JPEG bytes but fails the
+  `OPAQUE_INPUT_WAS_COPIED` structural assertion. Both actual pre-edit local and
+  pre-edit HEAD source versions were also compiled against the new probe and
+  failed that assertion. Output-equality tests alone would not detect this fix.
+- Clean candidate uses HEAD's existing single JPEG wrapper: 1,040 valid calls.
+  Newer local code explicitly reports 524 standard + 516 high-resolution-wrapper
+  calls. This proves wrapper execution, not all larger-than-4096 dimensions.
+  ASan/UBSan instrument the probe/production TU, not Apple frameworks or the
+  existing LibRaw archive.
+- Six actual three-file imports (three before / three after) used the public
+  A6000 RAW, A7IV-small RAW and volleyball JPEG through the real file chooser.
+  Every import retained all three exact original SHA-256s and documents, performed
+  one whole-file hash per original, and completed four successful native requests.
+  Display, export proof and captured JPEG download were byte-identical in all six
+  runs, including across the before/after boundary:
+  `60114ecf01ef91676a7125d5b3aa668be26fff907cf955faf93b72efb849abcb`.
+- The newer local browser's first-thumbnail median was 382 -> 613 ms; all-three
+  thumbnails 1,420 -> 1,964 ms; editor-ready 2,795 -> 3,396 ms. **These browser
+  measurements do not establish an end-to-end speed improvement.** Native request
+  timings were variable, and the first baseline was cold. Do not conceal the
+  slower after medians or attribute the whole difference to this narrow change.
+  Request timings include transport/process work; FileReader loadend spans can
+  include later event-listener work. Instrumented phases are not additive.
+- The public QA records were isolated in reserved shoots ending 105..110. After
+  exact namespace, source and saved-document checks, only their 18 photos and
+  18 documents were removed. Each namespace read back empty. Original public
+  files on disk retained their hashes. Customer libraries, including the 337
+  legacy records and the active user shoot, were not inspected or changed.
+- Desktop screenshot inspected: three usable thumbnails, actual sensor-RAW image
+  and live histogram, no broken-image placeholders. This milestone adds no new
+  histogram controls; earlier histogram/exposure regression coverage still passes.
+
+### Validation and handoff boundary
+
+Current local native rebuild: 10 suites, 476,663 checks passed.
+Current local full Bun: 1,824 pass, 21 skip, 1 opt-in-WB TODO, 0 fail;
+366,390 assertions. TypeScript, scoped lint and the normal production build pass.
+The local-only lab config intentionally refuses production builds; the guard
+was retained and the normal config was used successfully.
+
+Clean candidate based on `38e718c`: native 9 suites / 120,952 checks; full Bun
+1,513 pass, 21 skip, 0 fail / 304,904 assertions; TypeScript, scoped lint and normal
+production build pass. Existing skip reasons and unrelated build warnings remain.
+
+Only the opaque encoder hunk, its two test files and this standalone appended note
+belong to the private Git milestone. Older high-resolution decoder/refactor,
+editor, histogram, CRM, finance and UI work remains local and must not be staged
+with it. The local browser phase fixture stays with that newer editor foundation.
+No environment file, protocol, authentication, RAW white-balance default, old
+recipe, customer original or saved edit is changed by this milestone. Local native
+binaries were rebuilt; Git sync is not a production deployment.
+
+Next: investigate repeatable RAW decoding/request latency and browser long tasks
+before a larger optimization. A decoded-RAW cache needs bounded memory, exact
+source/mode/control/quality identity, cancellation and stale-result ownership.
+Fingerprint worker work must retain one exact SHA, abort behavior and durable
+per-file import receipts. Do not activate the pending opt-in WB model or claim
+camera-wide, color-management, AI-denoise or full Lightroom parity. The existing
+continuation remains active.
