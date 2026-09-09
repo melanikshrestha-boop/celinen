@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { type DevelopSettings } from "@/lib/develop/contract";
 import { type DevelopChange, type DevelopTool } from "./DevelopControls";
 import { developImageReady } from "./develop-state";
-import {
-  analyzeDevelopPixels,
-  clippingPixels,
-  type DevelopHistogramData,
-} from "@/lib/develop/histogram";
+import { type DevelopHistogramData } from "@/lib/develop/histogram";
+import { analyzeDevelopBlob } from "@/lib/develop/pixel-analysis";
+import { useDevelopPixelSample, type DevelopPixelSample } from "./useDevelopPixelSample";
+
+const ignorePixelSample = (_sample: DevelopPixelSample | null) => {};
 
 export function DevelopViewer({
   url,
+  blob,
   emptyLabel = "Choose a photograph to begin.",
   beforeUrl,
+  beforeBlob,
   before,
   compare,
   zoom,
@@ -22,11 +24,16 @@ export function DevelopViewer({
   maskId,
   onDimensions,
   onHistogram,
+  onHistogramError,
+  knownHistogram,
+  onPixelSample = ignorePixelSample,
   clipping,
 }: {
   url: string | null;
+  blob: Blob | null;
   emptyLabel?: string;
   beforeUrl: string | null;
+  beforeBlob: Blob | null;
   before: boolean;
   compare: boolean;
   zoom: "fit" | "100";
@@ -36,41 +43,100 @@ export function DevelopViewer({
   change: DevelopChange;
   maskId: string | null;
   onDimensions: (w: number, h: number) => void;
-  onHistogram: (histogram: DevelopHistogramData) => void;
+  onHistogram: (histogram: DevelopHistogramData, url: string) => void;
+  onHistogramError?: (message: string, url: string) => void;
+  knownHistogram?: DevelopHistogramData | null;
+  onPixelSample?: (sample: DevelopPixelSample | null) => void;
   clipping: { shadows: boolean; highlights: boolean };
 }) {
   const stage = useRef<HTMLDivElement>(null),
+    sampleImage = useRef<HTMLImageElement>(null),
     gesture = useRef<{ x: number; y: number; settings: DevelopSettings } | null>(null);
   const latest = useRef(settings);
   const clippingCanvas = useRef<HTMLCanvasElement>(null);
-  const [pixels, setPixels] = useState<{ url: string; image: ImageData } | null>(null);
+  const [clippedOwner, setClippedOwner] = useState<{
+    url: string;
+    shadows: boolean;
+    highlights: boolean;
+  } | null>(null);
   latest.current = settings;
   const [bounds, setBounds] = useState({ width: 640, height: 500 }),
     [imageSize, setImageSize] = useState({ width: 4, height: 3 }),
     [loadedUrl, setLoadedUrl] = useState<string | null>(null);
   const displayedUrl = before && beforeUrl ? beforeUrl : url,
+    displayedBlob = before && beforeUrl ? beforeBlob : blob,
     geometryReady = developImageReady(loadedUrl, displayedUrl);
+  const pixelPointer = useDevelopPixelSample({
+    image: sampleImage,
+    sourceUrl: displayedUrl,
+    enabled: geometryReady && tool === "edit" && !compare,
+    onSample: onPixelSample,
+  });
   useEffect(() => {
-    const canvas = clippingCanvas.current;
-    if (!canvas || !pixels || pixels.url !== displayedUrl) return;
-    canvas.width = pixels.image.width;
-    canvas.height = pixels.image.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    if (!clipping.shadows && !clipping.highlights) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!displayedBlob || !displayedUrl) return;
+    if (knownHistogram) {
+      onHistogram(knownHistogram, displayedUrl);
       return;
     }
-    ctx.putImageData(
-      new ImageData(
-        clippingPixels(pixels.image.data, clipping.shadows, clipping.highlights),
-        pixels.image.width,
-        pixels.image.height,
-      ),
-      0,
-      0,
-    );
-  }, [pixels, clipping.shadows, clipping.highlights, displayedUrl]);
+    const controller = new AbortController();
+    void analyzeDevelopBlob(displayedBlob, { signal: controller.signal })
+      .then((result) => {
+        if (!controller.signal.aborted) onHistogram(result.histogram, displayedUrl);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          onHistogramError?.(
+            error instanceof Error ? error.message : "Pixel analysis failed",
+            displayedUrl,
+          );
+      });
+    return () => controller.abort();
+  }, [displayedBlob, displayedUrl, knownHistogram, onHistogram, onHistogramError]);
+  useEffect(() => {
+    const canvas = clippingCanvas.current;
+    const releaseCanvas = () => {
+      if (canvas) canvas.width = canvas.height = 0;
+    };
+    setClippedOwner(null);
+    // Hiding a 36MP overlay does not free its ~144 MB RGBA backing store.
+    releaseCanvas();
+    if (!canvas || !displayedBlob || !displayedUrl || (!clipping.shadows && !clipping.highlights))
+      return;
+    const controller = new AbortController();
+    void analyzeDevelopBlob(displayedBlob, {
+      signal: controller.signal,
+      clipping: { shadows: clipping.shadows, highlights: clipping.highlights },
+    })
+      .then((result) => {
+        if (controller.signal.aborted || !result.clipping) return;
+        canvas.width = result.width;
+        canvas.height = result.height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          releaseCanvas();
+          return;
+        }
+        context.putImageData(new ImageData(result.clipping, result.width, result.height), 0, 0);
+        setClippedOwner({
+          url: displayedUrl,
+          shadows: clipping.shadows,
+          highlights: clipping.highlights,
+        });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          releaseCanvas();
+          onHistogramError?.(
+            error instanceof Error ? error.message : "Clipping analysis failed",
+            displayedUrl,
+          );
+        }
+      });
+    return () => {
+      controller.abort();
+      releaseCanvas();
+    };
+  }, [displayedBlob, clipping.shadows, clipping.highlights, displayedUrl, onHistogramError]);
   useEffect(() => {
     const el = stage.current;
     if (!el) return;
@@ -105,8 +171,9 @@ export function DevelopViewer({
               <span className="develop-image-label">Before</span>
             </div>
           )}
-          <div className="develop-image-frame" style={{ width, height }}>
+          <div className="develop-image-frame" style={{ width, height }} {...pixelPointer}>
             <img
+              ref={sampleImage}
               src={displayedUrl ?? undefined}
               alt={before ? "Before adjustments" : "Developed photo"}
               draggable={false}
@@ -116,15 +183,6 @@ export function DevelopViewer({
                 setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
                 setLoadedUrl(displayedUrl);
                 onDimensions(img.naturalWidth, img.naturalHeight);
-                const c = document.createElement("canvas");
-                c.width = img.naturalWidth;
-                c.height = img.naturalHeight;
-                const ctx = c.getContext("2d");
-                if (!ctx) return;
-                ctx.drawImage(img, 0, 0, c.width, c.height);
-                const image = ctx.getImageData(0, 0, c.width, c.height);
-                setPixels({ url: displayedUrl!, image });
-                onHistogram(analyzeDevelopPixels(image.data));
               }}
             />
             <canvas
@@ -133,7 +191,11 @@ export function DevelopViewer({
               aria-hidden="true"
               style={{
                 display:
-                  pixels?.url === displayedUrl && (clipping.shadows || clipping.highlights)
+                  geometryReady &&
+                  clippedOwner?.url === displayedUrl &&
+                  clippedOwner.shadows === clipping.shadows &&
+                  clippedOwner.highlights === clipping.highlights &&
+                  (clipping.shadows || clipping.highlights)
                     ? "block"
                     : "none",
               }}

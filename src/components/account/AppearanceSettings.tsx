@@ -163,17 +163,8 @@ export function AppearanceSettings({
             </label>
           </Row>
         )}
-        <Row title="UI font">
-          <Choice
-            label="UI font"
-            value={colors.uiFont}
-            options={[
-              ["system", "System"],
-              ["sans", "Sans serif"],
-              ["serif", "Serif"],
-            ]}
-            change={(value) => apply({ uiFont: value as Appearance["uiFont"] })}
-          />
+        <Row title="Interface Font" note="One consistent sans-serif throughout FOTO.">
+          <span>FOTO Sans</span>
         </Row>
         <Row title="Code font" note="Used for metadata, code and shortcut labels.">
           <Choice

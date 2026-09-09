@@ -1,4 +1,4 @@
-#include "lenslabs/engine.hpp"
+#include "lenslabs/develop.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
@@ -107,9 +107,10 @@ bool same_file_snapshot(const struct stat& before, const struct stat& after) noe
          before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec;
 }
 
-std::size_t rgba_size(std::uint32_t width, std::uint32_t height) {
-  if (!width || !height || width > max_preview_edge || height > max_preview_edge)
-    throw std::invalid_argument("Preview dimensions must be between 1 and 4096 pixels per edge.");
+std::size_t rgba_size(std::uint32_t width, std::uint32_t height, bool high_resolution = false) {
+  if (!valid_develop_dimensions(width, height, high_resolution))
+    throw std::invalid_argument(high_resolution ? "Develop dimensions exceed 8192 pixels per edge or 36 million pixels." :
+                                "Preview dimensions must be between 1 and 4096 pixels per edge.");
   return static_cast<std::size_t>(width) * height * 4;
 }
 
@@ -233,9 +234,10 @@ RawPreview embedded_raw_preview(Input& input) {
 
 }  // namespace
 
-Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
-  if (max_edge < 8 || max_edge > max_preview_edge)
-    throw std::invalid_argument("Preview max_edge must be between 8 and 4096.");
+static Image decode_image(const std::filesystem::path& path, std::uint32_t max_edge, bool high_resolution) {
+  if (max_edge < 8 || max_edge > (high_resolution ? develop_max_edge : max_preview_edge))
+    throw std::invalid_argument(high_resolution ? "Develop max_edge must be between 8 and 8192." :
+                                "Preview max_edge must be between 8 and 4096.");
   const auto& native_path = path.native();
   if (native_path.empty() || native_path.find('\0') != std::string::npos)
     throw std::invalid_argument("A nonempty image path without NUL bytes is required.");
@@ -297,7 +299,9 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
     throw std::runtime_error("Embedded RAW preview exceeds the 32-million-pixel bound.");
 
   auto thumbnail_options = dictionary();
-  const auto edge = static_cast<std::int32_t>(max_edge);
+  const auto edge = static_cast<std::int32_t>(high_resolution
+      ? develop_thumbnail_edge(static_cast<unsigned>(width), static_cast<unsigned>(height), max_edge)
+      : max_edge);
   CFHandle<CFNumberRef> edge_value(CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &edge));
   if (!edge_value) throw std::runtime_error("Could not allocate thumbnail size metadata.");
   CFDictionarySetValue(thumbnail_options.get(), kCGImageSourceThumbnailMaxPixelSize, edge_value.get());
@@ -323,7 +327,7 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
     image.source_width = raw.width;
     image.source_height = raw.height;
   }
-  image.rgba.resize(rgba_size(image.width, image.height));
+  image.rgba.resize(rgba_size(image.width, image.height, high_resolution));
   CFHandle<CGColorSpaceRef> color_space(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
   if (!color_space) throw std::runtime_error("Could not create the sRGB output color space.");
   CFHandle<CGContextRef> context(CGBitmapContextCreate(
@@ -347,10 +351,18 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
   return image;
 }
 
-std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
+Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
+  return decode_image(path, max_edge, false);
+}
+
+Image decode_develop_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
+  return decode_image(path, max_edge, max_edge > develop_standard_edge);
+}
+
+static std::vector<std::uint8_t> encode_image(const Image& image, double quality, bool high_resolution) {
   if (!std::isfinite(quality) || quality < 0 || quality > 1)
     throw std::invalid_argument("JPEG quality must be finite and between 0 and 1.");
-  const auto required = rgba_size(image.width, image.height);
+  const auto required = rgba_size(image.width, image.height, high_resolution);
   if (image.rgba.size() != required)
     throw std::invalid_argument("JPEG input must contain exactly width * height * 4 RGBA bytes.");
   bool has_alpha = false;
@@ -396,6 +408,14 @@ std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
     throw std::runtime_error("JPEG output is empty or exceeds the bounded output limit.");
   const auto* bytes = CFDataGetBytePtr(data.get());
   return {bytes, bytes + static_cast<std::size_t>(length)};
+}
+
+std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
+  return encode_image(image, quality, false);
+}
+
+std::vector<std::uint8_t> encode_develop_jpeg(const Image& image, double quality) {
+  return encode_image(image, quality, true);
 }
 
 const char* decoder_name() noexcept {

@@ -14,6 +14,7 @@ import {
 } from "../src/lib/workbench";
 import {
   canonicalShootBinding,
+  developWorkspaceHref,
   explicitWorkspaceBinding,
   legacyWorkbenchRedirect,
   parseShootKey,
@@ -29,14 +30,46 @@ import {
 
 const a = "11111111-1111-4111-8111-111111111111",
   b = "22222222-2222-4222-8222-222222222222";
+describe("one canonical Develop entry", () => {
+  test("Studio handoff keeps the exact shoot and photo identity", () => {
+    const binding = { kind: "ready" as const, projectId: null, shootId: a };
+    const href = developWorkspaceHref(binding, "studio:frame/with spaces");
+    expect(shootRoute(href)).toEqual({ key: a, tab: "develop" });
+    expect(canonicalShootBinding(href, true)).toEqual(binding);
+    expect(new URL(href, "https://foto.invalid").searchParams.get("photo")).toBe(
+      "studio:frame/with spaces",
+    );
+  });
+  test("project delivery frame, revision and handoff are not dropped or coerced", () => {
+    const binding = {
+      kind: "ready" as const,
+      projectId: a,
+      deliveryFocus: { frameId: "123", versionId: "v/2", handoffId: b },
+    };
+    const href = developWorkspaceHref(binding, "studio:123");
+    expect(canonicalShootBinding(href, true)).toEqual(binding);
+    expect(shootRoute(href)?.key).toBe(`project:${a}`);
+    expect(canonicalShootBinding(href, false)?.kind).toBe("blocked");
+  });
+  test("unbound legacy Studio remains its own library and blocked bindings never fall back", () => {
+    expect(developWorkspaceHref({ kind: "ready", projectId: null })).toBe("/shoots/legacy/develop");
+    expect(() => developWorkspaceHref({ kind: "blocked", reason: "Wrong source" })).toThrow(
+      "Wrong source",
+    );
+    expect(() =>
+      developWorkspaceHref({ kind: "ready", projectId: null, shootId: "bad" }),
+    ).toThrow();
+  });
+});
 describe("canonical shoot routing preserves storage identity", () => {
   test("exact primary labels/order and six tabs", () => {
     expect(WORKBENCH_PRIMARY_TOOLS.map((row) => [row.path, row.label])).toEqual([
       ["/tonight", "Tonight"],
       ["/shoots", "Shoots"],
+      ["/clients", "Clients"],
       ["/library", "Library"],
       ["/deliver", "Deliver"],
-      ["/money", "Money"],
+      ["/earnings", "Earnings"],
     ]);
     expect(SHOOT_WORKFLOW_TABS).toEqual([
       "overview",
@@ -143,22 +176,21 @@ describe("canonical shoot routing preserves storage identity", () => {
     ).toEqual({ kind: "ready", projectId: a, deliveryFocus: { frameId: "f", versionId: "v2" } });
   });
   test("canonical primary destinations do not inherit another shoot", () => {
-    for (const path of ["/tonight", "/shoots", "/library", "/money"])
+    for (const path of ["/tonight", "/shoots", "/clients", "/library", "/money", "/earnings"])
       expect(scopeToolHref(path, { kind: "ready", projectId: a })).toBe(path);
     expect(canonicalShootBinding("/shoots", true)).toBeNull();
     expect(shootRoute("/shoots/x/not-a-tab")).toBeNull();
     expect(workbenchTab(`${shootWorkspaceHref(a, "develop")}?view=fit#histogram`)?.href).toBe(
       `${shootWorkspaceHref(a, "develop")}?view=fit#histogram`,
     );
-    for (const path of ["/tonight", "/shoots", "/library", "/deliver", "/money"])
+    for (const path of ["/tonight", "/shoots", "/library", "/deliver", "/money", "/earnings"])
       expect(workbenchTab(`${path}#saved`)?.href).toBe(`${path}#saved`);
   });
 });
 describe("legacy redirects", () => {
   for (const [old, next] of [
-    ["clients", "shoots"],
     ["jobs", "shoots"],
-    ["earnings", "money"],
+    ["money", "earnings"],
     ["outbound", "deliver"],
   ])
     test(`${old} preserves bookmarks and query data`, () => {
@@ -166,6 +198,10 @@ describe("legacy redirects", () => {
         href: `/${next}?shoot=${a}&ref=a%2Fb#saved`,
       });
     });
+  test("Clients remains its dedicated CRM route instead of redirecting to Shoots", () => {
+    expect(legacyWorkbenchRedirect(`/clients?shoot=${a}&ref=a%2Fb#saved`, null, true)).toBeNull();
+    expect(workbenchTab("/clients")?.path).toBe("/clients");
+  });
   test("unbound Develop opens Library and remembered source opens exactly that Develop", () => {
     expect(legacyWorkbenchRedirect("/develop?view=grid#saved", null, true)).toEqual({
       href: "/library?view=grid#saved",

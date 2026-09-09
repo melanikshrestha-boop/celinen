@@ -74,6 +74,7 @@ export function ShootDevelopRoute() {
       scope={scope}
       projectId={binding.projectId}
       {...(binding.shootId ? { shootId: binding.shootId } : {})}
+      {...(binding.deliveryFocus ? { deliveryFocus: binding.deliveryFocus } : {})}
     />
   );
 }

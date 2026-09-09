@@ -136,6 +136,19 @@ export function resolvedAppearance(prefs: ThemePreference, systemDark: boolean) 
     appearance = { ...appearance, preset: "paper", ...THEME_PRESETS.paper };
   else if (dark && appearance.preset === "paper")
     appearance = { ...appearance, preset: "lenslabs", ...THEME_PRESETS.lenslabs };
+  // Dark mode is a black workspace, including older tinted/gradient palettes.
+  // Resolve for display only so switching modes never destroys saved colors.
+  if (dark)
+    appearance = {
+      ...appearance,
+      background: "#000000",
+      backgroundEnd: "#000000",
+      backgroundStyle: "solid",
+      foreground:
+        contrastRatio(appearance.foreground, "#000000") >= 4.5
+          ? appearance.foreground
+          : DEFAULT_APPEARANCE.foreground,
+    };
   return { dark, appearance };
 }
 
@@ -150,9 +163,13 @@ export function defaultAccentForBackground(background: string) {
 /** An explicit Default action follows the visible mode without replacing custom palettes. */
 export function withDefaultAccent(prefs: ThemePreference, systemDark: boolean) {
   const { appearance } = resolvedAppearance(prefs, systemDark);
+  // An accent action must not persist the display-only black-mode override.
+  const saved = ["custom", "midnight", "warm"].includes(prefs.appearance.preset)
+    ? prefs.appearance
+    : appearance;
   return validateAppearance({
-    ...appearance,
-    accent: defaultAccentForBackground(appearance.background),
+    ...saved,
+    accent: defaultAccentForBackground(saved.background),
   });
 }
 
@@ -178,8 +195,8 @@ function readableMuted(foreground: string, background: string) {
 
 /** Shared neutral surfaces for both navigation rails. No wallpaper or tinted underlay. */
 export function sidebarSurfaceTokens(appearance: Appearance, dark: boolean) {
-  const neutral = appearance.preset === "lenslabs" || appearance.preset === "paper";
-  const solid = neutral ? (dark ? "#242424" : "#f9f9f9") : appearance.background;
+  const neutral = dark || appearance.preset === "lenslabs" || appearance.preset === "paper";
+  const solid = neutral ? (dark ? "#000000" : "#f9f9f9") : appearance.background;
   const text = neutral ? (dark ? "#f5f5f5" : "#202020") : appearance.foreground;
   const muted = neutral ? (dark ? "#a3a3a3" : "#626262") : readableMuted(text, solid);
   const translucent = appearance.translucentSidebar && appearance.contrast !== "more";
@@ -196,7 +213,7 @@ export function sidebarSurfaceTokens(appearance: Appearance, dark: boolean) {
     "--foto-sidebar-filter": translucent ? "blur(30px)" : "none",
     "--foto-settings-surface": neutral
       ? dark
-        ? "#181818"
+        ? "#000000"
         : "#fafafa"
       : mixHex(text, appearance.background, 0.04),
     "--foto-settings-border": `${text}14`,
@@ -236,10 +253,10 @@ export function applyAppearance(prefs: ThemePreference, systemDark: boolean) {
       ? `linear-gradient(115deg, ${value.accent}, ${value.accentEnd})`
       : value.accent,
   );
-  root.style.setProperty(
-    "--ll-ui-font",
-    value.uiFont === "serif" ? "Georgia, serif" : "var(--foto-font-sans)",
-  );
+  // Product typography is shared across every surface. Retain old preference
+  // records for compatibility without allowing a legacy serif setting to split
+  // the navigation, editor, settings and charts into different visual systems.
+  root.style.setProperty("--ll-ui-font", "var(--foto-font-sans)");
   root.style.setProperty(
     "--ll-code-font",
     value.codeFont === "system-mono"

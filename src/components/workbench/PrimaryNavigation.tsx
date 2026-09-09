@@ -2,6 +2,9 @@ import { useId, type ReactElement } from "react";
 import { SquarePen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FOTO_PRIMARY_NAV, followNavigation, primaryNavigationPath } from "./primary-navigation";
+import { ArchiveUndo, HistoryRowActions } from "./HistoryRowActions";
+import { useShootRowActions } from "./useShootRowActions";
+import { showRecentSection } from "./sidebar-presentation";
 
 export function NavigationHint({ label, children }: { label: string; children: ReactElement }) {
   return (
@@ -61,15 +64,15 @@ export function PrimaryNavigation({
 
 export function NewShootAction({ create, busy }: { create: () => unknown; busy: boolean }) {
   return (
-    <NavigationHint label="New shoot">
+    <NavigationHint label="New Shoot">
       <button
         className="workbench-nav-item foto-new-shoot"
-        aria-label="New shoot"
+        aria-label="New Shoot"
         disabled={busy}
         onClick={() => void create()}
       >
         <SquarePen size={20} strokeWidth={1.65} aria-hidden="true" />
-        <span className="foto-nav-label">{busy ? "Opening…" : "New shoot"}</span>
+        <span className="foto-nav-label">{busy ? "Opening…" : "New Shoot"}</span>
       </button>
     </NavigationHint>
   );
@@ -81,6 +84,8 @@ export type NavigationRecent = {
   href: string;
   detail: string;
   recoveryPending?: boolean;
+  pinned?: boolean;
+  archived?: boolean;
 };
 export function LibraryRecents({
   rows,
@@ -88,31 +93,62 @@ export function LibraryRecents({
   open,
   loading,
   error,
+  scope,
 }: {
   rows: NavigationRecent[];
   activeId: string | null;
   open: (href: string) => unknown;
   loading: boolean;
   error: string;
+  scope?: string;
 }) {
-  if (!rows.length && !loading && !error) return null;
+  const actions = useShootRowActions(scope ?? null);
+  const showRecent = showRecentSection(rows.length);
+  // Keep operation feedback mounted if archiving the third row hides quick access.
+  if (!showRecent && !(loading && !rows.length) && !error && !actions.archived && !actions.error)
+    return null;
   return (
-    <section className="foto-library-recents" aria-label="Recent library">
-      <h2>Recent</h2>
-      {rows.slice(0, 8).map((row) => (
-        <a
+    <section className="foto-library-recents" aria-label="Recent Library">
+      {showRecent && <h2>Recent</h2>}
+      {(showRecent ? rows.slice(0, 8) : []).map((row) => (
+        <div
           key={row.id}
-          href={row.href}
-          className={`foto-library-row ${activeId === row.id ? "is-active" : ""}`}
-          aria-current={activeId === row.id ? "page" : undefined}
-          onClick={(event) => followNavigation(event, row.href, open)}
+          className={`foto-recent-item history-row ${activeId === row.id ? "is-active" : ""}`}
+          data-shoot-key={row.id}
         >
-          <span title={row.title}>{row.title}</span>
-          <small>{row.recoveryPending ? "Recovery available" : row.detail}</small>
-        </a>
+          <a
+            href={row.href}
+            className={`foto-library-row ${activeId === row.id ? "is-active" : ""}`}
+            aria-current={activeId === row.id ? "page" : undefined}
+            aria-description={row.recoveryPending ? "Recovery available" : row.detail}
+            title={`${row.title}${row.recoveryPending ? " · Recovery available" : row.detail ? ` · ${row.detail}` : ""}`}
+            onClick={(event) => followNavigation(event, row.href, open)}
+          >
+            <span title={row.title}>{row.title}</span>
+          </a>
+          {scope && (
+            <HistoryRowActions
+              title={row.title}
+              kind={row.id.startsWith("project:") ? "album" : "shoot"}
+              pinned={Boolean(row.pinned)}
+              archived={Boolean(row.archived)}
+              disabled={actions.busy || loading || !!error}
+              pin={() => void actions.pin({ ...row, key: row.id })}
+              archive={() => void actions.archive({ ...row, key: row.id })}
+            />
+          )}
+        </div>
       ))}
       {loading && !rows.length && <p role="status">Opening library…</p>}
       {error && <p role="alert">{error}</p>}
+      {actions.error && <p role="alert">{actions.error}</p>}
+      {actions.archived && (
+        <ArchiveUndo
+          title={actions.archived.title}
+          disabled={actions.busy}
+          undo={() => void actions.undo()}
+        />
+      )}
     </section>
   );
 }

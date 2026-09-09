@@ -1,0 +1,79 @@
+.foto-object-remove {
+  display: grid;
+  gap: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.develop-dialog:has(.foto-object-remove) {
+  width: min(680px, 100%);
+  border-radius: 14px;
+  padding: 20px;
+}
+.develop-dialog .foto-object-remove p {
+  margin: 0;
+  line-height: 1.4;
+  font-size: 12px;
+}
+.foto-object-remove .develop-dialog-actions {
+  margin-top: 4px;
+}
+.foto-object-remove button {
+  font-size: 13px;
+  border-radius: 8px;
+}
+.foto-object-image {
+  position: relative;
+  max-height: 58vh;
+  max-width: 100%;
+  width: auto;
+  justify-self: center;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.foto-object-image > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+}
+.foto-object-image .foto-object-picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: crosshair;
+}
+.foto-object-picker canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.foto-object-picker:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+.foto-object-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.foto-object-choices button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+.foto-object-choices button[aria-pressed="true"] {
+  background: #dedede;
+  color: #181818;
+}
+@media (pointer: coarse) {
+  .foto-object-choices button {
+    min-height: 44px;
+  }
+}

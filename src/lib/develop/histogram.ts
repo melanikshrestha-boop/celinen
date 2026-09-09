@@ -2,10 +2,14 @@ import type { DevelopSettings } from "./contract";
 
 export type DevelopHistogramData = {
   channels: number[][];
+  /** Exact encoded linear-light luminance. Separate from the coarser Auto exposure bins. */
+  encodedLuminance: number[];
   luminance: number[];
   maximum: number[];
   pixels: number;
   shadows: number;
+  /** At least one RGB channel is zero; `shadows` retains the fully-black count. */
+  shadowClipped: number;
   highlights: number;
 };
 
@@ -24,15 +28,30 @@ export function srgbToLinear(value: number): number {
   return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
 }
 const linear = Array.from({ length: 256 }, (_, n) => srgbToLinear(n / 255));
+const encodedGuess = Array.from({ length: 1024 }, (_, index) => {
+  const y = index / 1023;
+  return Math.round((y <= 0.0031308 ? 12.92 * y : 1.055 * Math.pow(y, 1 / 2.4) - 0.055) * 255);
+});
+const encodedBoundaries = Array.from({ length: 255 }, (_, n) => srgbToLinear((n + 0.5) / 255));
+
+/** Correct the lookup guess against exact boundaries, without a power operation per pixel. */
+function encodedLuminanceBin(y: number, linearBin: number) {
+  let bin = encodedGuess[linearBin]!;
+  while (bin < 255 && y >= encodedBoundaries[bin]!) bin++;
+  while (bin > 0 && y < encodedBoundaries[bin - 1]!) bin--;
+  return bin;
+}
 
 /** Distribution of the actual sRGB preview, not unbounded sensor RAW data. */
 export function analyzeDevelopPixels(data: ArrayLike<number>): DevelopHistogramData {
   const out: DevelopHistogramData = {
     channels: Array.from({ length: 3 }, () => Array<number>(256).fill(0)),
+    encodedLuminance: Array<number>(256).fill(0),
     luminance: Array<number>(1024).fill(0),
     maximum: Array<number>(256).fill(0),
     pixels: 0,
     shadows: 0,
+    shadowClipped: 0,
     highlights: 0,
   };
   for (let i = 0; i + 3 < data.length; i += 4) {
@@ -46,9 +65,12 @@ export function analyzeDevelopPixels(data: ArrayLike<number>): DevelopHistogramD
     const max = Math.max(r, g, b);
     out.maximum[max]!++;
     const y = 0.2126 * linear[r]! + 0.7152 * linear[g]! + 0.0722 * linear[b]!;
-    out.luminance[Math.round(y * 1023)]!++;
+    const linearBin = Math.round(y * 1023);
+    out.luminance[linearBin]!++;
+    out.encodedLuminance[encodedLuminanceBin(y, linearBin)]!++;
     out.pixels++;
     if (max === 0) out.shadows++;
+    if (r === 0 || g === 0 || b === 0) out.shadowClipped++;
     if (max === 255) out.highlights++;
   }
   return out;
@@ -70,6 +92,7 @@ export function clippingPixels(
   data: ArrayLike<number>,
   shadows: boolean,
   highlights: boolean,
+  shadowMode: "black" | "rgb" = "black",
 ): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(data.length);
   for (let i = 0; i + 3 < data.length; i += 4) {
@@ -78,7 +101,10 @@ export function clippingPixels(
     if (highlights && max === 255) {
       out[i] = 255;
       out[i + 3] = 220;
-    } else if (shadows && max === 0) {
+    } else if (
+      shadows &&
+      (shadowMode === "rgb" ? data[i] === 0 || data[i + 1] === 0 || data[i + 2] === 0 : max === 0)
+    ) {
       out[i + 2] = 255;
       out[i + 3] = 220;
     }

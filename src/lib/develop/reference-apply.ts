@@ -6,8 +6,13 @@ export function applyReferenceLook(
   fitted: DevelopSettings,
 ): DevelopSettings {
   return cloneDevelopSettings({
+    // Fitted curve points and their interpolation travel together. Keeping a previous
+    // Smooth mode on a Linear fit would invalidate its measured residual/preview.
     ...fitted,
     sharpening: current.sharpening,
+    sharpeningRadius: current.sharpeningRadius,
+    sharpeningDetail: current.sharpeningDetail,
+    sharpeningMasking: current.sharpeningMasking,
     noiseReduction: current.noiseReduction,
     colorNoiseReduction: current.colorNoiseReduction,
     grain: current.grain,

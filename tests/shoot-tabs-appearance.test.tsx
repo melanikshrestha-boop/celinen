@@ -51,7 +51,7 @@ describe("tabs belong to a shoot", () => {
     expect(restored).toHaveLength(41);
     expect(restored.at(-1)?.href).toBe(current);
   });
-  test("Studio, Delivery and Clients survive reload, with separate tabs for other shoots", () => {
+  test("Studio and Delivery retain shoot context while global Clients survives reload separately", () => {
     const urls = ["/studio", "/deliver?workflow=1", "/clients"].map((href) =>
       scopeToolHref(href, binding),
     );
@@ -60,7 +60,9 @@ describe("tabs belong to a shoot", () => {
     expect(restored).toHaveLength(4);
     expect(
       restored.filter((tab) => tabProjectScope(tab.href) === projectScope(binding)),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
+    expect(scopeToolHref("/clients", binding)).toBe("/clients");
+    expect(restored.find((tab) => tab.path === "/clients")?.href).toBe("/clients");
     expect(restored.filter((tab) => tabProjectScope(tab.href) === b)).toHaveLength(1);
     expect(restorableTabs(["/studio?shoot=legacy"])).toHaveLength(1);
   });

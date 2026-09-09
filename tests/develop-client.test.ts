@@ -9,6 +9,7 @@ const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
 const jpeg = Uint8Array.of(0xff, 0xd8, 0xff, 0xd9);
 const source = new Blob(["original photo"], { type: "image/jpeg" });
 let statusCalls = 0;
+let reportedMaxEdge = 4096;
 let renderCalls: RequestInit[] = [];
 let respond: (init: RequestInit, count: number) => Response | Promise<Response>;
 
@@ -29,7 +30,8 @@ function statusResponse(): Response {
     ready: true,
     token: `token-${statusCalls}`,
     engine: "test-native-develop",
-    maxEdge: 4096,
+    maxEdge: reportedMaxEdge,
+    ...(reportedMaxEdge > 4096 ? { maxOutputPixels: 36_000_000, defaultExportEdge: 4096 } : {}),
     maxFileBytes: 128 * 1024 * 1024,
     workingSpace: "sRGB",
     rawSupported: true,
@@ -74,6 +76,7 @@ async function withImmediateRetryClock(
 
 beforeEach(async () => {
   statusCalls = 0;
+  reportedMaxEdge = 4096;
   renderCalls = [];
   respond = () => imageResponse();
   Object.defineProperty(globalThis, "window", {
@@ -97,6 +100,31 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
   else Reflect.deleteProperty(globalThis, "window");
+});
+
+describe("Develop high-resolution capability gate", () => {
+  test("old engine capability fails clearly before sending a larger source request", async () => {
+    await expect(renderDevelop(source, undefined, { edge: 8192 })).rejects.toThrow(
+      "larger export size",
+    );
+    expect(renderCalls).toHaveLength(0);
+    const status = await developEngineStatus();
+    expect(status?.maxEdge).toBe(4096);
+    expect(status?.maxOutputPixels).toBeUndefined();
+  });
+  test("new engine capability preserves the opt-in edge in the immutable packet", async () => {
+    reportedMaxEdge = 8192;
+    const status = await developEngineStatus(true);
+    expect(status).toMatchObject({
+      maxEdge: 8192,
+      maxOutputPixels: 36_000_000,
+      defaultExportEdge: 4096,
+    });
+    await renderDevelop(source, undefined, { edge: 8192 });
+    expect(renderCalls).toHaveLength(1);
+    expect((await decodedRequest(renderCalls[0]!.body as Blob)).header.edge).toBe(8192);
+    expect((await decodedRequest(renderCalls[0]!.body as Blob)).source).toBe("original photo");
+  });
 });
 
 describe("Develop busy-worker retry", () => {

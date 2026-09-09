@@ -6,7 +6,7 @@ export const WORKBENCH_TOOLS = [
   { path: "/tonight", label: "Tonight", group: "Workspace" },
   { path: "/shoots", label: "Shoots", group: "Workspace" },
   { path: "/library", label: "Library", group: "Workspace" },
-  { path: "/money", label: "Money", group: "Business" },
+  { path: "/money", label: "Earnings (legacy link)", group: "Business" },
   { path: "/studio", label: "Studio", group: "Workspace" },
   { path: "/develop", label: "Develop", group: "Workspace" },
   { path: "/projects", label: "Projects", group: "Workspace" },
@@ -35,9 +35,10 @@ export const WORKBENCH_TOOLS = [
 export const WORKBENCH_PRIMARY_TOOLS = [
   "/tonight",
   "/shoots",
+  "/clients",
   "/library",
   "/deliver",
-  "/money",
+  "/earnings",
 ].map((path) => ({
   ...WORKBENCH_TOOLS.find((tool) => tool.path === path)!,
   ...(path === "/deliver" ? { label: "Deliver" } : {}),
@@ -204,7 +205,7 @@ export function workbenchTab(href: string): WorkbenchTab | null {
   // Equivalent shoot URLs describe one tab, independent of query insertion order.
   if (url.searchParams.has("shoot")) url.searchParams.sort();
   return {
-    href: `${tool.path}${url.search}${["/tonight", "/shoots", "/library", "/deliver", "/money"].includes(tool.path) ? url.hash : ""}`,
+    href: `${tool.path}${url.search}${["/tonight", "/shoots", "/library", "/deliver", "/money", "/earnings"].includes(tool.path) ? url.hash : ""}`,
     path: tool.path,
     label:
       tool.label +

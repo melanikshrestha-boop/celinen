@@ -180,7 +180,7 @@ Image decode_raw_develop(const std::filesystem::path& path,std::uint32_t max_edg
 Image decode_raw_develop(const std::filesystem::path& path,std::uint32_t max_edge,double exposure,double temperature,double tint,RawWhiteBalanceModel white_balance_model) {
   if(white_balance_model!=RawWhiteBalanceModel::legacy&&white_balance_model!=RawWhiteBalanceModel::resolved)
     throw std::invalid_argument("Invalid RAW white-balance model.");
-  if(max_edge<32||max_edge>4096||!std::isfinite(exposure)||exposure < -5||exposure>5||!std::isfinite(temperature)||std::abs(temperature)>100||!std::isfinite(tint)||std::abs(tint)>100)
+  if(max_edge<32||max_edge>develop_max_edge||!std::isfinite(exposure)||exposure < -5||exposure>5||!std::isfinite(temperature)||std::abs(temperature)>100||!std::isfinite(tint)||std::abs(tint)>100)
     throw std::invalid_argument("Invalid RAW develop controls.");
   auto bytes=read_snapshot(path);
   std::unique_ptr<LibRaw> processor;
@@ -234,8 +234,8 @@ Image decode_raw_develop(const std::filesystem::path& path,std::uint32_t max_edg
   if(!rendered||rendered->type!=LIBRAW_IMAGE_BITMAP||rendered->width!=width||rendered->height!=height||rendered->colors!=3||rendered->bits!=8||rendered->data_size!=std::size_t(width)*height*3)
     throw std::runtime_error("LibRaw returned an incomplete RGB image.");
   raw.recycle(); bytes.clear(); bytes.shrink_to_fit();
-  const double ratio=std::min(1.0,double(max_edge)/std::max(width,height));
-  Image result{std::max(1u,unsigned(std::round(width*ratio))),std::max(1u,unsigned(std::round(height*ratio))),unsigned(width),unsigned(height),{}};
+  const auto output=develop_output_dimensions(unsigned(width),unsigned(height),max_edge);
+  Image result{output.width,output.height,unsigned(width),unsigned(height),{}};
   result.rgba.resize(std::size_t(result.width)*result.height*4);
   resample_raw_rgb(rendered->data,width,height,result);
   return result;

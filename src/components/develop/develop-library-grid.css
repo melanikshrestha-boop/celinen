@@ -1,0 +1,37 @@
+.develop-library-grid.develop-library-virtual {
+  --develop-library-min-width: 145px;
+  --develop-library-card-height: 189px;
+  --develop-library-gap: 9px;
+  --develop-library-padding: 16px;
+  position: relative;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  padding: var(--develop-library-padding);
+  overflow: auto;
+  overflow-x: hidden;
+  overflow-anchor: none;
+  contain: size layout;
+}
+.develop-library-virtual > .develop-library-spacer {
+  pointer-events: none;
+}
+.develop-library-grid.develop-library-virtual > button {
+  position: absolute;
+  box-sizing: border-box;
+  height: var(--develop-library-card-height);
+  min-height: var(--develop-library-card-height);
+}
+.develop-library-thumbnail {
+  width: 100%;
+  height: 130px;
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.develop-library-grid.develop-library-virtual .develop-library-thumbnail > img {
+  height: 130px;
+  width: 100%;
+  object-fit: contain;
+}

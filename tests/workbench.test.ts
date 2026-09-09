@@ -32,13 +32,14 @@ const accountA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const accountB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
 describe("chat-first workspace boundaries", () => {
-  test("uses the five shoot-workflow primary entries without dropping legacy tools", () => {
+  test("uses shoot-workflow and CRM primary entries without dropping legacy tools", () => {
     expect(WORKBENCH_PRIMARY_TOOLS.map((tool) => tool.path)).toEqual([
       "/tonight",
       "/shoots",
+      "/clients",
       "/library",
       "/deliver",
-      "/money",
+      "/earnings",
     ]);
     expect(WORKBENCH_TOOLS).toHaveLength(27);
     expect(WORKBENCH_TOOLS.some((tool) => tool.path === "/outbound")).toBe(true);

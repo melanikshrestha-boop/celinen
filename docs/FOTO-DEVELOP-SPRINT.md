@@ -45,17 +45,21 @@ coordinate system. Native C++ is the pixel operator; TypeScript is UI/transport.
 
 ## Acceptance matrix (update from actual results)
 
-Latest milestone: [working grading, histogram, adaptive film looks and evidence](FOTO-COLOR-GRADING-QA.md).
+Latest local milestones: [measured import, histogram and large-library speed](FOTO-DEVELOP-PERFORMANCE.md), plus [current precision and capability audit](FOTO-DEVELOP-PARITY.md). These include uncommitted work; a narrow Git handoff does not imply all local features are on the remote branch.
+Earlier: [working grading, histogram, adaptive film looks and evidence](FOTO-COLOR-GRADING-QA.md).
 
 These statuses describe tested subsets, not equivalence to Lightroom Classic.
-The latest priority is working color grading, histogram interactions and adaptive
-film looks. The earlier import incident remains a required regression baseline.
+The reported preview/export mismatch is corrected and verified with real JPEG
+and Sony RAW browser uploads. The earlier import incident remains a required
+regression baseline. High-quality object reconstruction is still incomplete:
+the new on-device selection and experimental texture fill do not constitute
+generative removal or full Lightroom parity.
 
 | Area | Status | Acceptance evidence required |
 | --- | --- | --- |
 | Dedicated route and reference layout | Implemented | Inspected desktop 1440×1000 and phone 390×844; no horizontal overflow; original Studio route retained |
 | Native basic/presence controls | Implemented | C++ neutral identity, actual pixel changes and original unchanged; UI exposure changes actual rendered pixels |
-| Curve, HSL, grading | Implemented subset | Master plus independent RGB point curves; eight-channel HSL; interactive shadows/midtones/highlights/global wheels, numeric H/S/L, corrected new tonal model with explicit legacy compatibility; independent FOTO math, not Adobe algorithm parity |
+| Curve, HSL, grading | Implemented subset | Master plus independent RGB point curves, legacy Linear and opt-in shape-preserving Smooth; eight-channel HSL; interactive shadows/midtones/highlights/global wheels, numeric H/S/L, corrected new tonal model with explicit legacy compatibility; independent FOTO math, not Adobe algorithm parity |
 | Grain, vignette, fade, bloom, halation, film falloff | Implemented | Deterministic native effects, grain size and luminance shaping; optional source-derived exposure for built-in looks; not calibrated film-stock emulation |
 | Histogram and automatic exposure | Implemented subset | Actual rendered 256-bin RGB histogram, five draggable/keyboard tonal regions, clipping percentages and overlays; explicit bounded source-derived Auto exposure, not Adobe Auto Tone or sensor histogram |
 | Crop/straighten/rotate/flip | Implemented | Native geometry tests, square-crop UI/native output check; source-coordinate overlay |
@@ -63,10 +67,11 @@ film looks. The earlier import incident remains a required regression baseline.
 | Presets/history/snapshots | Implemented | Original + five look presets, custom presets, snapshots, undo/redo; per-photo IndexedDB history; merge-only reimports |
 | Copy/paste/previous/sync | Implemented | Preserve target crop/masks by default; optional batch sync; atomic conflict rollback checked in real IndexedDB |
 | Import/library/filmstrip | Reported batch/empty-state regression repaired; wider camera coverage remains partial | Valid files continue after per-file errors; chooser/drop/nested-folder/cancel/duplicate/reload checks pass. Missing originals stay discoverable without an empty filmstrip. Existing private missing images still require their actual originals |
-| Export | Implemented subset | Native JPEG sRGB, long edge up to 4096 without upscaling; sensor RAW decoding; exact downloadable JPEG proof, Fit/100% inspection and cancellation; original never overwritten |
+| Export | Implemented subset | Default native JPEG sRGB up to 4096, opt-in up to 8192 / 36 MP without upscaling; editor, proof and actual download byte-identical in JPEG and Sony RAW browser tests; same selected source/mode/recipe/size/quality, Fit/100% inspection and cancellation; original never overwritten |
+| Detail precision | Implemented subset | Radius, Fine detail and edge Masking added to conventional sharpening; native and UI/reload tests. Luminance/chroma denoise remain conventional filters with texture tradeoffs, not learned AI denoise |
 | Recovery-file import | Implemented | Explicit file/selection/preview/restore; atomic revision guards, originals and current metadata retained, appended undoable treatment; real reload and fault-injection checks |
 | Cross-tab and scope isolation | Implemented | Revision conflicts, simultaneous writers, quota rollback, account/project isolation; Develop cannot acknowledge a stale Studio writer's baseline |
-| AI masks/healing/AI denoise | Not implemented | Requires real models; do not expose fake controls |
+| Object selection/removal; AI denoise | Experimental removal only; AI denoise not implemented | macOS14+ Vision foreground instances, click selection, deterministic C++ texture fill, review and separate PNG copy. Native safety +10 browser checks pass; grouped people and visible fill artifacts remain. No generative or denoise model |
 | Lens profiles, HDR, soft proofing, full RAW workflow | Partial / gaps | LibRaw sensor decode exists; not a full high-bit-depth color-managed RAW workflow |
 
 ## Earlier priority: import reliability, September 8
@@ -351,9 +356,9 @@ LENSLABS_RAW_FIXTURES=/path/to/verified-fixtures bun test tests/develop-engine.t
 ```
 
 Without that explicit fixture path, the real-camera test is skipped. CR3, NEF
-and other real camera models have not been validated. Thumbnail-based RAW
-preview and full sensor export may differ; the exact export preview now makes
-that difference inspectable before downloading.
+and other real camera models have not been validated. This earlier milestone
+still used differing thumbnail/sensor paths. The later [parity repair](FOTO-DEVELOP-PARITY.md)
+uses one chosen path and exact edited JPEG bytes for both editor and export.
 
 ## Lightroom Classic gap matrix and next steps
 
@@ -432,6 +437,20 @@ import → edit → export loop or silently broaden the current implementation s
 [adobe-hdr]: https://helpx.adobe.com/lightroom-classic/desktop/process-and-develop-photos/hdr-output.html
 [adobe-panorama]: https://helpx.adobe.com/lightroom-classic/desktop/process-and-develop-photos/panorama.html
 [adobe-external]: https://helpx.adobe.com/lightroom-classic/desktop/work-with-external-editors/external-editing-preferences.html
+
+## Color-noise and sharpening correction, September 8
+
+Native color-noise cleanup now runs before sharpening/texture detail extraction.
+Previously sharpening could restore the same chroma noise the denoise stage had
+removed. The regression fails against the old ordering and passes with the fix;
+denoise-only golden pixels, source bytes and alpha remain preserved. Native
+Develop tests passed 113,322 assertions in optimized and ASan/UBSan builds.
+The Develop engine integration tests passed 16 tests / 1,122 assertions, with
+one optional real Sony fixture skipped. Generated Bayer RAW and JPEG proof/export
+checks ran. This is not proof of full Lightroom parity or all-camera coverage.
+
+See [client infrastructure](FOTO-CLIENT-INFRASTRUCTURE.md) for the concurrent CRM,
+C++ receipt and manual message-handoff work, safety boundaries and verification.
 
 ## Preview-only reimport repair, September 8
 
@@ -534,6 +553,12 @@ Node, installed repository dev dependencies including tsx, the native executable
 and the checksum-verified RAW directory. No environment files were copied into
 the isolated candidate.
 
+Local handoff readback: private branch now contains `ab07ac8` (four scoped files:
+retry client, retry tests, Node fixture and this standalone milestone). The broader
+local Develop/CRM/Earnings/UI work and environment files were not included in
+that commit. Remote SHA and local HTTP 200 were checked after push; neither is
+a claim of hosted deployment or full parity.
+
 ## Reviewed batch reconnection milestone — September 8, 2026
 
 Implemented the previously unmounted folder/file reconnect planner as a reviewed Develop
@@ -555,6 +580,12 @@ TypeScript, scoped lint and build passed. Isolated reconnect-only Git candidate:
 74 focused tests / 64,837 assertions, TypeScript/lint/build passed. Environment files and
 broader local Develop/CRM/UI changes were not copied into that candidate.
 This completes reviewed local relinking, not all-camera decoding or full Lightroom parity.
+
+Private Git handoff readback: `2aca1e70bf367aa4cf1560e094d015047aab2859`
+is now on `codex/lenslabs-photographer-platform` (17 scoped files). Remote SHA,
+empty Git index and local Develop HTTP 200 were verified after push. The app open
+request was queued by Codex; this is not a claim of a visible user-tab inspection.
+Broader local Develop/CRM/UI changes and `.env.development` remain uncommitted.
 
 ## Continuous RAW white-balance native foundation — September 9, 2026
 
@@ -630,6 +661,13 @@ all-camera or color-accuracy claims. The current high-bit-depth/RAW fidelity and
 full Lightroom capability gaps remain open. This milestone adds no UI control,
 histogram feature, production deployment or new import-speed claim.
 
+Private Git readback: `6bbc8f082251e11f935a10b76b2aa9cf5ff68294` is on
+`codex/lenslabs-photographer-platform`. The five-file commit excludes unrelated
+local work and environment files. Remote SHA, empty Git index and local Develop
+HTTP 200 were verified after push; the initial sandbox-only DNS/loopback checks
+failed, and the permitted read-only checks succeeded. No browser appearance or
+new editor behavior is claimed for this native-only milestone.
+
 ## Exact-output RAW resampling, September 9, 04:35 UTC
 
 Two bounded performance changes were investigated independently. This private
@@ -674,6 +712,63 @@ Full Lightroom parity remains unfinished. This milestone does not activate the
 pending opt-in RAW white-balance model, add a new histogram capability, or
 introduce a decoded-RAW cache. Any future cache needs explicit memory bounds,
 cancellation, source/white-balance identity and exact preview/export readback.
+
+## Local editor: remove redundant neutral RAW renders
+
+A saved legacy neutral recipe (or an inactive grading hue/grain shape) could
+force a second full RAW decode because reuse compared whole JSON to new defaults.
+The local Develop page now validates a conservative native-equivalent no-op
+predicate once per recipe. It checks exact effective amounts, HSL, curves, masks
+and crop without rewriting saved settings; RAW exposure/temperature/tint are
+checked before any post-decode reset. Reuse additionally requires a nonempty
+native receipt with the same selected photo, source Blob, mode, edge and quality.
+The actual full recipe still owns the export proof and saved history.
+
+This remains local/uncommitted with the newer editor foundation, not silently
+bundled into the smaller native Git milestone above.
+
+Verification:
+
+- New neutral suite: 14 tests / 592 assertions, including real JPEG and generated
+  sensor RAW render equivalence, active-control rejection, old-field defaults,
+  invalid inactive fields, exact ownership and immutable input documents.
+- Real UI fixture only: reserved shoot ...103 and checksum-verified public A6000.
+  Before: two successful full native RAW requests for an untouched legacy recipe.
+  After: one, with identical displayed JPEG SHA-256
+  `60114ecf01ef91676a7125d5b3aa668be26fff907cf955faf93b72efb849abcb`.
+  Export proof and captured JPEG download matched those exact bytes. Full saved
+  document/metadata were unchanged by opening/exporting. Exposure still rendered
+  new pixels and a new live histogram; Undo restored exact neutral image and
+  histogram without another decode. Existing prior history, rating and pick held.
+- The 12-check browser regression also passed after rebuilding the local C++
+  engine with the new resampler. The initial repeat-run harness wrongly required
+  preservation of discarded redo history; corrected to preserve the prior
+  committed history prefix and wait for Undo persistence. No app history code
+  changed. The standalone browser body is syntax-checked as an async function
+  (it is not a normal importable JS module for ESLint).
+- Full local suite before rebuild: 1,801 pass / 21 skip / 1 explicit WB integration
+  TODO / 0 fail, 366,069 assertions. TypeScript and production build passed.
+  Six sandbox-only HTTP bind failures passed with loopback permission.
+  After rebuild: native tests passed (Develop 442,188 assertions); focused
+  import/native/neutral/resampler suite 57 pass / 1 skip / 0 fail, 5,848 assertions.
+  Scoped source/TypeScript-test lint passed. Desktop screenshot inspected;
+  console showed only the existing ClientsWorkspace code-splitting warning.
+
+Run `tests/develop-neutral-reuse.browser.js` as a browse async eval body only
+on its hard-coded disposable shoot after importing the public A6000 fixture.
+It must never target the user's 337-photo or active shoot. The result proves a
+specific redundant-decode fix, not complete Lightroom fidelity or general
+fresh-import speed. Next larger performance work is avoiding repeated demosaic
+for post-decode-only edits, after designing a bounded and cancellable cache.
+
+Private native milestone readback: `9eb4463200d4ad25205aaf63f6b9086506083e11`
+matches the remote `codex/lenslabs-photographer-platform` branch. The repository
+was verified private and the Git index empty after push. The local Develop page
+returned HTTP 200. The app-open request was queued, not proof of a visible tab.
+Only the disposable ...103 photo/document pair was deleted after exact namespace,
+source-hash and saved-state checks; readback found zero remaining QA records.
+Both public Sony RAW files retain their original SHA-256 hashes. No customer
+shoots, originals, history or environment files were modified by these checks.
 
 ## 2026-09-09 — Stop owns and cancels the original file read
 
@@ -738,6 +833,20 @@ stays with that editor foundation. This scoped commit contains only store/import
 the new unit regression and this note. It does not publish environment files,
 change native binaries, activate the pending opt-in RAW white-balance model,
 add histogram features, establish whole-import speedup, or complete Lightroom parity.
+
+Private readback: `38e718c01f5fd3c3bb9da4cfee0a8d556e8ea1e6` matches the
+remote photographer-platform branch; Git index is empty. The continuation
+heartbeat remains ACTIVE. Main native binaries were not rebuilt or replaced by
+this import-read change. The request to show local Develop in Codex was queued;
+the separate visible-browser service could not start, so visible opening was
+not confirmed. Isolated browser QA above did execute against the running app.
+
+Next throughput work must measure end-to-end RAW import phases and investigate a
+bounded decoded-RAW reuse design before implementing it. Required cache identity
+includes exact source, source mode, RAW controls and decode quality; cancellation,
+memory eviction and stale-result ownership are prerequisites. Do not activate the
+unapproved opt-in white-balance model, change old recipes, or claim camera-wide
+Lightroom fidelity from the public Sony fixtures.
 
 ## September 9: measured import phases and exact opaque JPEG optimization
 
@@ -831,3 +940,15 @@ Fingerprint worker work must retain one exact SHA, abort behavior and durable
 per-file import receipts. Do not activate the pending opt-in WB model or claim
 camera-wide, color-management, AI-denoise or full Lightroom parity. The existing
 continuation remains active.
+
+Private readback: `c61a32a90452f5ecacae74db065544769913793d` matches the remote
+photographer-platform branch; index is empty. The current local native build
+contains the optimization, with all earlier unrelated working files retained.
+The six browser timing receipts are `/private/tmp/foto-import-phases-before-1.json`
+through `before-3.json` and `after-1.json` through `after-3.json`. Native comparison
+evidence is `/private/tmp/foto-raw-stages.QL0BnO/results.json`; exact/sanitizer/red
+proof is `/private/tmp/foto-jpeg-opaque.V3OLna/`. Clean candidate validation is in
+`/private/tmp/foto-jpeg-candidate.oIPE7s` with `/private/tmp/foto-jpeg-candidate-*.log`.
+The request to show the user's Develop route in Codex was queued. A second visible
+browser check failed to start the computer-use service, so visible opening is not
+confirmed. This does not invalidate the isolated real-browser QA above.

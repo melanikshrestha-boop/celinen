@@ -1,4 +1,10 @@
-import { createFileRoute, Link, useBlocker, defaultStringifySearch } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useBlocker,
+  useNavigate,
+  defaultStringifySearch,
+} from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkbench } from "@/components/workbench/context";
@@ -8,9 +14,21 @@ import {
   DeliveryReference,
   type DeliveryReferenceValue,
 } from "@/components/studio/DeliveryReference";
-import { resolveWorkspaceBinding } from "@/lib/workbench-projects";
-import { EditSlider } from "@/components/studio/Slider";
-import { DevelopDesk, type DevelopPane, type DevelopSection } from "@/components/studio/DevelopDesk";
+import {
+  developWorkspaceHref,
+  resolveWorkspaceBinding,
+  shootWorkspaceHref,
+} from "@/lib/workbench-projects";
+import { createShootRepository } from "@/lib/develop/shoot-repository";
+import {
+  applyCullReviewProposal,
+  CullRefreshSuperseded,
+  createCullLightroomVerdicts,
+  createCullShootView,
+  mergeCullLightroomReviews,
+  restoreCullReview,
+} from "@/lib/develop/cull-view";
+import { getDevelopImportSession } from "@/lib/develop/import-session";
 import { CullChat, type ToolCall, type ImportAttachment } from "@/components/studio/CullChat";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useProcessingWakeLock } from "@/components/account/WorkspacePreferences";
@@ -23,58 +41,36 @@ import { SaveRecovery } from "@/components/studio/SaveRecovery";
 import { describeShoot } from "@/lib/studio/shoot-brief";
 import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
-import { listRecentShoots, rememberShoot, studioDatabaseKey } from "@/lib/studio/shoot-directory";
+import {
+  listRecentShoots,
+  rememberShoot,
+  renameShoot,
+  studioDatabaseKey,
+} from "@/lib/studio/shoot-directory";
 import { rememberStudioRuntime, restoreStudioRuntime } from "@/lib/studio/runtime";
 import { StudioSaveBoundary } from "@/lib/studio/save-boundary";
 import { BurstReview } from "@/components/studio/BurstReview";
-import { DeadlineExport } from "@/components/studio/DeadlineExport";
-import { SocialExport } from "@/components/studio/SocialExport";
 import type { StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { PRODUCT_NAME } from "@/lib/product";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
-import {
-  applyBurstCull,
-  formatCullCsv,
-  formatJobJson,
-  keeperPreviewFile,
-  keepersForDelivery,
-} from "@/lib/studio/cull-decision";
-import { createKeeperPackage, createOriginalKeeperZip } from "@/lib/studio/keeper-package";
-import {
-  addLocalDeliveryPhotos,
-  createLocalDeliveryGallery,
-  createLocalDeliveryPhotoDraft,
-} from "@/lib/delivery/local";
+import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
+import { createOriginalKeeperZip } from "@/lib/studio/keeper-package";
 import { importedReviewVerdict } from "@/lib/studio/review-metadata";
-import {
-  createLightroomVerdicts,
-  mergeLightroomFrames,
-  LIGHTROOM_MATCHING,
-} from "@/lib/lightroom-matching";
-import { createSidecarArchive } from "@/lib/studio/sidecar-export";
+import { LIGHTROOM_MATCHING } from "@/lib/lightroom-matching";
 import type { AdobeSettingsPastePlan } from "@/lib/studio/adobe-paste";
-import { applyCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
-import {
-  applyProposal,
-  proposeCull,
-  proposeEdits,
-  type EditTarget,
-  type StudioProposal,
-} from "@/lib/studio/proposals";
+import type { CreativeEditPlan } from "@/lib/studio/creative-edits";
+import { proposeCull, type EditTarget, type StudioProposal } from "@/lib/studio/proposals";
 import {
   DEFAULT_EDITS,
-  type Edits,
   type Flag,
   type Shot,
   type Verdict,
-  autoRefine,
   decodeFile,
   faceDetectionAvailable,
   parseXmpSidecar,
-  exportShot,
   histogram,
   isRawFile,
   renderToCanvas,
@@ -82,9 +78,7 @@ import {
 } from "@/lib/imaging";
 import {
   canPersistStudioSession,
-  clearStudioSession,
-  loadStudioSession,
-  saveStudioSession,
+  readStudioSessionSnapshot,
   stableShotId,
   type StudioFilter,
   type StudioHydrationState,
@@ -193,7 +187,7 @@ export const Route = createFileRoute("/studio")({
 
 function StudioRoute() {
   const workbench = useWorkbench();
-  const { project, deliveryFrame, deliveryVersion, deliveryHandoff } = Route.useSearch();
+  const { project, shoot, deliveryFrame, deliveryVersion, deliveryHandoff } = Route.useSearch();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   // The root workspace owns one persistent controller across tool navigation.
@@ -208,8 +202,9 @@ function StudioRoute() {
     );
   return (
     <Studio
-      key={JSON.stringify([project, deliveryFrame, deliveryVersion, deliveryHandoff])}
+      key={JSON.stringify([project, shoot, deliveryFrame, deliveryVersion, deliveryHandoff])}
       projectId={project ?? null}
+      {...(shoot ? { shootId: shoot } : {})}
       {...(deliveryFrame && deliveryVersion
         ? {
             deliveryFocus: {
@@ -235,8 +230,6 @@ const FLAG_LABEL: Record<Flag, string> = {
   "eyes-closed": "eyes closed",
 };
 
-const CROPS: Edits["crop"][] = ["orig", "1:1", "4:5", "3:2", "16:9"];
-
 type UndoCheckpoint = {
   selectedId: string | null;
   frames: Array<Pick<Shot, "id" | "verdict" | "edits">>;
@@ -252,7 +245,6 @@ type EditRecipe = {
   title: string;
   description: string;
   limitations?: string[];
-  transform: (shot: Shot) => Edits;
 };
 
 export function Studio({
@@ -267,16 +259,49 @@ export function Studio({
   shootId?: string;
 }) {
   const workbench = useWorkbench();
+  const navigate = useNavigate();
+  const [repository] = useState(() =>
+    createShootRepository({
+      scope: storageScope,
+      libraryId: projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`,
+    }),
+  );
+  const [canonicalView] = useState(() => createCullShootView(repository));
+  const [importSession] = useState(() =>
+    getDevelopImportSession({
+      scope: storageScope,
+      libraryId: projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`,
+    }),
+  );
+  const unanalyzedIds = useRef(new Set<string>());
+  const nativeTreatmentIds = useRef(new Set<string>());
+  const [catalogSignal, setCatalogSignal] = useState(0);
+  const catalogRefresh = useRef(false);
+  const catalogRefreshAgain = useRef(false);
+  const studioVisible = workbench?.studioVisible ?? true;
   // Studio is keyed by project. State retains the loaded controller during
   // Fast Refresh; a memo can be invalidated while the hydration guard survives.
   const [projectSession] = useState(() =>
     projectId ? new ProjectStudioSession(projectId, deliveryFocus) : null,
   );
   const [saveBoundary] = useState(() => new StudioSaveBoundary());
-  const loadStoredSession = useCallback(
-    () => (projectSession ? projectSession.load() : loadStudioSession(storageScope, shootId)),
-    [projectSession, storageScope, shootId],
-  );
+  const loadStoredSession = useCallback(async () => {
+    const legacy = projectSession
+      ? await projectSession.load()
+      : await readStudioSessionSnapshot(storageScope, shootId);
+    try {
+      const session = await canonicalView.read(legacy);
+      unanalyzedIds.current = session.unanalyzedIds;
+      nativeTreatmentIds.current = session.nativeTreatmentIds;
+      for (const shot of session.shots) {
+        if (shot.previewBlob) shot.previewUrl = URL.createObjectURL(shot.previewBlob);
+      }
+      return session;
+    } finally {
+      for (const shot of legacy?.shots ?? [])
+        if (shot.previewUrl) URL.revokeObjectURL(shot.previewUrl);
+    }
+  }, [projectSession, storageScope, shootId, canonicalView]);
   const saveStoredSession = useCallback(
     async (frames: Shot[], selected: string | null, scope: StudioFilter) => {
       const acknowledge = saveBoundary.begin({
@@ -284,20 +309,17 @@ export function Studio({
         selectedId: selected,
         filter: scope,
       });
-      if (projectSession) await projectSession.save(frames, selected, scope);
-      else {
-        await saveStudioSession(frames, selected, scope, storageScope, shootId);
-        if (frames.length)
-          await rememberShoot(
-            storageScope,
-            shootId ?? "legacy",
-            frames.length,
-            describeShoot(frames, selected).title,
-          );
-      }
+      await canonicalView.save(frames, selected, scope);
+      if (!projectSession && frames.length)
+        await rememberShoot(
+          storageScope,
+          shootId ?? "legacy",
+          frames.length,
+          describeShoot(frames, selected).title,
+        );
       acknowledge();
     },
-    [projectSession, storageScope, shootId, saveBoundary],
+    [canonicalView, projectSession, storageScope, shootId, saveBoundary],
   );
   const [shots, setShots] = useState<Shot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -377,12 +399,9 @@ export function Studio({
   const [proposal, setProposal] = useState<StudioProposal | null>(null);
   const proposalRef = useRef<StudioProposal | null>(null);
   const recipeRef = useRef<EditRecipe | null>(null);
+  const canonicalOpenRef = useRef<() => Promise<boolean>>(async () => false);
   const [compareBefore, setCompareBefore] = useState(false);
-  const [studioPane, setStudioPane] = useState<DevelopPane>("develop");
-  const [developSection, setDevelopSection] = useState<DevelopSection>("basic");
   const [showBefore, setShowBefore] = useState(false);
-  const copiedEdits = useRef<Edits | null>(null);
-  const [hasCopied, setHasCopied] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [importAttachment, setImportAttachment] = useState<ImportAttachment | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
@@ -392,9 +411,6 @@ export function Studio({
   const preferences = identity?.preferences ?? DEFAULT_PREFERENCES;
   useProcessingWakeLock(preferences.keepAwake, Boolean(progress || busy));
   const [burstOpen, setBurstOpen] = useState(false);
-  const [deadlineOpen, setDeadlineOpen] = useState(false);
-  const [socialOpen, setSocialOpen] = useState(false);
-  const [deadlineCount, setDeadlineCount] = useState(20);
   const folderAbortRef = useRef<AbortController | null>(null);
   useBlocker({
     shouldBlockFn: async ({ next }) => {
@@ -418,8 +434,22 @@ export function Studio({
             ...(shootId ? { shootId } : {}),
             ...(deliveryFocus ? { deliveryFocus } : {}),
           })
-        )
-          return false;
+        ) {
+          // The next view reads the same shoot. Do not race its hydration against
+          // the 350 ms autosave debounce or an unresolved save conflict.
+          if (!canPersistStudioSession(sessionStatusRef.current)) return true;
+          try {
+            await saveStoredSession(
+              latestShotsRef.current,
+              latestSelectedIdRef.current,
+              latestFilterRef.current,
+            );
+            return false;
+          } catch (error) {
+            pauseSaving(error);
+            return true;
+          }
+        }
       }
       if (sessionStatusRef.current === "conflicted") {
         setSyncNote(
@@ -584,26 +614,15 @@ export function Studio({
     return "Preview discarded. Your photos and picks are unchanged.";
   }, []);
 
-  const stageRecipe = useCallback(
-    (recipe: EditRecipe) => {
-      if (!canPersistStudioSession(sessionStatusRef.current))
-        throw new Error("Resolve the paused save before previewing changes.");
-      if (importingRef.current && recipe.target !== "selected")
-        throw new Error(
-          "Let ingest finish before previewing a whole batch. You can edit the open photo now.",
-        );
-      const next = proposeEdits(
-        latestShotsRef.current,
-        latestSelectedIdRef.current,
-        recipe.target,
-        recipe.transform,
-        recipe,
-      );
-      recipeRef.current = recipe;
-      return showProposal(next);
-    },
-    [showProposal],
-  );
+  const stageRecipe = useCallback((recipe: EditRecipe) => {
+    if (!canPersistStudioSession(sessionStatusRef.current))
+      throw new Error("Resolve the paused save before previewing changes.");
+    const note = `${recipe.title}: opening Develop for review. No image adjustments were applied or translated from the old editor.`;
+    void canonicalOpenRef.current().then((opened) => {
+      if (opened) setSyncNote(note.replace("opening Develop", "Develop opened"));
+    });
+    return note;
+  }, []);
 
   const stageCreativeEdit = useCallback(
     (plan: CreativeEditPlan) =>
@@ -612,7 +631,6 @@ export function Studio({
         title: plan.title,
         description: plan.description,
         limitations: plan.limitations,
-        transform: (shot) => applyCreativeEdit(shot.edits, plan),
       }),
     [stageRecipe],
   );
@@ -624,7 +642,6 @@ export function Studio({
         title: plan.name,
         description: plan.summary,
         limitations: plan.warnings,
-        transform: (shot) => ({ ...shot.edits, ...plan.edits }),
       }),
     [stageRecipe],
   );
@@ -685,7 +702,8 @@ export function Studio({
         }
         const restored = restoreStudioRuntime(runtimeKey, session.shots);
         undoRef.current = restored.undo as UndoCheckpoint[];
-        updateShots(() => restored.shots);
+        // Canonical review/edits win; the old runtime contributes only its undo record.
+        updateShots(() => session.shots);
         selectShot(session.selectedId ?? session.shots[0]?.id ?? null);
         selectFilter(session.filter);
         hydrationRecoveryRef.current = false;
@@ -713,6 +731,130 @@ export function Studio({
       alive = false;
     };
   }, [loadStoredSession, runtimeKey, selectFilter, selectSessionStatus, selectShot, updateShots]);
+
+  useEffect(
+    () =>
+      repository.subscribe((change) => {
+        if (change.kind !== "import-job" && change.kind !== "presets")
+          setCatalogSignal((value) => value + 1);
+      }),
+    [repository],
+  );
+  useEffect(() => {
+    const update = () => {
+      const job = importSession.getSnapshot();
+      const running = job.phase === "discovering" || job.phase === "processing";
+      importingRef.current = running;
+      setProgress(
+        running ? { done: job.saved + job.failed + job.duplicates, total: job.found } : null,
+      );
+      setFolderStatus(job.phase === "discovering" ? `Reading folder · ${job.found} photos` : null);
+      if (!running && job.jobId) {
+        setSyncNote(
+          job.error ??
+            `${job.saved} photos saved · ${job.failed} failed · ${job.duplicates} duplicates`,
+        );
+        setCatalogSignal((value) => value + 1);
+      }
+    };
+    update();
+    const unsubscribe = importSession.subscribe(update);
+    void importSession
+      .restore()
+      .catch((error) =>
+        setSyncNote(error instanceof Error ? error.message : "Import status unavailable."),
+      );
+    return unsubscribe;
+  }, [importSession]);
+  useEffect(
+    () =>
+      repository.registerFlushParticipant("cull", async () => {
+        if (sessionStatusRef.current === "loading") await hydrationGateRef.current?.promise;
+        if (!canPersistStudioSession(sessionStatusRef.current)) return false;
+        try {
+          await saveStoredSession(
+            latestShotsRef.current,
+            latestSelectedIdRef.current,
+            latestFilterRef.current,
+          );
+          return true;
+        } catch (error) {
+          pauseSaving(error);
+          return false;
+        }
+      }),
+    [repository, saveStoredSession, pauseSaving],
+  );
+  useEffect(() => {
+    if (!catalogSignal || sessionStatus !== "ready" || !studioVisible) return;
+    if (catalogRefresh.current) {
+      catalogRefreshAgain.current = true;
+      return;
+    }
+    let cancelled = false;
+    catalogRefresh.current = true;
+    void (async () => {
+      const before = {
+        shots: latestShotsRef.current,
+        selectedId: latestSelectedIdRef.current,
+        filter: latestFilterRef.current,
+      };
+      await saveStoredSession(before.shots, before.selectedId, before.filter);
+      const current = await canonicalView.read(
+        undefined,
+        () =>
+          !cancelled &&
+          mountedRef.current &&
+          before.shots === latestShotsRef.current &&
+          before.selectedId === latestSelectedIdRef.current &&
+          before.filter === latestFilterRef.current,
+      );
+      if (cancelled || !mountedRef.current) return;
+      unanalyzedIds.current = current.unanalyzedIds;
+      nativeTreatmentIds.current = current.nativeTreatmentIds;
+      const old = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
+      for (const shot of current.shots) {
+        const prior = old.get(shot.id);
+        if (shot.previewBlob && prior?.previewBlob === shot.previewBlob)
+          shot.previewUrl = prior.previewUrl;
+        else if (shot.previewBlob) {
+          shot.previewUrl = URL.createObjectURL(shot.previewBlob);
+          previewUrlsRef.current.add(shot.previewUrl);
+        }
+        if (prior?.previewUrl && prior.previewUrl !== shot.previewUrl) {
+          URL.revokeObjectURL(prior.previewUrl);
+          previewUrlsRef.current.delete(prior.previewUrl);
+        }
+      }
+      updateShots(() => current.shots);
+      selectShot(current.selectedId);
+      selectFilter(current.filter);
+    })()
+      .catch((error) => {
+        if (error instanceof CullRefreshSuperseded) catalogRefreshAgain.current = true;
+        else if (!cancelled) pauseSaving(error);
+      })
+      .finally(() => {
+        catalogRefresh.current = false;
+        if (catalogRefreshAgain.current && mountedRef.current) {
+          catalogRefreshAgain.current = false;
+          setCatalogSignal((value) => value + 1);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    catalogSignal,
+    sessionStatus,
+    studioVisible,
+    canonicalView,
+    saveStoredSession,
+    updateShots,
+    selectShot,
+    selectFilter,
+    pauseSaving,
+  ]);
 
   useEffect(() => {
     if (!canPersistStudioSession(sessionStatus) || shots.length === 0) return;
@@ -771,9 +913,10 @@ export function Studio({
         bitmapPromises.clear();
         for (const url of previewUrls) URL.revokeObjectURL(url);
         previewUrls.clear();
+        repository.close();
       }, 0);
     };
-  }, [runtimeKey]);
+  }, [runtimeKey, repository]);
 
   const checkpoint = useCallback(() => {
     if (!canPersistStudioSession(sessionStatusRef.current)) return;
@@ -791,6 +934,11 @@ export function Studio({
   const applyReviewedProposal = useCallback(() => {
     const pending = proposalRef.current;
     if (!pending) return "There is no preview waiting to be applied.";
+    if (pending.kind === "edit") {
+      discardProposal();
+      void canonicalOpenRef.current();
+      return "Opening Develop for image adjustments. The legacy preview was discarded; no settings were applied.";
+    }
     if (!canPersistStudioSession(sessionStatusRef.current))
       throw new Error("Wait until your saved session is available before applying changes.");
     if (importingRef.current && (pending.kind === "cull" || pending.target !== "selected"))
@@ -807,11 +955,11 @@ export function Studio({
       throw new Error(
         "Wait for the proposed photo to finish rendering before applying. If the preview fails, reconnect its source or discard the proposal.",
       );
-    const next = applyProposal(latestShotsRef.current, pending);
+    const next = applyCullReviewProposal(latestShotsRef.current, pending);
     checkpoint();
     updateShots(() => next);
     discardProposal();
-    const receipt = `${pending.kind === "edit" ? "Applied the edit to" : "Accepted suggestions for"} ${pending.frames.length.toLocaleString()} photo${pending.frames.length === 1 ? "" : "s"}. Undo is available; originals are untouched.`;
+    const receipt = `Accepted suggestions for ${pending.frames.length.toLocaleString()} photo${pending.frames.length === 1 ? "" : "s"}. Undo is available; originals are untouched.`;
     setSyncNote(receipt);
     return receipt;
   }, [checkpoint, discardProposal, selectFilter, selectShot, updateShots]);
@@ -837,348 +985,46 @@ export function Studio({
     }
     const previous = undoRef.current.pop();
     if (!previous) return false;
-    const states = new Map(previous.frames.map((frame) => [frame.id, frame]));
-    const restoredShots = latestShotsRef.current.map((shot) => {
-      const state = states.get(shot.id);
-      return state ? { ...shot, verdict: state.verdict, edits: { ...state.edits } } : shot;
-    });
+    const restoredShots = restoreCullReview(latestShotsRef.current, previous.frames);
     latestShotsRef.current = restoredShots;
     setShots(restoredShots);
     const restoredSelection = restoredShots.some((shot) => shot.id === previous.selectedId)
       ? previous.selectedId
       : (restoredShots[0]?.id ?? null);
     selectShot(restoredSelection);
-    setSyncNote("Restored the previous edits and picks. Originals are untouched.");
+    setSyncNote(
+      "Restored the previous picks. Image adjustments stay in Develop; originals are untouched.",
+    );
     return true;
   }, [discardProposal, selectShot]);
 
   /* ---------------- import ---------------- */
-  const importFiles = useCallback(
-    async (files: File[], sourceSignal?: AbortSignal) => {
-      const requestedRun = importRunRef.current;
-      if (sourceSignal?.aborted) return;
-      if (folderAbortRef.current && folderAbortRef.current.signal !== sourceSignal) {
-        setSyncNote("A folder is being read. Finish or stop it before adding more photos.");
-        return;
-      }
-      if (sessionStatusRef.current === "loading") {
-        setProgress({ done: 0, total: uniquePhotos(files).length });
-        setSyncNote("Opening the saved Studio session before adding these files…");
+  function importFiles(files: File[]) {
+    if (!files.length) return;
+    if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
+      setSyncNote("Resolve this shoot's saved-state problem before importing.");
+      return;
+    }
+    try {
+      const job = importSession.startFiles(files);
+      void job.catch((error) =>
+        setSyncNote(error instanceof Error ? error.message : "Import paused."),
+      );
+      void (async () => {
         await hydrationGateRef.current?.promise;
-      }
-      if (!mountedRef.current || sourceSignal?.aborted || requestedRun !== importRunRef.current)
-        return;
-      if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
-        setProgress(null);
-        setSyncNote(
-          "Studio is not saving. Reload before importing; if the saved session is unreadable, choose New Shoot to replace it explicitly.",
-        );
-        return;
-      }
-      if (sessionStatusRef.current === "clearing") {
-        setSyncNote("Wait for the saved Studio session operation to finish first.");
-        return;
-      }
-      if (importingRef.current) {
-        setSyncNote("A folder is still importing. Finish or cancel it before adding another.");
-        return;
-      }
-      importingRef.current = true;
-      const selectedPhotos = uniquePhotos(files);
-      const folderName = files[0]?.webkitRelativePath.split("/").slice(0, -1)[0];
-      setImportAttachment({
-        name:
-          folderName ||
-          (files.length === 1 ? files[0]!.name : `${files.length.toLocaleString()} selected files`),
-        kind: folderName ? "folder" : "files",
-        count: selectedPhotos.length,
-        ...(!folderName &&
-        selectedPhotos.length === 1 &&
-        /^image\/(jpeg|png|webp|gif|avif)$/.test(selectedPhotos[0]!.type)
-          ? { preview: selectedPhotos[0] }
-          : {}),
-      });
-      const abortController = new AbortController();
-      importAbortRef.current = abortController;
-      const importRun = ++importRunRef.current;
-      setProgress({ done: 0, total: uniquePhotos(files).length });
-      // Lightroom folders carry .xmp sidecars next to the negatives.
-      const sidecarFiles = preferences.importSidecars
-        ? files.filter((f) => f.name.toLowerCase().endsWith(".xmp"))
-        : [];
-      let sidecarResult: Awaited<ReturnType<typeof readImportSidecars>>;
-      try {
-        sidecarResult = await readImportSidecars(sidecarFiles, abortController.signal);
-      } catch {
-        if (mountedRef.current && importRunRef.current === importRun) {
-          importingRef.current = false;
-          importAbortRef.current = null;
-          setProgress(null);
-          setSyncNote("Sidecar import stopped. Existing photos and decisions are unchanged.");
-        }
-        return;
-      }
-      const sidecars = sidecarResult.values;
-      let sidecarNotice = sidecarReadNotice(sidecarResult, files);
-      files = uniquePhotos(files);
-      const identities = createIngestResolver(files, latestShotsRef.current);
-      let ambiguousSourceSidecars = 0;
-      for (const key of identities.ambiguousSidecarKeys) {
-        if (sidecars.delete(key)) ambiguousSourceSidecars++;
-      }
-      if (ambiguousSourceSidecars)
-        sidecarNotice = [
-          sidecarNotice,
-          `${ambiguousSourceSidecars} sidecar target${ambiguousSourceSidecars === 1 ? "" : "s"} shared by colliding photo names skipped; their metadata was not applied`,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-      if (!mountedRef.current || importRunRef.current !== importRun) return;
-      if (sidecars.size || sidecarNotice) {
-        setSyncNote(
-          `${sidecars.size} sidecar${sidecars.size === 1 ? "" : "s"} read for exact folder/name matching${sidecarNotice ? ` · ${sidecarNotice}` : ""}.`,
-        );
-      }
-      if (!files.length) {
-        importingRef.current = false;
-        importAbortRef.current = null;
-        setProgress(null);
-        setSyncNote(
-          `No supported photos found. Choose RAW, JPEG, or other browser-readable images.${sidecarNotice ? ` ${sidecarNotice}.` : ""}`,
-        );
-        return;
-      }
-      setProgress({ done: 0, total: files.length });
-      const started = performance.now();
-      const added: Shot[] = new Array(files.length);
-      let doneCount = 0;
-      let firstPreviewMs: number | null = null;
-      let lastPublishedAt = 0;
-      let nativeFrames = 0;
-      let nativeCacheHits = 0;
-      let skippedReconnects = 0;
-      let legacyReconnects = 0;
-      let verifiedRepeatInputs = 0;
-      let unverifiedCollisionInputs = 0;
-      const pending = new Map<string, Shot>();
-
-      const publishPreviews = () => {
-        if (!pending.size || !mountedRef.current || importRunRef.current !== importRun) return;
-        const batch = [...pending.values()];
-        pending.clear();
-        const prior = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
-        updateShots((previous) => mergeIngestedShots(previous, batch));
-        const accepted = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
-        for (const shot of batch) {
-          const old = prior.get(shot.id);
-          if (accepted.get(shot.id)?.file !== shot.file || accepted.get(shot.id) === old) {
-            if (shot.previewUrl && shot.previewUrl !== old?.previewUrl) {
-              URL.revokeObjectURL(shot.previewUrl);
-              previewUrlsRef.current.delete(shot.previewUrl);
-            }
-            continue;
-          }
-          if (old?.previewUrl && old.previewUrl !== shot.previewUrl) {
-            URL.revokeObjectURL(old.previewUrl);
-            previewUrlsRef.current.delete(old.previewUrl);
-          }
-          bitmapCache.current.get(shot.id)?.close?.();
-          bitmapCache.current.delete(shot.id);
-          bitmapPromisesRef.current.delete(shot.id);
-        }
-        if (!latestSelectedIdRef.current) selectShot(batch[0]?.id ?? null);
-        if (firstPreviewMs === null && batch.some((shot) => shot.previewUrl)) {
-          firstPreviewMs = performance.now() - started;
-        }
-        lastPublishedAt = performance.now();
-      };
-
-      const one = async (i: number) => {
-        if (!mountedRef.current || importRunRef.current !== importRun) return;
-        const file = files[i]!;
-        let id = stableShotId(file);
-        const raw = isRawFile(file);
-        let sourceDigest: string | undefined;
-        try {
-          const prepared = await identities.prepare(file, abortController.signal);
-          if (!prepared) {
-            verifiedRepeatInputs++;
-            return;
-          }
-          id = prepared.id;
-          sourceDigest = prepared.sourceDigest;
-          if (!mountedRef.current || importRunRef.current !== importRun) return;
-          const result = await analyseFile(file, { signal: abortController.signal });
-          if (!mountedRef.current || importRunRef.current !== importRun) return;
-          const { analysis } = result;
-          if (result.backend === "native-cpp") {
-            nativeFrames++;
-            if (result.nativeCached) nativeCacheHits++;
-          }
-          const faces = analysis.faces;
-          const { score, flags } = scoreOf(analysis);
-
-          const sidecar = sidecars.get(sidecarKey(file));
-          const parsed = sidecar ? parseXmpSidecar(sidecar) : null;
-
-          const blob = result.previewBlob;
-          const url = URL.createObjectURL(blob);
-
-          added[i] = {
-            id,
-            file,
-            name: file.name,
-            relativePath:
-              (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-            isRaw: raw,
-            captureTimeMs: result.captureTimeMs,
-            captureTimeBasis: result.captureTimeBasis,
-            cameraKey: result.cameraKey,
-            analysisBackend: result.backend,
-            previewUrl: url,
-            previewBlob: blob ?? undefined,
-            sourceAvailable: true,
-            sourceDigest,
-            width: result.width,
-            height: result.height,
-            sizeMb: file.size / 1e6,
-            sharpness: analysis.sharpness,
-            brightness: analysis.brightness,
-            clippedHighlights: analysis.clippedHighlights,
-            clippedShadows: analysis.clippedShadows,
-            hash: analysis.hash,
-            tone: analysis.tone,
-            score,
-            flags,
-            verdict: importedReviewVerdict(parsed),
-            edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
-            faces: faces ?? undefined,
-            develop: parsed
-              ? {
-                  origin: "sidecar",
-                  at: Date.now(),
-                  rating: parsed.rating ?? undefined,
-                  label: parsed.label,
-                }
-              : undefined,
-          };
-          if (url) previewUrlsRef.current.add(url);
-        } catch (err) {
-          if (!mountedRef.current || importRunRef.current !== importRun) return;
-          if (err instanceof SourceReconnectError || identities.hasExisting(file)) {
-            skippedReconnects++;
-            if (err instanceof SourceReconnectError && err.reason === "unverified")
-              legacyReconnects++;
-            return;
-          }
-          if (!sourceDigest && identities.hasCollision(file)) {
-            // No trustworthy ID can be assigned to unreadable colliding sources.
-            unverifiedCollisionInputs++;
-            return;
-          }
-          added[i] = {
-            id,
-            file,
-            name: file.name,
-            relativePath:
-              (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-            isRaw: raw,
-            previewUrl: null,
-            sourceAvailable: true,
-            sourceDigest,
-            width: 0,
-            height: 0,
-            sizeMb: file.size / 1e6,
-            sharpness: 0,
-            brightness: 0,
-            clippedHighlights: 0,
-            clippedShadows: 0,
-            hash: "",
-            score: 0,
-            flags: [],
-            verdict: "undecided",
-            edits: { ...DEFAULT_EDITS },
-            error: err instanceof Error ? err.message : "Could not read this file",
-          };
-        } finally {
-          doneCount++;
-          if (mountedRef.current && importRunRef.current === importRun) {
-            if (added[i]) pending.set(added[i]!.id, added[i]!);
-            if (doneCount === 1 || performance.now() - lastPublishedAt >= 100) publishPreviews();
-            setProgress({ done: doneCount, total: files.length });
-          }
-        }
-      };
-
-      // RAW decoders are memory-heavy, so keep those shoots deliberately narrow.
-      const lanes = importLanes(
-        files.some(isRawFile),
-        navigator.hardwareConcurrency,
-        preferences.processingSpeed,
-      );
-      let cursor = 0;
-      await Promise.all(
-        Array.from({ length: Math.min(lanes, files.length) }, async () => {
-          while (cursor < files.length && mountedRef.current && importRunRef.current === importRun)
-            await one(cursor++);
-        }),
-      );
-
-      const batch = added.filter(Boolean);
-      if (!mountedRef.current || importRunRef.current !== importRun) {
-        const visibleUrls = new Set(latestShotsRef.current.map((shot) => shot.previewUrl));
-        for (const shot of batch) {
-          if (shot.previewUrl && !visibleUrls.has(shot.previewUrl)) {
-            URL.revokeObjectURL(shot.previewUrl);
-            previewUrlsRef.current.delete(shot.previewUrl);
-          }
-        }
-        return;
-      }
-      publishPreviews();
-      updateShots((next) => {
-        const { duplicateIds } = indexDuplicateFrames(next);
-        return next.map((shot) => ({
-          ...shot,
-          flags: [
-            ...shot.flags.filter((flag) => flag !== "duplicate"),
-            ...(duplicateIds.has(shot.id) ? ["duplicate" as const] : []),
-          ],
-        }));
-      });
-      importingRef.current = false;
-      importAbortRef.current = null;
-      setProgress(null);
-      if (!latestSelectedIdRef.current) selectShot(batch[0]?.id ?? null);
-      const secs = (performance.now() - started) / 1000;
-      const successes = batch.filter((shot) => !shot.error).length;
-      const summary = `${successes} frame${successes === 1 ? "" : "s"} read in ${secs.toFixed(1)}s · ${Math.round(successes / Math.max(secs, 0.001))}/sec${firstPreviewMs === null ? "" : ` · first preview ${(firstPreviewMs / 1000).toFixed(2)}s`}${nativeFrames ? ` · C++ ${nativeFrames}${nativeCacheHits ? ` (${nativeCacheHits} cached)` : ""}` : " · browser engine"}${successes < batch.length ? ` · ${batch.length - successes} unreadable; retained for review` : ""}`;
-      setSyncNote(
-        `${summary}${sidecarNotice ? ` · ${sidecarNotice}` : ""}${verifiedRepeatInputs ? ` · ${verifiedRepeatInputs} repeated input${verifiedRepeatInputs === 1 ? "" : "s"} verified byte-for-byte` : ""}${unverifiedCollisionInputs ? ` · ${unverifiedCollisionInputs} same-name source${unverifiedCollisionInputs === 1 ? "" : "s"} could not be verified; skipped without changing originals` : ""}${skippedReconnects ? ` · ${skippedReconnects} source reconnect${skippedReconnects === 1 ? "" : "s"} could not be verified; saved photos, picks and edits preserved` : ""}${legacyReconnects ? ` · ${legacyReconnects} older preview${legacyReconnects === 1 ? " has" : "s have"} no original fingerprint; import into a separate shoot to review` : ""}`,
-      );
-      // Import starts the mechanical first pass, but never accepts it for the
-      // photographer or displaces a preview they are already working on.
-      if (!proposalRef.current && batch.some((shot) => !shot.error)) {
-        try {
-          stageCull(
-            firstPassVerdict,
-            "First pass ready",
-            "First-pass suggestions only. Accept them, then Review bursts — keep one frame, reject the rest. Client favorites come later.",
-          );
-        } catch {
-          /* No eligible change: imported photos remain available. */
-        }
-      }
-    },
-    [selectShot, stageCull, updateShots, preferences.importSidecars, preferences.processingSpeed],
-  );
+        await openDevelop();
+      })();
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : "Import could not start.");
+    }
+  }
 
   /* ---------------- Lightroom live bridge ---------------- */
   const lastBridgeAt = useRef(0);
 
   const mergeBridge = useCallback(
     (state: BridgeState) => {
-      const result = mergeLightroomFrames(latestShotsRef.current, state.frames, Date.now());
+      const result = mergeCullLightroomReviews(latestShotsRef.current, state.frames, Date.now());
       if (result.matched) updateShots(() => result.shots);
       return result;
     },
@@ -1210,7 +1056,7 @@ export function Studio({
         if (result.matched) {
           lastBridgeAt.current = state.at;
           setSyncNote(
-            `Lightroom matched ${result.matched} photo${result.matched === 1 ? "" : "s"} by folder path; ${result.unmatched} unmatched. Develop settings, stars and IPTC applied.`,
+            `Lightroom matched ${result.matched} photo${result.matched === 1 ? "" : "s"} by folder path; ${result.unmatched} unmatched. Picks, supported stars and color labels updated. Develop settings and IPTC were not imported; saved treatments are unchanged.`,
           );
         } else if (state.frames.length)
           setSyncNote(
@@ -1242,7 +1088,7 @@ export function Studio({
       return;
     }
     try {
-      const frames = createLightroomVerdicts(latestShotsRef.current);
+      const frames = createCullLightroomVerdicts(latestShotsRef.current);
       const res = await bridgeFetch(bridgeEndpoint(), {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1304,7 +1150,9 @@ export function Studio({
     const pending = bitmapPromisesRef.current.get(shot.id);
     if (pending) return pending;
 
-    const promise = decodeFile(shot.file, 1800)
+    const promise = (
+      shot.previewBlob ? createImageBitmap(shot.previewBlob) : decodeFile(shot.file, 1800)
+    )
       .then((bmp) => {
         const current = latestShotsRef.current.find((candidate) => candidate.id === shot.id);
         if (!mountedRef.current || current?.file !== shot.file) {
@@ -1332,6 +1180,7 @@ export function Studio({
   useEffect(() => {
     let cancelled = false;
     renderedProposalRef.current = null;
+    if (!studioVisible) return;
     const canvas = canvasRef.current;
     if (!selected || selected.error || !canvas) {
       setLoupeStatus(selected?.error ? "failed" : "loading");
@@ -1344,14 +1193,8 @@ export function Studio({
         const bmp = await getBitmap(selected);
         if (cancelled) return;
         const preview = proposalFrames.get(selected.id);
-        const edits = showBefore
-          ? DEFAULT_EDITS
-          : preview && proposal?.kind === "edit"
-            ? compareBefore
-              ? preview.beforeEdits
-              : preview.afterEdits
-            : selected.edits;
-        renderToCanvas(canvas, bmp, edits, 1400, selected.faces?.center ?? null);
+        // Cull shows the saved import preview, not an approximation of native Develop edits.
+        renderToCanvas(canvas, bmp, DEFAULT_EDITS, 1400, null);
         setBins(histogram(canvas));
         if (proposal && preview) renderedProposalRef.current = { proposal, shotId: selected.id };
         setLoupeStatus("ready");
@@ -1366,7 +1209,7 @@ export function Studio({
     return () => {
       cancelled = true;
     };
-  }, [selected, getBitmap, proposalFrames, proposal, compareBefore, showBefore, studioPane]);
+  }, [selected, getBitmap, proposalFrames, proposal, compareBefore, showBefore, studioVisible]);
 
   /* ---------------- actions ---------------- */
   const setVerdict = useCallback(
@@ -1407,41 +1250,13 @@ export function Studio({
     [selectShot, visible, selectedId],
   );
 
-  const updateEdits = (patch: Partial<Edits>) => {
-    if (!canPersistStudioSession(sessionStatusRef.current)) return;
-    if (!selected) return;
-    updateShots((prev) =>
-      prev.map((s) => (s.id === selected.id ? { ...s, edits: { ...s.edits, ...patch } } : s)),
-    );
-  };
-
-  /** Lightroom-style Auto: derive develop settings from the frame's own histogram. */
-  const autoRefineOne = (id?: string) => {
-    if (!canPersistStudioSession(sessionStatusRef.current)) return;
-    const target = id ?? selectedId;
-    if (!target) return;
-    updateShots((prev) =>
-      prev.map((s) =>
-        s.id === target && !s.error && s.tone ? { ...s, edits: autoRefine(s.tone, s.edits) } : s,
-      ),
-    );
-  };
-
-  const autoRefineMany = (scope: "keepers" | "all") => {
-    if (!canPersistStudioSession(sessionStatusRef.current)) return 0;
-    let n = 0;
-    updateShots((prev) =>
-      prev.map((s) => {
-        if (s.error || !s.tone) return s;
-        if (scope === "keepers" && s.verdict !== "keep") return s;
-        n++;
-        return { ...s, edits: autoRefine(s.tone, s.edits) };
-      }),
-    );
-    return n;
-  };
-
   const autoCull = () => {
+    if (latestShotsRef.current.some((shot) => unanalyzedIds.current.has(shot.id))) {
+      setSyncNote(
+        "These photos have not been analyzed for culling. Review and keep/reject them manually; no quality scores were invented.",
+      );
+      return;
+    }
     try {
       const receipt = stageCull(
         firstPassVerdict,
@@ -1454,69 +1269,53 @@ export function Studio({
     }
   };
 
-  const exportOne = async () => {
+  async function openDevelop() {
+    if (!canPersistStudioSession(sessionStatusRef.current)) {
+      setSyncNote("Resolve the paused save before opening Develop. Your work is unchanged.");
+      return false;
+    }
     if (proposalRef.current) {
-      setSyncNote(
-        "Apply or discard the preview before exporting, so the exported image matches your decision.",
-      );
-      return;
+      setSyncNote("Apply or discard the current suggestion before opening Develop.");
+      return false;
     }
-    if (!selected || selected.error) return;
-    if (selected.sourceAvailable === false) {
-      setSyncNote("Reconnect the original source folder before high-resolution JPEG export.");
-      return;
-    }
-    setBusy("Exporting…");
-    let bmp: ImageBitmap | null = null;
     try {
-      bmp = await decodeFile(selected.file);
-      await exportShot(bmp, selected.edits, selected.name, selected.faces?.center ?? null);
-    } catch (error) {
-      setSyncNote(error instanceof Error ? error.message : "Could not export this frame.");
-    } finally {
-      bmp?.close?.();
-      setBusy(null);
-    }
-  };
-
-  const exportKeepers = async (): Promise<number> => {
-    if (proposalRef.current) {
-      setSyncNote("Apply or discard the preview before exporting.");
-      return 0;
-    }
-    const disconnected = latestShotsRef.current.filter(
-      (shot) => shot.verdict === "keep" && shot.sourceAvailable === false,
-    ).length;
-    if (disconnected) {
-      setSyncNote(
-        `${disconnected} keeper${disconnected === 1 ? " needs" : "s need"} the original source folder reconnected before export.`,
-      );
-      return 0;
-    }
-    const keepers = latestShotsRef.current.filter((s) => s.verdict === "keep" && !s.error);
-    let exported = 0;
-    try {
-      for (let i = 0; i < keepers.length; i++) {
-        const keeper = keepers[i]!;
-        setBusy(`Exporting ${i + 1}/${keepers.length}…`);
-        let bmp: ImageBitmap | null = null;
-        try {
-          bmp = await decodeFile(keeper.file);
-          await exportShot(bmp, keeper.edits, keeper.name, keeper.faces?.center ?? null);
-          exported++;
-        } finally {
-          bmp?.close?.();
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      if (!(await repository.flush())) {
+        setSyncNote(
+          "Develop could not open because this shoot has an unresolved save. Review the save warning; your photos and edits are unchanged.",
+        );
+        return false;
       }
-    } catch (error) {
-      setSyncNote(
-        `${exported}/${keepers.length} exported · ${error instanceof Error ? error.message : "export stopped"}`,
+      const href = developWorkspaceHref(
+        {
+          kind: "ready",
+          projectId,
+          ...(shootId ? { shootId } : {}),
+          ...(deliveryFocus ? { deliveryFocus } : {}),
+        },
+        latestSelectedIdRef.current ? canonicalView.photoId(latestSelectedIdRef.current) : null,
       );
-    } finally {
-      setBusy(null);
+      if (workbench) return await workbench.openTool(href);
+      await navigate({ href });
+      return true;
+    } catch (error) {
+      pauseSaving(error);
+      return false;
     }
-    return exported;
+  }
+  canonicalOpenRef.current = openDevelop;
+
+  const requestDevelopOutput = useCallback((purpose: string) => {
+    const note = `Opening Develop for ${purpose}. No image was exported, downloaded or sent.`;
+    void canonicalOpenRef.current().then((opened) => {
+      if (opened) setSyncNote(note.replace("Opening Develop", "Develop opened"));
+    });
+    setSyncNote(note);
+    return note;
+  }, []);
+
+  // Image edits and rendered exports have one authority: the native Develop page.
+  const exportOne = async () => {
+    await openDevelop();
   };
 
   const zipKeepers = async () => {
@@ -1565,7 +1364,7 @@ export function Studio({
       }`,
       `filter showing: ${filter}`,
       selected
-        ? `open frame: ${selected.name} (score ${selected.score}, ${selected.verdict})`
+        ? `open frame: ${selected.name} (${unanalyzedIds.current.has(selected.id) ? "analysis pending; no quality score" : `score ${selected.score}`}, ${selected.verdict})`
         : "no frame open",
     ].join("\n");
   }, [shots, counts, filter, selected]);
@@ -1576,6 +1375,11 @@ export function Studio({
         typeof args[k] === "number" && Number.isFinite(args[k]) ? (args[k] as number) : undefined;
       const currentShots = () => latestShotsRef.current;
       const currentSelectedId = () => latestSelectedIdRef.current;
+      if (
+        ["cull", "keep_top", "reject_flagged"].includes(name) &&
+        currentShots().some((shot) => unanalyzedIds.current.has(shot.id))
+      )
+        return "These photos have not been analyzed. Review them manually; no quality-based decisions were applied.";
       switch (name) {
         case "import_photos":
           inputRef.current?.click();
@@ -1628,6 +1432,11 @@ export function Studio({
             .trim()
             .toLowerCase();
           const pool = currentShots().filter((s) => !s.error);
+          if (
+            (q === "best" || q === "worst") &&
+            pool.some((shot) => unanalyzedIds.current.has(shot.id))
+          )
+            return "Quality analysis is pending; choose a photo by name or number.";
           if (!pool.length) return "failed: nothing to open";
           let target = pool.find((s) => s.name.toLowerCase().includes(q));
           if (!target && q === "best") target = [...pool].sort((a, b) => b.score - a.score)[0];
@@ -1638,66 +1447,32 @@ export function Studio({
           return `opened ${target.name}`;
         }
         case "apply_edits": {
-          const patch: Partial<Edits> = {};
-          const map: [string, keyof Edits][] = [
-            ["exposure", "exposure"],
-            ["contrast", "contrast"],
-            ["temperature", "temp"],
-            ["saturation", "saturation"],
-            ["highlights", "highlights"],
-            ["shadows", "shadows"],
-          ];
-          for (const [from, to] of map) {
-            const v = num(from);
-            if (v !== undefined)
-              (patch as Record<string, unknown>)[to] = Math.max(-100, Math.min(100, v));
-          }
-          if (typeof args["crop"] === "string" && CROPS.includes(args["crop"] as Edits["crop"]))
-            patch.crop = args["crop"] as Edits["crop"];
-          if (!Object.keys(patch).length) return "failed: no supported settings given";
-          const target =
-            args["target"] === "all"
-              ? "all"
-              : args["target"] === "keepers"
-                ? "keepers"
-                : "selected";
-          return stageRecipe({
-            target,
-            title: "Proposed look",
-            description: "Preview these light, color and framing adjustments before saving them.",
-            transform: (s) => ({ ...s.edits, ...patch }),
-          });
+          const opened = await canonicalOpenRef.current();
+          return opened
+            ? "Develop opened. Adjust and review the photo there; no requested legacy settings were applied."
+            : "Develop could not open. Resolve the save or pending-review warning; no settings were applied.";
         }
         case "auto_refine": {
-          const scope =
-            args["target"] === "selected"
-              ? "selected"
-              : args["target"] === "all"
-                ? "all"
-                : "keepers";
-          return stageRecipe({
-            target: scope,
-            title: "Balanced light and color",
-            description:
-              "Gently balance each photo using its own measured light and color. This is a starting point for your eye, not a learned style.",
-            transform: (s) => (s.tone ? autoRefine(s.tone, s.edits) : { ...s.edits }),
-          });
+          const opened = await canonicalOpenRef.current();
+          return opened
+            ? "Develop opened. Use Auto there and review its result; no automatic adjustment was applied in Cull."
+            : "Develop could not open. No automatic adjustments were applied.";
         }
         case "export_keepers": {
           if (proposalRef.current) return "failed: Apply or discard the preview before exporting.";
           const n = currentShots().filter((s) => s.verdict === "keep" && !s.error).length;
           if (!n) return "failed: no keepers to export";
-          const exported = await exportKeepers();
-          return exported === n
-            ? `exported ${exported} keeper${exported === 1 ? "" : "s"}`
-            : `exported ${exported}/${n} keepers`;
+          const opened = await canonicalOpenRef.current();
+          return opened
+            ? `Develop opened for your ${n} keepers. Choose the photos and export settings there; no download has been requested.`
+            : "Develop could not open. No keepers were exported.";
         }
         case "write_xmp": {
           if (proposalRef.current)
             return "failed: Apply or discard the preview before writing sidecars.";
           const n = currentShots().filter((s) => s.verdict !== "undecided" && !s.error).length;
           if (!n) return "failed: nothing decided yet";
-          return exportSidecars();
+          return requestDevelopOutput("sidecars and native editing settings");
         }
         case "undo_last":
           if (proposalRef.current) return discardProposal();
@@ -1706,41 +1481,12 @@ export function Studio({
           return "failed: unknown tool";
       }
     },
-    [discardProposal, selectFilter, selectShot, stageCull, stageRecipe, undoLast],
+    [discardProposal, requestDevelopOutput, selectFilter, selectShot, stageCull, undoLast],
   );
 
   /** Download one validated archive; never flatten folders or overwrite originals. */
 
-  const exportSidecars = () => {
-    if (proposalRef.current) {
-      setSyncNote("Apply or discard the preview before writing sidecars.");
-      return "failed: Apply or discard the preview before writing sidecars.";
-    }
-    try {
-      const { blob, sidecarCount, photoCount } = createSidecarArchive(latestShotsRef.current);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "LensLabs-sidecars.zip";
-      document.body.appendChild(a);
-      try {
-        a.click();
-      } finally {
-        a.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      }
-      const note = `Requested one ZIP download: ${sidecarCount} sidecar${sidecarCount === 1 ? "" : "s"} for ${photoCount} photo${photoCount === 1 ? "" : "s"}, with original folder paths. Extract separately and back up existing XMP before placing sidecars beside the matching originals. Only supported settings are included; then re-read metadata in your editor.`;
-      setSyncNote(note);
-      return note;
-    } catch (error) {
-      const note =
-        error instanceof Error
-          ? error.message
-          : "Sidecar export failed. Your originals are unchanged.";
-      setSyncNote(note);
-      return `failed: ${note}`;
-    }
-  };
+  const exportSidecars = () => requestDevelopOutput("sidecars and native editing settings");
 
   const downloadText = (filename: string, text: string, type: string) => {
     const url = URL.createObjectURL(new Blob([text], { type }));
@@ -1774,76 +1520,20 @@ export function Studio({
       return note;
     } catch (error) {
       const note =
-        error instanceof Error ? error.message : "Cull sheet export failed. Originals are unchanged.";
+        error instanceof Error
+          ? error.message
+          : "Cull sheet export failed. Originals are unchanged.";
       setSyncNote(note);
       return `failed: ${note}`;
     }
   };
 
   const downloadKeeperPackage = async () => {
-    if (proposalRef.current) {
-      setSyncNote("Apply or discard the preview before downloading keepers.");
-      return;
-    }
-    setBusy("Preparing keepers package…");
-    try {
-      const pack = await createKeeperPackage(
-        latestShotsRef.current,
-        shootTitle.trim() || "Untitled shoot",
-        "studio",
-        {
-          onProgress: (done, total) => setBusy(`Rendering proofs ${done}/${total}…`),
-        },
-      );
-      const url = URL.createObjectURL(pack.blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = pack.filename;
-      document.body.appendChild(a);
-      try {
-        a.click();
-      } finally {
-        a.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      }
-      setBusy(null);
-      setSyncNote(
-        `Requested ${pack.filename}: ${pack.keepers} keeper proofs, cull.csv, job.json. Originals were not copied.`,
-      );
-    } catch (error) {
-      setBusy(null);
-      setSyncNote(
-        error instanceof Error
-          ? error.message
-          : "Keeper package failed. Cull first; originals are unchanged.",
-      );
-    }
+    requestDevelopOutput("edited keeper proofs");
   };
 
   const sendKeepers = async () => {
-    if (proposalRef.current) {
-      setSyncNote("Apply or discard the preview before sending keepers.");
-      return;
-    }
-    setBusy("Preparing keepers…");
-    try {
-      const keepers = keepersForDelivery(latestShotsRef.current);
-      const drafts = [];
-      for (const shot of keepers) drafts.push(await createLocalDeliveryPhotoDraft(keeperPreviewFile(shot)));
-      const gallery = await createLocalDeliveryGallery({
-        title: shootTitle.trim() || "Keepers",
-      });
-      await addLocalDeliveryPhotos(gallery.id, drafts);
-      setBusy(null);
-      window.location.assign("/deliver");
-    } catch (error) {
-      setBusy(null);
-      setSyncNote(
-        error instanceof Error
-          ? error.message
-          : "Keepers were not sent. Cull first; originals are unchanged.",
-      );
-    }
+    requestDevelopOutput("finished gallery images");
   };
 
   /* ---------------- keyboard ---------------- */
@@ -1949,84 +1639,55 @@ export function Studio({
       } else if (matchesShortcut(e, preferences.shortcuts.undecided) || k === "u")
         setVerdict(selectedId, "undecided", false);
       else if (matchesShortcut(e, preferences.shortcuts.reset) && k !== "r") {
-        checkpoint();
-        updateEdits({ ...DEFAULT_EDITS });
+        e.preventDefault();
+        setSyncNote(
+          stageRecipe({
+            target: "selected",
+            title: "Reset adjustments",
+            description: "Review the reset in Develop.",
+          }),
+        );
       } else if (matchesShortcut(e, preferences.shortcuts.refine)) {
-        checkpoint();
-        autoRefineOne();
+        e.preventDefault();
+        setSyncNote(
+          stageRecipe({
+            target: "selected",
+            title: "Auto adjustments",
+            description: "Review Auto in Develop.",
+          }),
+        );
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkpoint, selectedId, step, setVerdict, undoLast, workbench, preferences.shortcuts]);
+  }, [selectedId, step, setVerdict, stageRecipe, undoLast, workbench, preferences.shortcuts]);
 
   const onDrop = (e: React.DragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes("Files")) return;
     e.preventDefault();
     e.stopPropagation();
     setDropActive(false);
-    if (importingRef.current || folderAbortRef.current) {
-      setSyncNote("A folder is already being read. Finish or stop it before adding another.");
+    if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
+      setSyncNote("Resolve this shoot's saved-state problem before importing.");
       return;
     }
-    const controller = new AbortController();
-    folderAbortRef.current = controller;
-    const droppedEntries = Array.from(e.dataTransfer.items)
-      .map((item) => {
-        try {
-          return item.webkitGetAsEntry?.();
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-    setImportAttachment({
-      name: droppedEntries.length === 1 ? droppedEntries[0]!.name : "Selected files",
-      kind: droppedEntries.some((entry) => entry?.isDirectory) ? "folder" : "files",
-      count: null,
-    });
-    setFolderStatus("Opening folder…");
-    // Capture directory entries while the drop event still grants access.
-    void collectDroppedFiles(e.dataTransfer, {
-      signal: controller.signal,
-      onProgress: (p) => {
-        if (folderAbortRef.current === controller && !controller.signal.aborted)
-          setFolderStatus(`Reading folder · ${p.files.toLocaleString()} files found`);
-      },
-    })
-      .then(async (result) => {
-        if (controller.signal.aborted || !mountedRef.current) return;
-        setFolderStatus("Preparing photos…");
-        if (!result.files.length) {
-          setSyncNote(
-            result.warnings[0]?.message ?? "This folder has no readable files. Try Choose folder.",
-          );
-          return;
-        }
-        await importFiles(result.files, controller.signal);
-        if (result.warnings.length && mountedRef.current && !controller.signal.aborted)
-          setSyncNote(
-            `${result.warnings.length} folder item(s) could not be read. ${result.warnings[0]?.message} Available photos were kept.`,
-          );
-      })
-      .catch((error: unknown) => {
-        if (mountedRef.current && !controller.signal.aborted)
-          setSyncNote(
-            error instanceof Error
-              ? error.message
-              : "Could not read the folder. Try Choose folder.",
-          );
-      })
-      .finally(() => {
-        if (folderAbortRef.current === controller) {
-          folderAbortRef.current = null;
-          if (mountedRef.current) setFolderStatus(null);
-        }
-      });
+    try {
+      // Capture handles in the actual drop event. The session, not this route, owns the job.
+      const job = importSession.startDrop(e.dataTransfer);
+      void job.catch((error) =>
+        setSyncNote(error instanceof Error ? error.message : "Import paused."),
+      );
+      void (async () => {
+        await hydrationGateRef.current?.promise;
+        await openDevelop();
+      })();
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : "Import could not start.");
+    }
   };
 
   const cancelImport = () => {
+    importSession.cancel();
     folderAbortRef.current?.abort();
     folderAbortRef.current = null;
     setFolderStatus(null);
@@ -2051,76 +1712,14 @@ export function Studio({
   };
 
   const startNewShoot = async () => {
-    if (sessionStatusRef.current === "conflicted") return;
-    if (projectSession) {
-      setSyncNote(
-        "Named projects are preserved. Create another project from Projects; nothing here was cleared.",
-      );
+    if (!(await repository.flush())) return;
+    if (workbench?.newShoot) {
+      await workbench.newShoot();
       return;
     }
-    if (sessionStatusRef.current === "loading" || sessionStatusRef.current === "clearing") {
-      setSyncNote("Wait for the saved Studio session operation to finish first.");
-      return;
-    }
-    const replacingUnreadableSnapshot = hydrationRecoveryRef.current;
-    if (
-      (latestShotsRef.current.length || replacingUnreadableSnapshot) &&
-      !window.confirm(
-        replacingUnreadableSnapshot
-          ? "Start a new shoot and replace the saved Studio snapshot that could not be restored? Original files are never touched."
-          : "Start a new shoot? This clears the current local previews, picks, and edits from LensLabs. Your original files are never touched.",
-      )
-    ) {
-      return;
-    }
-
-    folderAbortRef.current?.abort();
-    folderAbortRef.current = null;
-    setFolderStatus(null);
-    importRunRef.current++;
-    importAbortRef.current?.abort();
-    importAbortRef.current = null;
-    importingRef.current = false;
-    selectSessionStatus("clearing");
-    setBusy("Starting new shoot…");
-
-    try {
-      await clearStudioSession({
-        force: replacingUnreadableSnapshot,
-        scope: storageScope,
-        ...(shootId ? { shootId } : {}),
-      });
-      if (!mountedRef.current) return;
-      discardProposal();
-      for (const bitmap of bitmapCache.current.values()) bitmap.close?.();
-      bitmapCache.current.clear();
-      bitmapPromisesRef.current.clear();
-      for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
-      previewUrlsRef.current.clear();
-      undoRef.current = [];
-      latestShotsRef.current = [];
-      latestSelectedIdRef.current = null;
-      latestFilterRef.current = "all";
-      setShots([]);
-      setSelectedId(null);
-      selectFilter("all");
-      setBins([]);
-      setProgress(null);
-      setBusy(null);
-      selectSessionStatus("ready");
-      hydrationRecoveryRef.current = false;
-      setSyncNote("New shoot ready · originals were not changed.");
-    } catch {
-      if (mountedRef.current) {
-        setBusy(null);
-        selectSessionStatus("failed");
-        setSyncNote(
-          replacingUnreadableSnapshot
-            ? "The previous local snapshot could not be replaced, so it remains untouched."
-            : "The saved Studio session changed elsewhere or could not be cleared. It remains untouched; reload before continuing.",
-        );
-      }
-    }
+    const id = crypto.randomUUID();
+    await renameShoot(storageScope, id, "Untitled shoot");
+    await navigate({ href: shootWorkspaceHref(id, "cull") });
   };
 
   const openWorkflow = (intent: Exclude<StudioWorkflowIntent, { kind: "refusal" }>): string => {
@@ -2138,9 +1737,7 @@ export function Studio({
     }
     if (!latestShotsRef.current.some((shot) => shot.verdict === "keep"))
       return "Keep the photos you want to deliver first. A deadline export never selects photos for you.";
-    setDeadlineCount(intent.count);
-    setDeadlineOpen(true);
-    return "Opened deadline preparation for your keepers. Review the recipe and approve the local download; nothing has been sent.";
+    return requestDevelopOutput("deadline keeper exports");
   };
 
   const shootBrief = useMemo(
@@ -2191,7 +1788,8 @@ export function Studio({
       context={chatContext}
       execute={async (tool) => {
         const result = await executeTool(tool);
-        workbench?.showStudio();
+        if (!["apply_edits", "auto_refine", "export_keepers", "write_xmp"].includes(tool.name))
+          void workbench?.showStudio();
         return result;
       }}
       stageEdit={(plan) => {
@@ -2297,7 +1895,9 @@ export function Studio({
                 <span className="grid size-6 place-items-center rounded-full bg-ink font-display text-[11px] font-bold text-paper2">
                   L
                 </span>
-                <span className="font-display text-sm font-semibold tracking-tight">{PRODUCT_NAME}</span>
+                <span className="font-display text-sm font-semibold tracking-tight">
+                  {PRODUCT_NAME}
+                </span>
               </Link>
             )}
             <span className="truncate font-mono text-[11px] text-moss">
@@ -2317,7 +1917,9 @@ export function Studio({
                 disabled={Boolean(busy)}
                 className="rounded-md bg-ink px-2.5 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
               >
-                {busy?.startsWith("Packing") ? "Packing keepers…" : `ZIP keepers (${counts.keepers})`}
+                {busy?.startsWith("Packing")
+                  ? "Packing keepers…"
+                  : `ZIP keepers (${counts.keepers})`}
               </button>
             )}
             {!workbench && (
@@ -2416,7 +2018,7 @@ export function Studio({
                     ],
                     [
                       "Share to social",
-                      () => setSocialOpen(true),
+                      () => requestDevelopOutput("social crops and exports"),
                       !selected || Boolean(progress || folderStatus),
                     ],
                     [
@@ -2431,29 +2033,15 @@ export function Studio({
                       exportSidecars,
                       !shots.some((s) => s.verdict !== "undecided"),
                     ],
-                    [
-                      "Export cull.csv",
-                      exportCullSheet,
-                      !shots.length,
-                    ],
-                    [
-                      "ZIP keepers",
-                      () => void zipKeepers(),
-                      !counts.keepers,
-                    ],
+                    ["Export cull.csv", exportCullSheet, !shots.length],
+                    ["ZIP keepers", () => void zipKeepers(), !counts.keepers],
                     [
                       "Download keepers package",
                       () => void downloadKeeperPackage(),
                       !counts.keepers,
                     ],
                     ...(isLocalSingleUserMode
-                      ? [
-                          [
-                            "Send keepers to gallery",
-                            () => void sendKeepers(),
-                            !counts.keepers,
-                          ],
-                        ]
+                      ? [["Send keepers to gallery", () => void sendKeepers(), !counts.keepers]]
                       : []),
                     ["Publish verdicts to Lightroom", () => void pushToLightroom(), !shots.length],
                     [
@@ -2577,9 +2165,7 @@ export function Studio({
                   : "mt-24 cursor-pointer rounded-xl border border-dashed border-border px-6 py-24 text-center transition-colors hover:border-ink/30 focus-visible:outline-2 focus-visible:outline-rust"
               }
             >
-              <h1 className="font-display text-3xl font-semibold tracking-tight">
-                Drop the shoot
-              </h1>
+              <h1 className="font-display text-3xl font-semibold tracking-tight">Drop the shoot</h1>
               <p className="mt-2 font-mono text-[11px] text-moss">
                 Then K keep · R reject · ZIP keepers. Originals stay on this device.
               </p>
@@ -2606,83 +2192,6 @@ export function Studio({
                 </button>
               </div>
             </div>
-          ) : studioPane === "develop" ? (
-            <DevelopDesk
-              pane={studioPane}
-              onPane={setStudioPane}
-              selected={selected}
-              visible={visible}
-              selectedId={selectedId}
-              onSelect={selectShot}
-              canvasRef={canvasRef}
-              loupeStatus={loupeStatus}
-              bins={bins}
-              section={developSection}
-              onSection={setDevelopSection}
-              showBefore={showBefore}
-              onBefore={setShowBefore}
-              onLook={(id) => {
-                if (!selected) return;
-                checkpoint();
-                if (id === "auto") {
-                  autoRefineOne();
-                  return;
-                }
-                const looks: Record<string, Partial<Edits>> = {
-                  original: DEFAULT_EDITS,
-                  warm: { temp: 28, saturation: 10 },
-                  cool: { temp: -24, saturation: 4 },
-                  contrast: { contrast: 26, highlights: -12, shadows: 10 },
-                  fade: { contrast: -16, shadows: 22, highlights: 8 },
-                  bw: { saturation: -100 },
-                };
-                const patch = looks[id];
-                if (!patch) return;
-                updateShots((prev) =>
-                  prev.map((shot) =>
-                    shot.id === selected.id
-                      ? { ...shot, edits: { ...DEFAULT_EDITS, ...patch } }
-                      : shot,
-                  ),
-                );
-              }}
-              onCopy={() => {
-                if (!selected) return;
-                copiedEdits.current = { ...selected.edits };
-                setHasCopied(true);
-              }}
-              onPaste={() => {
-                if (!selected || !copiedEdits.current) return;
-                checkpoint();
-                const next = copiedEdits.current;
-                updateShots((prev) =>
-                  prev.map((shot) => (shot.id === selected.id ? { ...shot, edits: { ...next } } : shot)),
-                );
-              }}
-              onPrevious={() => {
-                if (!selectedId) return;
-                const idx = visible.findIndex((shot) => shot.id === selectedId);
-                const prior = visible[idx - 1];
-                if (!prior || !selected) return;
-                checkpoint();
-                const next = { ...prior.edits };
-                updateShots((prev) =>
-                  prev.map((shot) => (shot.id === selected.id ? { ...shot, edits: next } : shot)),
-                );
-              }}
-              onReset={() => {
-                if (!selected) return;
-                checkpoint();
-                updateShots((prev) =>
-                  prev.map((shot) =>
-                    shot.id === selected.id ? { ...shot, edits: { ...DEFAULT_EDITS } } : shot,
-                  ),
-                );
-              }}
-              canPaste={hasCopied}
-              onEdit={(patch) => updateEdits(patch)}
-              onEditStart={checkpoint}
-            />
           ) : (
             <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
               {/* toolbar */}
@@ -2694,17 +2203,13 @@ export function Studio({
                 }
               >
                 <div className="flex gap-1">
-                  <button
-                    type="button"
-                    className={studioPane === "library" ? "rounded-md bg-ink px-2 py-1 text-paper2" : "rounded-md px-2 py-1"}
-                    onClick={() => setStudioPane("library")}
-                  >
+                  <button type="button" className="rounded-md bg-ink px-2 py-1 text-paper2">
                     Library
                   </button>
                   <button
                     type="button"
                     className="rounded-md px-2 py-1"
-                    onClick={() => setStudioPane("develop")}
+                    onClick={() => void openDevelop()}
                   >
                     Develop
                   </button>
@@ -2822,6 +2327,7 @@ export function Studio({
                         )}
                       </div>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider">
+                        <span>Unedited import preview · Develop for saved edits</span>
                         <span>
                           {selected.name} · {selected.width}×{selected.height} ·{" "}
                           {selected.sizeMb.toFixed(1)} MB {selected.isRaw && "· RAW"}
@@ -2841,7 +2347,9 @@ export function Studio({
                             </span>
                           ))}
                           <span className="rounded-full bg-moss px-2 py-0.5 text-paper2">
-                            score {selected.score}
+                            {unanalyzedIds.current.has(selected.id)
+                              ? "Analysis pending"
+                              : `score ${selected.score}`}
                           </span>
                           {selected.faces && (
                             <span className="rounded-full border border-input px-2 py-0.5">
@@ -2858,19 +2366,23 @@ export function Studio({
                               selected.develop ? "bg-ink text-paper2" : "border border-input"
                             }`}
                             title={
-                              selected.develop
-                                ? `Last develop update ${new Date(selected.develop.at).toLocaleTimeString()}`
-                                : "No develop settings applied yet"
+                              nativeTreatmentIds.current.has(selected.id)
+                                ? "The saved photo treatment is in Develop. Cull shows the unedited import preview."
+                                : selected.develop
+                                  ? `Last develop update ${new Date(selected.develop.at).toLocaleTimeString()}`
+                                  : "No develop settings applied yet"
                             }
                           >
                             develop ·{" "}
-                            {selected.develop
-                              ? selected.develop.origin === "lightroom"
-                                ? "from Lightroom (live)"
-                                : selected.develop.origin === "sidecar"
-                                  ? "from XMP sidecar"
-                                  : "LensLabs, published"
-                              : "untouched"}
+                            {nativeTreatmentIds.current.has(selected.id)
+                              ? "native editor"
+                              : selected.develop
+                                ? selected.develop.origin === "lightroom"
+                                  ? "from Lightroom (live)"
+                                  : selected.develop.origin === "sidecar"
+                                    ? "from XMP sidecar"
+                                    : "LensLabs, published"
+                                : "untouched"}
                           </span>
                           {selected.develop?.rating !== undefined &&
                             selected.develop.rating !== null && (
@@ -2918,7 +2430,7 @@ export function Studio({
                           onClick={() => void exportOne()}
                           className="ml-auto rounded-full bg-ink px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-paper2 transition-colors hover:bg-rust"
                         >
-                          Export frame
+                          Export in Develop
                         </button>
                       </div>
 
@@ -2936,109 +2448,13 @@ export function Studio({
                         ))}
                       </div>
 
-                      {/* edit desk */}
-                      <div className="mt-5 border-t border-border pt-5">
-                        <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
-                          Edit desk · Lightroom-style
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-5 md:grid-cols-3">
-                          <EditSlider
-                            label="Exposure"
-                            value={selected.edits.exposure}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ exposure: v })}
-                          />
-                          <EditSlider
-                            label="Contrast"
-                            value={selected.edits.contrast}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ contrast: v })}
-                          />
-                          <EditSlider
-                            label="Temp (WB)"
-                            value={selected.edits.temp}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ temp: v })}
-                          />
-                          <EditSlider
-                            label="Highlights"
-                            value={selected.edits.highlights}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ highlights: v })}
-                          />
-                          <EditSlider
-                            label="Shadows"
-                            value={selected.edits.shadows}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ shadows: v })}
-                          />
-                          <EditSlider
-                            label="Saturation"
-                            value={selected.edits.saturation}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ saturation: v })}
-                          />
-                          <div>
-                            <div className="flex justify-between font-mono text-[10px] uppercase tracking-wider">
-                              <span>Crop</span>
-                              <span className="text-ink/50">{selected.edits.crop}</span>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {CROPS.map((c) => (
-                                <button
-                                  key={c}
-                                  aria-pressed={selected.edits.crop === c}
-                                  onClick={() => {
-                                    checkpoint();
-                                    updateEdits({ crop: c });
-                                  }}
-                                  className={`rounded px-2 py-0.5 font-mono text-[10px] ${
-                                    selected.edits.crop === c
-                                      ? "bg-ink text-paper2"
-                                      : "border border-input"
-                                  }`}
-                                >
-                                  {c}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="col-span-full flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                            <button
-                              onClick={() => {
-                                checkpoint();
-                                autoRefineOne();
-                              }}
-                              disabled={!selected.tone}
-                              className="rounded-full bg-ink px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
-                            >
-                              Auto refine · A
-                            </button>
-                            <button
-                              onClick={() => {
-                                checkpoint();
-                                autoRefineMany("keepers");
-                              }}
-                              disabled={!counts.keepers}
-                              className="rounded-full border border-input px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider hover:bg-ink hover:text-paper2 disabled:opacity-40"
-                            >
-                              Auto refine all keepers
-                            </button>
-                            <span className="font-mono text-[10px] text-moss">
-                              tone, white balance and recovery from this frame's histogram
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              checkpoint();
-                              updateEdits({ ...DEFAULT_EDITS });
-                            }}
-                            className="self-end justify-self-start rounded-full border border-input px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider hover:bg-ink hover:text-paper2"
-                          >
-                            Reset · R
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        className="mt-4 rounded-md bg-ink px-4 py-2 text-paper2"
+                        onClick={() => void openDevelop()}
+                      >
+                        Open Develop
+                      </button>
                     </>
                   ) : (
                     <p className="grid h-full place-items-center font-mono text-[11px] text-moss">
@@ -3096,13 +2512,6 @@ export function Studio({
           }
         }}
       />
-      <DeadlineExport
-        open={deadlineOpen}
-        onOpenChange={setDeadlineOpen}
-        shots={shots}
-        initialCount={deadlineCount}
-      />
-      <SocialExport open={socialOpen} onOpenChange={setSocialOpen} shot={selected} />
     </div>
   );
 }

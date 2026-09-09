@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { cropRect, DEFAULT_EDITS, type Shot } from "../imaging";
 import { fingerprintSource } from "../studio/ingest";
+import { PHOTO_ID_MAX_LENGTH } from "../photo-identity";
 import {
   assertPhotoNameAvailable,
   normalizePhotoDisplayName,
@@ -24,12 +25,161 @@ export const DEVELOP_RECOVERY_LIMITS = Object.freeze({
   maxBytes: 32 * 1024 * 1024,
   maxDocuments: 2000,
 });
-const STORES = { photos: "photos", documents: "documents", presets: "presets" } as const;
+const STORES = {
+  photos: "photos",
+  documents: "documents",
+  presets: "presets",
+  manifests: "manifests",
+  importJobs: "importJobs",
+} as const;
 const nonempty = z
   .string()
   .min(1)
   .max(512)
   .refine((value) => value.trim().length > 0, "An identifier cannot be blank.");
+/** The prefix is additive; never trim or re-key an existing Studio photo. */
+export const developPhotoIdSchema = z
+  .string()
+  .min(1)
+  .max(PHOTO_ID_MAX_LENGTH + "studio:".length)
+  .refine((value) => value.trim().length > 0, "A photo identifier cannot be blank.");
+const sourceNameSchema = z.string().min(1).max(1000);
+export const shootManifestSchema = z
+  .object({
+    version: z.literal(1),
+    revision: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER - 1),
+    photoIds: z.array(developPhotoIdSchema).max(50000),
+    selectedId: developPhotoIdSchema.nullable(),
+    filter: z.string().min(1).max(80),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.photoIds).size !== value.photoIds.length)
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Shoot photo IDs must be unique." });
+    if (value.selectedId !== null && !value.photoIds.includes(value.selectedId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The selected photo is not in this shoot.",
+      });
+  });
+export type ShootManifest = z.infer<typeof shootManifestSchema>;
+export type ShootManifestView = Pick<ShootManifest, "photoIds" | "selectedId" | "filter">;
+export const developImportJobSchema = z
+  .object({
+    version: z.literal(1),
+    revision: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER - 1),
+    id: nonempty,
+    phase: z.enum(["discovering", "processing", "complete", "cancelled", "paused", "interrupted"]),
+    startedAt: z.number().finite().nonnegative(),
+    finishedAt: z.number().finite().nonnegative().nullable(),
+    rows: z
+      .array(
+        z
+          .object({
+            id: nonempty,
+            name: sourceNameSchema,
+            path: z.string().max(4000),
+            status: z.enum(["found", "preview-ready", "saved", "failed", "duplicate", "cancelled"]),
+            photoId: developPhotoIdSchema.optional(),
+            error: z.string().max(2000).optional(),
+          })
+          .strict(),
+      )
+      .max(50000),
+    found: z.number().int().min(0).max(50000),
+    previewReady: z.number().int().min(0).max(50000),
+    analyzed: z.number().int().min(0).max(50000),
+    saved: z.number().int().min(0).max(50000),
+    failed: z.number().int().min(0).max(50000),
+    duplicates: z.number().int().min(0).max(50000),
+    error: z.string().max(4000).nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.rows.map((row) => row.id)).size !== value.rows.length)
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Import row IDs must be unique." });
+    if (value.finishedAt !== null && value.finishedAt < value.startedAt)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Import completion precedes its start.",
+      });
+    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 8 * 1024 * 1024)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Import metadata exceeds the 8 MiB safety limit.",
+      });
+  });
+export type DevelopImportJob = z.infer<typeof developImportJobSchema>;
+const sidecarSchema = z
+  .object({ name: sourceNameSchema, path: z.string().max(4000), text: z.string() })
+  .strict()
+  .refine(
+    (value) => new TextEncoder().encode(value.text).byteLength <= 256 * 1024,
+    "A saved sidecar cannot exceed 256 KiB.",
+  );
+export type DevelopSidecar = z.infer<typeof sidecarSchema>;
+
+/** An immutable reference, not a claim that two renderers produce identical pixels. */
+export type DevelopLegacyMetadata = {
+  version: 1;
+  source: "studio";
+  shotId: string;
+  metadata: Record<string, unknown>;
+  unresolvedCrop?: Shot["edits"]["crop"] | undefined;
+};
+const legacySchema = z
+  .object({
+    version: z.literal(1),
+    source: z.literal("studio"),
+    shotId: z.string().min(1).max(PHOTO_ID_MAX_LENGTH),
+    metadata: z.record(z.unknown()),
+    unresolvedCrop: z.enum(["orig", "1:1", "4:5", "3:2", "16:9"]).optional(),
+  })
+  .strict();
+function copyLegacy(input: DevelopLegacyMetadata): DevelopLegacyMetadata {
+  const checked = legacySchema.parse(input);
+  let nodes = 0;
+  const validate = (value: unknown, depth: number): void => {
+    if (++nodes > 30000 || depth > 30)
+      throw new Error("Legacy metadata is too large or deeply nested.");
+    if (
+      value === null ||
+      value === undefined ||
+      typeof value === "boolean" ||
+      typeof value === "string"
+    )
+      return;
+    if (typeof value === "number" && Number.isFinite(value)) return;
+    if (Array.isArray(value)) {
+      for (const child of value) validate(child, depth + 1);
+      return;
+    }
+    if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const child of Object.values(value)) validate(child, depth + 1);
+      return;
+    }
+    throw new Error(
+      "Legacy metadata must contain only serializable data, not files or executable values.",
+    );
+  };
+  validate(checked.metadata, 0);
+  if (
+    checked.metadata["id"] !== checked.shotId ||
+    ["file", "previewBlob", "previewUrl"].some((key) => Object.hasOwn(checked.metadata, key))
+  )
+    throw new Error("Legacy metadata does not match its source photo.");
+  if (new TextEncoder().encode(JSON.stringify(checked)).byteLength > 1024 * 1024)
+    throw new Error("Legacy photo metadata exceeds the 1 MiB safety limit.");
+  return structuredClone(checked);
+}
 const nameSchema = z.string().trim().min(1).max(100);
 const revisionSchema = z
   .number()
@@ -64,7 +214,7 @@ const initialStateSchema = z
   .strict();
 export const developDocumentSchema = z
   .object({
-    photoId: nonempty,
+    photoId: developPhotoIdSchema,
     revision: revisionSchema,
     history: z
       .array(historySchema)
@@ -104,7 +254,7 @@ export type DevelopDocument = z.infer<typeof developDocumentSchema>;
 export type DevelopPreset = z.infer<typeof presetSchema>;
 const reconnectExpectedSchema = z
   .object({
-    sourceFileName: nonempty,
+    sourceFileName: sourceNameSchema,
     sourceDigest: z.string().max(200).nullable(),
   })
   .strict();
@@ -122,6 +272,10 @@ export type DevelopPhotoInput = {
   sourceFileName: string;
   sourceLastModified: number;
   sourceDigest: string | null;
+  /** Immutable full legacy reference; later native edits never overwrite this snapshot. */
+  legacy?: DevelopLegacyMetadata;
+  /** Exact matched source text, not executed or treated as an equivalent native recipe. */
+  sidecar?: DevelopSidecar;
   /** Consumed only when the photo is first inserted; never stored alongside its media. */
   initialState?: z.infer<typeof initialStateSchema>;
   /** Explicit source-attachment operation; never emitted by ordinary Studio imports. */
@@ -144,8 +298,25 @@ export type DevelopLibrary = {
 /** Media and exact saved edit documents acknowledged by one completed transaction. */
 export type DevelopImportCommit = Pick<DevelopLibrary, "photos" | "documents">;
 export type DevelopPhotoRecord = { photo: DevelopPhoto; document: DevelopDocument };
-export type DevelopStoreChange = { kind: "photos" | "documents" | "presets"; ids: string[] };
+export type DevelopStoreChange = {
+  kind: "photos" | "documents" | "presets" | "manifest" | "import-job";
+  ids: string[];
+  /** Same-window only. Cross-tab messages carry identifiers, never image Blobs. */
+  commit?: DevelopImportCommit;
+};
 export type DevelopStoreOptions = { scope: string; libraryId: string; factory?: IDBFactory };
+type LocalObserver = {
+  scope: string;
+  namespace: string;
+  listener: (change: DevelopStoreChange) => void;
+};
+const localObservers: Set<LocalObserver> = import.meta.hot?.data["developObservers"] ?? new Set();
+const notificationOrigin: string = import.meta.hot?.data["developNotificationOrigin"] ?? uniqueId();
+if (import.meta.hot)
+  import.meta.hot.dispose((data) => {
+    data["developObservers"] = localObservers;
+    data["developNotificationOrigin"] = notificationOrigin;
+  });
 export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
 export type DevelopRecovery = {
   version: 1;
@@ -408,7 +579,7 @@ export function parseDevelopRecovery(text: string, target: DevelopRecoveryTarget
 
 function recoverySelection(recovery: DevelopRecovery, photoIds: string[]): string[] {
   const checked = z
-    .array(nonempty)
+    .array(developPhotoIdSchema)
     .min(1)
     .max(DEVELOP_RECOVERY_LIMITS.maxDocuments)
     .parse(photoIds);
@@ -501,9 +672,9 @@ function storageError(error: unknown): Error {
     : new DevelopStorageUnavailable(undefined, { cause: error });
 }
 function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
-  nonempty.parse(input.id);
-  nonempty.parse(input.name);
-  nonempty.parse(input.sourceFileName);
+  developPhotoIdSchema.parse(input.id);
+  sourceNameSchema.parse(input.name);
+  sourceNameSchema.parse(input.sourceFileName);
   for (const dimension of [input.width, input.height])
     if (!Number.isSafeInteger(dimension) || dimension < 0 || dimension > 100000)
       throw new Error("Invalid photo dimensions.");
@@ -536,6 +707,8 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
     previewOrigin: input.previewOrigin ?? "unknown",
     ...(reconnectExpected ? { reconnectExpected } : {}),
     ...(initialState ? { initialState } : {}),
+    ...(input.legacy ? { legacy: copyLegacy(input.legacy) } : {}),
+    ...(input.sidecar ? { sidecar: sidecarSchema.parse(input.sidecar) } : {}),
   };
 }
 /** Identity compare-and-save guard. Recipe changes do not invalidate a media-only attachment. */
@@ -693,6 +866,10 @@ export function developInitialStateFromShot(shot: Shot): z.infer<typeof initialS
 /** A restored Studio preview stays a preview; it is never mislabeled as a RAW original. */
 export function developPhotoFromShot(shot: Shot): DevelopPhotoInput {
   const sourceBlob = shot.sourceAvailable !== false && shot.file?.size > 0 ? shot.file : null;
+  const { file: _file, previewUrl: _previewUrl, previewBlob: _previewBlob, ...metadata } = shot;
+  const legacyCrop = shot.edits?.crop ?? "orig";
+  const unresolvedCrop =
+    legacyCrop !== "orig" && !(shot.width > 0 && shot.height > 0) ? legacyCrop : undefined;
   return checkedPhoto({
     id: `studio:${shot.id}`,
     name: shot.name,
@@ -705,6 +882,13 @@ export function developPhotoFromShot(shot: Shot): DevelopPhotoInput {
     sourceLastModified: sourceBlob instanceof File ? sourceBlob.lastModified : 0,
     sourceDigest: shot.sourceDigest ?? null,
     initialState: developInitialStateFromShot(shot),
+    legacy: {
+      version: 1,
+      source: "studio",
+      shotId: shot.id,
+      metadata,
+      ...(unresolvedCrop ? { unresolvedCrop } : {}),
+    },
   });
 }
 /** Keep the browser read owned and cancellable, without abandoning a fallback read. */
@@ -879,6 +1063,78 @@ export async function reconnectDevelopPhoto(
 type PhotoRecord = { key: string; namespace: string; value: DevelopPhoto };
 type DocumentRecord = { key: string; namespace: string; value: DevelopDocument };
 type PresetRecord = { key: string; scope: string; value: DevelopPreset };
+type ManifestRecord = { key: string; value: ShootManifest };
+type ImportJobRecord = { key: string; value: DevelopImportJob };
+
+/** Preserve membership and ordering; an older view cannot silently drop an imported photo. */
+export function advanceShootManifest(
+  previous: ShootManifest,
+  view: ShootManifestView,
+  expectedRevision: number,
+  availableIds: readonly string[],
+): ShootManifest {
+  const current = shootManifestSchema.parse(previous);
+  revisionSchema.parse(expectedRevision);
+  if (current.revision !== expectedRevision) throw new DevelopSaveConflict("shoot-manifest");
+  const incoming = shootManifestSchema.parse({ version: 1, revision: expectedRevision, ...view });
+  const ids = new Set(incoming.photoIds),
+    available = new Set(availableIds);
+  if (
+    available.size !== availableIds.length ||
+    ids.size !== available.size ||
+    [...available].some((id) => !ids.has(id)) ||
+    current.photoIds.some((id) => !ids.has(id))
+  )
+    throw new Error(
+      "The shoot manifest must retain every saved photo. Reload before saving this view.",
+    );
+  if (JSON.stringify(current) === JSON.stringify(incoming)) return current;
+  return shootManifestSchema.parse({ ...incoming, revision: expectedRevision + 1 });
+}
+function defaultManifest(ids: readonly string[]): ShootManifest {
+  return shootManifestSchema.parse({
+    version: 1,
+    revision: 0,
+    photoIds: [...ids],
+    selectedId: ids[0] ?? null,
+    filter: "all",
+  });
+}
+export function advanceDevelopImportJob(
+  previous: DevelopImportJob | null,
+  input: DevelopImportJob,
+  expectedRevision: number,
+): DevelopImportJob {
+  const next = developImportJobSchema.parse(input);
+  const current = previous === null ? null : developImportJobSchema.parse(previous);
+  revisionSchema.parse(expectedRevision);
+  if ((current?.revision ?? 0) !== expectedRevision || next.revision !== expectedRevision)
+    throw new DevelopSaveConflict("import-job");
+  const terminal = (phase: DevelopImportJob["phase"]) =>
+    ["complete", "cancelled", "interrupted"].includes(phase);
+  if (current && current.id !== next.id && !terminal(current.phase))
+    throw new Error("Finish or explicitly interrupt the previous import before starting another.");
+  if (current?.id === next.id) {
+    if (JSON.stringify(current) === JSON.stringify(next)) return current;
+    if (terminal(current.phase))
+      throw new Error("This completed import report cannot be rewritten.");
+    const incoming = new Map(next.rows.map((row) => [row.id, row]));
+    for (const row of current.rows) {
+      const update = incoming.get(row.id);
+      if (
+        !update ||
+        update.name !== row.name ||
+        update.path !== row.path ||
+        (row.photoId !== undefined && update.photoId !== row.photoId) ||
+        (row.status === "saved" && update.status !== "saved")
+      )
+        throw new Error(
+          "Import progress cannot remove prior rows or forget a durable photo receipt.",
+        );
+    }
+  }
+  return developImportJobSchema.parse({ ...next, revision: expectedRevision + 1 });
+}
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -887,16 +1143,26 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
 }
 function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = factory.open(DEVELOP_DATABASE_NAME, 1);
+    const request = factory.open(DEVELOP_DATABASE_NAME, 3);
     let blocked = false;
     request.onupgradeneeded = () => {
       const db = request.result;
-      db.createObjectStore(STORES.photos, { keyPath: "key" }).createIndex("namespace", "namespace");
-      db.createObjectStore(STORES.documents, { keyPath: "key" }).createIndex(
-        "namespace",
-        "namespace",
-      );
-      db.createObjectStore(STORES.presets, { keyPath: "key" }).createIndex("scope", "scope");
+      if (!db.objectStoreNames.contains(STORES.photos))
+        db.createObjectStore(STORES.photos, { keyPath: "key" }).createIndex(
+          "namespace",
+          "namespace",
+        );
+      if (!db.objectStoreNames.contains(STORES.documents))
+        db.createObjectStore(STORES.documents, { keyPath: "key" }).createIndex(
+          "namespace",
+          "namespace",
+        );
+      if (!db.objectStoreNames.contains(STORES.presets))
+        db.createObjectStore(STORES.presets, { keyPath: "key" }).createIndex("scope", "scope");
+      if (!db.objectStoreNames.contains(STORES.manifests))
+        db.createObjectStore(STORES.manifests, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(STORES.importJobs))
+        db.createObjectStore(STORES.importJobs, { keyPath: "key" });
     };
     request.onblocked = () => {
       blocked = true;
@@ -951,9 +1217,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
   const scope = nonempty.parse(options.scope);
   const libraryId = nonempty.parse(options.libraryId);
   const namespace = JSON.stringify([scope, libraryId]);
-  const key = (id: string) => JSON.stringify([scope, libraryId, nonempty.parse(id)]);
+  const key = (id: string) => JSON.stringify([scope, libraryId, developPhotoIdSchema.parse(id)]);
   const presetKey = (id: string) => JSON.stringify([scope, nonempty.parse(id)]);
-  const listeners = new Set<(change: DevelopStoreChange) => void>();
+  const listeners = new Set<LocalObserver>();
   let channel: BroadcastChannel | null = null;
   let closed = false;
   async function database() {
@@ -962,25 +1228,87 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     if (!factory) throw new DevelopStorageUnavailable();
     return openDatabase(factory);
   }
+  async function manifestInTransaction(
+    tx: IDBTransaction,
+  ): Promise<{ value: ShootManifest; stored: boolean }> {
+    const record = (await requestResult(tx.objectStore(STORES.manifests).get(namespace))) as
+      ManifestRecord | undefined;
+    if (record) {
+      if (record.key !== namespace)
+        throw new Error("The saved shoot manifest belongs to another library.");
+      return { value: shootManifestSchema.parse(record.value), stored: true };
+    }
+    // One-time compatibility view for libraries created before ordered manifests existed.
+    const records = (await requestResult(
+      tx.objectStore(STORES.photos).index("namespace").getAll(namespace),
+    )) as PhotoRecord[];
+    records.sort(
+      (a, b) => a.value.createdAt - b.value.createdAt || a.value.name.localeCompare(b.value.name),
+    );
+    for (const record of records) {
+      if (record.namespace !== namespace || record.key !== key(record.value.id))
+        throw new Error("The saved Develop photo index is invalid.");
+    }
+    return { value: defaultManifest(records.map((record) => record.value.id)), stored: false };
+  }
+  async function appendManifest(
+    tx: IDBTransaction,
+    ids: readonly string[],
+    previous?: { value: ShootManifest; stored: boolean },
+  ) {
+    const { value, stored } = previous ?? (await manifestInTransaction(tx));
+    const known = new Set(value.photoIds);
+    const appended = ids.filter((id) => !known.has(id));
+    if (stored && !appended.length) return;
+    const photoIds = [...value.photoIds, ...appended];
+    const next = shootManifestSchema.parse({
+      ...value,
+      photoIds,
+      selectedId: value.selectedId ?? photoIds[0] ?? null,
+      revision: value.revision + 1,
+    });
+    tx.objectStore(STORES.manifests).put({ key: namespace, value: next } satisfies ManifestRecord);
+  }
   function notify(change: DevelopStoreChange) {
-    for (const listener of listeners) {
+    for (const observer of localObservers) {
+      if (
+        observer.scope !== scope ||
+        (change.kind !== "presets" && observer.namespace !== namespace)
+      )
+        continue;
       try {
-        listener(change);
+        observer.listener({
+          ...change,
+          ids: [...change.ids],
+          ...(change.commit
+            ? {
+                commit: {
+                  photos: change.commit.photos.map((photo) => ({
+                    ...photo,
+                    ...(photo.legacy ? { legacy: copyLegacy(photo.legacy) } : {}),
+                    ...(photo.sidecar ? { sidecar: { ...photo.sidecar } } : {}),
+                  })),
+                  documents: structuredClone(change.commit.documents),
+                },
+              }
+            : {}),
+        });
       } catch {
         /* An observer cannot invalidate a committed write. */
       }
     }
-    // A writer need not itself subscribe for other tabs to receive its commit.
+    // A writer need not itself subscribe. Never clone/send RAW Blobs through this channel.
+    const message = { namespace, kind: change.kind, ids: change.ids, origin: notificationOrigin };
     if (channel) {
       try {
-        channel.postMessage({ namespace, ...change });
+        channel.postMessage(message);
       } catch {
         /* A notification failure cannot invalidate an already committed transaction. */
       }
     } else if (typeof BroadcastChannel !== "undefined") {
       try {
         const publisher = new BroadcastChannel(`foto-develop:${scope}`);
-        publisher.postMessage({ namespace, ...change });
+        publisher.postMessage(message);
         publisher.close();
       } catch {
         /* Optimistic revisions remain authoritative when messaging is unavailable. */
@@ -989,6 +1317,96 @@ export function createDevelopStore(options: DevelopStoreOptions) {
   }
   const store = {
     namespace,
+    async readPhotosWithDocuments(photoIds: readonly string[]): Promise<DevelopImportCommit> {
+      const ids = z.array(developPhotoIdSchema).max(50000).parse(photoIds);
+      if (new Set(ids).size !== ids.length) throw new Error("Read each photo only once.");
+      if (!ids.length) return { photos: [], documents: Object.create(null) };
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.photos, STORES.documents], "readonly", async (tx) => {
+          const rows = await Promise.all(
+            ids.map(async (id) => {
+              const recordKey = key(id);
+              const [photo, document] = await Promise.all([
+                requestResult(tx.objectStore(STORES.photos).get(recordKey)) as Promise<
+                  PhotoRecord | undefined
+                >,
+                requestResult(tx.objectStore(STORES.documents).get(recordKey)) as Promise<
+                  DocumentRecord | undefined
+                >,
+              ]);
+              if (
+                !photo ||
+                !document ||
+                photo.key !== recordKey ||
+                document.key !== recordKey ||
+                photo.namespace !== namespace ||
+                document.namespace !== namespace ||
+                photo.value.id !== id ||
+                document.value.photoId !== id
+              )
+                throw new Error("The requested photo or its editing document is unavailable.");
+              const media = checkedPhoto(photo.value);
+              if (!Number.isFinite(photo.value.createdAt))
+                throw new Error("The saved photo date is invalid.");
+              return {
+                photo: {
+                  ...photo.value,
+                  ...media,
+                  sourceAvailable: Boolean(media.sourceBlob?.size),
+                },
+                document: documentCopy(document.value),
+              };
+            }),
+          );
+          return {
+            photos: rows.map((row) => row.photo),
+            documents: Object.fromEntries(rows.map((row) => [row.photo.id, row.document])),
+          };
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async readImportJob(): Promise<DevelopImportJob | null> {
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.importJobs], "readonly", async (tx) => {
+          const record = (await requestResult(tx.objectStore(STORES.importJobs).get(namespace))) as
+            ImportJobRecord | undefined;
+          if (!record) return null;
+          if (record.key !== namespace)
+            throw new Error("The import report belongs to another shoot.");
+          return developImportJobSchema.parse(record.value);
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async saveImportJob(
+      input: DevelopImportJob,
+      expectedRevision: number,
+    ): Promise<DevelopImportJob> {
+      const checked = developImportJobSchema.parse(input);
+      revisionSchema.parse(expectedRevision);
+      const db = await database();
+      try {
+        const result = await transaction(db, [STORES.importJobs], "readwrite", async (tx) => {
+          const jobs = tx.objectStore(STORES.importJobs);
+          const record = (await requestResult(jobs.get(namespace))) as ImportJobRecord | undefined;
+          if (record && record.key !== namespace)
+            throw new Error("The import report belongs to another shoot.");
+          const value = advanceDevelopImportJob(record?.value ?? null, checked, expectedRevision);
+          if (value.revision !== record?.value.revision)
+            jobs.put({ key: namespace, value } satisfies ImportJobRecord);
+          return value;
+        });
+        notify({ kind: "import-job", ids: [result.id] });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
     /** Read only this scoped photo/document pair, never hydrate unrelated original Blobs. */
     async readPhoto(photoId: string): Promise<DevelopPhotoRecord | null> {
       const recordKey = key(photoId);
@@ -1052,10 +1470,69 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       return store.addPhotosWithDocuments([checked]);
     },
     async loadLibrary(): Promise<DevelopLibrary> {
+      const { photos, documents, presets } = await store.loadLibraryWithManifest();
+      return { photos, documents, presets };
+    },
+    async readManifest(): Promise<ShootManifest> {
+      const db = await database();
+      try {
+        return await transaction(
+          db,
+          [STORES.photos, STORES.manifests],
+          "readonly",
+          async (tx) => (await manifestInTransaction(tx)).value,
+        );
+      } finally {
+        db.close();
+      }
+    },
+    async saveManifest(view: ShootManifestView, expectedRevision: number): Promise<ShootManifest> {
+      revisionSchema.parse(expectedRevision);
+      const db = await database();
+      try {
+        const value = await transaction(
+          db,
+          [STORES.photos, STORES.manifests],
+          "readwrite",
+          async (tx) => {
+            const previous = await manifestInTransaction(tx);
+            const keys = await requestResult(
+              tx.objectStore(STORES.photos).index("namespace").getAllKeys(namespace),
+            );
+            const ids = keys.map((recordKey) => {
+              const parts: unknown = typeof recordKey === "string" ? JSON.parse(recordKey) : null;
+              if (
+                !Array.isArray(parts) ||
+                parts.length !== 3 ||
+                parts[0] !== scope ||
+                parts[1] !== libraryId ||
+                key(parts[2]) !== recordKey
+              )
+                throw new Error("The saved Develop photo index is invalid.");
+              return developPhotoIdSchema.parse(parts[2]);
+            });
+            let next = advanceShootManifest(previous.value, view, expectedRevision, ids);
+            if (!previous.stored && next.revision === 0) next = { ...next, revision: 1 };
+            if (!previous.stored || next.revision !== previous.value.revision)
+              tx.objectStore(STORES.manifests).put({
+                key: namespace,
+                value: next,
+              } satisfies ManifestRecord);
+            return next;
+          },
+        );
+        notify({ kind: "manifest", ids: value.selectedId ? [value.selectedId] : [] });
+        return value;
+      } finally {
+        db.close();
+      }
+    },
+    /** One transaction owns both media/documents and the corresponding ordered view. */
+    async loadLibraryWithManifest(): Promise<DevelopLibrary & { manifest: ShootManifest }> {
       const db = await database();
       try {
         return await transaction(db, Object.values(STORES), "readonly", async (tx) => {
-          const [photoRecords, documentRecords, presetRecords] = await Promise.all([
+          const [photoRecords, documentRecords, presetRecords, manifestRecord] = await Promise.all([
             requestResult(
               tx.objectStore(STORES.photos).index("namespace").getAll(namespace),
             ) as Promise<PhotoRecord[]>,
@@ -1064,6 +1541,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             ) as Promise<DocumentRecord[]>,
             requestResult(tx.objectStore(STORES.presets).index("scope").getAll(scope)) as Promise<
               PresetRecord[]
+            >,
+            requestResult(tx.objectStore(STORES.manifests).get(namespace)) as Promise<
+              ManifestRecord | undefined
             >,
           ]);
           const documents: Record<string, DevelopDocument> = Object.create(null);
@@ -1099,7 +1579,25 @@ export function createDevelopStore(options: DevelopStoreOptions) {
               return preset;
             })
             .sort((a, b) => a.name.localeCompare(b.name));
-          return { photos, documents, presets };
+          if (manifestRecord && manifestRecord.key !== namespace)
+            throw new Error("The saved shoot manifest belongs to another library.");
+          const manifest = manifestRecord
+            ? shootManifestSchema.parse(manifestRecord.value)
+            : defaultManifest(photos.map((photo) => photo.id));
+          const indexed = new Map(photos.map((photo) => [photo.id, photo]));
+          if (
+            manifest.photoIds.length !== photos.length ||
+            manifest.photoIds.some((id) => !indexed.has(id))
+          )
+            throw new Error(
+              "The shoot manifest does not contain every saved photo. No records were changed.",
+            );
+          return {
+            photos: manifest.photoIds.map((id) => indexed.get(id)!),
+            documents,
+            presets,
+            manifest,
+          };
         });
       } finally {
         db.close();
@@ -1119,7 +1617,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       try {
         const committed = await transaction(
           db,
-          [STORES.photos, STORES.documents],
+          [STORES.photos, STORES.documents, STORES.manifests],
           "readwrite",
           async (tx) => {
             const photosStore = tx.objectStore(STORES.photos),
@@ -1137,6 +1635,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             );
             const output: DevelopPhoto[] = [];
             const documents: Record<string, DevelopDocument> = Object.create(null);
+            const previousManifest = await manifestInTransaction(tx);
             for (const { input, photo, document } of existing) {
               const {
                 initialState: _initialState,
@@ -1207,7 +1706,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 !(!previous.previewBlob && input.previewBlob) &&
                 !(!previous.sourceBlob && !previous.sourceDigest && input.sourceDigest) &&
                 !(!previous.width && input.width) &&
-                !(!previous.height && input.height)
+                !(!previous.height && input.height) &&
+                !(!previous.legacy && input.legacy) &&
+                !(!previous.sidecar && input.sidecar)
               ) {
                 // Opening Develop again must not rewrite hundreds of unchanged RAW blobs.
                 output.push({ ...photo!.value, sourceAvailable: Boolean(previous.sourceBlob) });
@@ -1235,6 +1736,12 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                     width: previous.width || input.width,
                     height: previous.height || input.height,
                     sourceAvailable: Boolean(previous.sourceBlob ?? input.sourceBlob),
+                    ...((previous.legacy ?? input.legacy)
+                      ? { legacy: copyLegacy((previous.legacy ?? input.legacy)!) }
+                      : {}),
+                    ...((previous.sidecar ?? input.sidecar)
+                      ? { sidecar: sidecarSchema.parse((previous.sidecar ?? input.sidecar)!) }
+                      : {}),
                   }
                 : { ...media, sourceAvailable: Boolean(input.sourceBlob), createdAt: timestamp() };
               photosStore.put({ key: key(value.id), namespace, value } satisfies PhotoRecord);
@@ -1246,10 +1753,19 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 } satisfies DocumentRecord);
               output.push(value);
             }
+            await appendManifest(
+              tx,
+              output.map((photo) => photo.id),
+              previousManifest,
+            );
             return { photos: output, documents };
           },
         );
-        notify({ kind: "photos", ids: committed.photos.map((photo) => photo.id) });
+        notify({
+          kind: "photos",
+          ids: committed.photos.map((photo) => photo.id),
+          commit: committed,
+        });
         return committed;
       } finally {
         db.close();
@@ -1258,7 +1774,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     /** Display name only: original filename, digest, media, and edit history are immutable here. */
     async renamePhoto(photoId: string, name: string, expectedName: string): Promise<DevelopPhoto> {
       const normalized = normalizePhotoDisplayName(name);
-      nonempty.parse(expectedName);
+      sourceNameSchema.parse(expectedName);
       const db = await database();
       try {
         const result = await transaction(db, [STORES.photos], "readwrite", async (tx) => {
@@ -1301,9 +1817,10 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       try {
         const result = await transaction(
           db,
-          [STORES.photos, STORES.documents],
+          [STORES.photos, STORES.documents, STORES.manifests],
           "readwrite",
           async (tx) => {
+            const previousManifest = await manifestInTransaction(tx);
             const photos = tx.objectStore(STORES.photos),
               documents = tx.objectStore(STORES.documents);
             const [records, sourceRecord] = await Promise.all([
@@ -1341,10 +1858,15 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             const document = createVirtualCopyDocument(sourceDocument, id, now);
             photos.add({ key: key(id), namespace, value: photo } satisfies PhotoRecord);
             documents.add({ key: key(id), namespace, value: document } satisfies DocumentRecord);
+            await appendManifest(tx, [photo.id], previousManifest);
             return { photo, document };
           },
         );
-        notify({ kind: "photos", ids: [result.photo.id] });
+        notify({
+          kind: "photos",
+          ids: [result.photo.id],
+          commit: { photos: [result.photo], documents: { [result.photo.id]: result.document } },
+        });
         return result;
       } finally {
         db.close();
@@ -1515,20 +2037,35 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     },
     subscribe(listener: (change: DevelopStoreChange) => void): () => void {
       if (closed) throw new DevelopStorageUnavailable("This Develop library has been closed.");
-      listeners.add(listener);
+      const observer: LocalObserver = { scope, namespace, listener };
+      listeners.add(observer);
+      localObservers.add(observer);
       if (!channel && typeof BroadcastChannel !== "undefined") {
-        channel = new BroadcastChannel(`foto-develop:${scope}`);
-        channel.onmessage = (event: MessageEvent<DevelopStoreChange & { namespace: string }>) => {
+        try {
+          channel = new BroadcastChannel(`foto-develop:${scope}`);
+        } catch {
+          // A blocked messaging API must not disable same-window commits or leak registrations.
+        }
+      }
+      if (channel) {
+        channel.onmessage = (
+          event: MessageEvent<DevelopStoreChange & { namespace: string; origin?: string }>,
+        ) => {
           if (
             !event.data ||
-            !["photos", "documents", "presets"].includes(event.data.kind) ||
-            !Array.isArray(event.data.ids)
+            event.data.origin === notificationOrigin ||
+            !["photos", "documents", "presets", "manifest", "import-job"].includes(
+              event.data.kind,
+            ) ||
+            !Array.isArray(event.data.ids) ||
+            event.data.ids.length > 50000 ||
+            event.data.ids.some((id) => !developPhotoIdSchema.safeParse(id).success)
           )
             return;
           if (event.data.kind !== "presets" && event.data.namespace !== namespace) return;
           for (const callback of listeners) {
             try {
-              callback(event.data);
+              callback.listener({ kind: event.data.kind, ids: [...event.data.ids] });
             } catch {
               /* observer only */
             }
@@ -1536,7 +2073,8 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         };
       }
       return () => {
-        listeners.delete(listener);
+        listeners.delete(observer);
+        localObservers.delete(observer);
         if (!listeners.size) {
           channel?.close();
           channel = null;
@@ -1545,6 +2083,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     },
     close() {
       closed = true;
+      for (const observer of listeners) localObservers.delete(observer);
       listeners.clear();
       channel?.close();
       channel = null;

@@ -3,7 +3,13 @@ import { DEVELOP_DATABASE_NAME } from "../../src/lib/develop/store";
 /** Scoped transaction double, not proof of browser IndexedDB behavior. Pending writes
  * become visible only at completion; overlapping transactions are serialized. */
 export function developIdbDouble() {
-  const rows = { photos: new Map<string, unknown>(), documents: new Map<string, unknown>() };
+  const rows = {
+    photos: new Map<string, unknown>(),
+    documents: new Map<string, unknown>(),
+    presets: new Map<string, unknown>(),
+    manifests: new Map<string, unknown>(),
+    importJobs: new Map<string, unknown>(),
+  };
   const log: string[] = [];
   let tail = Promise.resolve();
   const faults = { put: false, complete: false };
@@ -60,6 +66,29 @@ export function developIdbDouble() {
             finishLater();
           }
           return {
+            index(field: string) {
+              const all = (query: unknown, keyOnly: boolean) => {
+                const request = {
+                  result: undefined as unknown,
+                  onsuccess: null as (() => void) | null,
+                  onerror: null as (() => void) | null,
+                };
+                void previous.then(() => {
+                  if (finished) return;
+                  log.push(`${name}:index:${field}`);
+                  request.result = [...rows[name]]
+                    .filter(([, value]) => (value as Record<string, unknown>)[field] === query)
+                    .map(([key, value]) => (keyOnly ? key : structuredClone(value)));
+                  request.onsuccess?.();
+                  finishLater();
+                });
+                return request;
+              };
+              return {
+                getAll: (query: unknown) => all(query, false),
+                getAllKeys: (query: unknown) => all(query, true),
+              };
+            },
             get(key: string, keyOnly = false) {
               const request = {
                 result: undefined as unknown,
@@ -92,7 +121,7 @@ export function developIdbDouble() {
   };
   const factory = {
     open(name: string, version: number) {
-      if (name !== DEVELOP_DATABASE_NAME || version !== 1) throw new Error("Unexpected database");
+      if (name !== DEVELOP_DATABASE_NAME || version !== 3) throw new Error("Unexpected database");
       const request = { result: database, onsuccess: null as (() => void) | null };
       queueMicrotask(() => request.onsuccess?.());
       return request;

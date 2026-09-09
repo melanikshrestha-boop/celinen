@@ -507,14 +507,14 @@ export function NewChatButton({
   return (
     <button
       className={`workbench-nav-item ${active ? "is-active" : ""}`}
-      title={t(camera ? "Shoot" : "New shoot")}
+      title={t(camera ? "Shoot" : "New Shoot")}
       onClick={() => {
         if (camera) void workbench?.openTool("/workspace");
         else void workbench?.newShoot?.();
       }}
     >
       {camera ? <MessageSquare size={16} /> : <SquarePen size={16} />}
-      {t(camera ? "Shoot" : "New shoot")}
+      {t(camera ? "Shoot" : "New Shoot")}
     </button>
   );
 }

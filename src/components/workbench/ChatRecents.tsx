@@ -32,10 +32,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { chatShareFile, clientTranscript } from "@/lib/chat-sharing";
 import type { ChatRecord, ChatSummary } from "@/lib/chat-history";
-import { shootDisplayTitle } from "@/lib/workspace-labels";
 import { useChatHistory } from "./ChatHistory";
 import { useWorkbench } from "./context";
 import { useWorkspaceText } from "@/components/account/useWorkspaceText";
+import { ArchiveUndo, HistoryRowActions } from "./HistoryRowActions";
+import { stopRowAction } from "./row-action-event";
+import { sidebarConversationTitle } from "./sidebar-presentation";
 import "./chat-controls.css";
 
 type Action = "rename" | "section" | "delete" | "share" | "adobe";
@@ -60,6 +62,7 @@ export function ChatRecents({
   const [shared, setShared] = useState<ChatRecord | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [undoArchive, setUndoArchive] = useState<ChatSummary | null>(null);
   const generation = useRef(0);
   useEffect(
     () => () => {
@@ -102,7 +105,7 @@ export function ChatRecents({
   };
   const openDialog = (action: Action, row: ChatSummary) => {
     const rowButton = document.querySelector<HTMLElement>(
-      `[data-chat-id="${row.id}"] [aria-label^="More options"]`,
+      `[data-chat-id="${row.id}"] [data-history-menu]`,
     );
     restoreFocus.current = rowButton?.getClientRects().length
       ? rowButton
@@ -137,13 +140,11 @@ export function ChatRecents({
   if (!history) return null;
   const sections = [...new Set(history.rows.map((row) => row.section).filter(Boolean))].sort();
   const visible = history.rows.filter(
-    (row) =>
-      row.archived === (archivedOnly || archived) &&
-      (row.named || row.title !== "New chat"),
+    (row) => row.archived === (archivedOnly || archived) && (row.named || row.title !== "New chat"),
   );
   const groups =
     archivedOnly || archived
-      ? [{ id: "archive", name: "Archived shoots", rows: visible }]
+      ? [{ id: "archive", name: "Archived Shoots", rows: visible }]
       : [
           { id: "pinned", name: "Pinned", rows: visible.filter((row) => row.pinned) },
           ...sections.map((name) => ({
@@ -153,7 +154,7 @@ export function ChatRecents({
           })),
           {
             id: "recent",
-            name: "Recent shoots",
+            name: "Recent Shoots",
             rows: visible.filter((row) => !row.pinned && !row.section),
           },
         ];
@@ -164,15 +165,21 @@ export function ChatRecents({
         else await workbench?.openTool("/workspace");
       }
     });
+  const archiveRow = (row: ChatSummary) =>
+    run(async () => {
+      await history.archive(row.id, !row.archived);
+      setUndoArchive(row.archived ? null : row);
+    });
   return (
     <div className="ll-chat-recents">
       <div className="ll-chat-heading">
-        <span>{t(archivedOnly || archived ? "Archived shoots" : "Shoots")}</span>
+        <span>{t(archivedOnly || archived ? "Archived Shoots" : "Shoots")}</span>
         <div className="ll-chat-heading-actions">
           {!archivedOnly && (
             <button
-              title="New shoot in this project"
-              aria-label="New shoot in this project"
+              title={t("New Shoot")}
+              aria-label={t("New Shoot")}
+              data-history-new
               disabled={disabled}
               onClick={() =>
                 void run(async () => {
@@ -185,8 +192,8 @@ export function ChatRecents({
           )}
           {!archivedOnly && (
             <button
-              title={archived ? "Show recent shoots" : "Show archived shoots"}
-              aria-label={archived ? "Show recent shoots" : "Show archived shoots"}
+              title={t(archived ? "Show Recent Shoots" : "Show Archived Shoots")}
+              aria-label={t(archived ? "Show Recent Shoots" : "Show Archived Shoots")}
               aria-pressed={archived}
               onClick={() => setArchived(!archived)}
             >
@@ -205,7 +212,7 @@ export function ChatRecents({
             {group.rows.map((row) => (
               <div
                 key={row.id}
-                className={`ll-chat-row ${history.active?.id === row.id ? "is-active" : ""}`}
+                className={`ll-chat-row history-row ${history.active?.id === row.id ? "is-active" : ""}`}
                 data-chat-id={row.id}
               >
                 {renaming === row.id ? (
@@ -214,7 +221,7 @@ export function ChatRecents({
                     className="ll-chat-title-input"
                     value={renameText}
                     maxLength={80}
-                    aria-label="Shoot name"
+                    aria-label="Shoot Name"
                     disabled={disabled}
                     onChange={(event) => setRenameText(event.target.value)}
                     onBlur={() => {
@@ -239,7 +246,7 @@ export function ChatRecents({
                 ) : (
                   <button
                     className="ll-chat-title"
-                    title={shootDisplayTitle(row)}
+                    title={sidebarConversationTitle(row)}
                     aria-current={history.active?.id === row.id ? "true" : undefined}
                     disabled={disabled}
                     onClick={(event) => {
@@ -253,25 +260,28 @@ export function ChatRecents({
                     }}
                   >
                     {row.unread && <i aria-label="Unread" />}
-                    <span>{shootDisplayTitle(row)}</span>
+                    <span>{sidebarConversationTitle(row)}</span>
                   </button>
                 )}
-                <button
-                  className={`ll-chat-hover ${row.pinned ? "is-pinned" : ""}`}
-                  title={row.pinned ? "Unpin shoot" : "Pin shoot"}
-                  aria-label={`${row.pinned ? "Unpin" : "Pin"} ${row.title}`}
-                  aria-pressed={row.pinned}
+                <HistoryRowActions
+                  title={sidebarConversationTitle(row)}
+                  kind="chat"
+                  pinned={row.pinned}
+                  archived={row.archived}
                   disabled={disabled}
-                  onClick={() => void run(() => history.update(row.id, { pinned: !row.pinned }))}
-                >
-                  <Pin size={14} />
-                </button>
+                  pin={() => void run(() => history.update(row.id, { pinned: !row.pinned }))}
+                  archive={() => void archiveRow(row)}
+                />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
                       className="ll-chat-hover"
-                      aria-label={`More options for ${row.title}`}
+                      aria-label={`More Options for ${sidebarConversationTitle(row)}`}
+                      data-history-menu
                       disabled={disabled}
+                      onPointerDown={stopRowAction}
+                      onClick={stopRowAction}
+                      onDoubleClick={stopRowAction}
                     >
                       <MoreHorizontal size={16} />
                     </button>
@@ -284,7 +294,7 @@ export function ChatRecents({
                   >
                     <DropdownMenuItem onSelect={() => openDialog("share", row)}>
                       <Share />
-                      {t("Share with client…")}
+                      {t("Share with Client…")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => startRename(row)}>
                       <Pencil />
@@ -298,15 +308,13 @@ export function ChatRecents({
                       <Pin />
                       {t(row.pinned ? "Unpin" : "Pin")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => void run(() => history.archive(row.id, !row.archived))}
-                    >
+                    <DropdownMenuItem onSelect={() => void archiveRow(row)}>
                       <Archive />
-                      {t(row.archived ? "Restore shoot" : "Archive")}
+                      {t(row.archived ? "Restore Shoot" : "Archive")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => openDialog("delete", row)}>
                       <Trash2 />
-                      {t("Delete shoot…")}
+                      {t("Delete Shoot…")}
                     </DropdownMenuItem>
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
@@ -317,14 +325,14 @@ export function ChatRecents({
                         <DropdownMenuSubContent className="ll-chat-menu">
                           <DropdownMenuItem onSelect={() => openDialog("section", row)}>
                             <FolderPlus />
-                            {t("New section…")}
+                            {t("New Section…")}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() =>
                               void run(() => history.update(row.id, { section: "", pinned: false }))
                             }
                           >
-                            {t("Recent shoots")}
+                            {t("Recent Shoots")}
                           </DropdownMenuItem>
                           {sections.map((section) => (
                             <DropdownMenuItem
@@ -341,7 +349,7 @@ export function ChatRecents({
                     </DropdownMenuSub>
                     <DropdownMenuItem onSelect={() => void open(row, true)}>
                       <PanelRight />
-                      {t("Open in Quick Chat")}
+                      {t("Open in Side Panel")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onSelect={() =>
@@ -349,11 +357,11 @@ export function ChatRecents({
                       }
                     >
                       <Mail />
-                      {t(row.unread ? "Mark as read" : "Mark as unread")}
+                      {t(row.unread ? "Mark as Read" : "Mark as Unread")}
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => openDialog("adobe", row)}>
                       <Download />
-                      {t("Adobe export…")}
+                      {t("Adobe Export…")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -363,6 +371,18 @@ export function ChatRecents({
         ))}
       {!visible.length && (archivedOnly || archived) && (
         <p className="ll-chat-empty">No archived shoots.</p>
+      )}
+      {undoArchive && (
+        <ArchiveUndo
+          title={sidebarConversationTitle(undoArchive)}
+          disabled={disabled}
+          undo={() =>
+            void run(async () => {
+              await history.archive(undoArchive.id, false);
+              setUndoArchive(null);
+            })
+          }
+        />
       )}
       {note && !dialog && (
         <p role="alert" className="ll-chat-note">
@@ -387,10 +407,7 @@ export function ChatRecents({
             event.preventDefault();
             const target = restoreFocus.current;
             if (target?.isConnected && target.getClientRects().length) target.focus();
-            else
-              document
-                .querySelector<HTMLElement>('[aria-label="New shoot in this project"]')
-                ?.focus();
+            else document.querySelector<HTMLElement>("[data-history-new]")?.focus();
           }}
         >
           <DialogHeader>
@@ -400,20 +417,20 @@ export function ChatRecents({
                 : dialog?.action === "share"
                   ? "Share with a client"
                   : dialog?.action === "delete"
-                    ? "Delete this shoot conversation?"
+                    ? "Delete This Shoot?"
                     : dialog?.action === "section"
-                      ? "New section"
-                      : "Rename shoot"}
+                      ? "New Section"
+                      : "Rename Shoot"}
             </DialogTitle>
             <DialogDescription>
               {dialog?.action === "adobe"
                 ? "Download the current shoot’s ratings and supported edits as XMP sidecars in one ZIP. Extract separately, back up existing XMP, then read metadata in Lightroom or Adobe Camera Raw. Original photos and chat text are not exported. This browser cannot launch Adobe or Finder directly."
                 : dialog?.action === "delete"
-                  ? `The conversation “${shootDisplayTitle(dialog.row)}” will be permanently deleted. Your project, photos and edits stay untouched. Archive instead if you may need it later.`
+                  ? `The conversation “${dialog.row.title}” will be permanently deleted. Your project, photos and edits stay untouched. Archive instead if you may need it later.`
                   : dialog?.action === "share"
                     ? "Review the snapshot below. It includes conversation text, not private connector requests, tool details, unsent drafts or photos. Nothing is published automatically."
                     : dialog?.action === "section"
-                      ? "Organize shoots in this project. Empty sections disappear automatically."
+                      ? "Organize these conversations into sections. Empty sections disappear automatically."
                       : "Choose a name you can find again."}
             </DialogDescription>
           </DialogHeader>
@@ -457,7 +474,7 @@ export function ChatRecents({
               }}
             >
               <label>
-                {dialog.action === "section" ? "Section name" : "Shoot name"}
+                {dialog.action === "section" ? "Section name" : "Chat name"}
                 <input
                   autoFocus
                   value={text}
@@ -485,7 +502,7 @@ export function ChatRecents({
                   })
                 }
               >
-                Delete shoot conversation
+                Delete Shoot
               </button>
             </div>
           )}

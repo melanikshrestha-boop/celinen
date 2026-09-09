@@ -128,20 +128,23 @@ describe("photographer review metadata", () => {
     expect(reconnect[0]!.verdict).toBe("reject");
     expect(protectedShot.develop!.rating).toBe(5);
   });
-  test("both live import/export and sidecar import/export use the shared preservation policy", () => {
+  test("active Cull handoffs preserve review metadata without exporting archived edits as native treatment", () => {
     const source = readFileSync(new URL("../src/routes/studio.tsx", import.meta.url), "utf8");
-    expect(source).toContain("importedReviewVerdict(parsed)");
     expect(source).toContain(
-      "mergeLightroomFrames(latestShotsRef.current, state.frames, Date.now())",
+      "mergeCullLightroomReviews(latestShotsRef.current, state.frames, Date.now())",
     );
-    expect(source).toContain("createLightroomVerdicts(latestShotsRef.current)");
+    expect(source).toContain("createCullLightroomVerdicts(latestShotsRef.current)");
+    expect(source).toContain('requestDevelopOutput("sidecars and native editing settings")');
+    expect(source).not.toContain("createSidecarArchive(latestShotsRef.current)");
+    expect(source).not.toContain("createKeeperPackage(");
+    expect(source).not.toContain("<DeadlineExport");
+    expect(source).not.toContain("<SocialExport");
     const bridgeSource = readFileSync(
       new URL("../src/lib/lightroom-matching.ts", import.meta.url),
       "utf8",
     );
     expect(bridgeSource).toContain("importedReviewVerdict(frame, shot.verdict)");
     expect(bridgeSource).toContain("...exportedReviewMetadata(shot)");
-    expect(source).toContain("createSidecarArchive(latestShotsRef.current)");
     const exportSource = readFileSync(
       new URL("../src/lib/studio/sidecar-export.ts", import.meta.url),
       "utf8",

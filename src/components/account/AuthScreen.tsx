@@ -3,7 +3,7 @@ import { APPLICATION_ORIGIN, applicationUrl } from "@/lib/application-origin";
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
-import { lovable } from "@/integrations/lovable";
+import { signInWithOAuth } from "@/lib/auth/oauth";
 import { supabase } from "@/integrations/supabase/client";
 import { authReturnUrl, isLocalAuthOrigin, type AuthSearch } from "@/lib/auth-flow";
 import { safeSignInPath } from "@/lib/workbench";
@@ -68,14 +68,14 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
         );
         return;
       }
-      const result = await lovable.auth.signInWithOAuth("google", {
+      const result = await signInWithOAuth("google", {
         redirect_uri: authReturnUrl(window.location.origin, next, fromGallery),
       });
-      if (result.error)
+      if (result.status === "error")
         return providerError(
           result.error.message || "Google sign-in didn’t finish. Please try again.",
         );
-      if (!result.redirected && mounted.current) onAuthenticated();
+      if (result.status === "authenticated" && mounted.current) onAuthenticated();
     });
   }
 

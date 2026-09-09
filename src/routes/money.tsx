@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EarningsWorkspace } from "./earnings";
+import { LegacyWorkbenchRedirect } from "./-legacy-redirect";
 export const Route = createFileRoute("/money")({
-  head: () => ({ meta: [{ title: "Money — FOTO" }] }),
-  component: EarningsWorkspace,
+  head: () => ({ meta: [{ title: "Earnings — FOTO" }] }),
+  component: LegacyWorkbenchRedirect,
 });

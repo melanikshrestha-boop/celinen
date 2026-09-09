@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createDevelopAdmissionQueue } from "./admission";
 import {
   defaultDevelopSettings,
   DEVELOP_ENGINE_LIMITS,
@@ -17,7 +18,10 @@ const statusSchema = z.object({
   workingSpace: z.string(),
   rawSupported: z.boolean().default(false),
   maxRawSensorPixels: z.number().optional(),
+  maxOutputPixels: z.number().optional(),
+  defaultExportEdge: z.number().optional(),
 });
+const admissionQueue = createDevelopAdmissionQueue();
 export type DevelopEngineStatus = z.infer<typeof statusSchema>;
 let cached: Promise<DevelopEngineStatus | null> | null = null,
   checked = 0;
@@ -56,7 +60,7 @@ export function encodeDevelopRequest(
   if (
     !Number.isInteger(edge) ||
     edge < 32 ||
-    edge > 4096 ||
+    edge > DEVELOP_ENGINE_LIMITS.maxEdge ||
     !Number.isFinite(quality) ||
     quality < 0.5 ||
     quality > 1
@@ -104,6 +108,7 @@ export async function renderDevelop(
     quality?: number;
     signal?: AbortSignal;
     sourceMode?: DevelopSourceMode;
+    priority?: "interactive" | "background";
   } = {},
 ): Promise<Blob> {
   // Snapshot the immutable packet and options once. An obsolete render cannot
@@ -111,69 +116,83 @@ export async function renderDevelop(
   const { edge, quality, sourceMode = "preview", signal } = options;
   signal?.throwIfAborted();
   const body = encodeDevelopRequest(source, settings, edge, quality, sourceMode);
-  let busyRetries = 0,
-    renewedToken = false,
-    refreshStatus = false;
-  for (;;) {
-    signal?.throwIfAborted();
-    const status = await developEngineStatus(refreshStatus);
-    refreshStatus = false;
-    signal?.throwIfAborted();
-    if (!status?.ready || !status.token)
-      throw new Error(
-        "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
-      );
-    if (sourceMode === "raw" && !status.rawSupported)
-      throw new Error("Rebuild the local C++ engine to enable sensor RAW development.");
-    const response = await fetch("/__develop/render", {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-foto-develop",
-        "x-lenslabs-request": "studio",
-        "x-lenslabs-token": status.token,
-      },
-      body,
-      cache: "no-store",
+  return admissionQueue.run(
+    {
+      raw: sourceMode === "raw",
+      exclusive:
+        (edge ?? DEVELOP_ENGINE_LIMITS.previewEdge) > DEVELOP_ENGINE_LIMITS.defaultExportEdge,
       ...(signal ? { signal } : {}),
-    });
-    signal?.throwIfAborted();
-    if (response.status === 403 && !renewedToken) {
-      renewedToken = true;
-      refreshStatus = true;
-      continue;
-    }
-    if (response.status === 429 && busyRetries < busyRetryDelaysMs.length) {
-      await waitForDevelopWorker(busyRetryDelaysMs[busyRetries++]!, signal);
-      continue;
-    }
-    if (!response.ok) {
-      let message = `Develop processing failed (${response.status}).`;
-      try {
-        const parsed: unknown = await response.json();
+      ...(options.priority ? { priority: options.priority } : {}),
+    },
+    async () => {
+      let busyRetries = 0,
+        renewedToken = false,
+        refreshStatus = false;
+      for (;;) {
+        signal?.throwIfAborted();
+        const status = await developEngineStatus(refreshStatus);
+        refreshStatus = false;
+        signal?.throwIfAborted();
+        if (!status?.ready || !status.token)
+          throw new Error(
+            "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
+          );
+        if (sourceMode === "raw" && !status.rawSupported)
+          throw new Error("Rebuild the local C++ engine to enable sensor RAW development.");
+        if ((edge ?? DEVELOP_ENGINE_LIMITS.previewEdge) > status.maxEdge)
+          throw new Error("Rebuild the local C++ engine to enable this larger export size.");
+        const response = await fetch("/__develop/render", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-foto-develop",
+            "x-lenslabs-request": "studio",
+            "x-lenslabs-token": status.token,
+          },
+          body,
+          cache: "no-store",
+          ...(signal ? { signal } : {}),
+        });
+        signal?.throwIfAborted();
+        if (response.status === 403 && !renewedToken) {
+          renewedToken = true;
+          refreshStatus = true;
+          continue;
+        }
+        if (response.status === 429 && busyRetries < busyRetryDelaysMs.length) {
+          await waitForDevelopWorker(busyRetryDelaysMs[busyRetries++]!, signal);
+          continue;
+        }
+        if (!response.ok) {
+          let message = `Develop processing failed (${response.status}).`;
+          try {
+            const parsed: unknown = await response.json();
+            if (
+              parsed &&
+              typeof parsed === "object" &&
+              "error" in parsed &&
+              typeof parsed.error === "string"
+            )
+              message = parsed.error;
+          } catch {
+            /* Retain bounded fallback. */
+          }
+          throw new Error(message);
+        }
+        const size = Number(response.headers.get("content-length"));
         if (
-          parsed &&
-          typeof parsed === "object" &&
-          "error" in parsed &&
-          typeof parsed.error === "string"
+          !Number.isSafeInteger(size) ||
+          size < 4 ||
+          size > 32 * 1024 * 1024 ||
+          response.headers.get("content-type") !== "image/jpeg" ||
+          response.headers.get("x-foto-source") !==
+            (sourceMode === "raw" ? "raw-demosaic" : "preview")
         )
-          message = parsed.error;
-      } catch {
-        /* Retain bounded fallback. */
+          throw new Error("Develop returned an invalid image receipt.");
+        const result = await response.blob();
+        signal?.throwIfAborted();
+        if (result.size !== size) throw new Error("Develop returned an incomplete image.");
+        return result;
       }
-      throw new Error(message);
-    }
-    const size = Number(response.headers.get("content-length"));
-    if (
-      !Number.isSafeInteger(size) ||
-      size < 4 ||
-      size > 32 * 1024 * 1024 ||
-      response.headers.get("content-type") !== "image/jpeg" ||
-      response.headers.get("x-foto-source") !== (sourceMode === "raw" ? "raw-demosaic" : "preview")
-    )
-      throw new Error("Develop returned an invalid image receipt.");
-    const result = await response.blob();
-    signal?.throwIfAborted();
-    if (result.size !== size) throw new Error("Develop returned an incomplete image.");
-    return result;
-  }
+    },
+  );
 }

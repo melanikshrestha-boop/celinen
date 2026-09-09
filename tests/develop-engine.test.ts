@@ -21,6 +21,10 @@ import {
 } from "../src/server/native-develop";
 import { jpegDimensions } from "../src/lib/delivery/media-integrity";
 import { generatedBayerDng } from "./fixtures/generated-bayer";
+import {
+  developProcessingSource,
+  currentDevelopExportProof,
+} from "../src/components/develop/develop-state";
 
 describe("Develop image contract", () => {
   test("defaults are independent, strict and byte-stable through serialization", () => {
@@ -231,6 +235,98 @@ const binary = resolve(process.env["FOTO_TEST_DEVELOP_BINARY"] ?? "native/build/
 describe.skipIf(process.platform !== "darwin" || !existsSync(binary))(
   "real C++ Develop renderer",
   () => {
+    test("sensor editor and export use identical source/settings/size and exact JPEG bytes", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "foto-preview-export-parity-"));
+      const rawPath = join(directory, "original.dng"),
+        previewPath = join(directory, "saved-preview.jpg");
+      try {
+        const bytes = generatedBayerDng(),
+          original = new Blob([bytes]);
+        await writeFile(rawPath, bytes);
+        const signal = new AbortController().signal;
+        const proxy = await runNativeDevelop(
+          binary,
+          rawPath,
+          defaultDevelopSettings(),
+          1600,
+          0.9,
+          signal,
+          "raw",
+        );
+        await writeFile(previewPath, proxy);
+        const savedPreview = new Blob([proxy]);
+        const photo = {
+          isRaw: true,
+          sourceAvailable: true,
+          sourceBlob: original,
+          previewBlob: savedPreview,
+        };
+        const selected = developProcessingSource(photo, "raw");
+        expect(selected.source).toBe(original);
+        expect(selected.sourceMode).toBe("raw");
+        const settings = defaultDevelopSettings();
+        settings.exposure = 0.75;
+        settings.temperature = 12;
+        settings.tint = 5;
+        settings.saturation = 20;
+        settings.contrast = 15;
+        settings.grain = 30;
+        settings.crop = { ...settings.crop, x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
+        const editor = await runNativeDevelop(
+          binary,
+          selected.source === original ? rawPath : previewPath,
+          settings,
+          4096,
+          0.95,
+          signal,
+          selected.sourceMode,
+        );
+        const exported = await runNativeDevelop(
+          binary,
+          rawPath,
+          settings,
+          4096,
+          0.95,
+          signal,
+          "raw",
+        );
+        expect(editor.equals(exported)).toBe(true);
+        const wrongPipeline = await runNativeDevelop(
+          binary,
+          previewPath,
+          settings,
+          4096,
+          0.95,
+          signal,
+          "preview",
+        );
+        expect(editor.equals(wrongPipeline)).toBe(false);
+        const request = {
+          id: "photo",
+          source: original,
+          sourceMode: "raw" as const,
+          recipeKey: JSON.stringify(settings),
+          edge: 4096,
+          quality: 95,
+        };
+        const dimensions = jpegDimensions(editor)!;
+        const proof = { ...request, blob: new Blob([editor]), ...dimensions };
+        expect(currentDevelopExportProof(proof, request)).toBe(true);
+        expect(Buffer.from(await proof.blob.arrayBuffer()).equals(exported)).toBe(true);
+        expect(
+          currentDevelopExportProof(proof, {
+            ...request,
+            sourceMode: "preview",
+            source: savedPreview,
+          }),
+        ).toBe(false);
+        expect(readFileSync(rawPath).equals(bytes)).toBe(true);
+      } finally {
+        await unlink(rawPath).catch(() => {});
+        await unlink(previewPath).catch(() => {});
+        await rmdir(directory);
+      }
+    }, 30_000);
     test("global grading and adaptive grain alter exported JPEG bytes deterministically", async () => {
       const signal = new AbortController().signal,
         neutral = defaultDevelopSettings();

@@ -61,8 +61,6 @@ return await (async () => {
     await doc.fonts.load('14px "OpenAI Sans"');
     check("bundled sans-serif font loads successfully", doc.fonts.check('14px "OpenAI Sans"'));
     verify("default sans", '"OpenAI Sans"');
-    doc.documentElement.style.setProperty("--ll-ui-font", "Georgia, serif");
-    verify("explicit serif", "Georgia");
     for (const element of doc.querySelectorAll("[data-code]"))
       check(`code font stays independent: ${element.tagName}`, font(element).includes("Mono"));
     doc.documentElement.style.setProperty("--ll-ui-font", "var(--foto-font-sans)");

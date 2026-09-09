@@ -1,0 +1,76 @@
+.customer-receipt {
+  margin: 22px 0 8px;
+}
+.customer-receipt > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 550;
+}
+.customer-receipt > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 5px;
+}
+.customer-receipt > label {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0;
+  font-size: 13px;
+}
+.customer-receipt > label input {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  width: 100%;
+}
+.customer-receipt > p {
+  margin-block: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.customer-receipt-paper {
+  margin: 18px 0 14px;
+  padding: 24px;
+  color: #202020;
+  background: #fff;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.customer-receipt-paper > p {
+  font-size: 16px;
+  font-weight: 550;
+}
+.customer-receipt-paper > span {
+  display: block;
+  font-size: 12px;
+  color: #636363;
+  margin-top: 12px;
+}
+.customer-receipt-paper > strong {
+  display: block;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.customer-receipt-paper dl {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+.customer-receipt-paper dl > div {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 13px;
+}
+.customer-receipt-paper dt {
+  color: #636363;
+}
+.customer-receipt-paper dd {
+  margin: 0;
+}
+.customer-receipt-paper small {
+  font-size: 11px;
+  color: #636363;
+}
