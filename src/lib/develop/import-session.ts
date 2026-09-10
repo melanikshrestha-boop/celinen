@@ -274,6 +274,9 @@ export function createDevelopImportSession(
       state.finishedAt = Date.now();
       try {
         await persistNow();
+        // The final journal is part of durable completion, not merely the last photo write.
+        if (state.phase === "complete" && !owner.signal.aborted)
+          state.timing.savedMs = now() - eventStart;
       } catch (error) {
         pause(error);
       }
@@ -311,7 +314,6 @@ export function createDevelopImportSession(
             const discovered = await discovery;
             owner.signal.throwIfAborted();
             register(discovered.files);
-            state.timing.registeredMs = now() - eventStart;
             state.failures.push(
               ...discovered.warnings.map((warning) => ({
                 fileName: warning.path || "Folder",
@@ -384,6 +386,11 @@ export function createDevelopImportSession(
                 state.timing.firstPreviewMs ??= now() - eventStart;
                 changed();
               },
+              onPreparationComplete: () => {
+                if (owner.signal.aborted) return;
+                state.timing.previewsMs = now() - eventStart;
+                changed();
+              },
               onFileFailure: (failure, progress) => {
                 const row = rowAt(progress);
                 if (row) {
@@ -417,10 +424,6 @@ export function createDevelopImportSession(
             if (result.fatalError) pause(new Error(result.fatalError));
             if (!result.fatalError && !state.error)
               state.phase = result.stopped ? "cancelled" : "complete";
-            if (!result.stopped && !result.fatalError) {
-              state.timing.previewsMs = now() - eventStart;
-              state.timing.savedMs = now() - eventStart;
-            }
           } catch (error) {
             await fail(error);
           } finally {
@@ -436,8 +439,18 @@ export function createDevelopImportSession(
     }
   }
   function track(discovery: Promise<DroppedFilesResult>, owner: AbortController) {
-    // Attach a rejection handler immediately: discovery begins inside the original event.
-    void discovery.catch(() => undefined);
+    // Observe discovery before lock/journal admission: those waits must not inflate
+    // the registration metric. Never let an aborted owner's late result change state.
+    const measuredDiscovery = discovery.then((result) => {
+      if (controller === owner && !owner.signal.aborted) {
+        register(result.files);
+        state.timing.registeredMs ??= now() - eventStart;
+        changed();
+      }
+      return result;
+    });
+    // Attach immediately: discovery begins inside the original drop event.
+    void measuredDiscovery.catch(() => undefined);
     const unloadTarget =
       dependencies.unloadTarget === undefined
         ? typeof window === "undefined"
@@ -451,7 +464,7 @@ export function createDevelopImportSession(
     // React views may all unmount while this owner still has handles or writes.
     // Only a document unload is fenced: ordinary in-app route changes stay free.
     unloadTarget?.addEventListener("beforeunload", beforeUnload);
-    running = execute(discovery, owner).finally(() => {
+    running = execute(measuredDiscovery, owner).finally(() => {
       // A cancelled/complete phase can precede owned save, discovery, or lock drains.
       // Release only with this running promise, never from status or subscribers.
       unloadTarget?.removeEventListener("beforeunload", beforeUnload);
@@ -473,6 +486,7 @@ export function createDevelopImportSession(
       const owner = begin();
       const distinct = [...new Set(files)];
       register(distinct);
+      state.timing.registeredMs = now() - eventStart;
       return track(
         Promise.resolve({
           files: distinct,
