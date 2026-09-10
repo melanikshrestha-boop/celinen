@@ -33,7 +33,10 @@ const pages = {
   privacy: {
     title: "Privacy policy",
     paragraphs: [
-      "A published privacy policy has not been configured for this build. This page is not a substitute for the site owner’s reviewed policy. No legal terms or data-retention guarantees are implied.",
+      "FOTO can learn from the photos you import and the edits you keep (saved snapshots and presets), so the tool gets more useful for you over time. That learning stays in your workspace. Original files remain read-only and are not copied into the style log. FOTO does not use your originals to train a shared model for other photographers.",
+      "You can turn this off at any time in Settings → Privacy. Turning it off stops new samples and deletes the local style log.",
+      "A full published privacy policy (retention periods, subprocessors, and regional rights) has not been configured for this build beyond the statement above. This page is not a substitute for a lawyer-reviewed policy.",
+      "Analytics cookies run only after you Accept. Reject keeps the site working and does not record visits. The choice is stored in the foto_consent cookie for one year.",
     ],
   },
   terms: {
@@ -56,7 +59,9 @@ export function SettingsGuide({ page }: { page: SettingsGuidePage }) {
     <PublicPage eyebrow="A little clarity" title={entry.title.replace(/^LensLabs/, "FOTO")}>
       <div className="marketing-guide-copy" data-reveal>
         {entry.paragraphs.map((text) => (
-          <p key={text}>{text}</p>
+          <p key={text} id={text.startsWith("Analytics cookies") ? "cookies" : undefined}>
+            {text}
+          </p>
         ))}
       </div>
       <nav className="marketing-guide-links" aria-label="FOTO guides">

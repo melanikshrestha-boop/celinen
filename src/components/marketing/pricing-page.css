@@ -14,7 +14,7 @@
 .marketing-pricing .pricing-content {
   width: min(100% - 48px, 1120px);
   margin: 0 auto;
-  padding: 42px 0 16px;
+  padding: 108px 0 16px;
 }
 .marketing-pricing .pricing-intro {
   max-width: 780px;
@@ -38,25 +38,56 @@
   font-size: 16px;
 }
 .marketing-pricing .pricing-audiences {
-  display: inline-flex;
-  flex-wrap: wrap;
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(7.2rem, 1fr));
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 4px;
+  gap: 0;
   max-width: 100%;
   padding: 5px;
   margin-top: 28px;
   border-radius: 28px;
   background: #edf6fc;
+  cursor: default;
+}
+.marketing-pricing .pricing-audiences__thumb {
+  position: absolute;
+  z-index: 0;
+  top: 5px;
+  left: 5px;
+  width: calc((100% - 10px) / 3);
+  height: calc(100% - 10px);
+  border-radius: 24px;
+  background: #006eaa;
+  pointer-events: none;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  transition: transform 80ms linear;
+}
+.marketing-pricing .pricing-audiences.is-live .pricing-audiences__thumb {
+  transition: none;
 }
 .marketing-pricing .pricing-audiences button {
+  position: relative;
+  z-index: 1;
   min-height: 44px;
   padding: 10px 24px;
   border-radius: 24px;
+  background: transparent;
   font-size: 14px;
+  color: #516570;
+  transition: color 70ms linear;
 }
 .marketing-pricing .pricing-audiences [aria-pressed="true"] {
-  background: #006eaa;
+  background: transparent;
   color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing-pricing .pricing-audiences__thumb {
+    transition: none;
+  }
 }
 .marketing-pricing .pricing-billing {
   display: flex;
@@ -97,6 +128,14 @@
   letter-spacing: 0;
   text-transform: none;
 }
+.marketing-pricing .pricing-free {
+  margin-top: 20px;
+  text-align: center;
+}
+.marketing-pricing .pricing-free a {
+  color: #516570;
+  font-size: 14px;
+}
 .marketing-pricing .pricing-plans {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -106,36 +145,53 @@
 }
 .marketing-pricing .pricing-plans > div {
   min-width: 0;
-  padding: 27px 25px;
-  border: 1px solid #e4edf2;
-  border-radius: 26px;
-  background: #f5f9fb;
+  padding: 36px 28px 28px;
+  border: 1px solid #e6eef3;
+  border-radius: 28px;
+  background: #fff;
   box-shadow: none;
 }
 .marketing-pricing .pricing-plans > div:nth-child(2) {
-  background: #e9f5ff;
-  border-color: #bfdff3;
+  background: #fff;
+  border: 2px solid #006eaa;
 }
-.marketing-pricing .pricing-plans > div > span:not(.absolute) {
-  font-size: 19px;
-  font-weight: 500;
+.marketing-pricing .pricing-plans > div > span:not(.absolute):not(.pricing-popular) {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: -0.04em;
 }
-.marketing-pricing .pricing-plans > div > .absolute {
-  top: -12px;
-  left: 24px;
-  padding: 5px 12px;
+.marketing-pricing .pricing-popular {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
   background: #006eaa;
-  font-size: 11px;
-  letter-spacing: 0.01em;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
   text-transform: none;
+  white-space: nowrap;
 }
 .marketing-pricing .pricing-plans > div > div.font-display {
-  margin-top: 22px;
-  font-size: 42px;
-  line-height: 1.1;
-  font-weight: 500;
-  letter-spacing: -0.045em;
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 0.95;
+  font-weight: 400;
+  letter-spacing: -0.05em;
   font-variant-numeric: tabular-nums;
+}
+.marketing-pricing .pricing-check {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: #16a34a;
 }
 .marketing-pricing .pricing-currency {
   color: #516570;
@@ -143,11 +199,27 @@
   font-weight: 500;
   letter-spacing: 0;
 }
-.marketing-pricing .pricing-plans small {
-  display: block;
-  margin: 7px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
+.marketing-pricing .pricing-amount {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0.28em;
+  white-space: nowrap;
+}
+.marketing-pricing .pricing-figure {
+  flex: 0 0 auto;
+}
+.marketing-pricing .pricing-plans small,
+.marketing-pricing .pricing-period {
+  display: inline;
+  margin: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: #516570;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
   letter-spacing: 0;
 }
 .marketing-pricing .pricing-plans > div > p {
@@ -157,17 +229,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
+  min-height: 50px;
   padding: 12px 16px;
-  border: 1px solid #a2c9df;
-  border-radius: 26px;
-  background: #fff;
-  color: #005888;
+  border: 0;
+  border-radius: 999px;
+  background: #006eaa;
+  color: #fff;
+  font-weight: 500;
 }
 .marketing-pricing .pricing-plans > div:nth-child(2) > a:last-child {
   background: #006eaa;
   border-color: #006eaa;
   color: #fff;
+}
+.marketing-pricing .pricing-plans > div:first-child > a:last-child,
+.marketing-pricing .pricing-plans > div:last-child :is(a, button):last-child {
+  background: #edf6fc;
+  color: #005888;
 }
 .marketing-pricing .pricing-plans :is(a, button):last-child:hover {
   background: #d5edfc;
@@ -185,29 +263,15 @@
   margin-top: 64px;
   scroll-margin-top: 96px;
 }
-.marketing-pricing .pricing-upgrade > div {
-  max-width: 740px;
-  padding: 32px;
-  border: 0;
-  border-radius: 26px;
-  background: #f1f8fc;
+.marketing-pricing .pricing-upgrade {
+  display: flex;
+  justify-content: center;
 }
 .marketing-pricing :is(.pricing-upgrade, .pricing-compare, .pricing-faq) h2 {
   font-size: 30px;
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: -0.045em;
-}
-.marketing-pricing .pricing-upgrade input {
-  min-height: 44px;
-  border-radius: 13px;
-}
-.marketing-pricing .pricing-upgrade button[type="submit"] {
-  min-height: 46px;
-  padding-inline: 24px;
-  border-radius: 26px;
-  background: #006eaa;
-  color: #fff;
 }
 .marketing-pricing .pricing-table-scroll {
   overflow-x: auto;

@@ -86,13 +86,22 @@ if (!process.argv.includes("--auth-presentation-fixture")) {
       html,
       /class="auth-scene-image"[^>]*src="\/images\/foto-open-sky.webp"[^>]*alt=""[^>]*aria-hidden="true"/,
     );
-    assert.ok(html.includes("Make room for your next great shot."));
+    assert.ok(html.includes("Send the gallery"));
+    assert.ok(html.includes("1,000 photo credits / mo"));
+    assert.ok(html.includes("USD 16 / mo"));
+    assert.ok(!html.includes("viral"));
+    assert.ok(!html.includes("Clip your first"));
+    assert.ok(!html.toLowerCase().includes(">or<"));
+    assert.ok(!html.includes("or continue with email"));
     assert.ok(html.indexOf("Continue with Google") < html.indexOf('<form class="auth-form"'));
     assert.ok(html.includes('<section class="auth-panel" aria-labelledby="auth-title">'));
+    assert.ok(html.includes('class="auth-leave"'));
+    assert.match(html, /class="auth-leave"[^>]*href="\/"/);
+    assert.ok(html.includes("Back"));
     assert.ok(html.includes('id="auth-title"'));
-    assert.ok(
-      html.includes(mode === "signup" ? "Create Your Account" : `Sign in to ${PRODUCT_NAME}`),
-    );
+    assert.ok(html.includes(mode === "signup" ? "Create an" : "Sign"));
+    assert.ok(html.includes('href="/terms"'));
+    assert.ok(html.includes('href="/privacy"'));
     assert.ok(html.includes('<label for="auth-email">'));
     assert.ok(html.includes('<label for="auth-password">'));
     const email = html.match(/<input[^>]*id="auth-email"[^>]*>/)![0];
@@ -105,9 +114,12 @@ if (!process.argv.includes("--auth-presentation-fixture")) {
       html.includes(encodeURIComponent(next)),
       "switching mode preserves exact safe return",
     );
+    assert.ok(html.includes('placeholder="picasso@studio.com"'));
     if (mode === "signup") {
       assert.ok(html.includes('<label for="auth-name">'));
+      assert.ok(html.includes('placeholder="Pablo Picasso"'));
       assert.ok(html.includes('autoComplete="new-password"'));
+      assert.match(html, /min[Ll]ength="8"/);
     } else {
       assert.ok(!html.includes('id="auth-name"'));
       assert.ok(html.includes('autoComplete="current-password"'));

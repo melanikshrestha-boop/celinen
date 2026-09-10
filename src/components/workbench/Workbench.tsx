@@ -194,11 +194,12 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
   const router = useRouter();
   const href = useRouterState({ select: (state) => state.location.href });
   const current = workbenchTab(href);
-  const pathname = new URL(href, "https://workspace.invalid").pathname;
+  const location = new URL(href, "https://workspace.invalid");
+  const pathname = location.pathname;
   const routeShoot = shootRoute(href);
   const routeShootKey = routeShoot && parseShootKey(routeShoot.key) ? routeShoot.key : null;
   const shootTab = routeShoot?.tab ?? "overview";
-  const primaryPath = primaryNavigationPath(pathname);
+  const primaryPath = primaryNavigationPath(pathname, location.search);
   const primarySurface = !!primaryPath;
   const isCull = !!routeShootKey && shootTab === "cull";
   const isDevelop = !!routeShootKey && shootTab === "develop";
@@ -514,6 +515,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
               <NewShootAction create={newShoot} busy={creatingShoot} />
               <PrimaryNavigation
                 pathname={pathname}
+                search={location.search}
                 open={openExact}
                 counts={{ "/tonight": navigationData.tonightCount }}
               />
@@ -542,11 +544,11 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
                 </button>
               ) : (
                 <a
-                  href="/tonight"
+                  href="/workspace"
                   onClick={(event) => {
                     if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                       event.preventDefault();
-                      void openExact("/tonight");
+                      void openExact("/workspace");
                     }
                   }}
                   className="workbench-brand"
@@ -579,6 +581,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             </button>
             <PrimaryNavigation
               pathname={pathname}
+              search={location.search}
               open={openExact}
               counts={{ "/tonight": navigationData.tonightCount }}
             />
@@ -613,6 +616,9 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
               <span className="foto-nav-label">All Tools</span>
               <kbd className="foto-nav-label">⌘K</kbd>
             </button>
+            <a className="workbench-nav-item foto-upgrade" href="/pricing">
+              Upgrade
+            </a>
             <AccountMenu />
           </SidebarFooter>
         </WorkspaceSidebar>
@@ -621,7 +627,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             <SidebarHistoryControls navigation={sidebarHistory} />
             {routeShootKey ? (
               <ShootWorkflowTabs id={routeShootKey} active={shootTab} />
-            ) : primarySurface ? (
+            ) : primarySurface && primaryPath !== "/workspace" ? (
               <span className="foto-page-location">
                 {FOTO_PRIMARY_NAV.find((item) => item.href === primaryPath)?.label ?? "Shoots"}
               </span>
@@ -663,7 +669,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
             </div>
           </header>
           <div
-            className={`workbench-panels ${showTool ? "has-tool" : ""} ${primarySurface ? "foto-workflow-panels" : ""} ${studioVisible ? "is-studio" : ""} ${current?.path === "/develop" || isDevelop ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" || pathname === "/money" ? "is-earnings" : ""} ${current?.path === "/outbound" ? "is-outbound" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
+            className={`workbench-panels ${showTool ? "has-tool" : ""} ${primarySurface ? "foto-workflow-panels" : ""} ${primaryPath === "/workspace" ? "is-home" : ""} ${studioVisible ? "is-studio" : ""} ${current?.path === "/develop" || isDevelop ? "is-develop" : ""} ${current?.path === "/clients" ? "is-clients" : ""} ${current?.path === "/earnings" || pathname === "/money" ? "is-earnings" : ""} ${current?.path === "/outbound" ? "is-outbound" : ""} ${current?.path === "/settings" && (!compact || mobilePane === "tool") ? "is-settings" : ""}`}
             data-mobile-pane={showTool ? mobilePane : "chat"}
           >
             <main
@@ -847,7 +853,7 @@ function WorkspaceSidebar({
         >
           <SheetHeader className="sr-only">
             <SheetTitle>foto navigation</SheetTitle>
-            <SheetDescription>Tonight, Shoots, Library, Deliver and Earnings.</SheetDescription>
+            <SheetDescription>Home, Tonight, Shoots, Library, Deliver and Earnings.</SheetDescription>
           </SheetHeader>
           {children}
         </SheetContent>

@@ -1,0 +1,83 @@
+.marketing-connect {
+  width: min(100% - 48px, 980px);
+  margin: 72px auto 8px;
+  text-align: center;
+}
+.marketing-connect h2 {
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 1.05;
+  color: #142a36;
+}
+.marketing-connect h2 em {
+  color: #006eaa;
+}
+.marketing-connect__stage {
+  position: relative;
+  width: min(100%, 900px);
+  aspect-ratio: 2 / 1;
+  margin: 8px auto 0;
+  overflow: hidden;
+}
+.marketing-connect__arcs {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.marketing-connect__node {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  margin: 0;
+  border-radius: 16px;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  background: #fff;
+  box-shadow: 0 8px 22px -6px rgb(15 23 42 / 0.18);
+  opacity: 0;
+  will-change: transform, opacity;
+  transform: translate(0, 0);
+}
+.marketing-connect__node svg {
+  width: 32px;
+  height: 32px;
+}
+.marketing-connect__cta {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 12px 28px;
+  border-radius: 999px;
+  background: #006eaa;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+.marketing-connect__cta:hover {
+  background: #005888;
+  color: #fff;
+}
+@media (max-width: 640px) {
+  .marketing-connect__node {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .marketing-connect__node svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing-connect__node {
+    will-change: auto;
+  }
+}

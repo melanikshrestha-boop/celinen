@@ -76,7 +76,7 @@ if (!process.argv.includes(fixtureFlag)) {
       return match.value;
     };
     expect(declaration("--font-sans")).toContain('"OpenAI Sans"');
-    expect(declaration("--font-display")).toBe("var(--font-sans)");
+    expect(declaration("--font-display")).toContain("Instrument Serif");
     expect(declaration("color-scheme")).toBe("light");
     expect(declaration("background")).toBe("#fff");
     for (const name of ["--marketing-text", "--marketing-muted", "--marketing-accent"])
@@ -84,6 +84,10 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain(":focus-visible");
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("@media (max-width: 540px)");
+    expect(css).toContain(".marketing-vista");
+    expect(css).not.toMatch(/\.marketing-hero\s*\{[^}]*border-radius:\s*20px/);
+    expect(css).not.toContain("1360px");
+    expect(css).not.toMatch(/\.marketing-hero\s*\{[^}]*min\(100% - 40px/);
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(css).not.toMatch(/\.workbench|\.develop-|\.auth-|--foto-font-ui|auth-lens/);
     const source = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
@@ -94,6 +98,11 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(
       readFileSync(new URL("../public/fonts/openai-sans/OpenAISans-Regular.woff2", import.meta.url))
         .length,
+    ).toBeGreaterThan(0);
+    expect(
+      readFileSync(
+        new URL("../public/fonts/instrument-serif/InstrumentSerif-Regular.woff2", import.meta.url),
+      ).length,
     ).toBeGreaterThan(0);
   });
 } else {
@@ -156,6 +165,8 @@ if (!process.argv.includes(fixtureFlag)) {
     const headings = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)];
     assert.equal(headings.length, 1);
     assert.equal(text(headings[0]![1]!), "Go where the good light takes you.");
+    assert.match(html, /It learns from your photos and your edits/);
+    assert.match(html, /not used to train a shared model/);
     assert.ok(html.includes('aria-labelledby="home-heading"'));
     const hero = html.match(/<img\b[^>]*class="marketing-hero__image"[^>]*>/)![0];
     for (const expected of [
@@ -189,8 +200,32 @@ if (!process.argv.includes(fixtureFlag)) {
         assert.equal(url.searchParams.get("next"), "/workspace");
       }
     }
-    assert.ok(html.includes('id="possibilities"'));
-    assert.ok(html.includes('href="#possibilities"'));
+    assert.ok(!html.includes('id="features"'));
+    assert.ok(html.includes("id=\"pricing\""));
+    assert.ok(html.includes("USD 20"));
+    assert.ok(html.includes("USD 30"));
+    assert.ok(html.includes("Hobby"));
+    assert.ok(html.includes("Creator"));
+    assert.ok(html.includes("Enterprise"));
+    assert.ok(html.includes("Most Popular"));
+    assert.ok(!html.includes("Agency"));
+    assert.ok(!html.includes("Sideline"));
+    assert.ok(html.includes("photo credits"));
+    assert.ok(!html.includes("$16"));
+    assert.ok(html.includes('id="connectors"'));
+    assert.match(html, /Connectors/);
+    const connectors = readFileSync(
+      new URL("../src/components/marketing/IntegrationsSection.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(connectors).toContain("orbitPose");
+    expect(connectors).toContain("data-reveal");
+    expect(connectors).toContain("instagram");
+    expect(connectors).toContain("adobe");
+    expect(connectors).toContain("tiktok");
+    expect(connectors).toContain("youtube");
+    assert.match(html, />Accept</);
+    assert.match(html, />Reject</);
     assert.ok(html.includes('id="workflow"'));
     assert.ok(html.includes('id="savings"'));
     for (const step of ["Import", "Cull", "Edit", "Finish", "Deliver"])

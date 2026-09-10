@@ -448,6 +448,8 @@ export function addSnapshot(document: DevelopDocument, name: string): DevelopDoc
   const checked = documentCopy(document);
   if (checked.snapshots.length >= 50)
     throw new Error("This photo already has 50 snapshots. Remove an unused snapshot first.");
+  const settings = currentRecipe(checked);
+  void import("../personal-style").then((m) => m.recordPersonalStyleSample(settings, "snapshot"));
   return documentCopy({
     ...checked,
     snapshots: [
@@ -455,7 +457,7 @@ export function addSnapshot(document: DevelopDocument, name: string): DevelopDoc
       {
         id: uniqueId(),
         name: nameSchema.parse(name),
-        settings: currentRecipe(checked),
+        settings,
         at: timestamp(),
       },
     ],
@@ -477,13 +479,15 @@ export function removeSnapshot(document: DevelopDocument, snapshotId: string): D
   };
 }
 export function createDevelopPreset(name: string, settings: DevelopSettings): DevelopPreset {
-  return presetSchema.parse({
+  const preset = presetSchema.parse({
     id: uniqueId(),
     name,
     settings,
     revision: 0,
     updatedAt: timestamp(),
   });
+  void import("../personal-style").then((m) => m.recordPersonalStyleSample(settings, "preset"));
+  return preset;
 }
 
 /** Includes an in-progress gesture without changing the live documents or pretending it saved. */

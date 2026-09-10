@@ -35,11 +35,12 @@ export function previewSettingsImport(current: AccountPreferences, incoming: Acc
     ...incoming,
     cloudAssistant: current.cloudAssistant && incoming.cloudAssistant,
     desktopNotifications: current.desktopNotifications && incoming.desktopNotifications,
+    learnFromYourWork: current.learnFromYourWork && incoming.learnFromYourWork,
   });
   const changed = (Object.keys(preferences) as (keyof AccountPreferences)[]).filter(
     (key) => JSON.stringify(preferences[key]) !== JSON.stringify(current[key]),
   );
-  const blocked = (["cloudAssistant", "desktopNotifications"] as const).filter(
+  const blocked = (["cloudAssistant", "desktopNotifications", "learnFromYourWork"] as const).filter(
     (key) => incoming[key] && !current[key],
   );
   return { preferences, changed, blocked };

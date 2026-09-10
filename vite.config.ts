@@ -14,6 +14,9 @@ import { nativeReceiptPlugin } from "./src/server/native-receipt";
 
 export default defineConfig({
   vite: {
+    optimizeDeps: {
+      include: ["embla-carousel-react"],
+    },
     plugins: [
       nativeStudioPlugin(),
       nativeDevelopPlugin(),

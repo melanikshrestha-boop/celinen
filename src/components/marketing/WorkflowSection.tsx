@@ -1,11 +1,4 @@
 import { FolderInput, Scissors, SlidersHorizontal, Image, Images } from "lucide-react";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 import "./marketing-value.css";
 
 const WORKFLOW = [
@@ -48,33 +41,21 @@ export function WorkflowSection() {
     >
       <p className="marketing-value__eyebrow">From the first frame to the final gallery</p>
       <h2 id="workflow-heading">Less between you and your next shoot.</h2>
-      <Carousel
-        opts={{ align: "start", loop: false }}
-        aria-label="Photography workflow"
-        className="marketing-workflow__carousel"
-      >
-        <CarouselContent>
-          {WORKFLOW.map(({ title, icon: Icon, copy, ...rest }, index) => (
-            <CarouselItem
-              key={title}
-              className="basis-[88%] sm:basis-1/2 lg:basis-1/3"
-              aria-label={`Step ${index + 1} of ${WORKFLOW.length}: ${title}`}
-            >
-              <article className="marketing-workflow__card">
-                <Icon size={30} strokeWidth={1.5} aria-hidden="true" />
-                <p className="marketing-value__eyebrow">Step {index + 1}</p>
-                <h3>{title}</h3>
-                <p>{copy}</p>
-                {"note" in rest && <small>{rest.note}</small>}
-              </article>
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        <div className="marketing-workflow__controls">
-          <CarouselPrevious className="static translate-y-0" aria-label="Previous workflow steps" />
-          <CarouselNext className="static translate-y-0" aria-label="Next workflow steps" />
-        </div>
-      </Carousel>
+      <div className="marketing-workflow__carousel" aria-label="Photography workflow">
+        {WORKFLOW.map(({ title, icon: Icon, copy, ...rest }, index) => (
+          <article
+            key={title}
+            className="marketing-workflow__card"
+            aria-label={`Step ${index + 1} of ${WORKFLOW.length}: ${title}`}
+          >
+            <Icon size={30} strokeWidth={1.5} aria-hidden="true" />
+            <p className="marketing-value__eyebrow">Step {index + 1}</p>
+            <h3>{title}</h3>
+            <p>{copy}</p>
+            {"note" in rest && <small>{rest.note}</small>}
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

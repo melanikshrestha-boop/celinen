@@ -29,7 +29,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
 
   if (landing)
     return (
-      <div className="sticky top-4 z-50 px-4">
+      <div className="marketing-nav-shell">
         <header className="marketing-nav">
           <Link to="/" className="marketing-nav__brand" aria-label="foto home">
             <LogoMark />
@@ -43,11 +43,11 @@ export function Nav({ landing = false }: { landing?: boolean }) {
           </nav>
           <div className="marketing-nav__actions">
             <Link to={entry.to} search={entry.search} className="marketing-nav-cta">
-              {entry.label} <span aria-hidden="true">→</span>
+              {entry.label}
             </Link>
             <DropdownMenu>
               <DropdownMenuTrigger aria-label="Open menu" className="marketing-nav__more">
-                <span aria-hidden="true">…</span>
+                More
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={10} className="w-56 marketing-nav-menu">
                 {[

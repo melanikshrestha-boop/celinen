@@ -1,8 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { APPLICATION_ORIGIN, applicationUrl } from "@/lib/application-origin";
-import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { ArrowRight, Camera, Eye, EyeOff, Images, Send, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { LogoMark } from "@/components/lensos/Logo";
 import { signInWithOAuth } from "@/lib/auth/oauth";
 import { supabase } from "@/integrations/supabase/client";
 import { authReturnUrl, isLocalAuthOrigin, type AuthSearch } from "@/lib/auth-flow";
@@ -154,32 +153,48 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           fetchPriority="high"
         />
         <Link to="/" className="auth-brand" aria-label={`${PRODUCT_NAME} home`}>
-          <LogoMark size={32} />
-          <span>{PRODUCT_NAME}</span>
+          {PRODUCT_NAME}
         </Link>
-        <div className="auth-scene-copy">
-          <p>Make room for your next great shot.</p>
-          <span className="auth-scene-note">More time behind the camera.</span>
-        </div>
+        <h1>
+          Send the gallery <em>tonight</em>
+        </h1>
+        <p className="auth-scene-plan">Pro · USD 16 / mo billed yearly · 1,000 photo credits / mo</p>
+        <ul className="auth-scene-points">
+          <li>
+            <Camera size={18} strokeWidth={1.8} aria-hidden="true" />
+            Import a shoot
+          </li>
+          <li>
+            <Images size={18} strokeWidth={1.8} aria-hidden="true" />
+            Pick the keepers
+          </li>
+          <li>
+            <Send size={18} strokeWidth={1.8} aria-hidden="true" />
+            Send a gallery
+          </li>
+          <li>
+            <SlidersHorizontal size={18} strokeWidth={1.8} aria-hidden="true" />
+            Adobe when you want it
+          </li>
+        </ul>
       </div>
       <section className="auth-panel" aria-labelledby="auth-title">
+        <Link to="/" className="auth-leave">
+          Back
+        </Link>
+        <p className="auth-wordmark">{PRODUCT_NAME}</p>
         <header className="auth-heading">
-          <h1 id="auth-title">{signup ? "Create Your Account" : `Sign in to ${PRODUCT_NAME}`}</h1>
-          <p>Your shoots, galleries, and storefronts in one place.</p>
-          <div className="auth-switch">
-            <span>{signup ? "Already have an account?" : `New to ${PRODUCT_NAME}?`}</span>
-            <Link
-              to="/auth"
-              search={switchSearch}
-              aria-disabled={busy !== null}
-              onClick={(event) => {
-                if (requestPending.current) event.preventDefault();
-              }}
-            >
-              {signup ? "Sign in" : "Create an account"}
-              <ArrowRight size={16} />
-            </Link>
-          </div>
+          <h1 id="auth-title">
+            {signup ? (
+              <>
+                Create an <em>account</em>
+              </>
+            ) : (
+              <>
+                Sign <em>in</em>
+              </>
+            )}
+          </h1>
         </header>
 
         <button
@@ -191,7 +206,6 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           <GoogleGlyph />
           {busy === "google" ? "Connecting…" : "Continue with Google"}
         </button>
-        <p className="auth-alternative">or continue with email</p>
 
         <form className="auth-form" onSubmit={submit} aria-busy={busy !== null}>
           <fieldset disabled={!ready || busy !== null}>
@@ -206,12 +220,12 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                   maxLength={100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Your full name"
+                  placeholder="Pablo Picasso"
                 />
               </label>
             )}
             <label htmlFor="auth-email">
-              Email
+              Email address
               <input
                 ref={emailInput}
                 id="auth-email"
@@ -224,7 +238,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="picasso@studio.com"
               />
             </label>
             <label htmlFor="auth-password">Password</label>
@@ -238,7 +252,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                 minLength={signup ? 8 : 1}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={signup ? "At least 8 characters" : "Enter your password"}
+                placeholder={signup ? "Create a password" : "Enter your password"}
               />
               <button
                 type="button"
@@ -250,13 +264,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
               </button>
             </div>
             <button className="auth-submit" type="submit">
-              {busy === "password"
-                ? signup
-                  ? "Creating your account…"
-                  : "Signing in…"
-                : signup
-                  ? "Create account"
-                  : "Sign in"}
+              {busy === "password" ? (signup ? "Creating your account…" : "Signing in…") : "Continue"}
             </button>
           </fieldset>
         </form>
@@ -289,14 +297,23 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
             {busy === "email" ? "Sending your link…" : "Email me a sign-in link instead"}
           </button>
         )}
-
-        <div className="auth-assurance">
-          <LockKeyhole size={20} aria-hidden="true" />
-          <div>
-            <h2>Your originals stay local</h2>
-            <p>{PRODUCT_NAME} only uploads prepared gallery copies when you publish.</p>
-          </div>
-        </div>
+        <p className="auth-switch">
+          {signup ? "Already have an account?" : `New to ${PRODUCT_NAME}?`}{" "}
+          <Link
+            to="/auth"
+            search={switchSearch}
+            aria-disabled={busy !== null}
+            onClick={(event) => {
+              if (requestPending.current) event.preventDefault();
+            }}
+          >
+            {signup ? "Sign in" : "Create an account"}
+          </Link>
+        </p>
+        <p className="auth-legal">
+          By continuing, you agree to our <Link to="/terms">Terms of Service</Link> and{" "}
+          <Link to="/privacy">Privacy Policy</Link>.
+        </p>
         <footer className="auth-footer">
           {fromGallery ? (
             <p>

@@ -14,8 +14,9 @@ import {
 } from "../src/components/workbench/primary-navigation";
 
 describe("FOTO primary navigation", () => {
-  test("six destinations include a dedicated CRM, no editor or duplicate create action", () => {
+  test("seven destinations include Home plus a dedicated CRM, no editor or duplicate create action", () => {
     expect(FOTO_PRIMARY_NAV.map(({ label, href }) => [label, href])).toEqual([
+      ["Home", "/workspace"],
       ["Tonight", "/tonight"],
       ["Shoots", "/shoots"],
       ["Clients", "/clients"],
@@ -44,6 +45,8 @@ describe("FOTO primary navigation", () => {
     expect(primaryNavigationPath("/SHOOTS/legacy/CULL")).toBe("/shoots");
     expect(primaryNavigationPath("/LIBRARY/")).toBe("/library");
     expect(primaryNavigationPath("/CLIENTS/")).toBe("/clients");
+    expect(primaryNavigationPath("/workspace")).toBe("/workspace");
+    expect(primaryNavigationPath("/workspace", "?shoot=legacy")).toBeNull();
     expect(primaryNavigationPath("/shootstuff")).toBeNull();
     expect(primaryNavigationPath("/settings/general")).toBeNull();
   });

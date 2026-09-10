@@ -4,10 +4,13 @@ import { Nav } from "@/components/Nav";
 import { SavingsSection } from "@/components/marketing/SavingsSection";
 import { WorkflowSection } from "@/components/marketing/WorkflowSection";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import { IntegrationsSection } from "@/components/marketing/IntegrationsSection";
+import { HomePricing } from "@/components/marketing/HomePricing";
+import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { publicEntry } from "@/lib/public-entry";
 import { PRODUCT_NAME } from "@/lib/product";
-import { ArrowRight, Camera, Check, Heart, Images, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowRight, Camera, Check, Heart, Images } from "lucide-react";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
 
@@ -44,15 +47,18 @@ function Index() {
       </a>
       <Nav landing />
       <main id="main-content" tabIndex={-1}>
+        <div className="marketing-vista">
+          <div className="marketing-vista__ground" aria-hidden="true">
+            <img
+              className="marketing-hero__image"
+              src="/images/foto-open-sky.webp"
+              alt=""
+              width="1672"
+              height="941"
+              fetchPriority="high"
+            />
+          </div>
         <section className="marketing-hero" aria-labelledby="home-heading">
-          <img
-            className="marketing-hero__image"
-            src="/images/foto-open-sky.webp"
-            alt=""
-            width="1672"
-            height="941"
-            fetchPriority="high"
-          />
           <div className="marketing-hero__content">
             <p className="marketing-hero__eyebrow">
               <Camera size={16} /> A little space for your big ideas
@@ -75,9 +81,6 @@ function Index() {
                 {entry.label}
                 <span aria-hidden="true">→</span>
               </Link>
-              <a href="#possibilities" className="marketing-action marketing-action--glass">
-                Take a look around<span aria-hidden="true">↗</span>
-              </a>
             </div>
             <p className="marketing-hero__note">Made for the person behind the camera.</p>
           </div>
@@ -93,127 +96,26 @@ function Index() {
             <Images size={16} /> Share when you’re ready
           </span>
         </div>
-        <section
-          className="marketing-possibilities"
-          id="possibilities"
-          aria-labelledby="possibilities-heading"
-        >
-          <div className="marketing-section-intro" data-reveal>
-            <p className="marketing-value__eyebrow">Room to do your thing</p>
-            <h2 id="possibilities-heading">
-              Less busywork.
-              <br />
-              More possibility.
-            </h2>
-            <p>
-              From a folder full of maybes to a gallery you can’t wait to share. Keep the creative
-              part yours.
-            </p>
-          </div>
-          <div className="marketing-feature-grid">
-            <article className="marketing-feature" data-reveal>
-              <div
-                className="marketing-feature__art marketing-feature__art--selects"
-                aria-hidden="true"
-              >
-                <span className="marketing-sticker">
-                  That’s the one <Heart size={16} />
-                </span>
-                <div className="marketing-print marketing-print--one">
-                  <img src="/images/foto-open-sky.webp" alt="" loading="lazy" />
-                  <span>Keep the feeling.</span>
-                </div>
-                <div className="marketing-print marketing-print--two">
-                  <img src="/images/foto-open-sky.webp" alt="" loading="lazy" />
-                  <span>
-                    <Star size={13} fill="currentColor" />
-                    <Star size={13} fill="currentColor" />
-                    <Star size={13} fill="currentColor" />
-                    <Star size={13} fill="currentColor" />
-                    <Star size={13} fill="currentColor" />
-                  </span>
-                </div>
-              </div>
-              <h3>Find your favorites.</h3>
-              <p>
-                Bring in your shoot, review suggestions, and pick the frames that tell your story.
-              </p>
-            </article>
-            <article className="marketing-feature" data-reveal>
-              <div
-                className="marketing-feature__art marketing-feature__art--color"
-                aria-hidden="true"
-              >
-                <div className="marketing-color-wheel">
-                  <SlidersHorizontal size={40} strokeWidth={1.4} />
-                </div>
-                <div className="marketing-palette">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <span className="marketing-sticker">A little more you.</span>
-              </div>
-              <h3>Follow your own color.</h3>
-              <p>
-                Shape the light, explore a look, and save your treatment. Your originals stay
-                untouched.
-              </p>
-            </article>
-            <article className="marketing-feature" data-reveal>
-              <div
-                className="marketing-feature__art marketing-feature__art--gallery"
-                aria-hidden="true"
-              >
-                <div className="marketing-mini-gallery">
-                  <span>
-                    The good light collection <Heart size={15} />
-                  </span>
-                  <div>
-                    <img src="/images/foto-open-sky.webp" alt="" loading="lazy" />
-                    <img src="/images/foto-open-sky.webp" alt="" loading="lazy" />
-                    <img src="/images/foto-open-sky.webp" alt="" loading="lazy" />
-                  </div>
-                </div>
-                <span className="marketing-sticker">Made to be shared ↗</span>
-              </div>
-              <h3>Give your photos a home.</h3>
-              <p>
-                Prepare a client gallery for favorites and feedback. Connect your account to publish
-                when you’re ready.
-              </p>
-            </article>
-            <article className="marketing-feature" data-reveal>
-              <div
-                className="marketing-feature__art marketing-feature__art--studio"
-                aria-hidden="true"
-              >
-                <div className="marketing-orbit">
-                  <span>
-                    <Camera size={32} />
-                  </span>
-                  <i>
-                    <Heart size={21} />
-                  </i>
-                  <i>
-                    <Images size={21} />
-                  </i>
-                  <i>
-                    <Star size={21} />
-                  </i>
-                </div>
-                <span className="marketing-sticker">Less juggling. More joy.</span>
-              </div>
-              <h3>Keep the whole shoot together.</h3>
-              <p>
-                People, plans, and photographs in one workspace. More room for whatever comes next.
-              </p>
-            </article>
-          </div>
+        <section className="marketing-learn" aria-labelledby="learn-heading" data-reveal>
+          <h2 id="learn-heading">It learns from your photos and your edits.</h2>
+          <p>
+            When you save a look (snapshot or preset), FOTO can remember that technique so the tool
+            gets more useful for you over time. Original files stay read-only. This stays in your
+            workspace. It is not used to train a shared model for other photographers. Turn it off
+            in Settings → Privacy.
+          </p>
+          <Link to="/privacy" className="marketing-action marketing-action--text">
+            Read the privacy note
+          </Link>
         </section>
-        <WorkflowSection />
+        </div>
+        <SectionGuard>
+          <WorkflowSection />
+        </SectionGuard>
+        <SectionGuard>
+          <IntegrationsSection />
+        </SectionGuard>
+        <SectionGuard>
         <SavingsSection>
           <Link
             to={entry.to}
@@ -224,16 +126,11 @@ function Index() {
             <span aria-hidden="true">→</span>
           </Link>
         </SavingsSection>
-        <section className="marketing-plan-invitation" aria-labelledby="plans-heading" data-reveal>
-          <div>
-            <p className="marketing-value__eyebrow">A home for your next chapter</p>
-            <h2 id="plans-heading">Start small. Dream in full frame.</h2>
-            <p>Explore plans, compare what’s included, and find your fit.</p>
-          </div>
-          <Link to="/pricing" className="marketing-action marketing-action--primary">
-            Find your plan <ArrowRight size={18} aria-hidden="true" />
-          </Link>
-        </section>
+        </SectionGuard>
+        <SectionGuard>
+          <HomePricing />
+        </SectionGuard>
+        <SectionGuard>
         <section className="marketing-handoff" aria-labelledby="handoff-heading">
           <img
             className="marketing-handoff__image"
@@ -260,6 +157,7 @@ function Index() {
             </Link>
           </div>
         </section>
+        </SectionGuard>
       </main>
       <MarketingFooter />
     </div>

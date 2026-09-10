@@ -1,99 +1,129 @@
+export const BLOG_CATEGORIES = [
+  "All",
+  "Tool Comparisons",
+  "Alternatives",
+  "Use Cases",
+  "Guides",
+  "Features",
+  "Industry Insights",
+] as const;
+export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+
 export type FotoArticle = {
   slug: string;
   title: string;
   description: string;
-  category: string;
+  category: Exclude<BlogCategory, "All">;
   published: string;
+  cover?: string;
+  minutes?: number;
+  draft?: boolean;
   sections: readonly { title: string; paragraphs: readonly string[] }[];
 };
 
-/** Original editorial content. These are workflow suggestions, not product guarantees. */
+/** Example posts so the index has a real grid. Rewrite every word. */
 export const fotoArticles: readonly FotoArticle[] = [
   {
-    slug: "a-calmer-first-pass",
-    title: "A calmer first pass through a shoot",
-    description: "Separate choosing photographs from finishing them, and give each pass one job.",
-    category: "Workflow",
-    published: "2026-09-09",
+    slug: "lightroom-vs-capture-one-2026",
+    title: "Lightroom vs Capture One in 2026: what still matters after the cull",
+    description:
+      "A working comparison of the two editors photographers actually finish in — color, catalogs, and what to decide before you buy another seat.",
+    category: "Tool Comparisons",
+    published: "2026-09-10",
+    cover: "/images/blog/lightroom-capture-one.jpg",
+    minutes: 11,
     sections: [
       {
-        title: "Start with the brief",
+        title: "Start with the job, not the brand",
         paragraphs: [
-          "Before judging individual frames, write down what the delivery needs: the people, products, moments, and details you promised. A beautiful photograph can still miss the brief. Keep that short list beside your contact sheet so your first pass is about coverage, not perfect color.",
+          "Most “which editor is better” pieces start with feature lists. Start with the job: sports the same night, a wedding week, or a catalog you still open from 2019. The tool that wins is the one that does not fight that job.",
+          "Lightroom Classic is still the default because the catalog, presets, and Publish Services are already in the muscle. Capture One is still the color tool people switch to when skin and product have to hold.",
         ],
       },
       {
-        title: "Give each pass one decision",
+        title: "What actually changes after you pick",
         paragraphs: [
-          "First, mark the obvious keepers and leave uncertain frames undecided. Next, compare similar photographs together. Look for the expression, gesture, focus, and cleanest composition that support the story. Only then start the detailed edit. You can move back between passes; the point is to avoid making every decision at once.",
-          "Treat a reject flag as a review decision, not a reason to erase an original. Keep your source files and a separate backup while the job is still in progress. An import preview or a finished progress bar is not a backup check.",
+          "The cull is the expensive hour. After that, you need ratings, color, and a clean handoff into the editor you already trust. Matching sliders does not mean matching pixels. Check a real file from your last shoot before you move a whole season.",
+          "If you keep Adobe for finish work, FOTO is built to stay out of the way: originals stay local, and supported develop settings can go with you.",
         ],
       },
       {
-        title: "Finish a small set first",
+        title: "A practical way to choose",
         paragraphs: [
-          "If the client needs an early selection, agree on its size and deadline before the shoot. Complete and inspect that set before polishing the full gallery. A clear first delivery is easier to manage than an open-ended promise to send everything soon.",
+          "Stay if your catalog, clients, and presets already live there. Switch if color is the bottleneck and you are willing to rebuild the library. Do not switch because a chart said so.",
         ],
       },
     ],
   },
   {
-    slug: "check-the-export",
-    title: "Check the export, not just the preview",
-    description: "A simple final check for the image your client will actually receive.",
-    category: "Editing",
-    published: "2026-09-09",
+    slug: "send-a-gallery-the-same-night",
+    title: "How to send a client gallery the same night",
+    description:
+      "A same-night delivery path: pick, prepare, publish. No fake speed claims — just the order of work that actually gets a gallery out.",
+    category: "Guides",
+    published: "2026-09-08",
+    cover: "/images/blog/same-night-gallery.jpg",
+    minutes: 8,
     sections: [
       {
-        title: "Keep the comparison consistent",
+        title: "Decide the set before you polish",
         paragraphs: [
-          "Choose one photograph with useful detail in the shadows, highlights, and your main subject. Finish its edit, then note the source version, crop, output dimensions, and quality setting. Comparing two different versions can make a rendering problem look like a color decision.",
+          "Same-night galleries fail when editing starts before the set exists. Pick first. A hundred honest frames beat twenty overworked ones that never leave the laptop.",
+          "Rejects are flags, not deletes. Originals stay untouched. That is the only way you can move fast without gambling the archive.",
         ],
       },
       {
-        title: "Open the delivered file",
+        title: "Publish a copy, keep the master",
         paragraphs: [
-          "Export a copy and reopen that file. Check the whole composition first, then inspect important details at 100%. Look for an unexpected crop, rotated image, missing adjustment, or changed brightness. Do this before exporting a large batch, not after sending the gallery.",
-          "If the result differs, pause and check whether the editor and export used the same original, recipe, and processing mode. In FOTO, an image labeled Import preview is not the finished export proof. Native Develop processing requires the local engine; a hosted page alone does not provide it.",
+          "The gallery is a copy you chose to send. The masters stay with you. If the client needs a change, you still have the file. If the night runs long, you can still publish what you have and follow up.",
         ],
       },
       {
-        title: "Make the handoff traceable",
+        title: "What “tonight” actually requires",
         paragraphs: [
-          "Keep the approved export separate from your originals and working drafts. Use a clear delivery name and inspect the downloaded client copy where possible. Different screens and viewing applications can still look different, so an exact file check and a visual check answer different questions.",
+          "A machine that can import, a pick you trust, and a destination the client can open. Everything else is extra. Do not wait on a feature that is not in the path.",
         ],
       },
     ],
   },
   {
-    slug: "a-clear-client-handoff",
-    title: "A clear client handoff",
-    description: "Tell your client what is ready, what happens next, and where to find it.",
-    category: "Client experience",
-    published: "2026-09-09",
+    slug: "aftershoot-imagen-and-picking-yourself",
+    title: "Aftershoot, Imagen, and picking the frames yourself",
+    description:
+      "Where auto-cull tools help, where they flatten your eye, and why the keepers still have to be yours.",
+    category: "Alternatives",
+    published: "2026-09-04",
+    cover: "/images/blog/picking-the-frames.jpg",
+    minutes: 9,
     sections: [
       {
-        title: "Agree on the destination",
+        title: "What those tools are for",
         paragraphs: [
-          "Ask who will receive the photographs and who will approve them. For a team, those may be different people. Confirm the delivery date, intended use, required sizes, and whether the link should be private. Put those answers with the shoot instead of relying on a scattered message thread.",
+          "Aftershoot and Imagen are built to shrink a huge card. Blur, blinks, near-duplicates — the mechanical misses. That work is real. It is also not the whole pick.",
+          "The second you let a model choose the story of the night, the set starts to look like everyone else’s. Use them as a first pass, not as the author.",
         ],
       },
       {
-        title: "Send one useful message",
+        title: "Keep the decision",
         paragraphs: [
-          "A delivery note can be short: identify the shoot, say what is ready, share the correct link, and name the next action. If the gallery is a proofing selection rather than the final delivery, say so. Include a selection deadline only when you have agreed on one.",
-          "Before sending, open the link in a signed-out window and check the access rules you intended. Confirm that downloads work when they should and that private work is not visible when it should not be. Publishing a gallery and successfully sending a message are separate steps.",
+          "FOTO will surface focus and duplicate suggestions. You still mark the keepers. That is the product: help with the pile, not a replacement for your eye.",
         ],
       },
       {
-        title: "Close the loop",
+        title: "A fair test",
         paragraphs: [
-          "Ask for a brief receipt confirmation and record any remaining decisions with the shoot. Keep payment status separate from delivery status: a sent invoice is not a collected payment, and a downloaded gallery is not approval of every image. That distinction keeps the next conversation simple.",
+          "Run your last shoot through the tool you already pay for. Then pick the same shoot yourself. If the sets match, you found a shortcut. If they do not, you found the job.",
         ],
       },
     ],
   },
 ];
+
+export function articlesInCategory(category: BlogCategory) {
+  const live = fotoArticles.filter((article) => !article.draft);
+  if (category === "All") return live;
+  return live.filter((article) => article.category === category);
+}
 
 export function findFotoArticle(slug: string): FotoArticle | undefined {
   return fotoArticles.find((article) => article.slug === slug);

@@ -16,7 +16,7 @@ export const displayNameSchema = z
   );
 export const preferencesSchema = z
   .object({
-    theme: z.enum(["light", "dark", "system"]).default("dark"),
+    theme: z.enum(["light", "dark", "system"]).default("light"),
     language: z.enum(["en", "es", "auto"]).default("en"),
     fileDestination: z.enum(["studio", "adobe", "folder"]).default("studio"),
     appearance: appearanceSchema
@@ -35,6 +35,7 @@ export const preferencesSchema = z
     reduceMotion: z.boolean().default(false),
     sidebarOpen: z.boolean().default(true),
     cloudAssistant: z.boolean().default(true),
+    learnFromYourWork: z.boolean().default(true),
     suggestedPrompts: z.boolean().default(true),
     keepAwake: z.boolean().default(false),
     importSidecars: z.boolean().default(true),

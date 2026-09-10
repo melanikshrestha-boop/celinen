@@ -18,7 +18,7 @@
 .marketing-page {
   --font-sans:
     "OpenAI Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: var(--font-sans);
+  --font-display: "Instrument Serif", "Source Serif 4", Georgia, serif;
   --marketing-background: #fff;
   --marketing-surface: #f1f8fc;
   --marketing-text: #142a36;
@@ -39,7 +39,15 @@
   color-scheme: light;
   font: 16px/1.5 var(--font-sans);
 }
-.marketing-page :is(h1, h2, h3, button, input, summary) {
+.marketing-page :is(h1, h2) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+}
+.marketing-page h2 em {
+  font-style: italic;
+}
+.marketing-page :is(h3, button, input, summary) {
   font-family: var(--font-sans);
 }
 .marketing-page :is(a, button, summary, input):focus-visible {
@@ -48,15 +56,28 @@
 }
 .marketing-page > .sticky {
   padding: 10px 24px;
-  background: #ffffffed;
-  backdrop-filter: blur(12px);
+  background: transparent;
+  backdrop-filter: none;
+}
+.marketing-page .marketing-nav-shell {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+}
+.marketing-page .marketing-nav-shell .marketing-nav {
+  padding: 16px 28px;
 }
 .marketing-page header {
   padding: 4px 0;
   background: transparent;
 }
 .marketing-page header a {
-  border-radius: 30px;
+  border-radius: 0;
 }
 .marketing-page header > a span {
   font-family: var(--font-sans);
@@ -69,51 +90,74 @@
   color: #007eb8;
 }
 .marketing-page header button {
-  border-radius: 50%;
+  border-radius: 0;
 }
 .marketing-page header nav a {
   padding-inline: 14px;
   font-size: 14px;
 }
 .marketing-page header > div > a:last-child {
-  background: #e7f5ff;
-  color: #005888;
-  padding-inline: 20px;
+  background: #142a36;
+  color: #fff;
+  padding-inline: 14px;
   font-weight: 500;
+  border-radius: 8px;
 }
 .marketing-page header > div > a:last-child:hover {
-  background: #d3edff;
+  background: #142a36;
+  color: #fff;
 }
 .marketing-skip {
   background: #fff;
   color: #142a36;
   border-radius: 20px;
 }
-.marketing-hero {
+.marketing-vista {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+.marketing-vista__ground {
+  position: sticky;
+  top: 0;
+  z-index: 0;
+  height: 100vh;
   overflow: hidden;
-  width: min(100% - 40px, 1360px);
-  min-height: 650px;
-  margin: 4px auto 0;
-  padding: 58px 24px 255px;
-  border-radius: 32px;
-  background: #198fd1;
+  pointer-events: none;
+}
+.marketing-vista__ground::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#0064a45c 0%, #0064a228 42%, #ffffff00 78%);
+}
+.marketing-vista > :not(.marketing-vista__ground) {
+  position: relative;
+  z-index: 1;
+}
+.marketing-hero {
+  overflow: visible;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  margin: -100vh 0 0;
+  padding: 108px 24px 80px;
+  border-radius: 0;
+  background: transparent;
   color: #fff;
   text-align: center;
 }
 .marketing-hero__image {
-  z-index: -2;
+  position: absolute;
   inset: 0;
   width: 100%;
-  object-position: center bottom;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 62%;
   opacity: 1;
   mask-image: none;
-}
-.marketing-hero::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background: linear-gradient(#0064a4bd 0%, #0064a4bd 56%, #0064a400 85%);
 }
 .marketing-hero__content {
   max-width: 780px;
@@ -151,7 +195,7 @@
 .marketing-action {
   gap: 16px;
   padding: 12px 23px;
-  border-radius: 30px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
 }
@@ -199,7 +243,7 @@
   flex-wrap: wrap;
   gap: 12px 38px;
   padding: 28px 24px 0;
-  color: var(--marketing-muted);
+  color: #fff;
   font-size: 13px;
 }
 .marketing-promises span {
@@ -208,7 +252,44 @@
   gap: 8px;
 }
 .marketing-promises svg {
-  color: #1a789c;
+  color: #fff;
+}
+.marketing-learn {
+  width: min(100% - 16px, 720px);
+  margin: 40px auto 0;
+  color: #142a36;
+}
+.marketing-vista .marketing-learn {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 64px 24px 96px;
+  background: linear-gradient(#ffffff00, #fff 58%);
+  text-align: center;
+}
+.marketing-vista .marketing-learn h2,
+.marketing-vista .marketing-learn p {
+  margin-left: auto;
+  margin-right: auto;
+}
+.marketing-vista .marketing-workflow__card {
+  background: #fff;
+}
+.marketing-vista .home-pricing {
+  scroll-margin-top: 88px;
+}
+.marketing-learn h2 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+.marketing-learn p {
+  margin: 12px 0 16px;
+  color: #516570;
+  font-size: 15px;
+  max-width: 62ch;
 }
 .marketing-possibilities {
   width: min(100% - 48px, var(--marketing-width));
@@ -496,16 +577,14 @@
   font-weight: 500;
   letter-spacing: -0.045em;
 }
-.marketing-page .marketing-value__metric--time {
-  background: #e5f2ff;
-}
+.marketing-page .marketing-value__metric--time,
 .marketing-page .marketing-value__metric--money {
-  background: #e9f5dd;
+  background: transparent;
 }
 .marketing-page .marketing-value__metric {
-  min-height: 180px;
-  border-radius: 24px;
-  padding: 25px 28px;
+  min-height: 0;
+  border-radius: 0;
+  padding: 8px 0 20px;
 }
 .marketing-page .marketing-value__explanation {
   margin-top: 13px;
@@ -516,12 +595,13 @@
 }
 .marketing-page .marketing-value__field input {
   color-scheme: light;
-  background: #fff;
-  border-color: #a3b4bd;
-  border-radius: 13px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #a3b4bd;
+  border-radius: 0;
 }
 .marketing-page .marketing-value__field input[aria-invalid="true"] {
-  border-color: #aa2929;
+  border-bottom-color: #aa2929;
 }
 .marketing-page .marketing-value__error {
   color: #aa2929;
@@ -571,32 +651,41 @@
   padding-block: 28px;
   font-size: 13px;
 }
+.marketing-page .marketing-footer.marketing-footer--directory {
+  padding: 48px 32px 36px;
+  background: #fff;
+  color: #516570;
+}
 .marketing-footer a:hover {
-  color: #005888;
+  color: #006eaa;
 }
 .marketing-footer nav a:visited {
   color: #516570;
 }
-.marketing-footer__brand {
-  color: #142a36;
-  font-size: 26px;
-  letter-spacing: -0.06em;
-}
 @media (min-width: 1440px) {
   .marketing-hero {
-    min-height: 700px;
-    padding-top: 65px;
+    min-height: 100vh;
+    padding-top: 112px;
   }
 }
 @media (max-width: 760px) {
   .marketing-page > .sticky {
     padding: 7px 20px;
+    background: transparent;
+  }
+  .marketing-page .marketing-nav-shell {
+    height: 0;
+    padding: 0;
+    margin: 0;
+  }
+  .marketing-page .marketing-nav-shell .marketing-nav {
+    padding: 12px 16px;
   }
   .marketing-hero {
-    width: calc(100% - 24px);
-    min-height: 580px;
-    border-radius: 24px;
-    padding: 46px 20px 200px;
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    padding: 92px 20px 160px;
   }
   .marketing-hero__image {
     object-position: 35% bottom;

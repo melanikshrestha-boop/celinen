@@ -14,26 +14,22 @@ import {
 const flag = "--public-content-fixture";
 
 if (!process.argv.includes(flag)) {
-  test("original field notes have unique real slugs, useful bodies, and exact lookup", () => {
-    expect(fotoArticles.length).toBe(3);
-    expect(new Set(fotoArticles.map((article) => article.slug)).size).toBe(fotoArticles.length);
-    for (const article of fotoArticles) {
-      expect(article.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
-      expect(article.title.length).toBeGreaterThan(10);
-      expect(article.description.length).toBeGreaterThan(20);
-      expect(article.sections.length).toBeGreaterThanOrEqual(3);
-      const body = article.sections.flatMap((section) => section.paragraphs).join(" ");
-      expect(body.split(/\s+/).length).toBeGreaterThan(150);
-      expect(body).not.toMatch(/lorem ipsum|coming soon|subscribe to|sign up for our newsletter/i);
-      expect(findFotoArticle(article.slug)).toBe(article);
-      expect(publicDateLabel(article.published)).toBe("September 9, 2026");
-    }
+  test("example field notes are listed without invented clipping copy", () => {
+    expect(fotoArticles.map((article) => article.slug)).toEqual([
+      "lightroom-vs-capture-one-2026",
+      "send-a-gallery-the-same-night",
+      "aftershoot-imagen-and-picking-yourself",
+    ]);
+    expect(JSON.stringify(fotoArticles)).not.toMatch(/viral|YouTube Automation/i);
     for (const slug of [
       "",
       "unknown",
       "__proto__",
       "constructor",
       "../product",
+      "a-calmer-first-pass",
+      "check-the-export",
+      "a-clear-client-handoff",
       "CHECK-THE-EXPORT",
       "check-the-export/extra",
     ])

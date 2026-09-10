@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SettingsGuide } from "@/components/account/SettingsGuide";
+import { PrivacyPage } from "@/components/marketing/LegalPage";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({ meta: [{ title: "Privacy policy — LensLabs" }] }),
-  component: () => <SettingsGuide page="privacy" />,
+  head: () => ({
+    meta: [
+      { title: "Privacy Policy — FOTO" },
+      {
+        name: "description",
+        content:
+          "How FOTO handles photographer data, including GDPR rights for the EEA, UK, and Switzerland.",
+      },
+    ],
+  }),
+  component: PrivacyPage,
 });

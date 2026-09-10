@@ -260,6 +260,21 @@ function SettingsDetails({ section }: { section: Section }) {
         {section === "privacy" && (
           <>
             <Row
+              title="Learn from your photos and edits"
+              note="On: FOTO remembers looks you save (snapshots and presets) so the tool gets closer to your eye. Original files stay read-only and are not stored in that log. This is your workspace only — not a shared model for other photographers. Off: no new samples, and the log is deleted."
+            >
+              <Switch
+                aria-label="Learn from your photos and edits"
+                checked={prefs.learnFromYourWork}
+                onCheckedChange={(on) => {
+                  save({ learnFromYourWork: on });
+                  if (!on) {
+                    void import("@/lib/personal-style").then((m) => m.clearPersonalStyle());
+                  }
+                }}
+              />
+            </Row>
+            <Row
               title="Originals stay read-only"
               note="Rejects are reversible. Applying an edit does not overwrite your original photo."
             >

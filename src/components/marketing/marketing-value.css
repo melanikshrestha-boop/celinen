@@ -72,44 +72,47 @@
 }
 .marketing-value__fields {
   display: grid;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 28px;
+  margin-top: 28px;
 }
 .marketing-value__field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px;
-  align-items: center;
-  column-gap: 16px;
+  gap: 8px;
 }
 .marketing-value__field label {
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--marketing-muted);
 }
 .marketing-value__field input {
   width: 100%;
   min-height: 44px;
-  background: var(--marketing-surface);
-  border: 1px solid var(--marketing-control);
-  border-radius: var(--marketing-radius);
-  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--marketing-control);
+  border-radius: 0;
+  padding: 6px 0 10px;
   color: var(--marketing-text);
-  font-size: 16px;
-  text-align: right;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  text-align: left;
   font-variant-numeric: tabular-nums;
-  color-scheme: dark;
+  appearance: textfield;
+}
+.marketing-value__field input::-webkit-outer-spin-button,
+.marketing-value__field input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
 }
 .marketing-value__field input:focus {
-  outline: 2px solid var(--marketing-accent);
-  outline-offset: 2px;
+  border-bottom-color: var(--marketing-accent);
 }
 .marketing-value__field input[aria-invalid="true"] {
-  border-color: #ffa6a6;
+  border-bottom-color: #c45c5c;
 }
 .marketing-value__error {
-  grid-column: 1 / -1;
-  color: #ffa6a6;
+  color: #c45c5c;
   font-size: 14px;
-  margin-top: 4px;
 }
 .marketing-value__calculator-footer {
   display: flex;
@@ -157,11 +160,11 @@
 .marketing-value__metric {
   display: flex;
   flex-direction: column;
-  min-height: 200px;
-  padding: 28px 32px;
+  min-height: 0;
+  padding: 8px 0 20px;
   border: 0;
-  border-radius: 12px;
-  background: var(--marketing-surface);
+  border-radius: 0;
+  background: transparent;
 }
 .marketing-value__number {
   font-size: clamp(40px, 4.4vw, 60px);
@@ -235,6 +238,9 @@
   line-height: 1.15;
 }
 .marketing-workflow__carousel {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
   margin-top: 32px;
 }
 .marketing-workflow__card {
@@ -305,8 +311,8 @@
     max-width: 18ch;
   }
   .marketing-value__metric {
-    min-height: 192px;
-    padding: 24px;
+    min-height: 0;
+    padding: 8px 0 16px;
   }
   .marketing-value__number {
     font-size: clamp(40px, 10vw, 56px);
@@ -322,6 +328,9 @@
   }
   .marketing-workflow {
     padding-block: 48px;
+  }
+  .marketing-workflow__carousel {
+    grid-template-columns: minmax(0, 1fr);
   }
   .marketing-workflow__card {
     padding: 24px;
