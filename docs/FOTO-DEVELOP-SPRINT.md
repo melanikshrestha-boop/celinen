@@ -1040,3 +1040,70 @@ retain this latest user decision.
   Private Git checkpoints are not a live deployment. Lovable remains at the
   owner-login handoff; its publishing branch, explicit publication to `lenslab.dev`
   and production Google session/return flow require separate verification.
+
+## 2026-09-09 save-safety checkpoint after sky-entry release
+
+The latest public design and workspace recovery are shipped in `6948a8f`.
+`lenslab.dev` was explicitly published through Lovable, and the live mountain
+artwork and scoped public OpenAI Sans styles were verified. The approved private
+chat tables and owner-checked RPCs are installed; the signed-in hosted workspace
+opens. This supersedes the older owner-login/publication status above. See
+`FOTO-SKY-ENTRY-RELEASE.md` for scope and backend receipts. Google account selection
+and completion remain owner-only. Upload-permission migration 0022 remains
+unapproved and was not installed.
+
+### Reproduced failures and fixes
+
+- Same-shoot `?photo=` navigation retained the editor while asynchronous hydration
+  loaded another photo. A late gesture could arrive after the initial save flush
+  and be discarded by adoption. A route-specific hydration fence now hides old
+  controls immediately and rejects their late callbacks. Superseded and unmounted
+  load requests cannot adopt a snapshot or report a stale error. Existing drafts
+  still flush through the normal repository fence before navigation proceeds.
+- Registration timing included lock/journal admission waits. It now records the
+  original drop's completed discovery independently, with owner/cancellation
+  fencing; picker registration is measured immediately.
+- Preview-stage and durable completion were previously reported together, before
+  the final import journal succeeded. Preparation now has its own completion
+  callback; durable completion waits for the final journal transaction. Quota
+  failure leaves the durable-completion time unset while retaining actual saved
+  photo receipts. Preparation completion includes failed/duplicate terminal rows;
+  it is not a claim that every source produced a usable preview.
+- Added a regression for periodic journal quota failure: stop admission, retain
+  committed photos, fence uncancelable late previews, hold the unload/lock guard
+  through the final journal, and permit retry only after owned work drains.
+
+### Verification
+
+- Fail-first tests reproduced three import-timing failures and three hydration
+  failures before their fixes. All new tests pass afterward.
+- Full regression: **2,023 passed, 21 skipped, one existing opt-in RAW white-balance
+  TODO, zero failed; 370,103 assertions across 2,045 tests / 165 files**.
+- TypeScript, scoped ESLint, formatting, diff checks, and production build passed.
+  The actual built worker returned 200 HTML for `/` and the sign-in return route
+  on a cold start with outbound access disabled; zero outbound calls occurred.
+- Real isolated Chromium regression: **15 checks passed**. Actual Exposure control
+  adjustment followed by normal router navigation preserved the draft. A delayed
+  real IndexedDB manifest read hid stale controls; its superseded response could
+  not select an older target. A real reload preserved exact IDs/order, adjustment
+  history, and SHA-256 original bytes. Only reserved synthetic QA records were
+  removed. `tests/develop-warm-navigation.browser.js` documents the gate; its tiny
+  PNG fixtures establish navigation behavior, not RAW throughput.
+- A separate metadata-only exercise ran 42 trials (drop/picker, 1/337/1,000 entries,
+  seven trials each) on Apple M3 Pro / 18 GiB / Bun 1.3.14. Warm median registration
+  for folder batches was 0.120 / 8.683 / 29.587 ms; picker batches were 0.057 /
+  0.206 / 0.515 ms, with roughly 76–77 ms batched snapshot visibility. It used
+  synthetic entry callbacks and in-memory admission gates, not real filesystem
+  enumeration, browser paint, network, RAW decoding, or durable saving.
+
+### Remaining gates
+
+Real unique-RAW cold/warm 1/337/1,000-photo trials, memory/responsiveness measurements,
+analysis completion, the broader cross-view/drop/export matrix, and exact native
+historical-version support remain open. Enumeration/sidecar discovery still gates
+heavy preparation, and ordered durable commits still wait for earlier rows.
+**The 1,000 entries / three-second reference-machine target is not established.**
+No customer originals, accounts, financial records, environment files, public
+design, native rendering math, or export proof were changed in this checkpoint.
+A push is not publication: verify the connected branch, explicitly publish, and
+read back the live assets before reporting this checkpoint deployed.

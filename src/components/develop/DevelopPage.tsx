@@ -256,6 +256,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     failed = useRef(false);
   const [ready, setReady] = useState(false),
     [loadError, setLoadError] = useState("");
+  // Hydration fences the current route before effects run, including delayed
+  // callbacks from controls belonging to the previously displayed photo.
+  const hydration = useRef({ href, repository, ready: false });
+  if (hydration.current.href !== href || hydration.current.repository !== repository)
+    hydration.current = { href, repository, ready: false };
   const [saveError, setSaveError] = useState(""),
     [pending, setPending] = useState(0),
     [notice, setNotice] = useState("");
@@ -615,7 +620,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     setDraftDirty(value);
   }
   function editsLocked() {
-    return failed.current || operationLock.current !== null || !alive.current;
+    return (
+      !hydration.current.ready || failed.current || operationLock.current !== null || !alive.current
+    );
   }
 
   const adopt = useCallback((next: DevelopLibrary, choose?: string | null, exact = false) => {
@@ -643,20 +650,27 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }, []);
   useEffect(() => {
     let cancelled = false;
+    const request = hydration.current;
+    const current = () => !cancelled && alive.current && hydration.current === request;
+    request.ready = false;
+    setReady(false);
+    setLoadError("");
     void (async () => {
       try {
         if (!(await repository.flush()))
           throw new Error(
             "The current shoot could not finish saving. Resolve its save error before opening Develop.",
           );
+        if (!current()) return;
         let snapshot = await store.loadLibrary();
+        if (!current()) return;
         // Read the current shoot once. All writes below go to the separate Develop database.
         const session = projectId
           ? await new ProjectStudioSession(projectId, stableDeliveryFocus).load()
           : await readStudioSessionSnapshot(scope, shootId);
         if (session) {
           try {
-            if (!cancelled && session.shots.length) {
+            if (current() && session.shots.length) {
               const receipt = await store.addPhotosWithDocuments(
                 session.shots.map(developPhotoFromShot),
               );
@@ -667,7 +681,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               if (shot.previewUrl) URL.revokeObjectURL(shot.previewUrl);
           }
         }
-        if (cancelled) return;
+        if (!current()) return;
         const requestedPhoto = new URL(href, "https://workspace.invalid").searchParams.get("photo");
         const focusedId = focusedFrame ? `studio:${focusedFrame}` : requestedPhoto;
         if (focusedId && !snapshot.photos.some((photo) => photo.id === focusedId))
@@ -675,6 +689,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             "The requested photo is not in this shoot. No different photo was selected.",
           );
         const manifest = await repository.readManifest();
+        if (!current()) return;
         adopt(
           snapshot,
           focusedId ??
@@ -693,9 +708,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         viewFilter.current = projectedFilter;
         setFilter(projectedFilter);
         hydrated.current = true;
+        request.ready = true;
         setReady(true);
       } catch (e) {
-        if (!cancelled) setLoadError(errorMessage(e));
+        if (current()) setLoadError(errorMessage(e));
       }
     })();
     return () => {
@@ -735,7 +751,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       );
   }, [importState, importing]);
   useEffect(() => {
-    if (!ready || failed.current || pendingRef.current) return;
+    if (!ready || !hydration.current.ready || failed.current || pendingRef.current) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       const captured = new Map(catalogChanges.current);
@@ -763,7 +779,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         return incoming;
       })()
         .then((incoming) => {
-          if (cancelled || !alive.current || failed.current || pendingRef.current) return;
+          if (
+            cancelled ||
+            !alive.current ||
+            !hydration.current.ready ||
+            failed.current ||
+            pendingRef.current
+          )
+            return;
           for (const [id, value] of captured)
             if (catalogChanges.current.get(id) === value) catalogChanges.current.delete(id);
           presetsChanged.current = false;
@@ -1561,7 +1584,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         <button onClick={() => window.location.reload()}>Retry opening</button>
       </div>
     );
-  if (!ready) return <div className="foto-develop develop-loading">Opening Develop…</div>;
+  if (!ready || !hydration.current.ready)
+    return <div className="foto-develop develop-loading">Opening Develop…</div>;
   return (
     <section
       {...pointerBoundary}

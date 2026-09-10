@@ -34,6 +34,8 @@ export type DevelopImportOptions = {
   onRegistered?: (progress: DevelopImportRegistration) => void;
   onProgress?: (progress: DevelopImportProgress) => void;
   onPrepared?: (input: DevelopPhotoInput, progress: DevelopImportProgress) => void;
+  /** All sources resolved to previews, duplicates, or failures; commits may still be pending. */
+  onPreparationComplete?: () => void;
   onFileFailure?: (failure: DevelopImportFailure, progress: DevelopImportProgress) => void;
   onDuplicate?: (progress: DevelopImportProgress) => void;
 } & (
@@ -180,6 +182,8 @@ export async function runDevelopImport(
   // Identity claims still advance strictly in input order, before fair preview dispatch.
   const completions = Array.from({ length: batch.length }, barrier);
   const outcomes = new Map<number, Prepared>();
+  const preparationSettled = new Set<number>();
+  let preparationStopped = false;
   const reads = new Map<number, Promise<Identified>>();
   const claims = new Map<string, IdentityClaim>();
   const rasters = candidateQueue(),
@@ -202,6 +206,16 @@ export async function runDevelopImport(
   function complete(index: number, outcome: Prepared) {
     outcomes.set(index, outcome);
     completions[index]!.release();
+    const firstSettlement = !preparationSettled.has(index);
+    preparationSettled.add(index);
+    preparationStopped ||= outcome.kind === "stopped";
+    if (
+      firstSettlement &&
+      preparationSettled.size === batch.length &&
+      !signal.aborted &&
+      !preparationStopped
+    )
+      observer(() => options.onPreparationComplete?.());
   }
   const identify = async (index: number): Promise<Identified> => {
     const file = batch[index]!;
@@ -340,6 +354,7 @@ export async function runDevelopImport(
       if (signal.aborted) break;
       observer(() => options.onRegistered?.({ ...progress(index), file }));
     }
+    if (!batch.length && !signal.aborted) observer(() => options.onPreparationComplete?.());
     identifying = identifyInOrder();
     for (const [index, file] of batch.entries()) {
       if (signal.aborted) {
