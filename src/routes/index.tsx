@@ -3,6 +3,8 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { Nav } from "@/components/Nav";
 import { SavingsSection } from "@/components/marketing/SavingsSection";
 import { WorkflowSection } from "@/components/marketing/WorkflowSection";
+import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { publicEntry } from "@/lib/public-entry";
 import { PRODUCT_NAME } from "@/lib/product";
 import { ArrowRight, Camera, Check, Heart, Images, SlidersHorizontal, Star } from "lucide-react";
@@ -34,8 +36,9 @@ export const Route = createFileRoute("/")({
 function Index() {
   const account = useAccount();
   const entry = publicEntry(account?.status);
+  const motion = useMarketingMotion();
   return (
-    <div className="marketing-page">
+    <div className="marketing-page" ref={motion}>
       <a className="marketing-skip" href="#main-content">
         Skip to content
       </a>
@@ -79,7 +82,7 @@ function Index() {
             <p className="marketing-hero__note">Made for the person behind the camera.</p>
           </div>
         </section>
-        <div className="marketing-promises" aria-label="Your work stays yours">
+        <div className="marketing-promises" aria-label="Your work stays yours" data-reveal>
           <span>
             <Check size={16} /> Originals stay untouched
           </span>
@@ -95,7 +98,7 @@ function Index() {
           id="possibilities"
           aria-labelledby="possibilities-heading"
         >
-          <div className="marketing-section-intro">
+          <div className="marketing-section-intro" data-reveal>
             <p className="marketing-value__eyebrow">Room to do your thing</p>
             <h2 id="possibilities-heading">
               Less busywork.
@@ -108,7 +111,7 @@ function Index() {
             </p>
           </div>
           <div className="marketing-feature-grid">
-            <article className="marketing-feature">
+            <article className="marketing-feature" data-reveal>
               <div
                 className="marketing-feature__art marketing-feature__art--selects"
                 aria-hidden="true"
@@ -136,7 +139,7 @@ function Index() {
                 Bring in your shoot, review suggestions, and pick the frames that tell your story.
               </p>
             </article>
-            <article className="marketing-feature">
+            <article className="marketing-feature" data-reveal>
               <div
                 className="marketing-feature__art marketing-feature__art--color"
                 aria-hidden="true"
@@ -159,7 +162,7 @@ function Index() {
                 untouched.
               </p>
             </article>
-            <article className="marketing-feature">
+            <article className="marketing-feature" data-reveal>
               <div
                 className="marketing-feature__art marketing-feature__art--gallery"
                 aria-hidden="true"
@@ -182,7 +185,7 @@ function Index() {
                 when you’re ready.
               </p>
             </article>
-            <article className="marketing-feature">
+            <article className="marketing-feature" data-reveal>
               <div
                 className="marketing-feature__art marketing-feature__art--studio"
                 aria-hidden="true"
@@ -221,6 +224,16 @@ function Index() {
             <span aria-hidden="true">→</span>
           </Link>
         </SavingsSection>
+        <section className="marketing-plan-invitation" aria-labelledby="plans-heading" data-reveal>
+          <div>
+            <p className="marketing-value__eyebrow">A home for your next chapter</p>
+            <h2 id="plans-heading">Start small. Dream in full frame.</h2>
+            <p>Explore plans, compare what’s included, and find your fit.</p>
+          </div>
+          <Link to="/pricing" className="marketing-action marketing-action--primary">
+            Find your plan <ArrowRight size={18} aria-hidden="true" />
+          </Link>
+        </section>
         <section className="marketing-handoff" aria-labelledby="handoff-heading">
           <img
             className="marketing-handoff__image"
@@ -228,7 +241,7 @@ function Index() {
             alt=""
             loading="lazy"
           />
-          <div>
+          <div data-reveal>
             <p className="marketing-hero__eyebrow">The next chapter is yours</p>
             <h2 id="handoff-heading">
               Make something
@@ -248,17 +261,7 @@ function Index() {
           </div>
         </section>
       </main>
-      <footer className="marketing-footer">
-        <Link to="/" className="marketing-footer__brand">
-          foto
-        </Link>
-        <nav aria-label="Footer">
-          <Link to="/docs">Documentation</Link>
-          <Link to="/security">Security</Link>
-          <Link to="/privacy">Privacy</Link>
-          <Link to="/terms">Terms</Link>
-        </nav>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

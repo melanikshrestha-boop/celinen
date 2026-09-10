@@ -1,0 +1,97 @@
+@keyframes marketing-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes marketing-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .marketing-page .marketing-nav,
+  .marketing-page .marketing-hero {
+    animation: marketing-appear 500ms ease-out both;
+  }
+  .marketing-page .marketing-hero__content > *,
+  .marketing-page .marketing-enter {
+    animation: marketing-arrive 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .marketing-page .marketing-hero__content > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .marketing-page .marketing-hero__content > :nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .marketing-page .marketing-hero__content > :nth-child(4) {
+    animation-delay: 180ms;
+  }
+  .marketing-page .marketing-hero__content > :nth-child(5) {
+    animation-delay: 240ms;
+  }
+  .marketing-page [data-reveal-state] {
+    transition:
+      opacity 480ms ease-out,
+      transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .marketing-page [data-reveal-state="outside"] {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  .marketing-page [data-reveal-state="visible"] {
+    opacity: 1;
+    transform: none;
+  }
+  .marketing-page .marketing-action {
+    transition:
+      background-color 160ms ease,
+      color 160ms ease,
+      transform 200ms ease;
+  }
+  .marketing-page .marketing-action:hover {
+    transform: translateY(-2px);
+  }
+  .marketing-page .marketing-action:active {
+    transform: translateY(0);
+  }
+  .marketing-page .marketing-feature__art > * {
+    transition: translate 380ms ease;
+  }
+  .marketing-page .marketing-feature:hover .marketing-feature__art > :first-child {
+    translate: 0 -5px;
+  }
+}
+.marketing-page [data-reveal-state]:focus-within,
+.marketing-page [data-reveal-state]:target {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing-page [data-reveal-state],
+  .marketing-page .marketing-enter,
+  .marketing-page .marketing-hero__content > * {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .marketing-nav-menu {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media print {
+  .marketing-page [data-reveal-state] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

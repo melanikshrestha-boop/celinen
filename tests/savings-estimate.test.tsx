@@ -138,9 +138,9 @@ describe("public, accessible estimate presentation", () => {
     expect(html).toContain("Illustrative example · not measured results");
     expect(html).toContain("Time value is not cash income");
     expect(html).toContain("No sign-in needed");
-    expect(html).toContain("$24,960");
-    expect(html).toContain("$24,000");
-    expect(html).toContain("$960");
+    expect(html).toContain("USD\u00a024,960");
+    expect(html).toContain("USD\u00a024,000");
+    expect(html).toContain("USD\u00a0960");
     expect(html).not.toContain("guaranteed savings");
   });
 

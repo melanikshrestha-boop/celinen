@@ -27,6 +27,48 @@ export function Nav({ landing = false }: { landing?: boolean }) {
   const account = useAccount();
   const entry = publicEntry(account?.status);
 
+  if (landing)
+    return (
+      <div className="sticky top-4 z-50 px-4">
+        <header className="marketing-nav">
+          <Link to="/" className="marketing-nav__brand" aria-label="foto home">
+            <LogoMark />
+            <span>{PRODUCT_NAME}</span>
+          </Link>
+          <nav className="marketing-nav__links" aria-label="Main navigation">
+            <Link to="/product">Product</Link>
+            <Link to="/pricing">Pricing</Link>
+            <Link to="/blog">Blog</Link>
+            <Link to="/docs">Docs</Link>
+          </nav>
+          <div className="marketing-nav__actions">
+            <Link to={entry.to} search={entry.search} className="marketing-nav-cta">
+              {entry.label} <span aria-hidden="true">→</span>
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger aria-label="Open menu" className="marketing-nav__more">
+                <span aria-hidden="true">…</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={10} className="w-56 marketing-nav-menu">
+                {[
+                  { to: "/product", label: "Product" },
+                  { to: "/pricing", label: "Pricing" },
+                  { to: "/blog", label: "Blog" },
+                  { to: "/docs", label: "Documentation" },
+                  { to: "/changelog", label: "What’s new" },
+                  { to: "/security", label: "Security" },
+                ].map((link) => (
+                  <DropdownMenuItem key={link.to} asChild>
+                    <Link to={link.to}>{link.label}</Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+      </div>
+    );
+
   return (
     <div className="sticky top-4 z-50 px-4">
       <header className="mx-auto grid w-full max-w-[1240px] grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">

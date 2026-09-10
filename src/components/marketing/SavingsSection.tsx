@@ -5,11 +5,20 @@ import {
   EXAMPLE_SAVINGS,
   SAVINGS_FIELDS,
   estimateSavings,
-  savingsDollars,
   savingsNumber,
   type SavingsDraft,
 } from "@/lib/savings-estimate";
 import "./marketing-value.css";
+
+// Currency presentation only: keep the estimate's original amounts and cent precision.
+const savingsDollars = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    currencyDisplay: "code",
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 
 export function SavingsSection({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<SavingsDraft>({ ...EXAMPLE_SAVINGS });
@@ -19,7 +28,7 @@ export function SavingsSection({ children }: { children: ReactNode }) {
 
   return (
     <section className="marketing-value" id="savings" aria-labelledby="savings-heading">
-      <div className="marketing-value__intro">
+      <div className="marketing-value__intro" data-reveal>
         <p className="marketing-value__eyebrow">Your time, in perspective</p>
         <h2 id="savings-heading">What could you get back?</h2>
         <p className="marketing-value__lead">
@@ -73,7 +82,7 @@ export function SavingsSection({ children }: { children: ReactNode }) {
         </details>
       </div>
 
-      <div className="marketing-value__results" aria-label="Estimated time and value">
+      <div className="marketing-value__results" aria-label="Estimated time and value" data-reveal>
         <p className="marketing-value__estimate-label">
           {isExample
             ? "Illustrative example · not measured results"
