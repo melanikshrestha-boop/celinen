@@ -42,7 +42,8 @@ export const SETTINGS_SECTIONS = [
     id: "personalization",
     label: "Personalization",
     group: "Personal",
-    terms: "custom instructions personality friendly concise assistant",
+    terms:
+      "custom instructions personality friendly concise assistant learn photos edits style training",
   },
   { id: "pets", label: "Pets", group: "Personal", terms: "show hide cat dog companion" },
   {

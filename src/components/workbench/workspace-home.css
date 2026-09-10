@@ -1,0 +1,210 @@
+.foto-home {
+  min-height: 100%;
+  padding: 44px 48px 72px;
+  background: #f4f6f8;
+  color: #171717;
+  font-family: var(--workspace-ui-font, inherit);
+}
+.foto-home__stage {
+  max-width: 980px;
+  margin: 0 auto;
+}
+.foto-home__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(32%, 220px);
+  align-items: end;
+  gap: 28px;
+  margin: 0 0 36px;
+  min-height: 128px;
+}
+.foto-home__hero h1 {
+  margin: 0;
+  max-width: 16ch;
+  font-family: "Instrument Serif", "Source Serif 4", Georgia, serif;
+  font-size: clamp(34px, 4.4vw, 52px);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.foto-home__hero em {
+  font-style: italic;
+  color: #006eaa;
+}
+.foto-home__still {
+  justify-self: end;
+  width: 100%;
+  height: 148px;
+  object-fit: cover;
+  object-position: center 62%;
+  border-radius: 28px 28px 10px 28px;
+  box-shadow: 0 22px 48px #142a361f;
+}
+.foto-home__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.foto-home__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 318px;
+  padding: 12px 12px 20px;
+  border: 1px solid #eceff3;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 10px 28px #142a360a;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+.foto-home__card:hover {
+  transform: translateY(-3px);
+  border-color: #d5e3ee;
+  box-shadow: 0 18px 40px #142a3616;
+}
+.foto-home__card:focus-visible {
+  outline: 2px solid #2458a6;
+  outline-offset: 3px;
+}
+.foto-home__card-still {
+  display: block;
+  width: 100%;
+  height: 186px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.foto-home__card-still img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.foto-home__card[data-crop="sky"] img {
+  object-position: 50% 0%;
+  transform: scale(1.06);
+}
+.foto-home__card[data-crop="ridge"] img {
+  object-position: 18% 78%;
+  transform: scale(1.55);
+}
+.foto-home__card[data-crop="lake"] img {
+  object-position: 92% 100%;
+  transform: scale(1.8);
+}
+.foto-home__card svg {
+  color: #006eaa;
+  margin: 0 0 8px 4px;
+}
+.foto-home__card h2 {
+  margin: 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.foto-home__tools {
+  margin-top: 28px;
+}
+.foto-home__tools h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #667078;
+}
+.foto-home__tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.foto-home__tools-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #e6ebf0;
+  border-radius: 999px;
+  background: #fff;
+  color: #334048;
+  font-size: 13px;
+  cursor: pointer;
+}
+.foto-home__tools-row button:hover {
+  border-color: #c5d8e6;
+  color: #005888;
+}
+.foto-home__tools-row button:focus-visible {
+  outline: 2px solid #2458a6;
+  outline-offset: 2px;
+}
+.foto-home__hero,
+.foto-home__card,
+.foto-home__tools {
+  animation: foto-home-in 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.foto-home__card:nth-child(1) {
+  animation-delay: 40ms;
+}
+.foto-home__card:nth-child(2) {
+  animation-delay: 90ms;
+}
+.foto-home__card:nth-child(3) {
+  animation-delay: 140ms;
+}
+.foto-home__tools {
+  animation-delay: 180ms;
+}
+@keyframes foto-home-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 900px) {
+  .foto-home {
+    padding: 24px 18px 48px;
+  }
+  .foto-home__hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+  .foto-home__still {
+    order: -1;
+    width: 100%;
+    height: 120px;
+    justify-self: stretch;
+  }
+  .foto-home__hero h1 {
+    max-width: none;
+  }
+  .foto-home__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .foto-home__card {
+    min-height: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .foto-home__hero,
+  .foto-home__card,
+  .foto-home__tools {
+    animation: none;
+  }
+  .foto-home__card:hover {
+    transform: none;
+  }
+}
+html.dark .foto-home,
+html.dark .workbench-panels.is-home .workbench-tool-scroll {
+  background: #f4f6f8;
+  color: #171717;
+}

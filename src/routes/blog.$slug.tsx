@@ -33,9 +33,13 @@ export function BlogArticle({ article }: { article: FotoArticle }) {
     <PublicPage eyebrow={article.category} title={article.title} description={article.description}>
       <article className="public-editorial public-editorial__prose">
         <div className="public-editorial__article-meta">
-          <Link to="/blog">← All field notes</Link>
+          <Link to="/blog">← Back to blog</Link>
           <time dateTime={article.published}>{publicDateLabel(article.published)}</time>
+          {article.minutes ? <span>· {article.minutes} min read</span> : null}
         </div>
+        {article.cover ? (
+          <img className="public-editorial__cover" src={article.cover} alt="" />
+        ) : null}
         {article.sections.map((section) => (
           <section key={section.title} data-reveal>
             <h2>{section.title}</h2>

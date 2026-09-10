@@ -22,10 +22,12 @@
 .marketing-page .marketing-nav__links a {
   color: #516570;
   text-decoration: none;
+  background: none;
+  border-radius: 0;
 }
 .marketing-page .marketing-nav__links a:hover {
-  color: #005888;
-  background: #eef8ff;
+  color: #142a36;
+  background: none;
 }
 .marketing-page .marketing-nav__actions {
   display: flex;
@@ -40,89 +42,108 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 20px;
-  min-height: 44px;
-  background: #e7f5ff;
-  color: #005888;
-  border-radius: 30px;
+  padding: 8px 14px;
+  min-height: 36px;
+  background: #142a36;
+  color: #fff;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   text-decoration: none;
-  transition: background-color 160ms ease;
+  transition: opacity 160ms ease;
 }
 .marketing-page .marketing-nav-cta:hover {
-  background: #d3edff;
+  background: #142a36;
+  color: #fff;
+  opacity: 0.86;
 }
 .marketing-page .marketing-nav__more {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
+  display: none;
+  align-items: center;
+  min-height: 36px;
   padding: 0;
-  border: 1px solid #9bafb9;
-  background: #fff;
+  border: 0;
+  background: none;
   color: #516570;
-  font-size: 22px;
-  line-height: 1;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  box-shadow: none;
 }
 .marketing-page .marketing-nav__more span {
-  transform: translateY(-4px);
+  transform: none;
 }
 .marketing-page .marketing-nav__more:hover,
 .marketing-page .marketing-nav__more[data-state="open"] {
-  background: #e7f5ff;
-  color: #005888;
+  background: none;
+  color: #142a36;
+}
+@media (max-width: 1023px) {
+  .marketing-page .marketing-nav__more {
+    display: inline-flex;
+  }
 }
 .marketing-page .marketing-footer.marketing-footer--directory {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.9fr) minmax(0, 2fr);
-  align-items: start;
-  gap: 48px;
-  width: min(100% - 48px, 1240px);
-  padding-block: 72px 30px;
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 48px 32px 36px;
+  background: #fff;
   color: #516570;
   font-size: 14px;
+  border-radius: 0;
 }
-.marketing-footer--directory .marketing-footer__brand {
-  color: #142a36;
-  font-size: 36px;
-  letter-spacing: -0.06em;
-  text-decoration: none;
-}
-.marketing-footer--directory .marketing-footer__intro p {
-  color: #142a36;
-  font-size: 22px;
-  line-height: 1.3;
-  letter-spacing: -0.025em;
-  margin: 12px 0 24px;
-}
-.marketing-footer--directory .marketing-footer__note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: 230px;
+.marketing-footer--directory .marketing-footer__copy {
+  margin: 0;
+  color: #6a8490;
   font-size: 13px;
 }
-.marketing-footer__note svg {
-  flex-shrink: 0;
-  margin-top: 3px;
-  color: #207bac;
+.marketing-footer__branding {
+  position: relative;
+  margin-top: 48px;
+  padding: 32px 0 8px;
+  border-top: 1px solid #e4eef4;
+}
+.marketing-footer__mark {
+  display: block;
+  width: min(100%, 380px);
+  height: auto;
+  margin: 16px 0 0;
+  overflow: visible;
+  color: #007eb8;
 }
 .marketing-footer--directory nav.marketing-footer__directory {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px;
+  gap: 20px 28px;
+  width: min(100%, 1120px);
 }
 .marketing-footer--directory .marketing-footer__column h2 {
-  color: #142a36;
-  font-size: 14px;
+  font-family: var(--font-sans);
+  color: #8b9aa3;
+  font-size: 12px;
   font-weight: 600;
-  margin: 0 0 12px;
-  line-height: 1.5;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+  line-height: 1.2;
+}
+.marketing-footer--directory .marketing-footer__text-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #516570;
+  font: inherit;
+  line-height: 1.7;
+  text-align: left;
+  cursor: pointer;
+}
+.marketing-footer--directory .marketing-footer__text-btn:hover {
+  color: #006eaa;
 }
 .marketing-footer--directory ul {
   list-style: none;
@@ -130,27 +151,19 @@
   margin: 0;
 }
 .marketing-footer--directory .marketing-footer__directory a {
-  line-height: 1.4;
-  min-height: 44px;
-  padding-block: 8px;
+  display: block;
+  line-height: 1.7;
+  min-height: 0;
+  padding-block: 2px;
   color: #516570;
   text-decoration: none;
 }
 .marketing-footer--directory .marketing-footer__directory a:visited {
-  color: #5b6680;
+  color: #516570;
 }
 .marketing-footer--directory .marketing-footer__directory a:hover {
-  color: #005888;
-  text-decoration: underline;
-}
-.marketing-footer--directory .marketing-footer__bottom {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  padding-top: 24px;
+  color: #006eaa;
+  text-decoration: none;
 }
 .marketing-page .marketing-plan-invitation {
   width: min(100% - 48px, 1120px);
@@ -179,7 +192,7 @@
 .marketing-public-page {
   max-width: 1120px;
   margin-inline: auto;
-  padding: 64px 24px 56px;
+  padding: 108px 24px 56px;
 }
 .marketing-public-page__intro {
   max-width: 740px;
@@ -208,6 +221,50 @@
 .marketing-guide-copy p + p {
   margin-top: 20px;
 }
+.legal-doc {
+  max-width: 72ch;
+  font-size: 17px;
+  line-height: 1.7;
+  color: #142a36;
+}
+.legal-doc__updated {
+  color: #516570;
+  font-size: 14px;
+}
+.legal-doc h2 {
+  margin: 36px 0 12px;
+  font-size: 1.35rem;
+}
+.legal-doc p + p,
+.legal-doc p + ul,
+.legal-doc ul + p {
+  margin-top: 14px;
+}
+.legal-doc ul {
+  padding-left: 1.2em;
+}
+.legal-doc li + li {
+  margin-top: 6px;
+}
+.legal-doc__table-wrap {
+  overflow-x: auto;
+  margin: 16px 0 8px;
+}
+.legal-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.legal-doc th,
+.legal-doc td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e4eef4;
+}
+.legal-doc th {
+  font-weight: 600;
+}
 .marketing-public-page .marketing-guide-links {
   display: flex;
   flex-wrap: wrap;
@@ -225,15 +282,8 @@
   .marketing-page .marketing-nav__links {
     display: none;
   }
-  .marketing-page .marketing-footer.marketing-footer--directory {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 36px;
-  }
-  .marketing-footer--directory .marketing-footer__intro p br {
-    display: none;
-  }
-  .marketing-footer--directory .marketing-footer__note {
-    max-width: none;
+  .marketing-footer--directory nav.marketing-footer__directory {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {

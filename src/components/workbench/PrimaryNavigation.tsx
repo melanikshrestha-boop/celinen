@@ -19,14 +19,16 @@ export function NavigationHint({ label, children }: { label: string; children: R
 
 export function PrimaryNavigation({
   pathname,
+  search = "",
   open,
   counts = {},
 }: {
   pathname: string;
+  search?: string;
   open: (href: string) => unknown;
   counts?: Partial<Record<"/tonight" | "/deliver", number | null>>;
 }) {
-  const active = primaryNavigationPath(pathname);
+  const active = primaryNavigationPath(pathname, search);
   const badgeId = useId();
   return (
     <nav className="foto-primary-nav" aria-label="Primary navigation">

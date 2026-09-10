@@ -39,6 +39,23 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain(":focus-visible");
     expect(css).not.toMatch(/\.workbench|\.develop-|--foto-font-ui|documentElement/);
     expect(source).not.toMatch(/localStorage|indexedDB|savePreferences|ThemeToggle/);
+    expect(source).toContain("onPointerMove={followAudience}");
+    expect(source).toContain("onPointerEnter={followAudience}");
+    expect(source).toContain("pricing-audiences__thumb");
+    expect(source).toContain("pricing-period");
+    expect(source).toContain("pricing-figure");
+    expect(source).toContain("Math.floor(t * AUDIENCES.length)");
+    expect(css).toContain(".pricing-audiences.is-live .pricing-audiences__thumb");
+    expect(css).toContain("transition: none");
+    expect(source).toContain("useMarketingMotion()");
+    expect(source).not.toContain("PlanCheckout");
+    expect(source).not.toContain("recordSignup");
+    expect(source).not.toContain("Choose your plan");
+    expect(source).not.toContain("you@studio.com");
+    expect(css).toContain("white-space: nowrap");
+    expect(css).toContain("flex-wrap: nowrap");
+    expect(css).not.toContain(".pricing-pay");
+    expect(css).not.toMatch(/\.pricing-plans small \{\s*display:\s*block/);
   });
 } else {
   // Disposable process: hook/router mocks never contaminate the shared Bun suite.
@@ -91,14 +108,15 @@ if (!process.argv.includes(fixtureFlag)) {
       );
     },
   }));
-  const signups: unknown[] = [];
-  let signupFails = false;
-  mock.module("@/utils/payments.functions", () => ({ recordSignup: Symbol("record-signup") }));
+  mock.module("@/utils/payments.functions", () => ({
+    createCheckoutSession: Symbol("create-checkout-session"),
+  }));
+  mock.module("@/components/StripeEmbeddedCheckout", () => ({
+    StripeEmbeddedCheckout: ({ priceId }: { priceId: string }) =>
+      react.createElement("div", { "data-stripe-price": priceId }, "Stripe checkout"),
+  }));
   mock.module("@tanstack/react-start", () => ({
-    useServerFn: () => async (input: unknown) => {
-      signups.push(input);
-      return signupFails ? { error: "Checkout unavailable" } : { ok: true };
-    },
+    useServerFn: () => async () => ({ ok: true }),
   }));
   let accountStatus: "loading" | "in" | "out" | undefined;
   mock.module("@/components/account/AccountProvider", () => ({
@@ -114,33 +132,6 @@ if (!process.argv.includes(fixtureFlag)) {
     MarketingFooter: () => react.createElement("footer", null, "FOTO"),
   }));
 
-  // Capture the real rendered form handler; no duplicated signup implementation.
-  const runtime = await import("react/jsx-runtime");
-  let submit: ((event: { preventDefault(): void }) => Promise<void>) | undefined;
-  const capture =
-    (factory: typeof runtime.jsx) =>
-    (
-      type: Parameters<typeof runtime.jsx>[0],
-      props: Parameters<typeof runtime.jsx>[1],
-      key?: Parameters<typeof runtime.jsx>[2],
-    ) => {
-      if (type === "form" && typeof props?.onSubmit === "function") submit = props.onSubmit;
-      return factory(type, props, key);
-    };
-  mock.module("react/jsx-runtime", () => ({
-    ...runtime,
-    jsx: capture(runtime.jsx),
-    jsxs: capture(runtime.jsxs),
-  }));
-  const devRuntime = await import("react/jsx-dev-runtime");
-  const originalDevJsx = devRuntime.jsxDEV;
-  mock.module("react/jsx-dev-runtime", () => ({
-    ...devRuntime,
-    jsxDEV: (...args: Parameters<typeof devRuntime.jsxDEV>) => {
-      if (args[0] === "form" && typeof args[1]?.onSubmit === "function") submit = args[1].onSubmit;
-      return originalDevJsx(...args);
-    },
-  }));
   const { Route } = await import("../src/routes/pricing");
   const component = Route.options.component;
   assert.ok(component);
@@ -151,7 +142,6 @@ if (!process.argv.includes(fixtureFlag)) {
       .trim();
   const render = () => {
     cursor = 0;
-    submit = undefined;
     return renderToStaticMarkup(react.createElement(component));
   };
   const links = (html: string) =>
@@ -193,7 +183,7 @@ if (!process.argv.includes(fixtureFlag)) {
           assert.match(html, /aria-label="Public navigation"/);
           assert.doesNotMatch(
             visible,
-            /\$|Most popular|prorated|SSO and seat management|Cancel any time|within 14 days|100 photos per month|Everything in Free|catalog import/,
+            /\$|prorated|SSO and seat management|Cancel any time|within 14 days|100 photos per month|Everything in Free|catalog import/,
           );
           assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
           assert.match(visible, /USD/);
@@ -210,7 +200,7 @@ if (!process.argv.includes(fixtureFlag)) {
               assert.equal(free.url.searchParams.get("next"), "/workspace");
             }
             const paid = list.find(
-              (link) => link.label === (audience === "teams" ? "Get Teams" : "Get Pro"),
+              (link) => link.label === (audience === "teams" ? "Choose Teams" : "Choose Pro"),
             );
             assert.ok(paid);
             assert.equal(paid.url.pathname, "/signup");
@@ -219,6 +209,8 @@ if (!process.argv.includes(fixtureFlag)) {
             assert.ok(visible.includes(`USD ${cycle === "yearly" ? yearly : monthly}`));
             assert.ok(visible.includes(`USD ${(monthly - yearly) * 12}`));
             if (cycle === "yearly") assert.ok(visible.includes(`USD ${yearly * 12}`));
+            assert.doesNotMatch(html, /class="pricing-pay"/);
+            assert.doesNotMatch(visible, /Choose your plan|you@studio\.com|Studio name|Continue to checkout/);
           } else {
             const business = list.find((link) => link.label === "Get Business");
             assert.equal(business?.url.searchParams.get("plan"), "agency");
@@ -231,36 +223,12 @@ if (!process.argv.includes(fixtureFlag)) {
       }
     }
   }
-  // A selected paid upgrade keeps the same normalized payload and destination.
   state.clear();
-  state.set(0, "monthly");
-  state.set(1, "teams");
-  state.set(3, 1);
-  state.set(5, " PHOTOGRAPHER@EXAMPLE.COM ");
-  state.set(6, "Test Studio");
-  render();
-  assert.ok(submit, "Actual upgrade form handler must render");
-  await submit({ preventDefault() {} });
-  assert.deepEqual(signups.at(-1), {
-    data: {
-      email: "photographer@example.com",
-      plan: "agency",
-      billing: "monthly",
-      studio: "Test Studio",
-    },
-  });
-  assert.deepEqual(navigations.at(-1), {
-    to: "/signup",
-    search: { plan: "agency", billing: "monthly", email: "photographer@example.com" },
-  });
-  const navigationCount = navigations.length;
-  signupFails = true;
-  state.set(8, false);
-  render();
-  assert.ok(submit);
-  await submit({ preventDefault() {} });
-  assert.equal(navigations.length, navigationCount, "Failed signup must not appear successful");
-  assert.match(text(render()), /Checkout unavailable/);
+  state.set(0, "yearly");
+  state.set(1, "personal");
+  state.set(2, 0);
+  const amountHtml = render();
+  assert.doesNotMatch(amountHtml, /Pay · USD/);
 
   const { SavingsSection } = await import("../src/components/marketing/SavingsSection");
   state.clear();
@@ -282,6 +250,6 @@ if (!process.argv.includes(fixtureFlag)) {
   assert.match(estimate, /-USD 481\.20/);
   assert.match(estimate, /Time value is not cash income/);
   console.log(
-    `PRICING_PRESENTATION_OK: ${scenarios} plan/account render scenarios; real upgrade submission; unchanged savings with explicit USD`,
+    `PRICING_PRESENTATION_OK: ${scenarios} plan/account render scenarios; Stripe pay control; unchanged savings with explicit USD`,
   );
 }

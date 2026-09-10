@@ -262,13 +262,19 @@ export function SettingsWorkspace({
       | "keepAwake"
       | "importSidecars"
       | "pointerCursors"
-      | "showPet",
+      | "showPet"
+      | "learnFromYourWork",
   ) => (
     <Switch
       aria-label={label}
       disabled={key === "cloudAssistant" && account.local}
       checked={key === "cloudAssistant" && account.local ? false : prefs[key]}
-      onCheckedChange={(value) => save({ [key]: value })}
+      onCheckedChange={(value) => {
+        save({ [key]: value });
+        if (key === "learnFromYourWork" && !value) {
+          void import("@/lib/personal-style").then((m) => m.clearPersonalStyle());
+        }
+      }}
     />
   );
   const matchedControls = searchSettingControls(query);
@@ -432,6 +438,12 @@ export function SettingsWorkspace({
               </Row>
             </Group>
             <Group title="Assistant">
+              <Row
+                title="Learn from your photos and edits"
+                note="Remembers looks you save so FOTO gets closer to your eye. Originals stay read-only. Not a shared model. Off deletes the local log."
+              >
+                {toggle("Learn from your photos and edits", "learnFromYourWork")}
+              </Row>
               <Row
                 title="Cloud assistant"
                 note={

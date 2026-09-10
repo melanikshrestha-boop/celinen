@@ -39,9 +39,6 @@ export function ProductPage() {
               Review a contact sheet, mark picks, and open the same shoot in Develop. Keep your
               selection and edit history attached to the photograph as you work.
             </p>
-            <Link to="/blog/$slug" params={{ slug: "a-calmer-first-pass" }}>
-              Plan a calmer first pass <span aria-hidden="true">↗</span>
-            </Link>
           </section>
           <section data-reveal>
             <span className="public-editorial__label">Make it yours</span>

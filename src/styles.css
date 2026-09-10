@@ -18,6 +18,22 @@
   font-display: swap;
 }
 
+/* Instrument Serif (OFL) — marketing display only; workspace UI stays OpenAI Sans. */
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("/fonts/instrument-serif/InstrumentSerif-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("/fonts/instrument-serif/InstrumentSerif-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* ChatGPT Codex UI face (OpenAI Sans). Local copies so the lab does not depend on their CDN. */
 @font-face {
   font-family: "OpenAI Sans";

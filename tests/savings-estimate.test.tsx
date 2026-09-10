@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   EXAMPLE_SAVINGS,
@@ -156,6 +157,30 @@ describe("public, accessible estimate presentation", () => {
     expect(html).toContain('class="marketing-value__calculator" open=""');
     expect(html).toContain("Reset example");
     expect(html).toContain("See the calculation");
+  });
+
+  test("savings inputs and totals are not boxed into capsules", () => {
+    const value = readFileSync(
+      new URL("../src/components/marketing/marketing-value.css", import.meta.url),
+      "utf8",
+    );
+    const sky = readFileSync(
+      new URL("../src/components/marketing/sky-entry.css", import.meta.url),
+      "utf8",
+    );
+    expect(value).toMatch(
+      /\.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/,
+    );
+    expect(value).toMatch(
+      /\.marketing-value__metric \{[^}]*border-radius:\s*0;[^}]*background:\s*transparent;/,
+    );
+    expect(value).not.toContain("color-scheme: dark");
+    expect(sky).toMatch(
+      /\.marketing-page \.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/,
+    );
+    expect(sky).not.toMatch(/\.marketing-value__field input \{[^}]*border-radius:\s*13px/);
+    expect(sky).not.toContain("#e5f2ff");
+    expect(sky).not.toContain("#e9f5dd");
   });
 
   test("workflow has all five stages and no unbuilt AI retouching claim", () => {

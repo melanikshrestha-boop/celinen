@@ -33,26 +33,26 @@ html.dark:has(.photo-workbench, .workbench-lock) {
   --input: #303030;
 }
 html:not(.dark):has(.photo-workbench, .workbench-lock) {
-  --wb-sidebar-material: var(--foto-sidebar-material, #f9f9f9cc);
-  --wb-sidebar-solid: var(--foto-sidebar-solid, #f9f9f9);
-  --wb-sidebar-hover: var(--foto-sidebar-hover, #00000008);
-  --wb-sidebar-selected: var(--foto-sidebar-selected, #0000000d);
-  --surface-composer: #f4f4f4;
-  --surface-hover: #f4f4f4;
-  --surface-selected: #ececec;
+  --wb-sidebar-material: var(--foto-sidebar-material, #f7f8fbcc);
+  --wb-sidebar-solid: var(--foto-sidebar-solid, #f7f8fb);
+  --wb-sidebar-hover: var(--foto-sidebar-hover, #142a3608);
+  --wb-sidebar-selected: var(--foto-sidebar-selected, #006eaa14);
+  --surface-composer: #ffffff;
+  --surface-hover: #f4f6f8;
+  --surface-selected: #e8f2fb;
   --surface-menu: #fff;
-  --send-active-bg: #222;
+  --send-active-bg: #111;
   --send-active-fg: #fff;
-  --send-disabled-bg: #ddd;
-  --send-disabled-fg: #666;
-  --wb-focus: #2458a6;
-  --paper: #f7f7fa;
-  --paper2: #f7f7fa;
-  --ink: #171717;
-  --moss: #666;
-  --mist: #f5f5f5;
-  --border: #e5e5e5;
-  --input: #d4d4d4;
+  --send-disabled-bg: #e4eef4;
+  --send-disabled-fg: #6a8490;
+  --wb-focus: #006eaa;
+  --paper: #ffffff;
+  --paper2: #f7f8fb;
+  --ink: #142a36;
+  --moss: #516570;
+  --mist: #f4f6f8;
+  --border: #e4eef4;
+  --input: #d8e6ed;
 }
 .photo-workbench {
   --wb-bg: var(--wb-user-bg, #000);
@@ -154,9 +154,9 @@ html:not(.dark):has(.photo-workbench, .workbench-lock) {
 html:not(.dark) .photo-workbench {
   --wb-bg: var(--wb-user-bg, #fff);
   --wb-side: var(--wb-user-bg, #fff);
-  --wb-surface: #f5f5f5;
+  --wb-surface: #f4f6f8;
   --wb-text: var(--wb-user-fg, #171717);
-  --wb-muted: #666;
+  --wb-muted: #516570;
 }
 html:not(.dark)
   :is(
@@ -451,6 +451,14 @@ html:not(.dark) [data-mobile="true"][data-sidebar="sidebar"] {
   flex: 1 1 100%;
   width: 100%;
   border: 0;
+}
+.workbench-panels.is-home .workbench-tool-scroll {
+  padding: 0;
+  background: #f4f6f8;
+}
+.workbench-body:has(.is-home) .foto-workflow-header {
+  border-color: transparent;
+  background: #f4f6f8;
 }
 .settings-mode > .foto-mobile-rail {
   display: none;
@@ -915,6 +923,14 @@ html[data-contrast="more"] .foto-mobile-rail {
 .workbench-nav-item.is-active {
   background: var(--surface-selected);
   color: var(--wb-text);
+}
+html:not(.dark) .foto-primary-item.is-active {
+  background: #e8f2fb;
+  color: #005888;
+}
+html:not(.dark) .foto-upgrade {
+  background: #eef8ee;
+  color: #356021;
 }
 .workbench-nav-item svg {
   flex-shrink: 0;

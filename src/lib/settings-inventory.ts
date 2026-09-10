@@ -41,6 +41,12 @@ const preferences: [SettingsSection, string, keyof typeof DEFAULT_PREFERENCES, s
     "Allow hosted prompts and shoot metadata; never bypass approvals",
   ],
   [
+    "personalization",
+    "Learn from your photos and edits",
+    "learnFromYourWork",
+    "Remember your saved looks for you only; originals stay read-only; not a shared model",
+  ],
+  [
     "general",
     "Prevent sleep while running",
     "keepAwake",
