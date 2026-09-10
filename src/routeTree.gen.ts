@@ -15,6 +15,7 @@ import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as BusinessRouteImport } from './routes/business'
+import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DeliverRouteImport } from './routes/deliver'
@@ -37,6 +38,7 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProductRouteImport } from './routes/product'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as RatesRouteImport } from './routes/rates'
@@ -54,6 +56,8 @@ import { Route as TonightRouteImport } from './routes/tonight'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as DocsPermissionsRouteImport } from './routes/docs_.permissions'
 import { Route as DocsSettingsRouteImport } from './routes/docs_.settings'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
@@ -103,6 +107,11 @@ const BookRoute = BookRouteImport.update({
 const BusinessRoute = BusinessRouteImport.update({
   id: '/business',
   path: '/business',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsRoute = ClientsRouteImport.update({
@@ -215,6 +224,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductRoute = ProductRouteImport.update({
+  id: '/product',
+  path: '/product',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -298,6 +312,16 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsPermissionsRoute = DocsPermissionsRouteImport.update({
@@ -411,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
+  '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
@@ -433,6 +458,7 @@ export interface FileRoutesByFullPath {
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/product': typeof ProductRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
@@ -450,6 +476,7 @@ export interface FileRoutesByFullPath {
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
@@ -459,6 +486,7 @@ export interface FileRoutesByFullPath {
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/blog/': typeof BlogIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -478,6 +506,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
+  '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
@@ -500,6 +529,7 @@ export interface FileRoutesByTo {
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/product': typeof ProductRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
@@ -516,6 +546,7 @@ export interface FileRoutesByTo {
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
@@ -524,6 +555,7 @@ export interface FileRoutesByTo {
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
+  '/blog': typeof BlogIndexRoute
   '/shoots': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -544,6 +576,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
+  '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/deliver': typeof DeliverRoute
@@ -566,6 +599,7 @@ export interface FileRoutesById {
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/product': typeof ProductRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
@@ -583,6 +617,7 @@ export interface FileRoutesById {
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/docs_/permissions': typeof DocsPermissionsRoute
   '/docs_/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
@@ -592,6 +627,7 @@ export interface FileRoutesById {
   '/s/$token': typeof STokenRoute
   '/settings_/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/blog/': typeof BlogIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -613,6 +649,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/book'
     | '/business'
+    | '/changelog'
     | '/clients'
     | '/community'
     | '/deliver'
@@ -635,6 +672,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/pricing'
     | '/privacy'
+    | '/product'
     | '/projects'
     | '/publish'
     | '/rates'
@@ -652,6 +690,7 @@ export interface FileRouteTypes {
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/blog/$slug'
     | '/docs/permissions'
     | '/docs/settings'
     | '/g/$slug'
@@ -661,6 +700,7 @@ export interface FileRouteTypes {
     | '/s/$token'
     | '/settings/$section'
     | '/shoots/$id'
+    | '/blog/'
     | '/shoots/'
     | '/api/public/lightroom'
     | '/shoots/$id/cull'
@@ -680,6 +720,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/book'
     | '/business'
+    | '/changelog'
     | '/clients'
     | '/community'
     | '/deliver'
@@ -702,6 +743,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/pricing'
     | '/privacy'
+    | '/product'
     | '/projects'
     | '/publish'
     | '/rates'
@@ -718,6 +760,7 @@ export interface FileRouteTypes {
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/blog/$slug'
     | '/docs/permissions'
     | '/docs/settings'
     | '/g/$slug'
@@ -726,6 +769,7 @@ export interface FileRouteTypes {
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
+    | '/blog'
     | '/shoots'
     | '/api/public/lightroom'
     | '/shoots/$id/cull'
@@ -745,6 +789,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/book'
     | '/business'
+    | '/changelog'
     | '/clients'
     | '/community'
     | '/deliver'
@@ -767,6 +812,7 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/pricing'
     | '/privacy'
+    | '/product'
     | '/projects'
     | '/publish'
     | '/rates'
@@ -784,6 +830,7 @@ export interface FileRouteTypes {
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/blog/$slug'
     | '/docs_/permissions'
     | '/docs_/settings'
     | '/g/$slug'
@@ -793,6 +840,7 @@ export interface FileRouteTypes {
     | '/s/$token'
     | '/settings_/$section'
     | '/shoots/$id'
+    | '/blog/'
     | '/shoots/'
     | '/api/public/lightroom'
     | '/shoots/$id/cull'
@@ -813,6 +861,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
   BusinessRoute: typeof BusinessRoute
+  ChangelogRoute: typeof ChangelogRoute
   ClientsRoute: typeof ClientsRoute
   CommunityRoute: typeof CommunityRoute
   DeliverRoute: typeof DeliverRoute
@@ -835,6 +884,7 @@ export interface RootRouteChildren {
   PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
+  ProductRoute: typeof ProductRoute
   ProjectsRoute: typeof ProjectsRoute
   PublishRoute: typeof PublishRoute
   RatesRoute: typeof RatesRoute
@@ -852,6 +902,7 @@ export interface RootRouteChildren {
   VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
+  BlogSlugRoute: typeof BlogSlugRoute
   DocsPermissionsRoute: typeof DocsPermissionsRoute
   DocsSettingsRoute: typeof DocsSettingsRoute
   GSlugRoute: typeof GSlugRoute
@@ -860,6 +911,7 @@ export interface RootRouteChildren {
   ReviewIdRoute: typeof ReviewIdRoute
   STokenRoute: typeof STokenRoute
   SettingsSectionRoute: typeof SettingsSectionRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
@@ -908,6 +960,13 @@ declare module '@tanstack/react-router' {
       path: '/business'
       fullPath: '/business'
       preLoaderRoute: typeof BusinessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changelog': {
+      id: '/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients': {
@@ -1064,6 +1123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/product': {
+      id: '/product'
+      path: '/product'
+      fullPath: '/product'
+      preLoaderRoute: typeof ProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects': {
       id: '/projects'
       path: '/projects'
@@ -1181,6 +1247,20 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs_/permissions': {
@@ -1368,6 +1448,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BookRoute: BookRoute,
   BusinessRoute: BusinessRoute,
+  ChangelogRoute: ChangelogRoute,
   ClientsRoute: ClientsRoute,
   CommunityRoute: CommunityRoute,
   DeliverRoute: DeliverRoute,
@@ -1390,6 +1471,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
+  ProductRoute: ProductRoute,
   ProjectsRoute: ProjectsRoute,
   PublishRoute: PublishRoute,
   RatesRoute: RatesRoute,
@@ -1407,6 +1489,7 @@ const rootRouteChildren: RootRouteChildren = {
   VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
+  BlogSlugRoute: BlogSlugRoute,
   DocsPermissionsRoute: DocsPermissionsRoute,
   DocsSettingsRoute: DocsSettingsRoute,
   GSlugRoute: GSlugRoute,
@@ -1415,6 +1498,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewIdRoute: ReviewIdRoute,
   STokenRoute: STokenRoute,
   SettingsSectionRoute: SettingsSectionRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,

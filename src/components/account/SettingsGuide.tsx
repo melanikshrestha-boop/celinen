@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { LogoMark } from "@/components/lensos/Logo";
+import { PublicPage } from "@/components/marketing/PublicPage";
 
 const pages = {
   help: {
@@ -53,18 +53,13 @@ export type SettingsGuidePage = keyof typeof pages;
 export function SettingsGuide({ page }: { page: SettingsGuidePage }) {
   const entry = pages[page];
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 text-foreground">
-      <Link to="/" className="mb-12 flex items-center gap-3 text-lg font-medium">
-        <LogoMark size={28} />
-        LensLabs
-      </Link>
-      <h1 className="mb-6 text-3xl font-medium">{entry.title}</h1>
-      <div className="space-y-5 text-sm leading-7 text-muted-foreground">
+    <PublicPage eyebrow="A little clarity" title={entry.title.replace(/^LensLabs/, "FOTO")}>
+      <div className="marketing-guide-copy" data-reveal>
         {entry.paragraphs.map((text) => (
           <p key={text}>{text}</p>
         ))}
       </div>
-      <nav className="mt-10 flex flex-wrap gap-5 text-sm" aria-label="LensLabs guides">
+      <nav className="marketing-guide-links" aria-label="FOTO guides">
         <Link to="/settings/$section" params={{ section: "general" }}>
           Open Settings →
         </Link>
@@ -74,6 +69,6 @@ export function SettingsGuide({ page }: { page: SettingsGuidePage }) {
         <Link to="/terms">Terms</Link>
         <Link to="/security">Security</Link>
       </nav>
-    </main>
+    </PublicPage>
   );
 }

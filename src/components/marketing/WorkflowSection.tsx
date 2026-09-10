@@ -40,7 +40,12 @@ const WORKFLOW = [
 
 export function WorkflowSection() {
   return (
-    <section className="marketing-workflow" id="workflow" aria-labelledby="workflow-heading">
+    <section
+      className="marketing-workflow"
+      id="workflow"
+      aria-labelledby="workflow-heading"
+      data-reveal
+    >
       <p className="marketing-value__eyebrow">From the first frame to the final gallery</p>
       <h2 id="workflow-heading">Less between you and your next shoot.</h2>
       <Carousel
