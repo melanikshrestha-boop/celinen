@@ -1,6 +1,5 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { developEngineStatus, renderDevelop } from "@/lib/develop/client";
-import { defaultDevelopSettings } from "@/lib/develop/contract";
+import { prepareDevelopPreview } from "@/lib/develop/preview";
 import {
   DEVELOP_RECONNECT_LIMITS,
   planDevelopReconnect,
@@ -43,30 +42,7 @@ const messageOf = (error: unknown) =>
     : "Reconnect could not finish. Existing originals are unchanged.";
 
 async function decodeOriginal(file: File, photo: DevelopPhoto, signal: AbortSignal) {
-  signal.throwIfAborted();
-  let previewBlob: Blob;
-  let previewOrigin: "unknown" | "raw-demosaic" | "raster" = photo.isRaw ? "unknown" : "raster";
-  try {
-    previewBlob = await renderDevelop(file, defaultDevelopSettings(), { edge: 1600, signal });
-  } catch (error) {
-    signal.throwIfAborted();
-    if (!photo.isRaw || !(await developEngineStatus())?.rawSupported) throw error;
-    signal.throwIfAborted();
-    previewBlob = await renderDevelop(file, defaultDevelopSettings(), {
-      edge: 1600,
-      sourceMode: "raw",
-      signal,
-    });
-    previewOrigin = "raw-demosaic";
-  }
-  signal.throwIfAborted();
-  const bitmap = await createImageBitmap(previewBlob);
-  try {
-    signal.throwIfAborted();
-    return { previewBlob, width: bitmap.width, height: bitmap.height, previewOrigin };
-  } finally {
-    bitmap.close();
-  }
+  return prepareDevelopPreview(file, photo, signal);
 }
 
 /** Content only: the parent owns the heading, focus trap and Escape/outside-click guard. */

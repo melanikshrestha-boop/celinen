@@ -24,16 +24,16 @@ const statusSchema = z.object({
 const admissionQueue = createDevelopAdmissionQueue();
 export type DevelopEngineStatus = z.infer<typeof statusSchema>;
 let cached: Promise<DevelopEngineStatus | null> | null = null,
+  inflight: Promise<DevelopEngineStatus | null> | null = null,
   checked = 0;
+function isLocalDevelopHost(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
 export async function developEngineStatus(refresh = false): Promise<DevelopEngineStatus | null> {
-  if (
-    typeof window === "undefined" ||
-    !["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname)
-  )
-    return null;
+  if (typeof window === "undefined" || !isLocalDevelopHost(window.location.hostname)) return null;
   if (!refresh && cached && Date.now() - checked < 5000) return cached;
-  checked = Date.now();
-  cached = (async () => {
+  if (!refresh && inflight) return inflight;
+  const request = (async () => {
     try {
       const response = await fetch("/__develop/status", {
         headers: { "x-lenslabs-request": "studio" },
@@ -46,7 +46,19 @@ export async function developEngineStatus(refresh = false): Promise<DevelopEngin
       return null;
     }
   })();
-  return cached;
+  inflight = request;
+  void request.then((status) => {
+    if (inflight === request) inflight = null;
+    // A miss must not occupy the 5s cache. JPEG import retries instead of failing four files.
+    if (status?.ready && status.token) {
+      cached = Promise.resolve(status);
+      checked = Date.now();
+    } else {
+      cached = null;
+      checked = 0;
+    }
+  });
+  return request;
 }
 export function encodeDevelopRequest(
   source: Blob,

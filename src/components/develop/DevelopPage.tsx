@@ -37,6 +37,7 @@ import {
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
+import { prepareDevelopPreview } from "@/lib/develop/preview";
 import { canReuseNeutralDevelop, isNeutralDevelopRecipe } from "@/lib/develop/neutral";
 import { AutoCropDialog } from "./AutoCropDialog";
 import { ObjectRemoveDialog } from "./ObjectRemoveDialog";
@@ -452,11 +453,16 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }, [importSession]);
   useEffect(() => {
     let cancelled = false;
-    void developEngineStatus().then((s) => {
-      if (!cancelled) setEngine(Boolean(s?.ready));
-    });
+    const read = () => {
+      void developEngineStatus(true).then((s) => {
+        if (!cancelled) setEngine(Boolean(s?.ready));
+      });
+    };
+    read();
+    window.addEventListener("focus", read);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", read);
     };
   }, []);
   useEffect(() => {
@@ -1284,36 +1290,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         current.photo.sourceDigest !== target.sourceDigest
       )
         throw new Error("This original changed after the file chooser opened. Choose it again.");
-      let preview: Blob;
-      let previewOrigin: "unknown" | "raw-demosaic" | "raster" = target.isRaw
-        ? "unknown"
-        : "raster";
-      try {
-        preview = await renderDevelop(file, defaultDevelopSettings(), {
-          edge: 1600,
-          signal: controller.signal,
-        });
-      } catch (previewError) {
-        controller.signal.throwIfAborted();
-        if (!target.isRaw || !(await developEngineStatus())?.rawSupported) throw previewError;
-        setBusy(`Reconnecting ${target.name} · developing RAW preview`);
-        preview = await renderDevelop(file, defaultDevelopSettings(), {
-          edge: 1600,
-          sourceMode: "raw",
-          signal: controller.signal,
-        });
-        previewOrigin = "raw-demosaic";
-      }
-      const bitmap = await createImageBitmap(preview);
-      const dims = { width: bitmap.width, height: bitmap.height };
-      bitmap.close();
+      if (target.isRaw) setBusy(`Reconnecting ${target.name} · developing RAW preview`);
+      const preview = await prepareDevelopPreview(file, target, controller.signal);
       controller.signal.throwIfAborted();
       const incoming = await reconnectDevelopPhoto(
         current.photo,
         file,
-        preview,
-        dims,
-        previewOrigin,
+        preview.previewBlob,
+        { width: preview.width, height: preview.height },
+        preview.previewOrigin,
       );
       controller.signal.throwIfAborted();
       if (!alive.current) return;

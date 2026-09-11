@@ -21,7 +21,7 @@
 }
 .foto-develop .develop-grading-views button[aria-selected="true"] {
   color: var(--dv-text);
-  background: #444;
+  background: var(--dv-press);
 }
 .develop-grading-range {
   min-width: 0;
@@ -56,7 +56,7 @@
     radial-gradient(circle closest-side, #808080, #80808000),
     conic-gradient(from 90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
   background: var(--grade-wheel-fill);
-  box-shadow: 0 0 0 1px #161616;
+  box-shadow: 0 0 0 1px var(--dv-line);
 }
 .foto-develop .develop-grade-wheel:hover:not(:disabled) {
   background: var(--grade-wheel-fill);
