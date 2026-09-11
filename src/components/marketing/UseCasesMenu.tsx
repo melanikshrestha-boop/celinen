@@ -1,20 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  Briefcase,
-  Calendar,
-  Camera,
-  ChevronDown,
-  CircleDot,
-  GraduationCap,
-  Heart,
-  Newspaper,
-  Package,
-  Shirt,
-  Trophy,
-  User,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,45 +26,31 @@ export const FOOTBALL_CONFERENCES = [
     id: "big-ten",
     mark: "bigten",
     title: "Big Ten",
-    copy: "Sideline to gallery the same night. Jersey, roster, Saturday.",
     teams: BIG_TEN_TEAMS,
   },
   {
     id: "sec",
     mark: "sec",
     title: "SEC",
-    copy: "Night games, long bursts, keepers to the athletic department tonight.",
     teams: SEC_TEAMS,
   },
   {
     id: "acc",
     mark: "acc",
     title: "ACC",
-    copy: "Peak action, long cards, keepers to the athletic department tonight.",
     teams: ACC_TEAMS,
   },
   {
     id: "big-12",
     mark: "big12",
     title: "Big 12",
-    copy: "Saturday bursts, jersey tags, a gallery the school can use tonight.",
     teams: BIG12_TEAMS,
   },
 ] as const;
 
 export const PHOTOGRAPHY_TYPES = [
-  { id: "sports", icon: Trophy, title: "Sports photography" },
-  { id: "soccer-team", icon: Shirt, title: "Soccer team" },
-  { id: "soccer", icon: CircleDot, title: "Soccer" },
-  { id: "wedding", icon: Heart, title: "Wedding photography" },
-  { id: "portrait", icon: User, title: "Portrait photography" },
-  { id: "family", icon: Users, title: "Family photography" },
-  { id: "event", icon: Calendar, title: "Event photography" },
-  { id: "graduation", icon: GraduationCap, title: "Graduation photography" },
-  { id: "fashion", icon: Camera, title: "Fashion photography" },
-  { id: "commercial", icon: Briefcase, title: "Commercial photography" },
-  { id: "editorial", icon: Newspaper, title: "Editorial photography" },
-  { id: "product", icon: Package, title: "Product photography" },
+  { id: "sports", mark: "sports", title: "Sports photography" },
+  { id: "wedding", mark: "wedding", title: "Wedding photography" },
 ] as const;
 
 export const USE_CASES = [
@@ -100,19 +71,17 @@ export const USE_CASE_SECTIONS = [
 
 function CaseRow({
   mark,
-  icon: Icon,
   title,
   copy,
 }: {
-  mark?: string;
-  icon?: LucideIcon;
+  mark: string;
   title: string;
   copy?: string;
 }) {
   return (
     <>
       <span className="marketing-nav-feature__icon" aria-hidden="true">
-        {mark ? <UseCaseMark id={mark} /> : Icon ? <Icon size={20} strokeWidth={1.6} /> : null}
+        <UseCaseMark id={mark} />
       </span>
       <span>
         <strong>{title}</strong>
@@ -133,7 +102,7 @@ export function UseCasesMenu() {
       <DropdownMenuContent
         align="start"
         sideOffset={10}
-        className="marketing-nav-menu marketing-nav-features marketing-nav-features--long"
+        className="marketing-nav-menu marketing-nav-features"
       >
         {USE_CASES.map((item) =>
           "conferences" in item && item.conferences ? (
@@ -147,15 +116,14 @@ export function UseCasesMenu() {
                   align="start"
                   className="marketing-nav-menu marketing-nav-features marketing-nav-sub"
                 >
+                  {item.copy ? (
+                    <p className="marketing-nav-sub__lede">{item.copy}</p>
+                  ) : null}
                   {item.conferences.map((conference) =>
                     "teams" in conference && conference.teams ? (
                       <DropdownMenuSub key={conference.id}>
                         <DropdownMenuSubTrigger className="marketing-nav-feature marketing-nav-feature--flyout">
-                          <CaseRow
-                            mark={conference.mark}
-                            title={conference.title}
-                            copy={conference.copy}
-                          />
+                          <CaseRow mark={conference.mark} title={conference.title} />
                         </DropdownMenuSubTrigger>
                         <DropdownMenuPortal>
                           <DropdownMenuSubContent
@@ -186,11 +154,7 @@ export function UseCasesMenu() {
                           hash={conference.id}
                           className="marketing-nav-feature"
                         >
-                          <CaseRow
-                            mark={conference.mark}
-                            title={conference.title}
-                            copy={conference.copy}
-                          />
+                          <CaseRow mark={conference.mark} title={conference.title} />
                         </Link>
                       </DropdownMenuItem>
                     ),
@@ -200,15 +164,8 @@ export function UseCasesMenu() {
             </DropdownMenuSub>
           ) : (
             <DropdownMenuItem key={item.id} asChild>
-              <Link
-                to="/use-cases"
-                hash={item.id}
-                className="marketing-nav-feature marketing-nav-feature--team"
-              >
-                <CaseRow
-                  icon={"icon" in item ? item.icon : undefined}
-                  title={item.title}
-                />
+              <Link to="/use-cases" hash={item.id} className="marketing-nav-feature">
+                <CaseRow mark={item.mark} title={item.title} />
               </Link>
             </DropdownMenuItem>
           ),

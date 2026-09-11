@@ -11,7 +11,7 @@
   transition: background-color 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .settings-switch[aria-checked="true"] {
-  background: #111;
+  background: #4d6fff;
 }
 .settings-switch__thumb {
   position: absolute;

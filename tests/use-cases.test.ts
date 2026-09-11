@@ -20,18 +20,10 @@ describe("use cases", () => {
     expect(USE_CASES.map((item) => item.title)).toEqual([
       "College football",
       "Sports photography",
-      "Soccer team",
-      "Soccer",
       "Wedding photography",
-      "Portrait photography",
-      "Family photography",
-      "Event photography",
-      "Graduation photography",
-      "Fashion photography",
-      "Commercial photography",
-      "Editorial photography",
-      "Product photography",
     ]);
+    expect(USE_CASES.map((item) => item.id)).not.toContain("soccer");
+    expect(USE_CASES.map((item) => item.id)).not.toContain("graduation");
     expect(USE_CASES[0]?.title).toBe("College football");
     expect(USE_CASES[0]?.mark).toBe("usc");
     expect(FOOTBALL_CONFERENCES.map((item) => item.title)).toEqual([

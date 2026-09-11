@@ -114,13 +114,13 @@ export function AppDashboard() {
               <h1>Welcome back{name && name !== PRODUCT_NAME ? `, ${name.split(" ")[0]}` : ""}.</h1>
               <p>Pick keepers, send a gallery, or open a connected social.</p>
               <div className="celinen-dash__actions">
-                <Link to="/shoots" className="celinen-dash__cta">
+                <Link to="/shoots" className="celinen-btn">
                   Open a shoot
                 </Link>
-                <Link to="/deliver" className="celinen-dash__ghost">
+                <Link to="/deliver" className="celinen-btn celinen-btn--ghost">
                   Send a gallery
                 </Link>
-                <Link to="/publish" className="celinen-dash__ghost">
+                <Link to="/publish" className="celinen-btn celinen-btn--ghost">
                   Connect socials
                 </Link>
               </div>
