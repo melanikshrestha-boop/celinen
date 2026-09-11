@@ -1,8 +1,8 @@
 .marketing-page .docs-ref {
   display: grid;
-  grid-template-columns: 15rem minmax(0, 48rem);
-  gap: 3.5rem;
-  width: min(100%, 70rem);
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  gap: 2.75rem 3rem;
+  width: min(100%, 74rem);
   margin-inline: auto;
   align-items: start;
   overflow-wrap: break-word;
@@ -252,11 +252,18 @@
 
 @media (max-width: 800px) {
   .marketing-page .docs-ref {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2rem;
+    grid-template-columns: 9.5rem minmax(0, 1fr);
+    gap: 1.25rem 1.5rem;
   }
 
   .marketing-page .docs-ref__toc {
-    position: static;
+    position: sticky;
+    top: 72px;
+  }
+
+  .marketing-page .docs-ref__toc nav a,
+  .marketing-page .docs-ref__toc-foot a {
+    font-size: 12px;
+    padding: 5px 0;
   }
 }
