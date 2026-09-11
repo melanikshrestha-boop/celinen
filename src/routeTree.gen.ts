@@ -18,15 +18,19 @@ import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DevelopRouteImport } from './routes/develop'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as GalleriesRouteImport } from './routes/galleries'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MailRouteImport } from './routes/mail'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MetadataRouteImport } from './routes/metadata'
 import { Route as MoneyRouteImport } from './routes/money'
 import { Route as NetworkRouteImport } from './routes/network'
@@ -53,9 +57,11 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TonightRouteImport } from './routes/tonight'
+import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as DocsPermissionsRouteImport } from './routes/docs_.permissions'
@@ -69,6 +75,7 @@ import { Route as SettingsSectionRouteImport } from './routes/settings_.$section
 import { Route as ShootsIndexRouteImport } from './routes/shoots.index'
 import { Route as ShootsIdRouteImport } from './routes/shoots.$id'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
+import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
 import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
 import { Route as ShootsIdCullRouteImport } from './routes/shoots.$id.cull'
 import { Route as ShootsIdDevelopRouteImport } from './routes/shoots.$id.develop'
@@ -124,6 +131,16 @@ const CommunityRoute = CommunityRouteImport.update({
   path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CookiePolicyRoute = CookiePolicyRouteImport.update({
+  id: '/cookie-policy',
+  path: '/cookie-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeliverRoute = DeliverRouteImport.update({
   id: '/deliver',
   path: '/deliver',
@@ -149,6 +166,11 @@ const EarningsRoute = EarningsRouteImport.update({
   path: '/earnings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GalleriesRoute = GalleriesRouteImport.update({
+  id: '/galleries',
+  path: '/galleries',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
@@ -167,6 +189,11 @@ const LibraryRoute = LibraryRouteImport.update({
 const MailRoute = MailRouteImport.update({
   id: '/mail',
   path: '/mail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MetadataRoute = MetadataRouteImport.update({
@@ -299,6 +326,11 @@ const TonightRoute = TonightRouteImport.update({
   path: '/tonight',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UseCasesRoute = UseCasesRouteImport.update({
+  id: '/use-cases',
+  path: '/use-cases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VideoRoute = VideoRouteImport.update({
   id: '/video',
   path: '/video',
@@ -312,6 +344,11 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
@@ -379,6 +416,11 @@ const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   path: '/api/public/lightroom',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTrafficRoute = ApiPublicTrafficRouteImport.update({
+  id: '/api/public/traffic',
+  path: '/api/public/traffic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShootsIdIndexRoute = ShootsIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -438,15 +480,19 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/cookie-policy': typeof CookiePolicyRoute
+  '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
+  '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
   '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
@@ -473,9 +519,11 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/tonight': typeof TonightRoute
+  '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
@@ -489,6 +537,7 @@ export interface FileRoutesByFullPath {
   '/blog/': typeof BlogIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
   '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
@@ -509,15 +558,19 @@ export interface FileRoutesByTo {
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/cookie-policy': typeof CookiePolicyRoute
+  '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
+  '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
   '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
@@ -543,9 +596,11 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/tonight': typeof TonightRoute
+  '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
@@ -558,6 +613,7 @@ export interface FileRoutesByTo {
   '/blog': typeof BlogIndexRoute
   '/shoots': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
   '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
@@ -579,15 +635,19 @@ export interface FileRoutesById {
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/cookie-policy': typeof CookiePolicyRoute
+  '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
   '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
+  '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
   '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
@@ -614,9 +674,11 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/tonight': typeof TonightRoute
+  '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/docs_/permissions': typeof DocsPermissionsRoute
   '/docs_/settings': typeof DocsSettingsRoute
@@ -630,6 +692,7 @@ export interface FileRoutesById {
   '/blog/': typeof BlogIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
   '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
@@ -652,15 +715,19 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/clients'
     | '/community'
+    | '/cookie-policy'
+    | '/dashboard'
     | '/deliver'
     | '/desk'
     | '/develop'
     | '/docs'
     | '/earnings'
+    | '/galleries'
     | '/help'
     | '/jobs'
     | '/library'
     | '/mail'
+    | '/mcp'
     | '/metadata'
     | '/money'
     | '/network'
@@ -687,9 +754,11 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/tonight'
+    | '/use-cases'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/mcp'
     | '/blog/$slug'
     | '/docs/permissions'
     | '/docs/settings'
@@ -703,6 +772,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/shoots/'
     | '/api/public/lightroom'
+    | '/api/public/traffic'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
     | '/shoots/$id/gallery'
@@ -723,15 +793,19 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/clients'
     | '/community'
+    | '/cookie-policy'
+    | '/dashboard'
     | '/deliver'
     | '/desk'
     | '/develop'
     | '/docs'
     | '/earnings'
+    | '/galleries'
     | '/help'
     | '/jobs'
     | '/library'
     | '/mail'
+    | '/mcp'
     | '/metadata'
     | '/money'
     | '/network'
@@ -757,9 +831,11 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/tonight'
+    | '/use-cases'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/mcp'
     | '/blog/$slug'
     | '/docs/permissions'
     | '/docs/settings'
@@ -772,6 +848,7 @@ export interface FileRouteTypes {
     | '/blog'
     | '/shoots'
     | '/api/public/lightroom'
+    | '/api/public/traffic'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
     | '/shoots/$id/gallery'
@@ -792,15 +869,19 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/clients'
     | '/community'
+    | '/cookie-policy'
+    | '/dashboard'
     | '/deliver'
     | '/desk'
     | '/develop'
     | '/docs'
     | '/earnings'
+    | '/galleries'
     | '/help'
     | '/jobs'
     | '/library'
     | '/mail'
+    | '/mcp'
     | '/metadata'
     | '/money'
     | '/network'
@@ -827,9 +908,11 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/tonight'
+    | '/use-cases'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/mcp'
     | '/blog/$slug'
     | '/docs_/permissions'
     | '/docs_/settings'
@@ -843,6 +926,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/shoots/'
     | '/api/public/lightroom'
+    | '/api/public/traffic'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
     | '/shoots/$id/gallery'
@@ -864,15 +948,19 @@ export interface RootRouteChildren {
   ChangelogRoute: typeof ChangelogRoute
   ClientsRoute: typeof ClientsRoute
   CommunityRoute: typeof CommunityRoute
+  CookiePolicyRoute: typeof CookiePolicyRoute
+  DashboardRoute: typeof DashboardRoute
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
   DevelopRoute: typeof DevelopRoute
   DocsRoute: typeof DocsRoute
   EarningsRoute: typeof EarningsRoute
+  GalleriesRoute: typeof GalleriesRoute
   HelpRoute: typeof HelpRoute
   JobsRoute: typeof JobsRoute
   LibraryRoute: typeof LibraryRoute
   MailRoute: typeof MailRoute
+  McpRoute: typeof McpRoute
   MetadataRoute: typeof MetadataRoute
   MoneyRoute: typeof MoneyRoute
   NetworkRoute: typeof NetworkRoute
@@ -899,9 +987,11 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
   TonightRoute: typeof TonightRoute
+  UseCasesRoute: typeof UseCasesRoute
   VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiMcpRoute: typeof ApiMcpRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DocsPermissionsRoute: typeof DocsPermissionsRoute
   DocsSettingsRoute: typeof DocsSettingsRoute
@@ -913,6 +1003,7 @@ export interface RootRouteChildren {
   SettingsSectionRoute: typeof SettingsSectionRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
+  ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
   ApiPublicStoriesPostIdCoverRoute: typeof ApiPublicStoriesPostIdCoverRoute
@@ -983,6 +1074,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cookie-policy': {
+      id: '/cookie-policy'
+      path: '/cookie-policy'
+      fullPath: '/cookie-policy'
+      preLoaderRoute: typeof CookiePolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/deliver': {
       id: '/deliver'
       path: '/deliver'
@@ -1018,6 +1123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EarningsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/galleries': {
+      id: '/galleries'
+      path: '/galleries'
+      fullPath: '/galleries'
+      preLoaderRoute: typeof GalleriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help': {
       id: '/help'
       path: '/help'
@@ -1044,6 +1156,13 @@ declare module '@tanstack/react-router' {
       path: '/mail'
       fullPath: '/mail'
       preLoaderRoute: typeof MailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/metadata': {
@@ -1228,6 +1347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TonightRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/use-cases': {
+      id: '/use-cases'
+      path: '/use-cases'
+      fullPath: '/use-cases'
+      preLoaderRoute: typeof UseCasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/video': {
       id: '/video'
       path: '/video'
@@ -1247,6 +1373,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/': {
@@ -1338,6 +1471,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/lightroom'
       fullPath: '/api/public/lightroom'
       preLoaderRoute: typeof ApiPublicLightroomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/traffic': {
+      id: '/api/public/traffic'
+      path: '/api/public/traffic'
+      fullPath: '/api/public/traffic'
+      preLoaderRoute: typeof ApiPublicTrafficRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shoots/$id/': {
@@ -1451,15 +1591,19 @@ const rootRouteChildren: RootRouteChildren = {
   ChangelogRoute: ChangelogRoute,
   ClientsRoute: ClientsRoute,
   CommunityRoute: CommunityRoute,
+  CookiePolicyRoute: CookiePolicyRoute,
+  DashboardRoute: DashboardRoute,
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
   DevelopRoute: DevelopRoute,
   DocsRoute: DocsRoute,
   EarningsRoute: EarningsRoute,
+  GalleriesRoute: GalleriesRoute,
   HelpRoute: HelpRoute,
   JobsRoute: JobsRoute,
   LibraryRoute: LibraryRoute,
   MailRoute: MailRoute,
+  McpRoute: McpRoute,
   MetadataRoute: MetadataRoute,
   MoneyRoute: MoneyRoute,
   NetworkRoute: NetworkRoute,
@@ -1486,9 +1630,11 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,
   TonightRoute: TonightRoute,
+  UseCasesRoute: UseCasesRoute,
   VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiMcpRoute: ApiMcpRoute,
   BlogSlugRoute: BlogSlugRoute,
   DocsPermissionsRoute: DocsPermissionsRoute,
   DocsSettingsRoute: DocsSettingsRoute,
@@ -1500,6 +1646,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsSectionRoute: SettingsSectionRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
+  ApiPublicTrafficRoute: ApiPublicTrafficRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
   ApiPublicStoriesPostIdCoverRoute: ApiPublicStoriesPostIdCoverRoute,

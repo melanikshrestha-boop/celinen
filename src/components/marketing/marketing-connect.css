@@ -49,21 +49,7 @@
 .marketing-connect__cta {
   position: relative;
   z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
   margin-top: 8px;
-  padding: 12px 28px;
-  border-radius: 999px;
-  background: #006eaa;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 500;
-}
-.marketing-connect__cta:hover {
-  background: #005888;
-  color: #fff;
 }
 @media (max-width: 640px) {
   .marketing-connect__node {

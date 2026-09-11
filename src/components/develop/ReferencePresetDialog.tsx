@@ -53,18 +53,28 @@ export function ReferencePresetDialog({
     [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const abort = useRef<AbortController | null>(null),
-    alive = useRef(true);
+    alive = useRef(true),
+    releaseProcessing = useRef<(() => void) | null>(null);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
       abort.current?.abort();
+      // Warm photo navigation keeps the parent editor, not this dialog.
+      releaseProcessing.current?.();
     };
   }, []);
   async function fit() {
-    if (!file || busy) return;
+    if (!file || busy || abort.current || !alive.current) return;
     const controller = new AbortController();
     abort.current = controller;
+    const release = () => {
+      if (abort.current !== controller) return;
+      abort.current = null;
+      releaseProcessing.current = null;
+      processing(false);
+    };
+    releaseProcessing.current = release;
     setBusy(true);
     processing(true);
     setError("");
@@ -73,25 +83,28 @@ export function ReferencePresetDialog({
     setMatched(null);
     try {
       const neutral = await getNeutral(controller.signal);
+      controller.signal.throwIfAborted();
       const fitted = await fitReferenceLook(neutral, file, { signal: controller.signal });
+      controller.signal.throwIfAborted();
       const preview = await renderDevelop(neutral, applyReferenceLook(current, fitted.settings), {
         edge: 1000,
         quality: 0.95,
         signal: controller.signal,
       });
+      controller.signal.throwIfAborted();
       const target = await renderDevelop(file, defaultDevelopSettings(), {
         edge: 1000,
         quality: 0.95,
         signal: controller.signal,
       });
-      if (alive.current && !controller.signal.aborted) {
+      if (alive.current && abort.current === controller && !controller.signal.aborted) {
         setOriginal(neutral);
         setReference(target);
         setMatched(preview);
         setResult(fitted);
       }
     } catch (cause) {
-      if (alive.current)
+      if (alive.current && abort.current === controller)
         setError(
           controller.signal.aborted
             ? "Fit cancelled. No edits were applied."
@@ -100,10 +113,11 @@ export function ReferencePresetDialog({
               : "Reference fit failed.",
         );
     } finally {
-      abort.current = null;
-      if (alive.current) {
-        setBusy(false);
-        processing(false);
+      // Cleanup may have released this lease and a replacement may already own
+      // the parent lock. A late worker must not release that newer operation.
+      if (abort.current === controller) {
+        release();
+        if (alive.current) setBusy(false);
       }
     }
   }

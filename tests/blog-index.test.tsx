@@ -30,7 +30,11 @@ test("blog is a category index with example photography posts", () => {
   expect(html).toContain("foto");
   expect(html).toContain("blog");
   for (const category of BLOG_CATEGORIES) expect(html).toContain(category);
-  expect(fotoArticles).toHaveLength(3);
+  expect(fotoArticles).toHaveLength(5);
+  expect(html).toContain('href="/blog/sports-photographer-genie"');
+  expect(html).toContain("The sports photographer");
+  expect(html).toContain('href="/blog/sports-photo-editing-tips"');
+  expect(html).toContain("Sports photo editing after the game");
   expect(html).toContain('href="/blog/lightroom-vs-capture-one-2026"');
   expect(html).toContain("Lightroom vs Capture One in 2026");
   expect(html).toContain("How to send a client gallery the same night");

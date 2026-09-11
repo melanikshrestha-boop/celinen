@@ -1,12 +1,11 @@
-import { useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   EXAMPLE_SAVINGS,
   SAVINGS_FIELDS,
   estimateSavings,
   savingsNumber,
   type SavingsDraft,
+  type SavingsField,
 } from "@/lib/savings-estimate";
 import "./marketing-value.css";
 
@@ -20,11 +19,43 @@ const savingsDollars = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
+function nudgeValue(raw: string, delta: number, max: number, step: number) {
+  const current = Number(raw);
+  const base = Number.isFinite(current) ? current : 0;
+  const next = Math.min(max, Math.max(0, Math.round((base + delta) / step) * step));
+  if (step >= 1) return String(Math.round(next));
+  return String(Number(next.toFixed(2)));
+}
+
 export function SavingsSection({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<SavingsDraft>({ ...EXAMPLE_SAVINGS });
+  const [pulse, setPulse] = useState<"time" | "money" | null>(null);
   const { result, errors } = estimateSavings(draft);
   const isExample = SAVINGS_FIELDS.every(({ key }) => draft[key] === EXAMPLE_SAVINGS[key]);
   const dollars = result ? savingsDollars(result.annualPotentialValue) : "—";
+  const prev = useRef({ hours: "", value: "" });
+
+  useEffect(() => {
+    const hours = result ? String(result.hoursPerWeek) : "";
+    const value = result ? String(result.annualPotentialValue) : "";
+    if (prev.current.hours && hours !== prev.current.hours) setPulse("time");
+    else if (prev.current.value && value !== prev.current.value) setPulse("money");
+    prev.current = { hours, value };
+    if (!hours && !value) return;
+    const timer = window.setTimeout(() => setPulse(null), 700);
+    return () => window.clearTimeout(timer);
+  }, [result]);
+
+  const setField = (key: SavingsField, value: string) =>
+    setDraft((current) => ({ ...current, [key]: value }));
+
+  const timeShare =
+    result && result.annualPotentialValue !== 0
+      ? Math.min(
+          100,
+          Math.max(0, (result.annualTimeValue / Math.abs(result.annualPotentialValue)) * 100),
+        )
+      : 0;
 
   return (
     <section className="marketing-value" id="savings" aria-labelledby="savings-heading">
@@ -37,49 +68,65 @@ export function SavingsSection({ children }: { children: ReactNode }) {
         <div className="marketing-value__cta">{children}</div>
         <p className="marketing-value__note">No sign-in needed to use this calculator.</p>
 
-        <details className="marketing-value__calculator" open>
-          <summary>
-            Make it yours <ChevronDown size={16} aria-hidden="true" />
-          </summary>
+        <div className="marketing-value__calculator">
           <p className="marketing-value__note" id="savings-input-help">
             Start with this example, then use your own numbers. All amounts are USD.
           </p>
           <div className="marketing-value__fields">
-            {SAVINGS_FIELDS.map((field) => (
-              <div className="marketing-value__field" key={field.key}>
-                <label htmlFor={`savings-${field.key}`}>{field.label}</label>
-                <input
-                  id={`savings-${field.key}`}
-                  name={field.key}
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  max={field.max}
-                  step={field.step}
-                  value={draft[field.key]}
-                  aria-invalid={Boolean(errors[field.key])}
-                  aria-describedby={
-                    errors[field.key] ? `savings-${field.key}-error` : "savings-input-help"
-                  }
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
-                />
-                {errors[field.key] && (
-                  <span className="marketing-value__error" id={`savings-${field.key}-error`}>
-                    {errors[field.key]}
-                  </span>
-                )}
-              </div>
-            ))}
+            {SAVINGS_FIELDS.map((field) => {
+              const step = Number(field.step);
+              return (
+                <div className="marketing-value__field" key={field.key}>
+                  <label htmlFor={`savings-${field.key}`}>{field.label}</label>
+                  <div className="marketing-value__dial">
+                    <button
+                      type="button"
+                      className="marketing-value__nudge"
+                      aria-label={`Decrease ${field.label}`}
+                      onClick={() => setField(field.key, nudgeValue(draft[field.key], -step, field.max, step))}
+                    >
+                      −
+                    </button>
+                    <input
+                      id={`savings-${field.key}`}
+                      name={field.key}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={field.max}
+                      step={field.step}
+                      value={draft[field.key]}
+                      aria-invalid={Boolean(errors[field.key])}
+                      aria-describedby={
+                        errors[field.key] ? `savings-${field.key}-error` : "savings-input-help"
+                      }
+                      onChange={(event) => setField(field.key, event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="marketing-value__nudge"
+                      aria-label={`Increase ${field.label}`}
+                      onClick={() => setField(field.key, nudgeValue(draft[field.key], step, field.max, step))}
+                    >
+                      +
+                    </button>
+                  </div>
+                  {errors[field.key] && (
+                    <span className="marketing-value__error" id={`savings-${field.key}-error`}>
+                      {errors[field.key]}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="marketing-value__calculator-footer">
-            <Button variant="ghost" type="button" onClick={() => setDraft({ ...EXAMPLE_SAVINGS })}>
+            <button type="button" onClick={() => setDraft({ ...EXAMPLE_SAVINGS })}>
               Reset example
-            </Button>
+            </button>
             <a href="/pricing">Check plan pricing →</a>
           </div>
-        </details>
+        </div>
       </div>
 
       <div className="marketing-value__results" aria-label="Estimated time and value" data-reveal>
@@ -88,7 +135,13 @@ export function SavingsSection({ children }: { children: ReactNode }) {
             ? "Illustrative example · not measured results"
             : "Your estimate · not guaranteed results"}
         </p>
-        <div className="marketing-value__metric marketing-value__metric--time">
+        <div
+          className={
+            pulse === "time"
+              ? "marketing-value__metric marketing-value__metric--time is-pulse"
+              : "marketing-value__metric marketing-value__metric--time"
+          }
+        >
           <p className="marketing-value__number">
             {result ? savingsNumber(result.hoursPerWeek) : "—"} <span>hours</span>
           </p>
@@ -101,11 +154,24 @@ export function SavingsSection({ children }: { children: ReactNode }) {
               : "Complete the inputs to see your estimate."}
           </p>
         </div>
-        <div className="marketing-value__metric marketing-value__metric--money">
+        <div
+          className={
+            pulse === "money"
+              ? "marketing-value__metric marketing-value__metric--money is-pulse"
+              : "marketing-value__metric marketing-value__metric--money"
+          }
+        >
           <p className="marketing-value__number" data-long={dollars.length > 9}>
             {dollars}
           </p>
           <p className="marketing-value__period">Potential value / year</p>
+          {result ? (
+            <div
+              className="marketing-value__mix"
+              aria-hidden="true"
+              style={{ ["--time-share" as string]: `${timeShare}%` }}
+            />
+          ) : null}
           <div className="marketing-value__explanation">
             <p>Time valued at your rate, plus net software savings.</p>
             {result && (
@@ -126,33 +192,21 @@ export function SavingsSection({ children }: { children: ReactNode }) {
             )}
           </div>
         </div>
+        {result ? (
+          <p className="marketing-value__formula">
+            {savingsNumber(result.hoursPerWeek)} h × {result.weeksPerYear} wk ×{" "}
+            {savingsDollars(result.hourlyValue)}
+            <span> → {savingsDollars(result.annualTimeValue)}</span>
+            <br />
+            ({savingsDollars(result.replacedMonthlyCost)} − {savingsDollars(result.lensMonthlyBudget)})
+            × 12
+            <span> → {savingsDollars(result.annualNetSoftware)}</span>
+          </p>
+        ) : null}
         <p className="marketing-value__disclaimer">
           A planning estimate, not an earnings promise. Time value is not cash income. Only count
           tools you can actually cancel; your LensLabs budget is an input, not a price quote.
         </p>
-        <details className="marketing-value__math">
-          <summary>See the calculation</summary>
-          {result ? (
-            <div>
-              <p>
-                {savingsNumber(result.hoursPerWeek)} hours × {result.weeksPerYear} weeks ×{" "}
-                {savingsDollars(result.hourlyValue)}/hour = {savingsDollars(result.annualTimeValue)}{" "}
-                in time value.
-              </p>
-              <p>
-                ({savingsDollars(result.replacedMonthlyCost)} in canceled tools −{" "}
-                {savingsDollars(result.lensMonthlyBudget)} LensLabs budget) × 12 months ={" "}
-                {savingsDollars(result.annualNetSoftware)} net software savings.
-              </p>
-              <p>
-                Combined annual value: {savingsDollars(result.annualPotentialValue)}. Software is
-                budgeted for all 12 months, even if you work fewer weeks.
-              </p>
-            </div>
-          ) : (
-            <p>Complete the inputs to see the calculation.</p>
-          )}
-        </details>
         <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {result
             ? `Estimated ${savingsNumber(result.hoursPerWeek)} hours per week. Annual time value ${savingsDollars(result.annualTimeValue)}; net software savings ${savingsDollars(result.annualNetSoftware)}. Combined potential value ${dollars}.`

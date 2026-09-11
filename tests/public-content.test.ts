@@ -16,6 +16,8 @@ const flag = "--public-content-fixture";
 if (!process.argv.includes(flag)) {
   test("example field notes are listed without invented clipping copy", () => {
     expect(fotoArticles.map((article) => article.slug)).toEqual([
+      "sports-photographer-genie",
+      "sports-photo-editing-tips",
       "lightroom-vs-capture-one-2026",
       "send-a-gallery-the-same-night",
       "aftershoot-imagen-and-picking-yourself",
@@ -47,9 +49,9 @@ if (!process.argv.includes(flag)) {
     );
     expect(publicContentHead("Field notes", "Practical photography notes.", "/blog")).toEqual({
       meta: [
-        { title: "Field notes — FOTO" },
+        { title: "Field notes — celinen" },
         { name: "description", content: "Practical photography notes." },
-        { property: "og:title", content: "Field notes — FOTO" },
+        { property: "og:title", content: "Field notes — celinen" },
         { property: "og:description", content: "Practical photography notes." },
       ],
       links: [{ rel: "canonical", href: "https://lenslab.dev/blog" }],
@@ -128,6 +130,7 @@ if (!process.argv.includes(flag)) {
   }));
   mock.module("@/components/account/AccountProvider", () => ({ useAccount: () => undefined }));
   const product = await import("../src/routes/product");
+  const galleries = await import("../src/routes/galleries");
   const blog = await import("../src/routes/blog.index");
   const article = await import("../src/routes/blog.$slug");
   const changelog = await import("../src/routes/changelog");
@@ -139,11 +142,12 @@ if (!process.argv.includes(flag)) {
       .trim();
   for (const [route, path] of [
     [product.Route, "/product"],
+    [galleries.Route, "/galleries"],
     [blog.Route, "/blog"],
     [changelog.Route, "/changelog"],
   ] as const) {
     const metadata = (route.options.head as () => ReturnType<typeof publicContentHead>)();
-    assert.ok(metadata.meta[0].title.endsWith(" — FOTO"));
+    assert.ok(metadata.meta[0].title.endsWith(" — celinen"));
     assert.ok(
       metadata.meta.some((item) => item.name === "description" && item.content.length > 20),
     );
@@ -189,7 +193,7 @@ if (!process.argv.includes(flag)) {
       loaderData: FotoArticleResult;
     }) => ReturnType<typeof publicContentHead>;
     const metadata = head({ loaderData: loaded });
-    assert.equal(metadata.meta[0].title, `${post.title} — FOTO`);
+    assert.equal(metadata.meta[0].title, `${post.title} — celinen`);
     assert.equal(metadata.links[0].href, `https://lenslab.dev/blog/${post.slug}`);
   }
   for (const slug of ["missing", "__proto__", "../product"]) {

@@ -37,16 +37,18 @@ export function WorkflowSection() {
       className="marketing-workflow"
       id="workflow"
       aria-labelledby="workflow-heading"
-      data-reveal
     >
-      <p className="marketing-value__eyebrow">From the first frame to the final gallery</p>
-      <h2 id="workflow-heading">Less between you and your next shoot.</h2>
+      <div data-reveal>
+        <p className="marketing-value__eyebrow">From the first frame to the final gallery</p>
+        <h2 id="workflow-heading">Less between you and your next shoot.</h2>
+      </div>
       <div className="marketing-workflow__carousel" aria-label="Photography workflow">
         {WORKFLOW.map(({ title, icon: Icon, copy, ...rest }, index) => (
           <article
             key={title}
             className="marketing-workflow__card"
             aria-label={`Step ${index + 1} of ${WORKFLOW.length}: ${title}`}
+            data-reveal
           >
             <Icon size={30} strokeWidth={1.5} aria-hidden="true" />
             <p className="marketing-value__eyebrow">Step {index + 1}</p>

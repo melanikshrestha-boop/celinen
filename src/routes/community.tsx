@@ -183,7 +183,7 @@ function Community() {
           </p>
           <Link
             to="/auth"
-            search={{ next: "/community", mode: "signin" }}
+            search={{ next: "/community", mode: "signin", google: true }}
             className="community-cta"
           >
             Sign in to join

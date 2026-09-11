@@ -45,7 +45,7 @@ export function nativeEngineStatus(): Promise<NativeStatus | null> {
 }
 
 export async function nativeStudioRequest(
-  path: "/__native/bursts" | "/__native/analyze",
+  path: "/__native/bursts" | "/__native/analyze" | "/__native/people",
   init: RequestInit,
 ): Promise<Response> {
   for (let attempt = 0; attempt < NATIVE_REQUEST_POLICY.maxAttempts; attempt++) {

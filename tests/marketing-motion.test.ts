@@ -49,8 +49,15 @@ class ElementFixture extends Events {
     ]);
   }
   removeAttribute(name: string) {
-    if (name !== "data-reveal-state") throw new Error(`Unexpected removal: ${name}`);
-    delete this.dataset.revealState;
+    if (name === "data-reveal-state") {
+      delete this.dataset.revealState;
+      return;
+    }
+    if (name === "data-reveal-from") {
+      delete this.dataset.revealFrom;
+      return;
+    }
+    throw new Error(`Unexpected removal: ${name}`);
   }
   getBoundingClientRect() {
     return this.rect;
@@ -75,9 +82,16 @@ class ObserverFixture {
   }
   // Deliberately remains callable after disconnect to reproduce an already queued
   // browser callback, not just prove removeEventListener/disconnect was invoked.
-  deliver(target: ElementFixture, isIntersecting: boolean, intersectionRatio = 0) {
+  deliver(target: ElementFixture, isIntersecting: boolean, intersectionRatio = 0, top = 100) {
     this.callback(
-      [{ target, isIntersecting, intersectionRatio } as unknown as IntersectionObserverEntry],
+      [
+        {
+          target,
+          isIntersecting,
+          intersectionRatio,
+          boundingClientRect: { top, bottom: top + 120 },
+        } as unknown as IntersectionObserverEntry,
+      ],
       this as unknown as IntersectionObserver,
     );
   }
@@ -186,12 +200,29 @@ describe("public marketing motion progressive enhancement", () => {
     const cleanup = f.start();
     const observer = f.view.observers[0]!;
     expect(observer.options?.threshold).toBe(0);
-    observer.deliver(f.below, true, 0.00001);
+    observer.deliver(f.below, true, 0.00001, 500);
     expect(f.below.dataset.revealState).toBe("visible");
-    observer.deliver(f.below, false);
+    expect(f.below.dataset.revealFrom).toBe("down");
+    observer.deliver(f.below, false, 0, 500);
     expect(f.below.dataset.revealState).toBe("outside");
-    observer.deliver(f.below, true, 0.00001);
+    observer.deliver(f.below, true, 0.00001, -40);
     expect(f.below.dataset.revealState).toBe("visible");
+    expect(f.below.dataset.revealFrom).toBe("up");
+    cleanup();
+  });
+
+  test("scrolling up fades in from the top edge and scrolling down from the bottom", () => {
+    const f = fixture();
+    const cleanup = f.start();
+    const observer = f.view.observers[0]!;
+    observer.deliver(f.below, true, 0.2, 620);
+    expect(f.below.dataset).toMatchObject({ revealState: "visible", revealFrom: "down" });
+    observer.deliver(f.below, false, 0, 900);
+    expect(f.below.dataset).toMatchObject({ revealState: "outside", revealFrom: "down" });
+    observer.deliver(f.below, true, 0.2, -20);
+    expect(f.below.dataset).toMatchObject({ revealState: "visible", revealFrom: "up" });
+    observer.deliver(f.below, false, 0, -200);
+    expect(f.below.dataset).toMatchObject({ revealState: "outside", revealFrom: "up" });
     cleanup();
   });
 

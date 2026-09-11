@@ -13,7 +13,7 @@ PIPELINE = $(BUILD_DIR)/pipeline.o
 WORKER = $(BUILD_DIR)/worker.o
 
 .PHONY: all test sanitize
-all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop $(BUILD_DIR)/lenslabs-reference $(BUILD_DIR)/lenslabs-crop-suggest $(BUILD_DIR)/lenslabs-object-remove $(BUILD_DIR)/lenslabs-receipt
+all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-people $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop $(BUILD_DIR)/lenslabs-reference $(BUILD_DIR)/lenslabs-crop-suggest $(BUILD_DIR)/lenslabs-object-remove $(BUILD_DIR)/lenslabs-receipt
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -47,6 +47,14 @@ $(BUILD_DIR)/lenslabs-bursts: $(BUILD_DIR)/bursts_main.o $(BUILD_DIR)/bursts.o
 
 $(BUILD_DIR)/burst-tests: tests/bursts_tests.cpp $(BUILD_DIR)/bursts.o $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/bursts.o -o $@
+
+$(BUILD_DIR)/people.o $(BUILD_DIR)/people_main.o: include/lenslabs/people.hpp
+
+$(BUILD_DIR)/lenslabs-people: $(BUILD_DIR)/people_main.o $(BUILD_DIR)/people.o
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(BUILD_DIR)/people-tests: tests/people_tests.cpp $(BUILD_DIR)/people.o include/lenslabs/people.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/people.o -o $@
 
 $(BUILD_DIR)/lenslabs-social: $(BUILD_DIR)/social_main.o $(BUILD_DIR)/social.o $(DECODER) $(LIBRAW)
 	$(CXX) $(CXXFLAGS) $^ $(FRAMEWORKS) -o $@
@@ -89,12 +97,13 @@ $(BUILD_DIR)/receipt-tests: tests/receipt_tests.cpp $(BUILD_DIR)/receipt.o inclu
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
 	$(BUILD_DIR)/worker-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/burst-tests
+	$(BUILD_DIR)/people-tests
 	$(BUILD_DIR)/social-tests
 	$(BUILD_DIR)/develop-tests
 	$(BUILD_DIR)/reference-tests

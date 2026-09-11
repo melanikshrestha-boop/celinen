@@ -248,15 +248,15 @@ export function workbenchNavigation(text: string): string | null {
 }
 export function safeSignInPath(path: string) {
   if (!path.startsWith("/") || path.startsWith("//") || unsafeUrlCharacters(path))
-    return "/workspace";
+    return "/dashboard";
   try {
     const decoded = decodeURIComponent(path);
-    if (unsafeUrlCharacters(decoded) || decoded.startsWith("//")) return "/workspace";
+    if (unsafeUrlCharacters(decoded) || decoded.startsWith("//")) return "/dashboard";
     const url = new URL(path, "https://workspace.invalid");
     if (url.origin !== "https://workspace.invalid" || /^\/auth\/?$/i.test(url.pathname))
-      return "/workspace";
+      return "/dashboard";
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/workspace";
+    return "/dashboard";
   }
 }

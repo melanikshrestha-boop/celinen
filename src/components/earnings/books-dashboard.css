@@ -1,0 +1,104 @@
+.books-dashboard {
+  margin: 0 0 28px;
+}
+.books-dashboard__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 16px;
+}
+.books-dashboard__charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.books-card,
+.books-panel {
+  margin: 0;
+  padding: 16px 16px 12px;
+  border: 1px solid color-mix(in srgb, var(--earn-text) 8%, transparent);
+  border-radius: 16px;
+  background: #fff;
+}
+:root.dark .books-card,
+:root.dark .books-panel {
+  background: #111;
+}
+.books-card h3,
+.books-panel h3 {
+  margin: 0;
+  color: var(--earn-muted);
+  font-size: 13px;
+  font-weight: 550;
+}
+.books-card__figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 10px;
+  margin: 10px 0 8px;
+}
+.books-card__figure strong {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.books-card__from {
+  color: var(--earn-muted);
+  font-size: 12px;
+}
+.books-card__figure em,
+.books-panel strong[data-tone] {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 650;
+}
+.books-card__figure em[data-tone="up"],
+.books-panel strong[data-tone="up"] {
+  color: #12813e;
+}
+.books-card__figure em[data-tone="down"],
+.books-panel strong[data-tone="down"] {
+  color: #c92a2a;
+}
+.books-spark {
+  display: block;
+  width: 100%;
+  height: 64px;
+  color: #4d6fff;
+}
+.books-spark--green {
+  color: #16c784;
+}
+.books-spark--red {
+  color: #ff4d4f;
+}
+.books-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.books-panel ul {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.books-panel li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--earn-text) 8%, transparent);
+  font-size: 13px;
+}
+.books-panel__note,
+.books-panel__empty {
+  margin: 8px 0 0;
+  color: var(--earn-muted);
+  font-size: 12px;
+}
+@media (max-width: 980px) {
+  .books-dashboard__grid,
+  .books-dashboard__charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

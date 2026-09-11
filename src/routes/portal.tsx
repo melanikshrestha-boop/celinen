@@ -15,6 +15,7 @@ import {
 import { getStudioRates, type StudioRates } from "@/lib/rates.functions";
 import { uploadReferenceBatch, type ReferenceUpload } from "@/lib/reference-upload";
 import { useAccount } from "@/components/account/AccountProvider";
+import "@/components/portal/client-portal.css";
 
 export const Route = createFileRoute("/portal")({
   ssr: false,
@@ -227,7 +228,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
 
   if (state === "loading") {
     return (
-      <div className="grid min-h-screen place-items-center text-moss">
+      <div className="client-portal grid min-h-screen place-items-center text-moss">
         <p className="font-mono text-[12px] uppercase tracking-[0.2em]">loading your portal…</p>
       </div>
     );
@@ -235,7 +236,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
 
   if (state === "anon") {
     return (
-      <div className="grid min-h-screen place-items-center px-6 py-16 text-ink">
+      <div className="client-portal grid min-h-screen place-items-center px-6 py-16 text-ink">
         <div className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-8">
           <div className="flex flex-col items-center text-center">
             <LogoMark className="text-ink" />
@@ -250,7 +251,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
           <Link
             to="/auth"
             search={{ next: "/portal", mode: "signin" }}
-            className="mt-6 block w-full rounded-lg bg-rust px-4 py-2.5 text-center text-[14px] font-semibold text-paper2 hover:opacity-90"
+            className="client-portal__cta mt-6 block w-full rounded-lg px-4 py-2.5 text-center text-[14px] font-semibold hover:opacity-90"
           >
             Sign in
           </Link>
@@ -272,7 +273,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
 
   if (state === "error" || !data) {
     return (
-      <div className="grid min-h-screen place-items-center px-6 text-center text-moss">
+      <div className="client-portal grid min-h-screen place-items-center px-6 text-center text-moss">
         <div>
           <p className="text-sm">We couldn&apos;t load your portal.</p>
           <button onClick={() => void signOut()} className="mt-3 text-[13px] underline">
@@ -287,7 +288,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
   const studioName = data.clients[0]?.org || data.clients[0]?.name;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[900px] px-4 py-8 sm:px-6 sm:py-14 text-ink">
+    <div className="client-portal mx-auto min-h-screen w-full max-w-[900px] px-4 py-8 sm:px-6 sm:py-14 text-ink">
       <header className="flex flex-wrap items-center gap-3">
         <LogoMark className="text-ink" />
         <div>
@@ -322,7 +323,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
         <div className="mt-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
           {booking === "sent" ? (
             <div>
-              <p className="text-[15px] font-medium text-rust">Request sent.</p>
+              <p className="client-portal__accent text-[15px] font-medium">Request sent.</p>
               <p className="mt-1.5 text-[13px] leading-relaxed text-moss">
                 Your photographer has it — you&apos;ll see the status update below the moment they
                 confirm.
@@ -391,7 +392,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
                 <button
                   onClick={() => void submitBooking()}
                   disabled={booking === "sending"}
-                  className="rounded-lg bg-rust px-4 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+                  className="client-portal__cta rounded-lg px-4 py-2.5 text-[14px] font-semibold hover:opacity-90 disabled:opacity-60"
                 >
                   {booking === "sending" ? "Sending…" : "Request this date"}
                 </button>
@@ -411,7 +412,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
                 {b.location && <span className="text-[13px] text-moss">{b.location}</span>}
                 <span
                   className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
-                    b.status === "confirmed" ? "bg-rust text-paper2" : "bg-muted text-moss"
+                    b.status === "confirmed" ? "client-portal__cta" : "bg-muted text-moss"
                   }`}
                 >
                   {b.status}
@@ -444,7 +445,7 @@ function AccountPortal({ accountId }: { accountId: string | null }) {
             accept="image/*"
             disabled={!!uploading}
             onChange={(e) => void onFiles(e.target.files)}
-            className="mt-4 block w-full text-[13px] text-moss file:mr-3 file:rounded-lg file:border-0 file:bg-rust file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-paper2"
+            className="client-portal__file mt-4 block w-full text-[13px] text-moss"
           />
           {uploading && (
             <p className="mt-3 font-mono text-[12px] text-moss">uploading {uploading}…</p>
@@ -661,7 +662,7 @@ function PayButton({ id }: { id: string }) {
       <button
         onClick={() => void pay()}
         disabled={busy}
-        className="rounded-lg bg-rust px-3 py-1.5 text-[13px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+        className="client-portal__cta rounded-lg px-3 py-1.5 text-[13px] font-semibold hover:opacity-90 disabled:opacity-60"
       >
         {busy ? "Opening…" : "Pay now"}
       </button>

@@ -11,6 +11,12 @@ test("connector marks use official X and Snapchat paths, not fat stand-ins", () 
   expect(snap).toContain("#FFFC00");
   const threads = renderToStaticMarkup(<BrandMark id="threads" />);
   expect(threads).toContain("M12.186 24");
+  const lightroom = renderToStaticMarkup(<BrandMark id="lightroom" />);
+  expect(lightroom).toContain("M19.75.3H4.25C1.9.3 0 2.2 0 4.55v14.9");
+  expect(lightroom).toContain("#31A8FF");
+  const photoshop = renderToStaticMarkup(<BrandMark id="photoshop" />);
+  expect(photoshop).toContain("M9.85 8.42c-.37-.15-.77-.21-1.18-.2");
+  expect(photoshop).toContain("#31A8FF");
   const source = readFileSync(new URL("../src/lib/connector-orbit.ts", import.meta.url), "utf8");
   expect(source).toContain("0.12");
 });

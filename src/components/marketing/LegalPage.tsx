@@ -196,7 +196,8 @@ export function PrivacyPage() {
         <p id="cookies">
           Essential cookies keep you signed in. Analytics cookies run only after Accept. Reject
           keeps the site working and does not record visits. The choice is stored in the
-          foto_consent cookie for one year.
+          foto_consent cookie for one year. The full{" "}
+          <Link to="/cookie-policy">Cookie Policy</Link> is effective as of September 10, 2026.
         </p>
 
         <h2>6. Retention</h2>
