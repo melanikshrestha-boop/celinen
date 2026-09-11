@@ -17,8 +17,8 @@ html:has(.celinen-dash) {
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
   color-scheme: light;
 }
-.celinen-dash.is-closed {
-  grid-template-columns: minmax(0, 1fr);
+.celinen-dash.is-mini {
+  --rail: 60px;
 }
 .celinen-dash.is-resizing {
   cursor: col-resize;
@@ -47,7 +47,6 @@ html:has(.celinen-dash) {
   cursor: col-resize;
   touch-action: none;
 }
-.celinen-dash.is-closed .celinen-dash__resize,
 .celinen-dash__resize.is-edge {
   left: 0;
 }
@@ -74,22 +73,27 @@ html:has(.celinen-dash) {
 .celinen-dash.is-mini .celinen-dash__rail {
   overflow: hidden;
   align-items: center;
-  padding: 16px 8px 18px;
+  padding: 12px 0 14px;
 }
 .celinen-dash.is-mini .celinen-dash__top {
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
   margin: 0 0 8px;
 }
 .celinen-dash.is-mini .celinen-dash__brand {
   flex: 0;
   justify-content: center;
   min-height: 36px;
+  width: 36px;
   margin: 0;
 }
 .celinen-dash.is-mini .celinen-dash__brand span,
-.celinen-dash.is-mini .celinen-dash__link span {
+.celinen-dash.is-mini .celinen-dash__link span,
+.celinen-dash.is-mini .celinen-dash__account .account-trigger > span:nth-child(2),
+.celinen-dash.is-mini .celinen-dash__account .account-trigger > svg {
   display: none;
 }
 .celinen-dash.is-mini .celinen-dash__nav,
@@ -98,10 +102,38 @@ html:has(.celinen-dash) {
   align-items: center;
 }
 .celinen-dash.is-mini .celinen-dash__link {
-  justify-content: center;
-  width: 42px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  height: 36px;
   padding: 0;
+  margin-inline: auto;
   gap: 0;
+  border-radius: 50%;
+}
+.celinen-dash.is-mini .celinen-dash__link svg {
+  display: block;
+  margin: 0;
+}
+.celinen-dash.is-mini .celinen-dash__close {
+  width: 36px;
+  height: 36px;
+  margin-inline: auto;
+}
+.celinen-dash.is-mini .celinen-dash__account .account-trigger {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin-inline: auto;
+  justify-content: center;
+}
+.celinen-dash__account .account-avatar {
+  width: 28px;
+  height: 28px;
+  background: #e8c547;
+  color: #171713;
+  font-size: 11px;
 }
 .celinen-dash__top {
   display: flex;
@@ -164,6 +196,13 @@ html:has(.celinen-dash) {
 }
 .celinen-dash__foot {
   padding-top: 12px;
+}
+.celinen-dash__account {
+  margin-top: 6px;
+}
+.celinen-dash__account .account-trigger {
+  padding: 8px;
+  border-radius: 12px;
 }
 .celinen-dash__link {
   display: flex;
@@ -392,14 +431,13 @@ html:has(.celinen-dash) {
   white-space: nowrap;
 }
 @media (max-width: 760px) {
-  .celinen-dash,
-  .celinen-dash.is-closed {
+  .celinen-dash:not(.is-mini) {
     grid-template-columns: minmax(0, 1fr);
   }
   .celinen-dash.is-mini {
     grid-template-columns: var(--rail, 60px) minmax(0, 1fr);
   }
-  .celinen-dash:not(.is-mini):not(.is-closed) .celinen-dash__resize {
+  .celinen-dash:not(.is-mini) .celinen-dash__resize {
     display: none;
   }
   .celinen-dash__rail {

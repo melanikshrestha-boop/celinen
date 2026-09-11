@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronUp, LogOut, Settings, Gauge, Cat, Send } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,13 +28,16 @@ import "./account.css";
 export function AccountMenu() {
   const account = useAccount();
   const workbench = useWorkbench();
+  const navigate = useNavigate();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [invite, setInvite] = useState(false);
   const accountTrigger = useRef<HTMLButtonElement>(null);
   const [preferenceError, setPreferenceError] = useState("");
   const openSection = async (hash: string) => {
-    await workbench?.openTool(settingsPath(settingsSection(hash)));
+    const path = settingsPath(settingsSection(hash));
+    if (workbench) await workbench.openTool(path);
+    else void navigate({ href: path });
   };
   if (!account) return null;
   return (
@@ -99,7 +103,7 @@ export function AccountMenu() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
-              void openSection("general");
+              void openSection("profile");
             }}
           >
             <Settings size={17} />

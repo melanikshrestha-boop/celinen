@@ -2,22 +2,20 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUp,
-  BarChart3,
-  BookOpen,
-  Calendar,
-  Home,
+  Aperture,
+  CalendarDays,
+  ChartNoAxesColumn,
+  House,
   Images,
   PanelLeft,
   Plus,
-  Scissors,
-  Settings,
   Share2,
   SlidersHorizontal,
   Sparkles,
-  Users,
   Wrench,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { AccountMenu } from "@/components/account/AccountMenu";
 import { LogoMark } from "@/components/lensos/Logo";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
@@ -27,21 +25,14 @@ import { DashboardContext } from "./context";
 import "./dashboard.css";
 
 const MAIN = [
-  { to: "/dashboard", label: "Home", icon: Home, end: true },
-  { to: "/studio", label: "Pick", icon: Scissors },
+  { to: "/dashboard", label: "Home", icon: House, end: true },
+  { to: "/studio", label: "Pick", icon: Aperture },
   { to: "/deliver", label: "Galleries", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
-  { to: "/dashboard", label: "Calendar", icon: Calendar, view: "calendar" as const },
-  { to: "/earnings", label: "Analytics", icon: BarChart3 },
+  { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
+  { to: "/earnings", label: "Analytics", icon: ChartNoAxesColumn },
   { to: "/publish", label: "Social accounts", icon: Share2 },
   { to: "/library", label: "Tools", icon: Wrench },
-] as const;
-
-const FOOT = [
-  { to: "/pricing", label: "Upgrade", icon: Sparkles, upgrade: true },
-  { to: "/help", label: "Guide", icon: BookOpen },
-  { to: "/community", label: "Community", icon: Users },
-  { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 type Role = "user" | "assistant";
@@ -55,7 +46,6 @@ const MINI_W = 60;
 const MIN_OPEN = 176;
 const MAX_OPEN = 420;
 const SNAP_MINI = 132;
-const SNAP_CLOSE = 36;
 
 function readOpenWidth() {
   try {
@@ -66,15 +56,11 @@ function readOpenWidth() {
   }
   return OPEN_W;
 }
-function widthToMode(px: number): "open" | "mini" | "closed" {
-  if (px < SNAP_CLOSE) return "closed";
-  if (px < SNAP_MINI) return "mini";
-  return "open";
+function widthToMode(px: number): "open" | "mini" {
+  return px < SNAP_MINI ? "mini" : "open";
 }
-function modeWidth(mode: "open" | "mini" | "closed", openW: number) {
-  if (mode === "closed") return 0;
-  if (mode === "mini") return MINI_W;
-  return openW;
+function modeWidth(mode: "open" | "mini", openW: number) {
+  return mode === "mini" ? MINI_W : openW;
 }
 
 function threadKey(scope: string) {
@@ -124,11 +110,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("view") ===
     "calendar";
   const [shoots, setShoots] = useState<RecentShoot[]>([]);
-  type RailMode = "open" | "mini" | "closed";
+  type RailMode = "open" | "mini";
   const [rail, setRailMode] = useState<RailMode>(() => {
     try {
       const stored = localStorage.getItem(RAIL_KEY);
-      if (stored === "mini" || stored === "closed" || stored === "open") return stored;
+      if (stored === "mini" || stored === "closed") return "mini";
+      if (stored === "open") return "open";
     } catch {
       /* ignore */
     }
@@ -170,7 +157,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     winUp.current = undefined;
   }
   function applyLive(px: number) {
-    const next = Math.max(0, Math.min(MAX_OPEN, px));
+    const next = Math.max(MINI_W, Math.min(MAX_OPEN, px));
     liveRef.current = next;
     setLiveWidth(next);
   }
@@ -316,15 +303,13 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   const shown = shownWidth();
   const visual = liveWidth == null ? rail : widthToMode(liveWidth);
-  const keepRail = shown > 0;
 
   return (
     <DashboardContext.Provider value={true}>
     <div
-      className={`celinen-dash${visual === "mini" ? " is-mini" : visual === "closed" ? " is-closed" : ""}${liveWidth != null ? " is-resizing" : ""}`}
+      className={`celinen-dash${visual === "mini" ? " is-mini" : ""}${liveWidth != null ? " is-resizing" : ""}`}
       style={{ ["--rail" as string]: `${shown}px` }}
     >
-      {keepRail ? (
       <aside className="celinen-dash__rail">
         <div className="celinen-dash__top">
           <Link to="/dashboard" className="celinen-dash__brand">
@@ -334,8 +319,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
           <button
             type="button"
             className="celinen-dash__close"
-            aria-label={visual === "mini" ? "Close sidebar" : "Minimize sidebar"}
-            onClick={() => setRail(visual === "mini" ? "closed" : "mini")}
+            aria-label={visual === "mini" ? "Expand sidebar" : "Minimize sidebar"}
+            onClick={() => setRail(visual === "mini" ? "open" : "mini")}
           >
             <PanelLeft size={18} />
           </button>
@@ -363,54 +348,40 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                       : "celinen-dash__link is-active",
                 }}
               >
-                <item.icon size={18} strokeWidth={1.7} aria-hidden="true" />
+                <item.icon size={20} strokeWidth={1.6} aria-hidden="true" />
                 <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
         <div className="celinen-dash__foot">
-          {FOOT.map((item) => (
-            <Link
-              key={item.label}
-              to={item.to}
-              title={item.label}
-              className={`${
-                pathname === item.to || pathname.startsWith(`${item.to}/`)
-                  ? "celinen-dash__link is-active"
-                  : "celinen-dash__link"
-              }${"upgrade" in item && item.upgrade ? " celinen-dash__upgrade" : ""}`}
-            >
-              <item.icon size={18} strokeWidth={1.7} aria-hidden="true" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          <Link
+            to="/pricing"
+            title="Upgrade"
+            className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
+          >
+            <Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />
+            <span>Upgrade</span>
+          </Link>
+          <div className="celinen-dash__account">
+            <AccountMenu />
+          </div>
         </div>
       </aside>
-      ) : (
-        <button
-          type="button"
-          className="celinen-dash__open"
-          aria-label="Open sidebar"
-          onClick={() => setRail("open")}
-        >
-          <PanelLeft size={18} />
-        </button>
-      )}
       <div
-        className={keepRail ? "celinen-dash__resize" : "celinen-dash__resize is-edge"}
+        className="celinen-dash__resize"
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
         aria-valuenow={shown}
-        aria-valuemin={0}
+        aria-valuemin={MINI_W}
         aria-valuemax={MAX_OPEN}
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
         onPointerUp={onResizeUp}
         onPointerCancel={onResizeUp}
         onLostPointerCapture={onResizeUp}
-        onDoubleClick={() => setRail(visual === "open" ? "mini" : "open")}
+        onDoubleClick={() => setRail(visual === "mini" ? "open" : "mini")}
       />
       <main className={`celinen-dash__body${children ? " is-tool" : ""}`}>
         {loading ? (
