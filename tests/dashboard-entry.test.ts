@@ -11,39 +11,31 @@ test("signed-in public CTA is Dashboard and opens the dashboard", () => {
   expect(safeSignInPath("/auth")).toBe("/dashboard");
 });
 
-test("dashboard shell has real signed-in destinations", () => {
+test("dashboard shell is a chat with real work destinations", () => {
   const source = readFileSync(
     new URL("../src/components/dashboard/AppDashboard.tsx", import.meta.url),
     "utf8",
   );
-  expect(source).toContain('label: "Home"');
-  expect(source).toContain('label: "Clipping"');
-  expect(source).toContain('label: "Automations"');
-  expect(source).toContain('label: "Calendar"');
-  expect(source).toContain('label: "Analytics"');
-  expect(source).toContain('label: "Social Accounts"');
-  expect(source).toContain('label: "Tools"');
+  expect(source).toContain("What should we work on?");
+  expect(source).toContain("New chat");
+  expect(source).toContain("Chat");
+  expect(source).toContain("Work");
+  expect(source).toContain("destinationPathFor");
   expect(source).toContain('to: "/shoots"');
-  expect(source).toContain('to: "/tonight"');
   expect(source).toContain('to: "/earnings"');
   expect(source).toContain('to: "/publish"');
   expect(source).toContain('to: "/library"');
-  expect(source).toContain('to="/pricing"');
-  expect(source).toContain('to="/docs"');
-  expect(source).toContain('to="/help"');
-  expect(source).toContain('to="/settings"');
-  expect(source).toContain("Refer & Earn");
   expect(source).toContain("Loading your workspace");
   expect(source).not.toContain("celinen-dash__card");
 });
 
-test("dashboard chrome uses the workspace rail, mint upgrade, and loading canvas", () => {
+test("dashboard chrome is a light chat rail and centered composer", () => {
   const css = readFileSync(
     new URL("../src/components/dashboard/dashboard.css", import.meta.url),
     "utf8",
   );
-  expect(css).toContain("background: #eaf7ee");
-  expect(css).toContain("background: #eef2ff");
+  expect(css).toContain("background: #f9f9f9");
+  expect(css).toContain(".celinen-dash__composer");
+  expect(css).toContain("border-radius: 28px");
   expect(css).toContain("background: #4d6fff");
-  expect(css).toContain(".celinen-dash__upgrade");
 });
