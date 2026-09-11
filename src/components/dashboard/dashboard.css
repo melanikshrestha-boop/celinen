@@ -91,7 +91,7 @@ html:has(.celinen-dash) {
   margin: 0;
 }
 .celinen-dash.is-mini .celinen-dash__brand span,
-.celinen-dash.is-mini .celinen-dash__link span,
+.celinen-dash.is-mini .celinen-dash__link > span:not(.celinen-dash__ico),
 .celinen-dash.is-mini .celinen-dash__account .account-trigger > span:nth-child(2),
 .celinen-dash.is-mini .celinen-dash__account .account-trigger > svg {
   display: none;
@@ -104,6 +104,8 @@ html:has(.celinen-dash) {
 .celinen-dash.is-mini .celinen-dash__link {
   display: grid;
   place-items: center;
+  place-content: center;
+  box-sizing: border-box;
   width: 36px;
   min-height: 36px;
   height: 36px;
@@ -111,9 +113,18 @@ html:has(.celinen-dash) {
   margin-inline: auto;
   gap: 0;
   border-radius: 50%;
+  color: #141820;
+  line-height: 0;
 }
+.celinen-dash.is-mini .celinen-dash__link.is-active {
+  color: #2f4fd6;
+}
+.celinen-dash.is-mini .celinen-dash__ico,
 .celinen-dash.is-mini .celinen-dash__link svg {
-  display: block;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   margin: 0;
 }
 .celinen-dash.is-mini .celinen-dash__close {
@@ -216,14 +227,24 @@ html:has(.celinen-dash) {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #5b6570;
+  color: #2a3038;
   font: inherit;
   font-size: 15px;
   line-height: 1.3;
   text-decoration: none;
   cursor: pointer;
 }
+.celinen-dash__ico {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.celinen-dash__ico svg,
 .celinen-dash__link svg {
+  display: block;
   flex-shrink: 0;
 }
 .celinen-dash__link:hover {
