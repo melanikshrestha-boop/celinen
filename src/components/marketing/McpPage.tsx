@@ -26,9 +26,18 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
     { title: "Connect", body: "Click Connect, then ask Claude to list FOTO plans or walk the pick → send path." },
   ],
   chatgpt: [
-    { title: "Turn on developer mode", body: "In ChatGPT go to Settings → Apps → Advanced, and enable developer mode." },
-    { title: "Create the connector", body: "Create an app, paste the foto MCP URL, and scan tools." },
-    { title: "Use it in chat", body: "Ask ChatGPT to read FOTO plans or the public photography notes." },
+    {
+      title: "Turn on developer mode",
+      body: "In ChatGPT go to Settings → Apps → Advanced settings, and enable developer mode. Paid plan required. Custom MCP is HTTPS only — not a local process.",
+    },
+    {
+      title: "Create the app",
+      body: "Back on Apps, click Create. Name it foto, paste https://lenslab.dev/api/mcp, auth none, then scan tools.",
+    },
+    {
+      title: "Turn it on in a chat",
+      body: "New conversation → + → Developer mode → tick foto. Ask it to list FOTO plans or walk import → pick → send.",
+    },
   ],
   cursor: [
     { title: "Open MCP settings", body: "In Cursor, open MCP settings and add a new HTTP server." },
