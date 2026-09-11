@@ -20,6 +20,7 @@ import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CompareRouteImport } from './routes/compare'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DeliverRouteImport } from './routes/deliver'
@@ -67,6 +68,8 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as CompareIndexRouteImport } from './routes/compare.index'
+import { Route as CompareSlugRouteImport } from './routes/compare.$slug'
 import { Route as DocsPermissionsRouteImport } from './routes/docs_.permissions'
 import { Route as DocsSettingsRouteImport } from './routes/docs_.settings'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
@@ -144,6 +147,11 @@ const ClientsRoute = ClientsRouteImport.update({
 const CommunityRoute = CommunityRouteImport.update({
   id: '/community',
   path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompareRoute = CompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiePolicyRoute = CookiePolicyRouteImport.update({
@@ -381,6 +389,16 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompareIndexRoute = CompareIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CompareRoute,
+} as any)
+const CompareSlugRoute = CompareSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => CompareRoute,
+} as any)
 const DocsPermissionsRoute = DocsPermissionsRouteImport.update({
   id: '/docs_/permissions',
   path: '/docs/permissions',
@@ -512,6 +530,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/compare': typeof CompareRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
@@ -558,6 +577,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/mcp': typeof ApiMcpRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/compare/$slug': typeof CompareSlugRoute
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
@@ -569,6 +589,7 @@ export interface FileRoutesByFullPath {
   '/settings/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
   '/blog/': typeof BlogIndexRoute
+  '/compare/': typeof CompareIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
@@ -639,6 +660,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/mcp': typeof ApiMcpRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/compare/$slug': typeof CompareSlugRoute
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
@@ -649,6 +671,7 @@ export interface FileRoutesByTo {
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
   '/blog': typeof BlogIndexRoute
+  '/compare': typeof CompareIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
   '/shoots': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
@@ -676,6 +699,7 @@ export interface FileRoutesById {
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/compare': typeof CompareRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
@@ -722,6 +746,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/mcp': typeof ApiMcpRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/compare/$slug': typeof CompareSlugRoute
   '/docs_/permissions': typeof DocsPermissionsRoute
   '/docs_/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
@@ -733,6 +758,7 @@ export interface FileRoutesById {
   '/settings_/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
   '/blog/': typeof BlogIndexRoute
+  '/compare/': typeof CompareIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
@@ -761,6 +787,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/clients'
     | '/community'
+    | '/compare'
     | '/cookie-policy'
     | '/dashboard'
     | '/deliver'
@@ -807,6 +834,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/mcp'
     | '/blog/$slug'
+    | '/compare/$slug'
     | '/docs/permissions'
     | '/docs/settings'
     | '/g/$slug'
@@ -818,6 +846,7 @@ export interface FileRouteTypes {
     | '/settings/$section'
     | '/shoots/$id'
     | '/blog/'
+    | '/compare/'
     | '/integrations/'
     | '/shoots/'
     | '/api/public/lightroom'
@@ -888,6 +917,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/mcp'
     | '/blog/$slug'
+    | '/compare/$slug'
     | '/docs/permissions'
     | '/docs/settings'
     | '/g/$slug'
@@ -898,6 +928,7 @@ export interface FileRouteTypes {
     | '/s/$token'
     | '/settings/$section'
     | '/blog'
+    | '/compare'
     | '/integrations'
     | '/shoots'
     | '/api/public/lightroom'
@@ -924,6 +955,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/clients'
     | '/community'
+    | '/compare'
     | '/cookie-policy'
     | '/dashboard'
     | '/deliver'
@@ -970,6 +1002,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/mcp'
     | '/blog/$slug'
+    | '/compare/$slug'
     | '/docs_/permissions'
     | '/docs_/settings'
     | '/g/$slug'
@@ -981,6 +1014,7 @@ export interface FileRouteTypes {
     | '/settings_/$section'
     | '/shoots/$id'
     | '/blog/'
+    | '/compare/'
     | '/integrations/'
     | '/shoots/'
     | '/api/public/lightroom'
@@ -1008,6 +1042,7 @@ export interface RootRouteChildren {
   ChangelogRoute: typeof ChangelogRoute
   ClientsRoute: typeof ClientsRoute
   CommunityRoute: typeof CommunityRoute
+  CompareRoute: typeof CompareRouteWithChildren
   CookiePolicyRoute: typeof CookiePolicyRoute
   DashboardRoute: typeof DashboardRoute
   DeliverRoute: typeof DeliverRoute
@@ -1147,6 +1182,13 @@ declare module '@tanstack/react-router' {
       path: '/community'
       fullPath: '/community'
       preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compare': {
+      id: '/compare'
+      path: '/compare'
+      fullPath: '/compare'
+      preLoaderRoute: typeof CompareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookie-policy': {
@@ -1478,6 +1520,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/compare/': {
+      id: '/compare/'
+      path: '/'
+      fullPath: '/compare/'
+      preLoaderRoute: typeof CompareIndexRouteImport
+      parentRoute: typeof CompareRoute
+    }
+    '/compare/$slug': {
+      id: '/compare/$slug'
+      path: '/$slug'
+      fullPath: '/compare/$slug'
+      preLoaderRoute: typeof CompareSlugRouteImport
+      parentRoute: typeof CompareRoute
+    }
     '/docs_/permissions': {
       id: '/docs_/permissions'
       path: '/docs/permissions'
@@ -1642,6 +1698,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CompareRouteChildren {
+  CompareSlugRoute: typeof CompareSlugRoute
+  CompareIndexRoute: typeof CompareIndexRoute
+}
+
+const CompareRouteChildren: CompareRouteChildren = {
+  CompareSlugRoute: CompareSlugRoute,
+  CompareIndexRoute: CompareIndexRoute,
+}
+
+const CompareRouteWithChildren =
+  CompareRoute._addFileChildren(CompareRouteChildren)
+
 interface IntegrationsRouteChildren {
   IntegrationsSlugRoute: typeof IntegrationsSlugRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
@@ -1703,6 +1772,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChangelogRoute: ChangelogRoute,
   ClientsRoute: ClientsRoute,
   CommunityRoute: CommunityRoute,
+  CompareRoute: CompareRouteWithChildren,
   CookiePolicyRoute: CookiePolicyRoute,
   DashboardRoute: DashboardRoute,
   DeliverRoute: DeliverRoute,

@@ -260,6 +260,10 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes("Features"));
     assert.ok(html.includes("Use Cases"));
     assert.ok(html.includes("Integrations"));
+    assert.ok(html.includes("How celinen compares"));
+    assert.ok(html.includes("Aftershoot"));
+    assert.ok(html.includes("Pixieset"));
+    assert.ok(html.includes("Photo Mechanic"));
     assert.ok(html.includes("LIVE"));
     assert.ok(html.includes("Publish everywhere"));
     assert.ok(html.includes("YouTube Shorts"));
