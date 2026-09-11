@@ -243,6 +243,10 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes("Creator"));
     assert.ok(html.includes("Enterprise"));
     assert.ok(html.includes("Most Popular"));
+    assert.ok(html.includes("home-pricing__shine"));
+    expect(
+      readFileSync(new URL("../src/components/marketing/home-product.css", import.meta.url), "utf8"),
+    ).toContain("home-pricing-shine");
     assert.ok(!html.includes("Agency"));
     assert.ok(!html.includes("Sideline"));
     assert.ok(html.includes("credits/month"));
