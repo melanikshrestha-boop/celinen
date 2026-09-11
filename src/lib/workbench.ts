@@ -25,6 +25,7 @@ export const WORKBENCH_TOOLS = [
   { path: "/metadata", label: "Metadata", group: "Tools" },
   { path: "/adobe", label: "Adobe settings", group: "Tools" },
   { path: "/send", label: "Send", group: "Tools" },
+  { path: "/bookings", label: "Bookings", group: "Business" },
   { path: "/packages", label: "Packages", group: "Business" },
   { path: "/rates", label: "Rates", group: "Business" },
   { path: "/business", label: "Business", group: "Business" },

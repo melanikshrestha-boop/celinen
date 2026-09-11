@@ -30,6 +30,7 @@ const WORK = [
   { to: "/earnings" as const, label: "Analytics", icon: BarChart3 },
   { to: "/publish" as const, label: "Social Accounts", icon: AtSign },
   { to: "/library" as const, label: "Tools", icon: Wrench },
+  { to: "/bookings" as const, label: "Bookings", icon: Calendar },
 ];
 
 function monthCells(year: number, month: number) {
@@ -65,6 +66,7 @@ function replyFor(text: string) {
   if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
   if (path === "/adobe") return { text: "Opening Adobe.", href: "/adobe" };
   if (path === "/video") return { text: "Opening video.", href: "/video" };
+  if (path === "/bookings") return { text: "Opening bookings.", href: "/bookings" };
   return { text: "Say send a gallery, check earnings, or open Clipping to pick keepers.", href: null };
 }
 

@@ -14,6 +14,8 @@ import { Route as AdobeRouteImport } from './routes/adobe'
 import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
+import { Route as BookSiteRouteImport } from './routes/book-site'
+import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as ClientsRouteImport } from './routes/clients'
@@ -109,6 +111,16 @@ const AuthRoute = AuthRouteImport.update({
 const BookRoute = BookRouteImport.update({
   id: '/book',
   path: '/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookSiteRoute = BookSiteRouteImport.update({
+  id: '/book-site',
+  path: '/book-site',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingsRoute = BookingsRouteImport.update({
+  id: '/bookings',
+  path: '/bookings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BusinessRoute = BusinessRouteImport.update({
@@ -476,6 +488,8 @@ export interface FileRoutesByFullPath {
   '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
+  '/book-site': typeof BookSiteRoute
+  '/bookings': typeof BookingsRoute
   '/business': typeof BusinessRoute
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
@@ -554,6 +568,8 @@ export interface FileRoutesByTo {
   '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
+  '/book-site': typeof BookSiteRoute
+  '/bookings': typeof BookingsRoute
   '/business': typeof BusinessRoute
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
@@ -631,6 +647,8 @@ export interface FileRoutesById {
   '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
+  '/book-site': typeof BookSiteRoute
+  '/bookings': typeof BookingsRoute
   '/business': typeof BusinessRoute
   '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
@@ -711,6 +729,8 @@ export interface FileRouteTypes {
     | '/ambassador'
     | '/auth'
     | '/book'
+    | '/book-site'
+    | '/bookings'
     | '/business'
     | '/changelog'
     | '/clients'
@@ -789,6 +809,8 @@ export interface FileRouteTypes {
     | '/ambassador'
     | '/auth'
     | '/book'
+    | '/book-site'
+    | '/bookings'
     | '/business'
     | '/changelog'
     | '/clients'
@@ -865,6 +887,8 @@ export interface FileRouteTypes {
     | '/ambassador'
     | '/auth'
     | '/book'
+    | '/book-site'
+    | '/bookings'
     | '/business'
     | '/changelog'
     | '/clients'
@@ -944,6 +968,8 @@ export interface RootRouteChildren {
   AmbassadorRoute: typeof AmbassadorRoute
   AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
+  BookSiteRoute: typeof BookSiteRoute
+  BookingsRoute: typeof BookingsRoute
   BusinessRoute: typeof BusinessRoute
   ChangelogRoute: typeof ChangelogRoute
   ClientsRoute: typeof ClientsRoute
@@ -1044,6 +1070,20 @@ declare module '@tanstack/react-router' {
       path: '/book'
       fullPath: '/book'
       preLoaderRoute: typeof BookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book-site': {
+      id: '/book-site'
+      path: '/book-site'
+      fullPath: '/book-site'
+      preLoaderRoute: typeof BookSiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bookings': {
+      id: '/bookings'
+      path: '/bookings'
+      fullPath: '/bookings'
+      preLoaderRoute: typeof BookingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/business': {
@@ -1587,6 +1627,8 @@ const rootRouteChildren: RootRouteChildren = {
   AmbassadorRoute: AmbassadorRoute,
   AuthRoute: AuthRoute,
   BookRoute: BookRoute,
+  BookSiteRoute: BookSiteRoute,
+  BookingsRoute: BookingsRoute,
   BusinessRoute: BusinessRoute,
   ChangelogRoute: ChangelogRoute,
   ClientsRoute: ClientsRoute,
