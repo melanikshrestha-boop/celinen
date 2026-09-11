@@ -158,32 +158,32 @@
   overflow-x: auto;
   border: 0;
   border-radius: 10px;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: #07080f;
+  color: #e8f0ff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12.5px;
   line-height: 18px;
 }
 .marketing-page .docs-ref .docs-tok-kw {
-  color: #569cd6;
+  color: #3df0ff;
 }
 .marketing-page .docs-ref .docs-tok-str {
-  color: #ce9178;
+  color: #ff4ecd;
 }
 .marketing-page .docs-ref .docs-tok-key {
-  color: #9cdcfe;
+  color: #7af6ff;
 }
 .marketing-page .docs-ref .docs-tok-num {
-  color: #b5cea8;
+  color: #b8ff3d;
 }
 .marketing-page .docs-ref .docs-tok-fn {
-  color: #dcdcaa;
+  color: #ffe14d;
 }
 .marketing-page .docs-ref .docs-tok-flag {
-  color: #d4d4d4;
+  color: #c5b4ff;
 }
 .marketing-page .docs-ref .docs-tok-type {
-  color: #4ec9b0;
+  color: #39ffb6;
 }
 
 .marketing-page .docs-ref__body code {
