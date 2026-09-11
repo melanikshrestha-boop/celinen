@@ -18,6 +18,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
+import { onHapticPress } from "@/lib/haptic-press";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
 import { destinationPathFor } from "@/lib/workspace-routing";
@@ -310,6 +311,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     <div
       className={`celinen-dash${visual === "mini" ? " is-mini" : ""}${liveWidth != null ? " is-resizing" : ""}`}
       style={{ ["--rail" as string]: `${shown}px` }}
+      onPointerDown={onHapticPress}
     >
       <aside className="celinen-dash__rail">
         <div className="celinen-dash__top">
@@ -387,6 +389,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
       </aside>
       <div
         className="celinen-dash__resize"
+        data-no-press
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
