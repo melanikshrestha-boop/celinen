@@ -27,7 +27,7 @@ test("earnings stays paper in light mode and only goes black under html.dark", (
   const base = css.match(
     /\.finance-os-host\.earnings-workspace,\s*\.finance-os\s*\{([^}]+)\}/,
   )?.[1];
-  expect(base).toContain("--fos-bg: #f7f8fa");
+  expect(base).toContain("--fos-bg: #ffffff");
   expect(base).toContain("color-scheme: light");
   expect(base).toContain("--fos-accent: #4d6fff");
   expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);

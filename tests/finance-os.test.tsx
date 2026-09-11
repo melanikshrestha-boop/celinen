@@ -39,6 +39,22 @@ const books: PhotographerBooks = {
       kind: "in",
     },
   ],
+  monthDays: [
+    {
+      date: "2026-09-08",
+      collectedMinor: 130000,
+      expensesMinor: 0,
+      netMinor: 130000,
+    },
+  ],
+  recentMonths: [
+    { month: "2026-04", collectedMinor: 0, expensesMinor: 0, netMinor: 0 },
+    { month: "2026-05", collectedMinor: 80000, expensesMinor: 10000, netMinor: 70000 },
+    { month: "2026-06", collectedMinor: 0, expensesMinor: 0, netMinor: 0 },
+    { month: "2026-07", collectedMinor: 0, expensesMinor: 0, netMinor: 0 },
+    { month: "2026-08", collectedMinor: 0, expensesMinor: 0, netMinor: 0 },
+    { month: "2026-09", collectedMinor: 250000, expensesMinor: 70000, netMinor: 180000 },
+  ],
 };
 
 test("finance desk reads the books query and lists Origin-style tracks", () => {
@@ -77,6 +93,10 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
   expect(html).toContain("Jordan");
   expect(html).toContain("Category breakdown");
   expect(html).toContain("Upcoming");
+  expect(html).toContain("Collected this month");
+  expect(html).toContain("Monthly collected");
+  expect(html).toContain("finance-os__monthcal");
+  expect(html).toContain("finance-os__bars");
   expect(html).not.toContain("Apollo Bagels");
   expect(html).not.toContain("$5,070");
   expect(html).not.toContain("Origin");
@@ -141,7 +161,7 @@ test("invest and equity stay honest about photographer books", () => {
 test("finance os is light by default and only dark under html.dark", () => {
   const css = readFileSync(new URL("../src/components/earnings/finance-os.css", import.meta.url), "utf8");
   expect(css).toContain("--fos-neon: #4d6fff");
-  expect(css).toContain("--fos-bg: #f7f8fa");
+  expect(css).toContain("--fos-bg: #ffffff");
   expect(css).toContain("color-scheme: light");
   expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
   expect(css).toMatch(/:root\.dark[\s\S]*color-scheme: dark/);
