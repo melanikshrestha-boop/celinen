@@ -36,8 +36,9 @@ describe("use cases", () => {
       new URL("../src/components/marketing/UseCasesMenu.tsx", import.meta.url),
       "utf8",
     );
-    expect(menu).toContain("DropdownMenuSub");
-    expect(menu).toContain("DropdownMenuSubContent");
+    expect(menu).toContain("marketing-nav-branch");
+    expect(menu).not.toContain("DropdownMenuPortal");
+    expect(menu).not.toContain("avoidCollisions={false}");
     expect(menu).toContain("marketing-nav-feature--flyout");
     expect(USE_CASES.some((item) => item.title.includes("Wedding"))).toBe(true);
   });
