@@ -163,6 +163,22 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12.5px;
   line-height: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: #9a9a9a #000;
+}
+.marketing-page .docs-ref__body pre::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.marketing-page .docs-ref__body pre::-webkit-scrollbar-track {
+  background: #000;
+}
+.marketing-page .docs-ref__body pre::-webkit-scrollbar-thumb {
+  background: #9a9a9a;
+  border-radius: 999px;
+}
+.marketing-page .docs-ref__body pre::-webkit-scrollbar-thumb:hover {
+  background: #c0c0c0;
 }
 .marketing-page .docs-ref .docs-tok-kw {
   color: #d7b3ff;
