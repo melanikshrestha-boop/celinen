@@ -91,6 +91,7 @@ function CaseRow({
 export function UseCasesMenu() {
   const menu = useNavMenuHover("use-cases");
   const trigger = hoverMenuTrigger(menu);
+  const [footballOpen, setFootballOpen] = useState(false);
   const [openConference, setOpenConference] = useState<string | null>(null);
   return (
     <DropdownMenu
@@ -98,7 +99,10 @@ export function UseCasesMenu() {
       open={menu.open}
       onOpenChange={(next) => {
         menu.onOpenChange?.(next);
-        if (!next) setOpenConference(null);
+        if (!next) {
+          setFootballOpen(false);
+          setOpenConference(null);
+        }
       }}
     >
       <DropdownMenuTrigger className="marketing-nav__link" {...trigger}>
@@ -116,47 +120,65 @@ export function UseCasesMenu() {
         {USE_CASES.map((item) =>
           "conferences" in item && item.conferences ? (
             <div key={item.id} className="marketing-nav-branch">
-              <div className="marketing-nav-feature marketing-nav-feature--label">
+              <button
+                type="button"
+                className="marketing-nav-feature marketing-nav-feature--flyout"
+                aria-expanded={footballOpen}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setFootballOpen((open) => !open);
+                  setOpenConference(null);
+                }}
+              >
                 <CaseRow mark={item.mark} title={item.title} copy={item.copy} />
-              </div>
-              {item.conferences.map((conference) => (
-                <div
-                  key={conference.id}
-                  className="marketing-nav-conference marketing-nav-branch--in"
-                  onPointerEnter={() => setOpenConference(conference.id)}
-                >
-                  <button
-                    type="button"
-                    className="marketing-nav-feature marketing-nav-feature--flyout"
-                    data-state={openConference === conference.id ? "open" : undefined}
-                    aria-expanded={openConference === conference.id}
-                    aria-haspopup="menu"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setOpenConference(conference.id);
-                    }}
-                  >
-                    <CaseRow mark={conference.mark} title={conference.title} />
-                    <ChevronRight size={14} aria-hidden="true" className="marketing-nav-chevron-right" />
-                  </button>
-                  {openConference === conference.id && "teams" in conference ? (
-                    <div className="marketing-nav-teams" role="menu">
-                      {conference.teams.map((team) => (
-                        <DropdownMenuItem key={team.id} asChild>
-                          <Link
-                            to="/use-cases"
-                            hash={conference.id}
-                            className="marketing-nav-feature marketing-nav-feature--team"
-                          >
-                            <CaseRow mark={team.id} title={team.title} />
-                          </Link>
-                        </DropdownMenuItem>
-                      ))}
+                <ChevronDown size={14} aria-hidden="true" className="marketing-nav-chevron-down" />
+              </button>
+              {footballOpen
+                ? item.conferences.map((conference) => (
+                    <div
+                      key={conference.id}
+                      className="marketing-nav-conference marketing-nav-branch--in"
+                    >
+                      <button
+                        type="button"
+                        className="marketing-nav-feature marketing-nav-feature--flyout"
+                        data-state={openConference === conference.id ? "open" : undefined}
+                        aria-expanded={openConference === conference.id}
+                        aria-haspopup="menu"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setOpenConference((current) =>
+                            current === conference.id ? null : conference.id,
+                          );
+                        }}
+                      >
+                        <CaseRow mark={conference.mark} title={conference.title} />
+                        <ChevronRight
+                          size={14}
+                          aria-hidden="true"
+                          className="marketing-nav-chevron-right"
+                        />
+                      </button>
+                      {openConference === conference.id && "teams" in conference ? (
+                        <div className="marketing-nav-teams" role="menu">
+                          {conference.teams.map((team) => (
+                            <DropdownMenuItem key={team.id} asChild>
+                              <Link
+                                to="/use-cases"
+                                hash={conference.id}
+                                className="marketing-nav-feature marketing-nav-feature--team"
+                              >
+                                <CaseRow mark={team.id} title={team.title} />
+                              </Link>
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              ))}
+                  ))
+                : null}
             </div>
           ) : (
             <DropdownMenuItem

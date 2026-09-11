@@ -93,6 +93,9 @@
 .marketing-nav-feature--label:focus-visible {
   background: none;
 }
+.marketing-nav-feature--flyout[aria-expanded="true"] .marketing-nav-chevron-down {
+  transform: rotate(180deg);
+}
 .marketing-nav-teams {
   position: absolute;
   top: 0;
