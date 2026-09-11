@@ -28,6 +28,9 @@ export function MarketingFooter() {
               <Link to="/integrations">Integrations</Link>
             </li>
             <li>
+              <Link to="/compare">Compare</Link>
+            </li>
+            <li>
               <Link to="/pricing">Pricing</Link>
             </li>
             <li>
