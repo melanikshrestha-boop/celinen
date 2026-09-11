@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
 import type { PhotographerBooks, BooksSpark } from "@/lib/photographer-books";
+import type { BooksDay, BooksMonth } from "@/lib/finance-graphs";
+import { activityHeat, compactChartAmount } from "@/lib/finance-graphs";
 import type { EarningsRow } from "@/lib/earnings-ledger";
 import { RevenueGoal } from "./RevenueGoal";
 
@@ -13,7 +15,6 @@ const PALETTE = [
   "#cc6464",
   "#7d8da3",
 ];
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 type Metric = "earnings" | "expenses" | "net";
 
 function Area({
@@ -47,38 +48,29 @@ function Area({
       >
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--fos-series)" stopOpacity="0.24" />
-            <stop offset="100%" stopColor="var(--fos-series)" stopOpacity="0.01" />
+            <stop offset="0%" stopColor="var(--fos-series)" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="var(--fos-series)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[16, 97, 178].map((v) => (
-          <line key={v} x1="6" x2="634" y1={v} y2={v} stroke="var(--fos-line)" />
-        ))}
         <line
           x1="6"
           x2="634"
           y1={y(0)}
           y2={y(0)}
-          stroke="var(--fos-muted)"
-          strokeDasharray="3 5"
-          opacity="0.5"
+          stroke="var(--fos-line)"
+          opacity="0.7"
         />
         <path
           d={`${line} L${x(values.length - 1)},${y(0)} L${x(0)},${y(0)} Z`}
           fill={`url(#${id})`}
         />
         <path className="line" d={line} />
-        {values.map((value, i) => (
-          <circle
-            key={i}
-            cx={x(i)}
-            cy={y(value)}
-            r={values.length > 100 ? 1.5 : 3}
-            fill="var(--fos-series)"
-          >
-            <title>{`${points[i]?.date}: ${money(value)}`}</title>
-          </circle>
-        ))}
+        {values.length <= 14 &&
+          values.map((value, i) => (
+            <circle key={i} cx={x(i)} cy={y(value)} r="3" fill="var(--fos-series)">
+              <title>{`${points[i]?.date}: ${money(value)}`}</title>
+            </circle>
+          ))}
         {indices.map((i) => (
           <text
             key={i}
@@ -188,6 +180,106 @@ function Donut({
   );
 }
 
+function monthStamp(month: string) {
+  return new Date(`${month}-01T12:00:00Z`)
+    .toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+    .toUpperCase();
+}
+
+function MonthCalendar({
+  days,
+  today,
+  spending,
+  currency,
+  money,
+}: {
+  days: BooksDay[];
+  today: string;
+  spending: boolean;
+  currency: string;
+  money: (minor: number) => string;
+}) {
+  const amounts = days.map((day) => (spending ? day.expensesMinor : day.collectedMinor));
+  const peak = Math.max(0, ...amounts);
+  return (
+    <div className="finance-os__monthcal" role="grid" aria-label={spending ? "Spend by day" : "Collected by day"}>
+      {days.map((day, i) => {
+        const amount = amounts[i] ?? 0;
+        const heat = activityHeat(amount, peak);
+        return (
+          <div
+            key={day.date}
+            role="gridcell"
+            className="finance-os__monthcal-day"
+            data-today={day.date === today || undefined}
+            data-heat={heat}
+            title={`${day.date}: ${money(amount)}`}
+          >
+            <span>{Number(day.date.slice(8, 10))}</span>
+            <small>{compactChartAmount(amount, currency)}</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MonthBars({
+  months,
+  spending,
+  money,
+}: {
+  months: BooksMonth[];
+  spending: boolean;
+  money: (minor: number) => string;
+}) {
+  const id = useId().replace(/:/g, "");
+  const values = months.map((row) => (spending ? row.expensesMinor : row.collectedMinor));
+  const peak = Math.max(1, ...values);
+  const width = 360;
+  const height = 148;
+  const gap = 10;
+  const bar = (width - gap * (values.length + 1)) / Math.max(1, values.length);
+  return (
+    <svg
+      className="finance-os__bars"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={spending ? "Monthly spend" : "Monthly collected"}
+    >
+      <defs>
+        <linearGradient id={id} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="var(--fos-bar-from)" />
+          <stop offset="100%" stopColor="var(--fos-bar-to)" />
+        </linearGradient>
+      </defs>
+      {values.map((value, i) => {
+        const x = gap + i * (bar + gap);
+        const h = value > 0 ? Math.max(8, (value / peak) * 108) : 4;
+        const y = 118 - h;
+        const current = i === values.length - 1;
+        return (
+          <g key={months[i]!.month}>
+            <rect
+              x={x}
+              y={y}
+              width={bar}
+              height={h}
+              rx="7"
+              fill={current ? `url(#${id})` : "var(--fos-bar-mute)"}
+            >
+              <title>{`${months[i]!.month}: ${money(value)}`}</title>
+            </rect>
+            <text x={x + bar / 2} y="138" textAnchor="middle">
+              {monthStamp(months[i]!.month)}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export function FinanceOverview({
   books,
   rows,
@@ -220,7 +312,6 @@ export function FinanceOverview({
   askBusy?: boolean;
 }) {
   const [selection, setSelection] = useState<Metric>("earnings");
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const metric = spending ? "expenses" : selection;
   const amount =
     metric === "net"
@@ -258,18 +349,22 @@ export function FinanceOverview({
           )
           .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
       : [];
-  const year = Number(today.slice(0, 4)),
-    month = Number(today.slice(5, 7)) - 1;
-  const pad = new Date(Date.UTC(year, month, 1)).getUTCDay(),
-    days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const activeDay =
-    selectedDay && upcoming.some((row) => row.dueDate === selectedDay) ? selectedDay : null;
-  const calendarRows = activeDay ? upcoming.filter((row) => row.dueDate === activeDay) : upcoming;
+  const monthTotal = books
+    ? books.monthDays.reduce(
+        (sum, day) => sum + (spending ? day.expensesMinor : day.collectedMinor),
+        0,
+      )
+    : 0;
+  const latestMonth = books?.recentMonths.at(-1);
+  const latestMonthTotal = latestMonth
+    ? spending
+      ? latestMonth.expensesMinor
+      : latestMonth.collectedMinor
+    : 0;
   return (
     <>
       <div className="finance-os__title">
         <div>
-          <p className="finance-os__eyebrow">Your photography business</p>
           <h1 id="earnings-title" tabIndex={-1}>
             {spending ? "Spending" : "Earnings"}
           </h1>
@@ -336,9 +431,25 @@ export function FinanceOverview({
               </small>
             </div>
           </dl>
-          <div className="finance-os__grid">
+          <div className="finance-os__boards">
+            <article className="finance-os__board">
+              <h2>{spending ? "Spent this month" : "Collected this month"}</h2>
+              <p className="finance-os__figure">{money(monthTotal)}</p>
+              <MonthCalendar
+                days={books.monthDays}
+                today={today}
+                spending={spending}
+                currency={books.currency}
+                money={money}
+              />
+            </article>
+            <article className="finance-os__board">
+              <h2>{spending ? "Monthly spend" : "Monthly collected"}</h2>
+              <p className="finance-os__figure">{money(latestMonthTotal)}</p>
+              <MonthBars months={books.recentMonths} spending={spending} money={money} />
+            </article>
             <article
-              className="finance-os__card"
+              className="finance-os__board"
               data-series={
                 metric === "net" ? (books.netMinor < 0 ? "negative" : "positive") : "activity"
               }
@@ -379,11 +490,10 @@ export function FinanceOverview({
               </p>
               <Area points={books.spark} metric={metric} money={money} />
             </article>
+          </div>
+          <div className="finance-os__grid">
             <article className="finance-os__card">
               <h2>Category breakdown</h2>
-              <p className="finance-os__vs">
-                {metric === "expenses" ? "Recorded expenses" : "Gross receipts · before refunds"}
-              </p>
               <Donut slices={slices} money={money} />
               {slices.length > 5 && (
                 <p className="finance-os__category-note">
@@ -446,70 +556,22 @@ export function FinanceOverview({
                   Verified invoice balances are unavailable. Connect and reconcile your payment
                   history to see what is due.
                 </p>
+              ) : upcoming.length ? (
+                <ul className="finance-os__rows">
+                  {upcoming.slice(0, 6).map((row) => (
+                    <li key={row.id}>
+                      <button type="button" onClick={() => onOpen(row.id)}>
+                        <span>
+                          <strong>{row.who ?? row.description}</strong>
+                          <small>Due {row.dueDate}</small>
+                        </span>
+                        <em>{money(row.outstandingMinor)}</em>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               ) : (
-                <>
-                  <p className="finance-os__vs">
-                    {new Date(`${today}T12:00:00Z`).toLocaleDateString("en-US", {
-                      month: "long",
-                      year: "numeric",
-                      timeZone: "UTC",
-                    })}{" "}
-                    · expected, not collected
-                  </p>
-                  <div className="finance-os__cal" aria-label="Invoice due dates this month">
-                    {WEEKDAYS.map((d) => (
-                      <b key={d}>{d.slice(0, 2)}</b>
-                    ))}
-                    {Array.from({ length: pad }, (_, i) => (
-                      <span key={`pad-${i}`} />
-                    ))}
-                    {Array.from({ length: days }, (_, i) => {
-                      const date = `${today.slice(0, 7)}-${String(i + 1).padStart(2, "0")}`;
-                      const has = upcoming.some((row) => row.dueDate === date);
-                      return (
-                        <button
-                          key={date}
-                          type="button"
-                          aria-label={`${date}${has ? ", invoices due" : ", no invoices due"}`}
-                          aria-pressed={activeDay === date}
-                          disabled={!has}
-                          data-today={date === today || undefined}
-                          data-has={has || undefined}
-                          onClick={() => setSelectedDay(activeDay === date ? null : date)}
-                        >
-                          {i + 1}
-                          {has && <i />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {activeDay && (
-                    <button
-                      type="button"
-                      className="finance-os__text-button"
-                      onClick={() => setSelectedDay(null)}
-                    >
-                      Show All Upcoming
-                    </button>
-                  )}
-                  {calendarRows.length ? (
-                    <ul className="finance-os__rows">
-                      {calendarRows.slice(0, 6).map((row) => (
-                        <li key={row.id}>
-                          <button type="button" onClick={() => onOpen(row.id)}>
-                            <span>
-                              <strong>{row.who ?? row.description}</strong>
-                              <small>Due {row.dueDate}</small>
-                            </span>
-                            <em>{money(row.outstandingMinor)}</em>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="finance-os__empty">No open invoices due on or after today.</p>
-                  )}
-                </>
+                <p className="finance-os__empty">No open invoices due on or after today.</p>
               )}
             </article>
           </div>

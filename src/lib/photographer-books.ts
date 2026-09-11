@@ -1,5 +1,12 @@
 import { buildEarningsCharts } from "./earnings-charts";
 import {
+  daysInMonth,
+  monthEndDate,
+  recentMonthKeys,
+  type BooksDay,
+  type BooksMonth,
+} from "./finance-graphs";
+import {
   isEarningsDate,
   summarizeEarnings,
   type EarningsPeriod,
@@ -40,6 +47,10 @@ export type PhotographerBooks = {
   expenseCount: number;
   payoutCount: number;
   spark: BooksSpark[];
+  /** Calendar month of `today`, every day present. Zero days are kept so the board can draw dashes. */
+  monthDays: BooksDay[];
+  /** Last six calendar months through `today`'s month, zeros included. */
+  recentMonths: BooksMonth[];
   incomeLines: { label: string; amountMinor: number }[];
   expenseLines: { label: string; amountMinor: number }[];
   stream: BooksStreamItem[];
@@ -147,6 +158,41 @@ export function buildPhotographerBooks(
       date: row.date,
       kind: row.accounting === "expense" || row.accounting === "refund" ? "out" : "in",
     }));
+  const monthKey = options.today.slice(0, 7);
+  const calendarEnd = monthEndDate(monthKey);
+  const monthChart = buildEarningsCharts(rows, {
+    ...options,
+    period: { from: `${monthKey}-01`, to: calendarEnd },
+    granularity: "day",
+    complete: true,
+  });
+  const byDay = new Map(monthChart.points.map((point) => [point.date, point]));
+  const monthDays: BooksDay[] = daysInMonth(monthKey).map((date) => {
+    const point = byDay.get(date);
+    return {
+      date,
+      collectedMinor: point?.collectedMinor ?? 0,
+      expensesMinor: point?.expensesMinor ?? 0,
+      netMinor: point?.netMinor ?? 0,
+    };
+  });
+  const monthKeys = recentMonthKeys(options.today, 6);
+  const barsChart = buildEarningsCharts(rows, {
+    ...options,
+    period: { from: `${monthKeys[0]}-01`, to: calendarEnd },
+    granularity: "month",
+    complete: true,
+  });
+  const byMonth = new Map(barsChart.months.map((row) => [row.month, row]));
+  const recentMonths: BooksMonth[] = monthKeys.map((month) => {
+    const row = byMonth.get(month);
+    return {
+      month,
+      collectedMinor: row?.collectedMinor ?? 0,
+      expensesMinor: row?.expensesMinor ?? 0,
+      netMinor: row?.netMinor ?? 0,
+    };
+  });
   return {
     currency: options.currency,
     collectedMinor: metric?.collectedMinor ?? 0,
@@ -170,6 +216,8 @@ export function buildPhotographerBooks(
       expensesMinor: point.expensesMinor,
       galleryMinor: point.collectedMinor,
     })),
+    monthDays,
+    recentMonths,
     incomeLines: charts.incomeCategories.map((item) => ({
       label: item.category,
       amountMinor: item.amountMinor,
