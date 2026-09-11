@@ -117,14 +117,18 @@
   min-height: 36px;
   padding: 8px 16px;
   font-size: 13px;
-  box-shadow: none;
+  box-shadow:
+    0 12px 36px #4d6fff73,
+    0 0 24px #4d6fff59;
 }
 .marketing-page .docs-ref .docs-ref__actions a:is(:hover, :focus-visible, :active),
 .marketing-page .docs-ref .docs-ref__actions a:last-child:is(:hover, :focus-visible, :active) {
   background: #6e86ff;
   color: #fff;
   text-decoration: none;
-  box-shadow: none;
+  box-shadow:
+    0 16px 42px #4d6fff8c,
+    0 0 28px #8aa4ff73;
 }
 
 .marketing-page .docs-ref__body header {

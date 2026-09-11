@@ -55,7 +55,9 @@ test("docs styling stays public-scoped", () => {
   expect(css).not.toContain("background: #0a0a0a");
   expect(css).not.toMatch(/border-(?:top|bottom):\s*1px/);
   expect(css).toContain("font-size: 13.5px");
-  expect(css).toContain("box-shadow: none");
+  expect(css).toContain("0 12px 36px #4d6fff73");
+  expect(css).toContain("0 0 24px #4d6fff59");
+  expect(css).not.toContain("box-shadow: none");
   expect(css).toContain(".docs-tok-key");
   expect(css).toContain("background: #000");
   expect(css).toContain("scrollbar-color: #9a9a9a #000");
