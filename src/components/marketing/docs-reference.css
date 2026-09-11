@@ -10,7 +10,7 @@
 
 .marketing-page .docs-ref__toc {
   position: sticky;
-  top: 88px;
+  top: 80px;
 }
 
 .marketing-page .docs-ref__toc > p {
@@ -258,7 +258,7 @@
 
   .marketing-page .docs-ref__toc {
     position: sticky;
-    top: 72px;
+    top: 76px;
   }
 
   .marketing-page .docs-ref__toc nav a,

@@ -262,6 +262,7 @@
 }
 .marketing-page .marketing-public-page:has(.docs-ref) {
   max-width: 1180px;
+  padding: 12px 24px 48px;
 }
 .marketing-public-page {
   max-width: 1120px;
