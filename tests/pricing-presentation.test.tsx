@@ -183,8 +183,20 @@ if (!process.argv.includes(fixtureFlag)) {
           assert.match(html, /aria-label="Public navigation"/);
           assert.doesNotMatch(
             visible,
-            /\$|prorated|SSO and seat management|Cancel any time|within 14 days|100 photos per month|Everything in Free|catalog import/,
+            /prorated|SSO and seat management|Cancel any time|within 14 days|100 photos per month|Everything in Free|catalog import/,
           );
+          if (audience === "personal") {
+            assert.match(visible, /Billed yearly at \$192/);
+            assert.match(visible, /Save \$48/);
+            assert.match(visible, /Billed yearly at \$288/);
+            assert.match(visible, /Save \$72/);
+          }
+          if (audience === "teams") {
+            assert.match(visible, /Billed yearly at \$384/);
+            assert.match(visible, /Save \$96/);
+            assert.match(visible, /Billed yearly at \$768/);
+            assert.match(visible, /Save \$192/);
+          }
           assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
           assert.match(visible, /USD/);
           const list = links(html);

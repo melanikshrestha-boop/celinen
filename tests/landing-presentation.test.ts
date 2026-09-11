@@ -235,6 +235,10 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes("$20"));
     assert.ok(html.includes("$30"));
     assert.ok(html.includes("Hobby"));
+    assert.ok(html.includes("Billed yearly at $192"));
+    assert.ok(html.includes("Save $48"));
+    assert.ok(html.includes("Billed yearly at $288"));
+    assert.ok(html.includes("Save $72"));
     assert.ok(html.includes("Creator"));
     assert.ok(html.includes("Enterprise"));
     assert.ok(html.includes("Most Popular"));

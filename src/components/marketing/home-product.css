@@ -127,10 +127,18 @@
   color: #8b98a1;
 }
 .home-pricing__billed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
   margin: 0;
   color: #8b98a1;
   font-size: 14px;
   font-weight: 400;
+}
+.home-pricing__save {
+  color: #4d6fff;
+  font-weight: 600;
 }
 .home-pricing__cards ul {
   margin: 8px 0 0;
