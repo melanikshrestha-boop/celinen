@@ -261,6 +261,8 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes("Use Cases"));
     assert.ok(html.includes("Integrations"));
     assert.ok(html.includes("How celinen compares"));
+    assert.ok(html.includes("Our 30% affiliate program"));
+    assert.ok(html.includes("Referral cookie window"));
     assert.ok(html.includes("Aftershoot"));
     assert.ok(html.includes("Pixieset"));
     assert.ok(html.includes("Photo Mechanic"));

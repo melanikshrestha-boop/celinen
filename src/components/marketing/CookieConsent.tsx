@@ -65,7 +65,7 @@ export function CookieConsent() {
     <div className="marketing-cookies" role="dialog" aria-label="Cookies">
       <p>
         We use cookies for analytics to understand how celinen is used. See the{" "}
-        <Link to="/cookie-policy">Cookie Policy</Link>
+        <Link to="/legal/cookies">Cookie Policy</Link>
         .
       </p>
       <div className="marketing-cookies__actions">

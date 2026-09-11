@@ -71,6 +71,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
                   { to: "/use-cases", label: "Use Cases" },
                   { to: "/integrations", label: "Integrations" },
                   { to: "/compare", label: "Compare" },
+                  { to: "/affiliates", label: "Affiliates" },
                   { to: "/pricing", label: "Pricing" },
                   { to: "/docs", label: "Docs" },
                   { to: "/blog", label: "Blog" },
