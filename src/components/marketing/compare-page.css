@@ -86,9 +86,14 @@
   font-size: 15px;
   font-weight: 650;
 }
-.foto-compare__vs svg {
+.foto-compare__vs svg,
+.foto-compare__vs img,
+.foto-compare__logo {
   width: 28px;
   height: 28px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
 }
 .foto-compare__vs em {
   color: #8b919a;
@@ -146,9 +151,14 @@
   color: #8b919a;
   font-size: 14px;
 }
-.foto-compare-detail__vs svg {
+.foto-compare-detail__vs svg,
+.foto-compare-detail__vs img,
+.foto-compare-detail__vs .foto-compare__logo {
   width: 36px;
   height: 36px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
 }
 .foto-compare-detail__score {
   display: flex;
