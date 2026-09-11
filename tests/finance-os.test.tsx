@@ -102,9 +102,12 @@ test("invest and equity stay honest about photographer books", () => {
   expect(equity).not.toContain("325,47");
 });
 
-test("finance os css stays dark and neon for the invoice CTA", () => {
+test("finance os is light by default and only dark under html.dark", () => {
   const css = readFileSync(new URL("../src/components/earnings/finance-os.css", import.meta.url), "utf8");
   expect(css).toContain("--fos-neon: #4d6fff");
-  expect(css).toContain("color-scheme: dark");
+  expect(css).toContain("--fos-bg: #f7f8fa");
+  expect(css).toContain("color-scheme: light");
+  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
+  expect(css).toMatch(/:root\.dark[\s\S]*color-scheme: dark/);
   expect(css).toContain(".finance-os__cta");
 });

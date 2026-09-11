@@ -23,6 +23,8 @@ test("dashboard shell has real signed-in destinations", () => {
   expect(source).toContain('to: "/settings"');
   expect(source).toContain('to: "/auth"');
   expect(source).toContain("Loading your workspace");
-  expect(source).toContain("celinen-btn");
-  expect(source).toContain("celinen-btn--ghost");
+  expect(source).toContain("celinen-dash__card");
+  expect(source).toContain("Open a shoot");
+  expect(source).toContain("Send a gallery");
+  expect(source).toContain("Connect socials");
 });

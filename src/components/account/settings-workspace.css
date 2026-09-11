@@ -8,12 +8,13 @@
 }
 .settings-shell {
   --settings-bg: var(--ll-settings-background, #fff);
-  --settings-rail: var(--foto-sidebar-material, #f9f9f9cc);
-  --settings-surface: var(--foto-settings-surface, #fafafa);
-  --settings-hover: var(--foto-sidebar-hover, #2020200d);
-  --settings-border: var(--foto-settings-border, #20202014);
-  --settings-text: var(--ll-settings-foreground, #202020);
-  --settings-muted: var(--foto-sidebar-muted, #626262);
+  --settings-rail: #fff;
+  --settings-surface: var(--foto-settings-surface, #fff);
+  --settings-hover: #142a3608;
+  --settings-border: var(--celinen-line, #eceff2);
+  --settings-text: var(--ll-settings-foreground, #142a36);
+  --settings-muted: var(--celinen-muted, #516570);
+  --settings-accent: var(--ll-settings-accent, #4d6fff);
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -106,13 +107,13 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
   text-align: left;
-  min-height: 29px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 19px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 15px;
+  line-height: 1.3;
 }
 .settings-nav-group > button svg {
   width: 16px;
@@ -120,12 +121,17 @@
   flex-shrink: 0;
   color: var(--settings-muted);
 }
-.settings-nav-group > button:hover,
-.settings-nav-group > button[aria-current="page"] {
+.settings-nav-group > button:hover {
   background: var(--settings-hover);
+  color: var(--settings-text);
+}
+.settings-nav-group > button[aria-current="page"] {
+  background: #eef2ff;
+  color: var(--settings-accent, #4d6fff);
+  font-weight: 600;
 }
 .settings-nav-group > button[aria-current="page"] svg {
-  color: var(--settings-text);
+  color: var(--settings-accent, #4d6fff);
 }
 .settings-rail-profile {
   flex-shrink: 0;
@@ -245,21 +251,29 @@
   color: var(--settings-text);
 }
 .settings-shell .settings-button {
-  min-height: 34px;
-  padding: 6px 11px;
-  font-size: 13px;
-  background: var(--settings-hover);
-  color: var(--settings-text);
+  min-height: 48px;
+  padding: 12px 28px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--settings-accent, #4d6fff);
+  color: #fff;
+  box-shadow:
+    0 12px 36px #4d6fff73,
+    0 0 24px #4d6fff59;
 }
 .settings-shell .settings-button:hover {
-  filter: brightness(1.15);
+  background: #6e86ff;
+  color: #fff;
+  filter: none;
 }
 .settings-shell .settings-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 .settings-shell [role="switch"][data-state="checked"] {
-  background: var(--settings-accent, #eab74e);
+  background: var(--settings-accent, #4d6fff);
 }
 .settings-shell [role="switch"] > span {
   background: #eee8de;

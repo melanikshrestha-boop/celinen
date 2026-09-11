@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EarningsWorkspace } from "@/components/earnings/EarningsWorkspace";
+import { PRODUCT_HEADLINE } from "@/lib/product";
 export { EarningsWorkspace } from "@/components/earnings/EarningsWorkspace";
 
 export const Route = createFileRoute("/earnings")({
   head: () => ({
     meta: [
-      { title: "Earnings — FOTO" },
+      { title: PRODUCT_HEADLINE },
       {
         name: "description",
         content:

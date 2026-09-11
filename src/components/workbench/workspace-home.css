@@ -29,7 +29,7 @@
 }
 .foto-home__hero em {
   font-style: italic;
-  color: #006eaa;
+  color: #4d6fff;
 }
 .foto-home__still {
   justify-self: end;
@@ -98,7 +98,7 @@
   transform: scale(1.8);
 }
 .foto-home__card svg {
-  color: #006eaa;
+  color: #4d6fff;
   margin: 0 0 8px 4px;
 }
 .foto-home__card h2 {
@@ -135,11 +135,11 @@
   cursor: pointer;
 }
 .foto-home__tools-row button:hover {
-  border-color: #c5d8e6;
-  color: #005888;
+  border-color: #4d6fff;
+  color: #4d6fff;
 }
 .foto-home__tools-row button:focus-visible {
-  outline: 2px solid #2458a6;
+  outline: 2px solid #4d6fff;
   outline-offset: 2px;
 }
 .foto-home__hero,

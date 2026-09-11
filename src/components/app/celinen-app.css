@@ -12,16 +12,23 @@
   --celinen-leading: 1.3;
 }
 
-html:has(.celinen-dash, .photo-workbench, .settings-shell, .auth-screen) {
+html:has(.celinen-dash, .photo-workbench, .settings-shell, .auth-screen, .celinen-status) {
   color-scheme: light;
+}
+html.dark:has(.photo-workbench) {
+  color-scheme: dark;
 }
 
 .celinen-dash,
-.photo-workbench,
 .settings-shell,
 .auth-screen {
   font-family: var(--celinen-sans);
   color: var(--celinen-text);
+  line-height: var(--celinen-leading);
+}
+.photo-workbench {
+  font-family: var(--celinen-sans);
+  color: var(--wb-text, var(--celinen-text));
   line-height: var(--celinen-leading);
 }
 
@@ -74,4 +81,37 @@ html:has(.celinen-dash, .photo-workbench, .settings-shell, .auth-screen) {
   background: #f6f8fb;
   color: var(--celinen-text);
   box-shadow: none;
+}
+
+.celinen-status {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  justify-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: #fff;
+  color: var(--celinen-text);
+  font-family: var(--celinen-sans);
+  text-align: center;
+}
+.celinen-status h1 {
+  margin: 0;
+  font-family: var(--celinen-display);
+  font-size: clamp(32px, 6vw, 56px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+.celinen-status p {
+  margin: 0;
+  color: var(--celinen-muted);
+  font-size: 17px;
+}
+.celinen-status__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
 }
