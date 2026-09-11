@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UseCaseMark } from "@/components/marketing/UseCaseMark";
-import { useNavMenuHover } from "@/components/marketing/nav-menu";
+import { hoverMenuTrigger, useNavMenuHover } from "@/components/marketing/nav-menu";
 import {
   ACC_TEAMS,
   BIG12_TEAMS,
@@ -93,9 +93,14 @@ function teamsWouldOverflow(node: HTMLElement | null) {
   return node.getBoundingClientRect().right + 248 > window.innerWidth - 8;
 }
 
+function openConferenceFrom(node: HTMLElement, id: string, setFlip: (next: boolean) => void, setOpen: (id: string) => void) {
+  setFlip(teamsWouldOverflow(node));
+  setOpen(id);
+}
+
 export function UseCasesMenu() {
   const menu = useNavMenuHover("use-cases");
-  const [openCase, setOpenCase] = useState<string | null>(null);
+  const trigger = hoverMenuTrigger(menu);
   const [openConference, setOpenConference] = useState<string | null>(null);
   const [flipTeams, setFlipTeams] = useState(false);
   return (
@@ -104,17 +109,10 @@ export function UseCasesMenu() {
       open={menu.open}
       onOpenChange={(next) => {
         menu.onOpenChange?.(next);
-        if (!next) {
-          setOpenCase(null);
-          setOpenConference(null);
-        }
+        if (!next) setOpenConference(null);
       }}
     >
-      <DropdownMenuTrigger
-        className="marketing-nav__link"
-        onPointerEnter={menu.openNow}
-        onPointerLeave={menu.closeSoon}
-      >
+      <DropdownMenuTrigger className="marketing-nav__link" {...trigger}>
         Use Cases
         <ChevronDown size={14} aria-hidden="true" />
       </DropdownMenuTrigger>
@@ -127,72 +125,65 @@ export function UseCasesMenu() {
       >
         {USE_CASES.map((item) =>
           "conferences" in item && item.conferences ? (
-            <div
-              key={item.id}
-              className="marketing-nav-branch"
-              onPointerEnter={() => {
-                setOpenCase(item.id);
-                setOpenConference(null);
-              }}
-            >
-              <button
-                type="button"
-                className="marketing-nav-feature marketing-nav-feature--flyout"
-                data-state={openCase === item.id ? "open" : undefined}
-                aria-expanded={openCase === item.id}
-              >
+            <div key={item.id} className="marketing-nav-branch">
+              <div className="marketing-nav-feature marketing-nav-feature--label">
                 <CaseRow mark={item.mark} title={item.title} copy={item.copy} />
-                <ChevronDown size={14} aria-hidden="true" className="marketing-nav-chevron-down" />
-              </button>
-              {openCase === item.id
-                ? item.conferences.map((conference) => (
+              </div>
+              {item.conferences.map((conference) => (
+                <div
+                  key={conference.id}
+                  className="marketing-nav-conference marketing-nav-branch--in"
+                  onPointerEnter={(event) => {
+                    openConferenceFrom(event.currentTarget, conference.id, setFlipTeams, setOpenConference);
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="marketing-nav-feature marketing-nav-feature--flyout"
+                    data-state={openConference === conference.id ? "open" : undefined}
+                    aria-expanded={openConference === conference.id}
+                    aria-haspopup="menu"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const row = event.currentTarget.closest(".marketing-nav-conference");
+                      openConferenceFrom(
+                        row instanceof HTMLElement ? row : event.currentTarget,
+                        conference.id,
+                        setFlipTeams,
+                        setOpenConference,
+                      );
+                    }}
+                  >
+                    <CaseRow mark={conference.mark} title={conference.title} />
+                    <ChevronRight size={14} aria-hidden="true" className="marketing-nav-chevron-right" />
+                  </button>
+                  {openConference === conference.id && "teams" in conference ? (
                     <div
-                      key={conference.id}
-                      className="marketing-nav-conference marketing-nav-branch--in"
-                      onPointerEnter={(event) => {
-                        setFlipTeams(teamsWouldOverflow(event.currentTarget));
-                        setOpenConference(conference.id);
-                      }}
+                      className={`marketing-nav-teams${flipTeams ? " is-start" : ""}`}
+                      role="menu"
                     >
-                      <button
-                        type="button"
-                        className="marketing-nav-feature marketing-nav-feature--flyout"
-                        data-state={openConference === conference.id ? "open" : undefined}
-                        aria-expanded={openConference === conference.id}
-                      >
-                        <CaseRow mark={conference.mark} title={conference.title} />
-                        <ChevronRight size={14} aria-hidden="true" className="marketing-nav-chevron-right" />
-                      </button>
-                      {openConference === conference.id && "teams" in conference ? (
-                        <div
-                          className={`marketing-nav-teams${flipTeams ? " is-start" : ""}`}
-                          role="menu"
-                        >
-                          {conference.teams.map((team) => (
-                            <DropdownMenuItem key={team.id} asChild>
-                              <Link
-                                to="/use-cases"
-                                hash={conference.id}
-                                className="marketing-nav-feature marketing-nav-feature--team"
-                              >
-                                <CaseRow mark={team.id} title={team.title} />
-                              </Link>
-                            </DropdownMenuItem>
-                          ))}
-                        </div>
-                      ) : null}
+                      {conference.teams.map((team) => (
+                        <DropdownMenuItem key={team.id} asChild>
+                          <Link
+                            to="/use-cases"
+                            hash={conference.id}
+                            className="marketing-nav-feature marketing-nav-feature--team"
+                          >
+                            <CaseRow mark={team.id} title={team.title} />
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
                     </div>
-                  ))
-                : null}
+                  ) : null}
+                </div>
+              ))}
             </div>
           ) : (
             <DropdownMenuItem
               key={item.id}
               asChild
-              onPointerEnter={() => {
-                setOpenCase(null);
-                setOpenConference(null);
-              }}
+              onPointerEnter={() => setOpenConference(null)}
             >
               <Link to="/use-cases" hash={item.id} className="marketing-nav-feature">
                 <CaseRow mark={item.mark} title={item.title} />

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type PointerEvent,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -41,13 +42,37 @@ export function useNavMenu(id: NavMenuId) {
 export function useNavMenuHover(id: NavMenuId) {
   const menu = useNavMenu(id);
   const timer = useRef(0);
+  const hovering = useRef(false);
   const openNow = () => {
     window.clearTimeout(timer.current);
+    hovering.current = true;
     menu.onOpenChange?.(true);
   };
   const closeSoon = () => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => menu.onOpenChange?.(false), 160);
+    hovering.current = false;
+    timer.current = window.setTimeout(() => {
+      if (!hovering.current) menu.onOpenChange?.(false);
+    }, 160);
   };
-  return { ...menu, openNow, closeSoon };
+  const onOpenChange = (next: boolean) => {
+    // Radix click-toggles the trigger and treats it as outside the panel.
+    if (!next && hovering.current) return;
+    menu.onOpenChange?.(next);
+  };
+  return { ...menu, onOpenChange, openNow, closeSoon };
+}
+
+/** Mouse hover owns the menu. Click would toggle it closed; touch still clicks. */
+export function hoverMenuTrigger(menu: ReturnType<typeof useNavMenuHover>) {
+  return {
+    onPointerEnter: menu.openNow,
+    onPointerLeave: menu.closeSoon,
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "mouse") {
+        event.preventDefault();
+        menu.openNow();
+      }
+    },
+  };
 }
