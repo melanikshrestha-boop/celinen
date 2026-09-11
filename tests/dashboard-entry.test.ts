@@ -77,6 +77,9 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain("font-weight: 400");
   expect(css).toContain('font-family: var(--celinen-sans');
   expect(css).toContain(".celinen-dash.is-mini");
+  expect(css).toContain(".celinen-dash__ico");
+  expect(css).toContain("place-items: center");
+  expect(css).toContain("color: #141820");
   expect(css).toContain("grid-template-columns: var(--rail) minmax(0, 1fr)");
   expect(css).not.toContain(".celinen-dash.is-closed");
   expect(css).toContain(".celinen-dash__resize");

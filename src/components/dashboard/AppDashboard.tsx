@@ -364,7 +364,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                       : "celinen-dash__link is-active",
                 }}
               >
-                <item.icon size={20} strokeWidth={1.6} aria-hidden="true" />
+                <span className="celinen-dash__ico" aria-hidden="true">
+                  <item.icon size={20} strokeWidth={2} />
+                </span>
                 <span>{item.label}</span>
               </Link>
             );
@@ -376,7 +378,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
             title="Upgrade"
             className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
           >
-            <Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />
+            <span className="celinen-dash__ico" aria-hidden="true">
+              <Sparkles size={20} strokeWidth={2} />
+            </span>
             <span>Upgrade</span>
           </Link>
           <div className="celinen-dash__social">
