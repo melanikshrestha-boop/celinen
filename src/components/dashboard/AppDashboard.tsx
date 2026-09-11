@@ -1,42 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  ArrowUp,
   AtSign,
   BarChart3,
-  BookOpen,
   Calendar,
-  ChevronDown,
-  DollarSign,
-  Gift,
-  Home,
   LogOut,
-  MessageSquare,
-  PanelLeft,
+  Plus,
   Scissors,
+  Search,
   Settings,
+  SquarePen,
   Workflow,
   Wrench,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
-import { InviteFriendDialog } from "@/components/account/InviteFriendDialog";
-import { accountInitials } from "@/lib/account-preferences";
 import { PRODUCT_NAME } from "@/lib/product";
 import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
+import { destinationPathFor } from "@/lib/workspace-routing";
 import "./dashboard.css";
 
-const MAIN = [
-  { to: "/dashboard", label: "Home", icon: Home, end: true },
-  { to: "/shoots", label: "Clipping", icon: Scissors },
-  { to: "/tonight", label: "Automations", icon: Workflow },
-  { to: "/dashboard", label: "Calendar", icon: Calendar, view: "calendar" },
-  { to: "/earnings", label: "Analytics", icon: BarChart3 },
-  { to: "/publish", label: "Social Accounts", icon: AtSign },
-  { to: "/library", label: "Tools", icon: Wrench },
-] as const;
+type Role = "user" | "assistant";
+type DashMessage = { id: string; role: Role; text: string };
+type DashThread = { id: string; title: string; messages: DashMessage[]; updatedAt: number };
 
-function initial(name: string) {
-  return (accountInitials(name).slice(0, 1) || "C").toUpperCase();
-}
+const WORK = [
+  { to: "/shoots" as const, label: "Clipping", icon: Scissors },
+  { to: "/tonight" as const, label: "Automations", icon: Workflow },
+  { to: "/earnings" as const, label: "Analytics", icon: BarChart3 },
+  { to: "/publish" as const, label: "Social Accounts", icon: AtSign },
+  { to: "/library" as const, label: "Tools", icon: Wrench },
+];
 
 function monthCells(year: number, month: number) {
   const first = new Date(year, month, 1).getDay();
@@ -46,19 +40,47 @@ function monthCells(year: number, month: number) {
   );
 }
 
+function threadKey(scope: string) {
+  return `celinen.dashboard.chat.v1:${scope}`;
+}
+function readThreads(scope: string): DashThread[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(threadKey(scope)) ?? "[]") as DashThread[];
+    return Array.isArray(parsed) ? parsed.slice(0, 40) : [];
+  } catch {
+    return [];
+  }
+}
+function writeThreads(scope: string, threads: DashThread[]) {
+  localStorage.setItem(threadKey(scope), JSON.stringify(threads.slice(0, 40)));
+}
+function titleFrom(text: string) {
+  const line = text.trim().replace(/\s+/g, " ");
+  return line.slice(0, 42) || "New chat";
+}
+function replyFor(text: string) {
+  const path = destinationPathFor(text);
+  if (path === "/earnings") return { text: "Opening Analytics.", href: "/earnings" };
+  if (path === "/deliver") return { text: "Opening delivery.", href: "/deliver" };
+  if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
+  if (path === "/adobe") return { text: "Opening Adobe.", href: "/adobe" };
+  if (path === "/video") return { text: "Opening video.", href: "/video" };
+  return { text: "Say send a gallery, check earnings, or open Clipping to pick keepers.", href: null };
+}
+
 export function AppDashboard() {
   const account = useAccount();
   const navigate = useNavigate();
-  const search = useRouterState({ select: (state) => state.location.searchStr });
-  const calendarOpen = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get(
-    "view",
-  ) === "calendar";
-  const [collapsed, setCollapsed] = useState(false);
-  const [invite, setInvite] = useState(false);
-  const [menu, setMenu] = useState(false);
-  const inviteFocus = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [shoots, setShoots] = useState<RecentShoot[] | null>(null);
+  const [mode, setMode] = useState<"chat" | "work">("chat");
+  const [draft, setDraft] = useState("");
+  const [threads, setThreads] = useState<DashThread[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [shoots, setShoots] = useState<RecentShoot[]>([]);
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [calendar, setCalendar] = useState(false);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (account?.status === "out")
@@ -70,187 +92,287 @@ export function AppDashboard() {
   }, [account?.status, navigate]);
 
   const loading = !account || account.status === "loading" || account.status === "out";
-  const name = account?.name?.trim() || PRODUCT_NAME;
-  const workspace = account?.workspaceName?.trim() || name;
   const scope = account?.scope;
 
   useEffect(() => {
     if (!scope) return;
-    let alive = true;
+    const rows = readThreads(scope);
+    setThreads(rows);
+    setActiveId(rows[0]?.id ?? null);
     void listRecentShoots(scope)
-      .then((rows) => {
-        if (alive) setShoots(rows);
-      })
-      .catch(() => {
-        if (alive) setShoots([]);
-      });
-    return () => {
-      alive = false;
-    };
+      .then(setShoots)
+      .catch(() => setShoots([]));
   }, [scope]);
-
-  useEffect(() => {
-    if (!menu) return;
-    const close = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenu(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menu]);
 
   const now = useMemo(() => new Date(), []);
   const cells = monthCells(now.getFullYear(), now.getMonth());
   const byDay = useMemo(() => {
     const map = new Map<number, RecentShoot[]>();
-    for (const shoot of shoots ?? []) {
-      const day = new Date(shoot.updatedAt).getDate();
-      const month = new Date(shoot.updatedAt).getMonth();
-      const year = new Date(shoot.updatedAt).getFullYear();
-      if (month !== now.getMonth() || year !== now.getFullYear()) continue;
-      const list = map.get(day) ?? [];
+    for (const shoot of shoots) {
+      const at = new Date(shoot.updatedAt);
+      if (at.getMonth() !== now.getMonth() || at.getFullYear() !== now.getFullYear()) continue;
+      const list = map.get(at.getDate()) ?? [];
       list.push(shoot);
-      map.set(day, list);
+      map.set(at.getDate(), list);
     }
     return map;
   }, [shoots, now]);
+  const active = threads.find((thread) => thread.id === activeId) ?? null;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return threads;
+    return threads.filter((thread) => thread.title.toLowerCase().includes(q));
+  }, [threads, query]);
+
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [active?.messages.length]);
+
+  function persist(next: DashThread[], id: string | null) {
+    if (!scope) return;
+    setThreads(next);
+    setActiveId(id);
+    writeThreads(scope, next);
+  }
+  function newChat() {
+    setDraft("");
+    setMode("chat");
+    persist(threads, null);
+    box.current?.focus();
+  }
+  function send() {
+    const text = draft.trim();
+    if (!text || !scope) return;
+    const reply = replyFor(text);
+    const user: DashMessage = { id: crypto.randomUUID(), role: "user", text };
+    const assistant: DashMessage = { id: crypto.randomUUID(), role: "assistant", text: reply.text };
+    const now = Date.now();
+    let id = activeId;
+    let next: DashThread[];
+    if (active) {
+      const updated = {
+        ...active,
+        title: active.messages.length ? active.title : titleFrom(text),
+        messages: [...active.messages, user, assistant],
+        updatedAt: now,
+      };
+      next = [updated, ...threads.filter((thread) => thread.id !== active.id)];
+      id = updated.id;
+    } else {
+      const created: DashThread = {
+        id: crypto.randomUUID(),
+        title: titleFrom(text),
+        messages: [user, assistant],
+        updatedAt: now,
+      };
+      next = [created, ...threads];
+      id = created.id;
+    }
+    setDraft("");
+    persist(next, id);
+    if (reply.href) window.setTimeout(() => void navigate({ to: reply.href! }), 280);
+  }
 
   return (
-    <div className={`celinen-dash${collapsed ? " is-collapsed" : ""}`}>
+    <div className="celinen-dash">
       <aside className="celinen-dash__rail">
-        <div className="celinen-dash__workspace" ref={menuRef}>
+        <div className="celinen-dash__top">
+          <Link to="/dashboard" className="celinen-dash__brand">
+            {PRODUCT_NAME}
+          </Link>
           <button
             type="button"
-            className="celinen-dash__who"
-            aria-haspopup="menu"
-            aria-expanded={menu}
-            onClick={() => setMenu((open) => !open)}
+            className="celinen-dash__icon"
+            aria-label="Search chats"
+            onClick={() => setSearchOpen((open) => !open)}
           >
-            <span className="celinen-dash__mark" aria-hidden="true">
-              {loading ? "C" : initial(name)}
-            </span>
-            <span className="celinen-dash__who-copy">
-              {loading ? "Loading..." : workspace}
-            </span>
-            <ChevronDown size={16} aria-hidden="true" />
+            <Search size={18} />
           </button>
-          <button
-            type="button"
-            className="celinen-dash__collapse"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={() => setCollapsed((value) => !value)}
-          >
-            <PanelLeft size={16} aria-hidden="true" />
-          </button>
-          {menu && account?.status === "in" && (
-            <div className="celinen-dash__menu" role="menu">
-              <Link role="menuitem" to="/settings" onClick={() => setMenu(false)}>
-                Settings
-              </Link>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenu(false);
-                  void account.signOut().then((ok) => {
-                    if (ok)
-                      void navigate({
-                        to: "/auth",
-                        search: { next: "/dashboard", mode: "signin", google: true },
-                      });
-                  });
-                }}
-              >
-                <LogOut size={15} aria-hidden="true" />
-                Log out
-              </button>
-            </div>
+        </div>
+        {searchOpen && (
+          <input
+            className="celinen-dash__find"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search"
+            autoFocus
+          />
+        )}
+        <button type="button" className="celinen-dash__new" onClick={newChat}>
+          <SquarePen size={18} />
+          New chat
+        </button>
+        <div className="celinen-dash__recents">
+          {filtered.length > 0 && <p>Recents</p>}
+          {filtered.map((thread) => (
+            <button
+              key={thread.id}
+              type="button"
+              className={thread.id === activeId ? "is-active" : undefined}
+              onClick={() => {
+                setActiveId(thread.id);
+                setMode("chat");
+              }}
+            >
+              {thread.title}
+            </button>
+          ))}
+          {shoots.length > 0 && <p>Shoots</p>}
+          {shoots.slice(0, 12).map((shoot) => (
+            <a key={shoot.id} href={shootHref(shoot.id)}>
+              {shoot.title}
+            </a>
+          ))}
+        </div>
+        <div className="celinen-dash__foot">
+          <Link to="/settings">
+            <Settings size={16} />
+            Settings
+          </Link>
+          {account?.status === "in" && (
+            <button
+              type="button"
+              onClick={() =>
+                void account.signOut().then((ok) => {
+                  if (ok)
+                    void navigate({
+                      to: "/auth",
+                      search: { next: "/dashboard", mode: "signin", google: true },
+                    });
+                })
+              }
+            >
+              <LogOut size={16} />
+              Log out
+            </button>
           )}
         </div>
-        <nav className="celinen-dash__nav" aria-label="Dashboard">
-          {MAIN.map((item) => {
-            const calendar = "view" in item;
-            const on = calendar ? calendarOpen : Boolean(item.end) && !calendarOpen;
-            return (
-              <Link
-                key={item.label}
-                to={item.to}
-                search={calendar ? { view: "calendar" } : item.end ? {} : undefined}
-                activeOptions={item.end || calendar ? { exact: true } : undefined}
-                className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
-                activeProps={{
-                  className:
-                    item.end && calendarOpen ? "celinen-dash__link" : "celinen-dash__link is-active",
-                }}
-              >
-                <item.icon size={18} strokeWidth={1.7} aria-hidden="true" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="celinen-dash__foot">
-          <Link to="/pricing" className="celinen-dash__link celinen-dash__upgrade">
-            <DollarSign size={18} strokeWidth={1.7} aria-hidden="true" />
-            <span>Upgrade</span>
-          </Link>
-          <button
-            ref={inviteFocus}
-            type="button"
-            className="celinen-dash__link"
-            onClick={() => setInvite(true)}
-          >
-            <Gift size={18} strokeWidth={1.7} aria-hidden="true" />
-            <span>Refer & Earn</span>
-          </button>
-          <Link to="/docs" className="celinen-dash__link">
-            <BookOpen size={18} strokeWidth={1.7} aria-hidden="true" />
-            <span>Guides</span>
-          </Link>
-          <Link to="/help" className="celinen-dash__link">
-            <MessageSquare size={18} strokeWidth={1.7} aria-hidden="true" />
-            <span>Feedback</span>
-          </Link>
-          <Link to="/settings" className="celinen-dash__link">
-            <Settings size={18} strokeWidth={1.7} aria-hidden="true" />
-            <span>Settings</span>
-          </Link>
-        </div>
       </aside>
-      <main className="celinen-dash__body">
+      <section className="celinen-dash__stage">
+        <div className="celinen-dash__modes" role="tablist" aria-label="Dashboard mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "chat"}
+            className={mode === "chat" ? "is-on" : undefined}
+            onClick={() => {
+              setMode("chat");
+              setCalendar(false);
+            }}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "work"}
+            className={mode === "work" ? "is-on" : undefined}
+            onClick={() => {
+              setMode("work");
+              setCalendar(false);
+            }}
+          >
+            Work
+          </button>
+        </div>
         {loading ? (
           <div className="celinen-dash__loading">
             <span className="celinen-dash__spinner" aria-hidden="true" />
             <p>Loading your workspace…</p>
           </div>
-        ) : calendarOpen ? (
-          <section className="celinen-dash__cal" aria-label="Calendar">
-            <h1>{now.toLocaleString("en-US", { month: "long", year: "numeric" })}</h1>
-            <div className="celinen-dash__cal-week">
-              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-                <span key={day}>{day}</span>
+        ) : mode === "work" ? (
+          calendar ? (
+            <section className="celinen-dash__cal" aria-label="Calendar">
+              <h1>{now.toLocaleString("en-US", { month: "long", year: "numeric" })}</h1>
+              <div className="celinen-dash__cal-week">
+                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                  <span key={day}>{day}</span>
+                ))}
+              </div>
+              <div className="celinen-dash__cal-grid">
+                {cells.map((day, index) => {
+                  const rows = day ? byDay.get(day) : undefined;
+                  return (
+                    <div key={index} className={day ? "celinen-dash__cal-day" : undefined}>
+                      {day ? <span>{day}</span> : null}
+                      {rows?.map((shoot) => (
+                        <a key={shoot.id} href={shootHref(shoot.id)}>
+                          {shoot.title}
+                        </a>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : (
+            <div className="celinen-dash__work">
+              {WORK.map((item) => (
+                <Link key={item.label} to={item.to}>
+                  <item.icon size={18} />
+                  {item.label}
+                </Link>
               ))}
+              <button type="button" onClick={() => setCalendar(true)}>
+                <Calendar size={18} />
+                Calendar
+              </button>
             </div>
-            <div className="celinen-dash__cal-grid">
-              {cells.map((day, index) => {
-                const rows = day ? byDay.get(day) : undefined;
-                return (
-                  <div key={index} className={day ? "celinen-dash__cal-day" : undefined}>
-                    {day ? <span>{day}</span> : null}
-                    {rows?.map((shoot) => (
-                      <a key={shoot.id} href={shootHref(shoot.id)}>
-                        {shoot.title}
-                      </a>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+          )
         ) : (
-          <div className="celinen-dash__home" />
+          <div className="celinen-dash__chat">
+            {active?.messages.length ? (
+              <div className="celinen-dash__thread">
+                {active.messages.map((message) => (
+                  <p key={message.id} data-role={message.role}>
+                    {message.text}
+                  </p>
+                ))}
+                <div ref={end} />
+              </div>
+            ) : (
+              <h1>What should we work on?</h1>
+            )}
+            <form
+              className="celinen-dash__composer"
+              onSubmit={(event) => {
+                event.preventDefault();
+                send();
+              }}
+            >
+              <button
+                type="button"
+                className="celinen-dash__plus"
+                aria-label="New shoot"
+                onClick={() => void navigate({ to: "/shoots" })}
+              >
+                <Plus size={18} />
+              </button>
+              <textarea
+                ref={box}
+                rows={1}
+                value={draft}
+                placeholder="Message"
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    send();
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                className="celinen-dash__send"
+                disabled={!draft.trim()}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} />
+              </button>
+            </form>
+          </div>
         )}
-      </main>
-      <InviteFriendDialog open={invite} onOpenChange={setInvite} returnFocus={inviteFocus} />
+      </section>
     </div>
   );
 }
