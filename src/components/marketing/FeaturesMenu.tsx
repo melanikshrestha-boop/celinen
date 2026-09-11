@@ -67,7 +67,12 @@ export function FeaturesMenu() {
         Features
         <ChevronDown size={14} aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={10} className="marketing-nav-menu marketing-nav-features">
+      <DropdownMenuContent
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        className="marketing-nav-menu marketing-nav-features marketing-nav-features--long"
+      >
         {FEATURES.map((feature) => {
           const Icon = feature.icon;
           return (

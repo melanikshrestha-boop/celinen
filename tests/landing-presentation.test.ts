@@ -84,6 +84,9 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain(":focus-visible");
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("@media (max-width: 540px)");
+    expect(css).toContain("@media (max-width: 1100px), (max-height: 840px)");
+    expect(css).toContain(".marketing-nav-features--long");
+    expect(css).toContain("max-height: min(70dvh");
     expect(css).toContain(".marketing-vista");
     expect(css).toMatch(/\.marketing-promises\s*\{[^}]*justify-content:\s*center/);
     expect(css).toMatch(/\.marketing-promises\s*\{[^}]*margin:\s*0 auto/);
