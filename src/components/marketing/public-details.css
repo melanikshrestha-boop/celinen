@@ -137,17 +137,23 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px 24px;
-  width: min(100%, 1120px);
-  margin: 48px auto 0;
-  padding: 22px 0 8px;
+  box-sizing: border-box;
+  width: calc(100% + 80px);
+  max-width: none;
+  margin: 48px -40px 0;
+  padding: 22px 24px 8px;
   border-top: 1px solid #eceff2;
   color: #9aa3ad;
   font-size: 14px;
 }
 .marketing-footer__legal p {
   margin: 0;
+}
+.marketing-footer__legal p:last-child {
+  margin-left: auto;
+  text-align: right;
 }
 .marketing-footer__giant {
   margin: 8px -40px 0;
@@ -401,6 +407,9 @@
   .marketing-footer--directory nav.marketing-footer__directory {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 28px;
+  }
+  .marketing-footer__legal {
+    flex-wrap: wrap;
   }
   .marketing-public-page {
     padding-top: 40px;
