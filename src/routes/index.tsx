@@ -9,7 +9,6 @@ import { IntegrationsSection } from "@/components/marketing/IntegrationsSection"
 import { PublishEverywhere } from "@/components/marketing/PublishEverywhere";
 import { LivePhotographers } from "@/components/marketing/LivePhotographers";
 import { HomePricing } from "@/components/marketing/HomePricing";
-import { CompareLanding } from "@/components/marketing/CompareLanding";
 import { AnalyticsSection } from "@/components/marketing/AnalyticsSection";
 import { AffiliatesLanding } from "@/components/marketing/AffiliatesPage";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
@@ -139,9 +138,6 @@ function Index() {
         </SectionGuard>
         <SectionGuard>
           <HomePricing />
-        </SectionGuard>
-        <SectionGuard>
-          <CompareLanding />
         </SectionGuard>
         <SectionGuard>
           <AffiliatesLanding />

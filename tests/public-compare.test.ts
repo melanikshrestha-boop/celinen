@@ -30,7 +30,15 @@ test("compare catalog is ten photography platforms and we win the first ten", ()
   expect(findCompare("aftershoot")?.chooseThem.length).toBeGreaterThan(0);
   expect(compareTotals().them).toBeGreaterThan(10);
   const landing = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
-  expect(landing).toContain("CompareLanding");
+  expect(landing).not.toContain("CompareLanding");
+  expect(landing).not.toContain("How celinen compares");
+  const mark = readFileSync(
+    new URL("../src/components/marketing/CompetitorMark.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(mark).toContain("/images/compare/");
+  expect(mark).not.toContain('label: "A"');
+  expect(mark).not.toContain('label: "Im"');
   const page = readFileSync(
     new URL("../src/components/marketing/ComparePage.tsx", import.meta.url),
     "utf8",

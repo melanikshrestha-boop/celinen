@@ -1,35 +1,21 @@
 import { BrandMark } from "@/components/marketing/BrandMark";
 
-const TILES: Record<string, { bg: string; fg: string; label: string }> = {
-  aftershoot: { bg: "#111111", fg: "#FF6A00", label: "A" },
-  imagen: { bg: "#0F6B5C", fg: "#fff", label: "Im" },
-  pixieset: { bg: "#1AA7A1", fg: "#fff", label: "P" },
-  shootproof: { bg: "#E85D04", fg: "#fff", label: "SP" },
-  photomechanic: { bg: "#F5C518", fg: "#111", label: "PM" },
-  captureone: { bg: "#C2410C", fg: "#fff", label: "C1" },
-  cloudspot: { bg: "#2563EB", fg: "#fff", label: "CS" },
-  pictime: { bg: "#E11D48", fg: "#fff", label: "PT" },
-  smugmug: { bg: "#EA580C", fg: "#fff", label: "SM" },
+/** Marks are the files those companies publish (favicon / app icon / Simple Icons path). Not letter tiles. */
+const FILES: Record<string, string> = {
+  aftershoot: "/images/compare/aftershoot.webp",
+  imagen: "/images/compare/imagen.png",
+  pixieset: "/images/compare/pixieset.png",
+  shootproof: "/images/compare/shootproof.svg",
+  photomechanic: "/images/compare/photomechanic.png",
+  captureone: "/images/compare/capture-one.png",
+  cloudspot: "/images/compare/cloudspot.png",
+  pictime: "/images/compare/pic-time.png",
+  smugmug: "/images/compare/smugmug.svg",
 };
 
 export function CompetitorMark({ id }: { id: string }) {
   if (id === "lightroom") return <BrandMark id="lightroom" />;
-  const tile = TILES[id];
-  if (!tile) return null;
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="8" fill={tile.bg} />
-      <text
-        x="16"
-        y="21"
-        textAnchor="middle"
-        fill={tile.fg}
-        fontSize="11"
-        fontWeight="700"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-      >
-        {tile.label}
-      </text>
-    </svg>
-  );
+  const src = FILES[id];
+  if (!src) return null;
+  return <img className="foto-compare__logo" src={src} alt="" width={32} height={32} />;
 }
