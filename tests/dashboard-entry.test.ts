@@ -61,9 +61,14 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("Resize sidebar");
   expect(source).toContain("celinen-dash__resize");
   expect(source).toContain("celinen-dash__composer");
+  expect(source).toContain("social-post");
+  expect(source).toContain("Generate inside");
+  expect(source).toContain("Browse templates");
   expect(source).toContain("dashboardGreetingFor");
   expect(source).toContain("DashboardContext.Provider");
   expect(source).toContain("children");
+  expect(source).not.toContain("Planner");
+  expect(source).not.toContain("Campaigns");
 });
 
 test("dashboard chrome is the full light rail", () => {
@@ -76,6 +81,8 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain("background: #eef2ff");
   expect(css).toContain("color: #4d6fff");
   expect(css).toContain(".celinen-dash__composer");
+  expect(css).toContain(".celinen-dash__body.is-chat");
+  expect(css).toContain(".social-post .celinen-dash__composer");
   expect(css).toContain("font-weight: 400");
   expect(css).toContain('font-family: var(--celinen-sans');
   expect(css).toContain(".celinen-dash.is-mini");

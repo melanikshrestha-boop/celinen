@@ -5,19 +5,26 @@ import {
   Aperture,
   CalendarDays,
   ChartNoAxesColumn,
+  Flag,
   House,
   Images,
+  LayoutTemplate,
+  Megaphone,
+  Mic,
   PanelLeft,
+  Paperclip,
   Plus,
   Share2,
   SlidersHorizontal,
   Sparkles,
   Wrench,
+  Zap,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
+import { BrandMark } from "@/components/marketing/BrandMark";
 import { onHapticPress } from "@/lib/haptic-press";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
@@ -25,6 +32,14 @@ import { destinationPathFor } from "@/lib/workspace-routing";
 import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
 import { DashboardContext } from "./context";
 import "./dashboard.css";
+import "./social-accounts.css";
+
+const HOME_SUGGEST = [
+  { label: "Send a gallery", icon: Images },
+  { label: "Open Pick", icon: Aperture },
+  { label: "Check earnings", icon: ChartNoAxesColumn },
+  { label: "Sideline set", icon: Flag },
+] as const;
 
 const MAIN = [
   { to: "/dashboard", label: "Home", icon: House, end: true },
@@ -206,6 +221,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
+  const wasTool = useRef(false);
 
   useEffect(() => () => detachResize(), []);
 
@@ -226,7 +242,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     let alive = true;
     const rows = readThreads(scope);
     setThreads(rows);
-    setActiveId(rows[0]?.id ?? null);
+    // Home lands on the Ocoya generate pane, not the last ChatGPT-style thread.
+    setActiveId(null);
     void listRecentShoots(scope)
       .then((rows) => {
         if (alive) setShoots(rows);
@@ -240,6 +257,34 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   }, [scope]);
 
   const active = threads.find((thread) => thread.id === activeId) ?? null;
+  const onChat = !children && !calendarOpen;
+
+  useEffect(() => {
+    if (wasTool.current && onChat) setActiveId(null);
+    wasTool.current = !onChat;
+  }, [onChat]);
+
+  function listen() {
+    const Ctor = (
+      window as unknown as {
+        webkitSpeechRecognition?: new () => {
+          lang: string;
+          start: () => void;
+          onresult:
+            | ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void)
+            | null;
+        };
+      }
+    ).webkitSpeechRecognition;
+    if (!Ctor) return;
+    const rec = new Ctor();
+    rec.lang = "en-US";
+    rec.onresult = (event) => {
+      const said = event.results[0]?.[0]?.transcript?.trim();
+      if (said) setDraft((value) => (value ? `${value} ${said}` : said));
+    };
+    rec.start();
+  }
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
@@ -408,7 +453,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         onLostPointerCapture={onResizeUp}
         onDoubleClick={() => setRail(visual === "mini" ? "open" : "mini")}
       />
-      <main className={`celinen-dash__body${children ? " is-tool" : ""}`}>
+      <main
+        className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? "" : " is-chat"}`}
+      >
         {loading ? (
           <div className="celinen-dash__loading">
             <span className="celinen-dash__spinner" aria-hidden="true" />
@@ -441,56 +488,177 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
             </div>
           </section>
         ) : (
-          <div className="celinen-dash__chat">
-            {active?.messages.length ? (
-              <div className="celinen-dash__thread">
-                {active.messages.map((message) => (
-                  <p key={message.id} data-role={message.role}>
-                    {message.text}
-                  </p>
-                ))}
-                <div ref={end} />
-              </div>
-            ) : (
-              <h1>{dashboardGreetingFor(account?.workRole)}</h1>
-            )}
-            <form
-              className="celinen-dash__composer"
-              onSubmit={(event) => {
-                event.preventDefault();
-                send();
-              }}
-            >
-              <button
-                type="button"
-                className="celinen-dash__plus"
-                aria-label="Open Pick"
-                onClick={() => void navigate({ to: "/studio" })}
-              >
-                <Plus size={18} />
-              </button>
-              <textarea
-                ref={box}
-                rows={1}
-                value={draft}
-                placeholder="Message"
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    send();
-                  }
+          <div
+            className={`social-post${active?.messages.length ? " has-thread" : ""}`}
+            onPointerDown={onHapticPress}
+          >
+            <div className="social-post__chrome">
+              <span />
+              <p className="social-post__inside">
+                Generate inside
+                <Link to="/mcp">
+                  <BrandMark id="claude" />
+                  Claude
+                </Link>
+                <span aria-hidden="true">|</span>
+                <Link to="/mcp">
+                  <BrandMark id="chatgpt" />
+                  ChatGPT
+                </Link>
+              </p>
+            </div>
+            <div className="social-post__stage">
+              {active?.messages.length ? (
+                <div className="celinen-dash__thread">
+                  {active.messages.map((message) => (
+                    <p key={message.id} data-role={message.role}>
+                      {message.text}
+                    </p>
+                  ))}
+                  <div ref={end} />
+                </div>
+              ) : (
+                <div className="social-post__hero">
+                  <div className="social-post__title">
+                    <span className="social-post__mark" aria-hidden="true">
+                      <Sparkles size={22} strokeWidth={1.8} />
+                    </span>
+                    <h1>{dashboardGreetingFor(account?.workRole)}</h1>
+                  </div>
+                  <p>Turn a simple idea into the next shoot, gallery, or post.</p>
+                </div>
+              )}
+              <form
+                className="social-post__composer celinen-dash__composer"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  send();
                 }}
-              />
-              <button
-                type="submit"
-                className="celinen-dash__send"
-                disabled={!draft.trim()}
-                aria-label="Send"
               >
-                <ArrowUp size={18} />
-              </button>
-            </form>
+                <textarea
+                  ref={box}
+                  rows={6}
+                  value={draft}
+                  placeholder={`Describe what you want ${PRODUCT_NAME} to work on...`}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      send();
+                    }
+                  }}
+                />
+                <div className="social-post__bar">
+                  <button
+                    type="button"
+                    className="social-post__chip"
+                    onClick={() => void navigate({ to: "/studio" })}
+                  >
+                    <Plus size={16} />
+                    Pick
+                  </button>
+                  <button
+                    type="button"
+                    className="social-post__chip"
+                    onClick={() => void navigate({ to: "/deliver" })}
+                  >
+                    <Images size={16} />
+                    Galleries
+                  </button>
+                  <button
+                    type="button"
+                    className="social-post__chip"
+                    onClick={() => void navigate({ to: "/publish" })}
+                  >
+                    <Share2 size={16} />
+                    Post
+                  </button>
+                  <span className="social-post__spacer" />
+                  <Link to="/pricing" className="social-post__credits" title="Credits">
+                    <Zap size={14} />
+                    1
+                  </Link>
+                  <button
+                    type="button"
+                    className="social-post__icon"
+                    aria-label="Attach"
+                    onClick={() => void navigate({ to: "/studio" })}
+                  >
+                    <Paperclip size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="social-post__icon"
+                    aria-label="Voice"
+                    onClick={listen}
+                  >
+                    <Mic size={18} />
+                  </button>
+                  <button
+                    type="submit"
+                    className="social-post__send"
+                    disabled={!draft.trim()}
+                    aria-label="Send"
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                </div>
+              </form>
+              {active?.messages.length ? null : (
+                <>
+                  <div className="social-post__suggest">
+                    <span>Suggestions</span>
+                    {HOME_SUGGEST.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setDraft((value) => value || item.label)}
+                        >
+                          <Icon size={14} />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="social-post__cards">
+                    <button
+                      type="button"
+                      className="social-post__card"
+                      onClick={() =>
+                        void navigate({ to: "/dashboard", search: { view: "calendar" } })
+                      }
+                    >
+                      <span className="social-post__card-mark is-campaign" aria-hidden="true">
+                        <Megaphone size={18} />
+                      </span>
+                      <span>
+                        <strong>Planning a shoot week?</strong>
+                        <small>Drop the days on Calendar, then send galleries from there.</small>
+                      </span>
+                      <em>
+                        Open calendar
+                        <span aria-hidden="true">→</span>
+                      </em>
+                    </button>
+                    <Link to="/studio" className="social-post__card">
+                      <span className="social-post__card-mark is-studio" aria-hidden="true">
+                        <LayoutTemplate size={18} />
+                      </span>
+                      <span>
+                        <strong>Want to design it yourself?</strong>
+                        <small>Choose the frames in Pick, then finish the look in Develop.</small>
+                      </span>
+                      <em>
+                        Browse templates
+                        <span aria-hidden="true">→</span>
+                      </em>
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </main>
