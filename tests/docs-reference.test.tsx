@@ -25,6 +25,9 @@ test("docs match the Vugola API-reference chrome without clip-farm endpoints", (
   expect(html).toContain("picking");
   expect(html).toContain(FOTO_MCP_URL);
   expect(html).toContain("foto_workflow");
+  expect(html).toContain("docs-tok-key");
+  expect(html).toContain("docs-tok-str");
+  expect(html).toContain("docs-tok-kw");
   expect(html).not.toContain("YouTube Automation");
   expect(html).not.toContain("viral");
   expect(html).not.toContain("caption_style");
@@ -47,4 +50,6 @@ test("docs styling stays public-scoped", () => {
   expect(css).not.toMatch(/border-(?:top|bottom):\s*1px/);
   expect(css).toContain("font-size: 13.5px");
   expect(css).toContain("box-shadow: none");
+  expect(css).toContain(".docs-tok-key");
+  expect(css).toContain("#9cdcfe");
 });
