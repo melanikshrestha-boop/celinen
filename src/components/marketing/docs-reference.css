@@ -119,8 +119,8 @@
   font-size: 13px;
   box-shadow: none;
 }
-.marketing-page .docs-ref__actions a:hover,
-.marketing-page .docs-ref__actions a:focus-visible {
+.marketing-page .docs-ref .docs-ref__actions a:is(:hover, :focus-visible, :active),
+.marketing-page .docs-ref .docs-ref__actions a:last-child:is(:hover, :focus-visible, :active) {
   background: #6e86ff;
   color: #fff;
   text-decoration: none;
