@@ -37,7 +37,9 @@ describe("use cases", () => {
       "utf8",
     );
     expect(menu).toContain("marketing-nav-branch");
-    expect(menu).not.toContain("DropdownMenuPortal");
+    expect(menu).toContain("onPointerEnter");
+    expect(menu).toContain("ChevronRight");
+    expect(menu).toContain("marketing-nav-teams");
     expect(menu).not.toContain("avoidCollisions={false}");
     expect(menu).toContain("marketing-nav-feature--flyout");
     expect(USE_CASES.some((item) => item.title.includes("Wedding"))).toBe(true);

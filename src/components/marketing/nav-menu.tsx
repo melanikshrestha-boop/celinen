@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -34,4 +35,19 @@ export function useNavMenu(id: NavMenuId) {
       });
     },
   };
+}
+
+/** Desktop: open on hover. Touch still uses the trigger click. */
+export function useNavMenuHover(id: NavMenuId) {
+  const menu = useNavMenu(id);
+  const timer = useRef(0);
+  const openNow = () => {
+    window.clearTimeout(timer.current);
+    menu.onOpenChange?.(true);
+  };
+  const closeSoon = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => menu.onOpenChange?.(false), 160);
+  };
+  return { ...menu, openNow, closeSoon };
 }
