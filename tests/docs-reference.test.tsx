@@ -51,6 +51,7 @@ test("docs styling stays public-scoped", () => {
   expect(css).toContain("font-size: 13.5px");
   expect(css).toContain("box-shadow: none");
   expect(css).toContain(".docs-tok-key");
-  expect(css).toContain("#7af6ff");
-  expect(css).toContain("#ff4ecd");
+  expect(css).toContain("#7dcfff");
+  expect(css).toContain("#9ece6a");
+  expect(css).toContain("#bb9af7");
 });
