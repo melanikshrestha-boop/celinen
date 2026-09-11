@@ -173,6 +173,8 @@ describe("public, accessible estimate presentation", () => {
     expect(value).toMatch(
       /\.marketing-value__metric \{[^}]*border-radius:\s*24px;/,
     );
+    expect(value).toMatch(/\.marketing-value__results \{[^}]*text-align:\s*center/);
+    expect(sky).toContain("text-align: center");
     expect(sky).toContain("background: #e5f2ff");
     expect(sky).toContain("background: #e9f5dd");
     expect(value).not.toContain("color-scheme: dark");
