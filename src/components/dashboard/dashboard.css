@@ -1,3 +1,11 @@
+html:has(.celinen-dash) {
+  --paper: #fff;
+  --paper2: #fff;
+  --ink: #142a36;
+  --moss: #5b6570;
+  --border: #eef0f3;
+  color-scheme: light;
+}
 .celinen-dash {
   --rail: 248px;
   position: relative;
@@ -200,6 +208,26 @@
   flex-direction: column;
   padding: 24px;
   background: #fff;
+}
+.celinen-dash__body.is-tool {
+  padding: 0;
+  overflow: auto;
+}
+.celinen-dash-tool,
+.celinen-embedded-studio {
+  flex: 1;
+  min-height: 100%;
+  background: #fff;
+  color: #20242b;
+}
+.celinen-embedded-studio.paper-tex {
+  min-height: 100%;
+  background: #fff;
+}
+.celinen-embedded-studio > header {
+  position: static;
+  background: #fff;
+  border: 0;
 }
 .celinen-dash__chat {
   flex: 1;

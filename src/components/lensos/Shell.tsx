@@ -8,6 +8,7 @@ import { Footer } from "@/components/lensos/Footer";
 import { LogoMark } from "@/components/lensos/Logo";
 import { useSessionState } from "@/lib/use-session";
 import { useWorkbench } from "@/components/workbench/context";
+import { useDashboard } from "@/components/dashboard/context";
 import { PRODUCT_NAME } from "@/lib/product";
 
 /** Every workspace screen is private — nothing renders until a studio is signed in. */
@@ -255,7 +256,9 @@ export function EventHeader({ onAddSource }: { onAddSource?: (() => void) | unde
 
 export function Shell(props: { children: React.ReactNode; onAddSource?: (() => void) | undefined; hideEventHeader?: boolean | undefined; quietWorkspace?: boolean }) {
   const workbench = useWorkbench();
+  const dashboard = useDashboard();
   if (workbench) return <div className="workbench-tool-content">{!props.hideEventHeader && <EventHeader onAddSource={props.onAddSource} />}{props.children}</div>;
+  if (dashboard) return <div className="celinen-dash-tool">{props.children}</div>;
   return <StandaloneShell {...props} />;
 }
 

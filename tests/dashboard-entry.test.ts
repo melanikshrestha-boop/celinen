@@ -1,12 +1,20 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { publicEntry } from "../src/lib/public-entry";
-import { isPrivateAppRoute, isWorkbenchRoute, safeSignInPath } from "../src/lib/workbench";
+import {
+  isDashboardAppRoute,
+  isPrivateAppRoute,
+  isWorkbenchRoute,
+  safeSignInPath,
+} from "../src/lib/workbench";
 import { parseAuthSearch } from "../src/lib/auth-flow";
 
 test("signed-in public CTA is Dashboard and opens the dashboard", () => {
   expect(publicEntry("in")).toEqual({ to: "/dashboard", search: {}, label: "Dashboard" });
   expect(isWorkbenchRoute(["__root__", "/dashboard"])).toBe(false);
+  expect(isWorkbenchRoute(["__root__", "/studio"])).toBe(false);
+  expect(isDashboardAppRoute(["__root__", "/studio"], "/studio")).toBe(true);
+  expect(isPrivateAppRoute(["__root__", "/studio"], "/studio")).toBe(true);
   expect(isPrivateAppRoute(["__root__", "/dashboard"], "/dashboard")).toBe(true);
   expect(isPrivateAppRoute(["__root__", "/"], "/")).toBe(false);
   expect(isPrivateAppRoute(["__root__", "/auth"], "/auth")).toBe(false);
@@ -49,6 +57,8 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("celinen-dash__resize");
   expect(source).toContain("celinen-dash__composer");
   expect(source).toContain("dashboardGreetingFor");
+  expect(source).toContain("DashboardContext.Provider");
+  expect(source).toContain("children");
 });
 
 test("dashboard chrome is the full light rail", () => {

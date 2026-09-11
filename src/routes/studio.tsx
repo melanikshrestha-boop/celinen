@@ -8,6 +8,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkbench } from "@/components/workbench/context";
+import { useDashboard } from "@/components/dashboard/context";
 import { isWorkbenchRoute, studioBindingKey } from "@/lib/workbench";
 import { readStudioHandoff, type DeliveryFocus } from "@/lib/delivery/studio-handoff";
 import {
@@ -274,6 +275,8 @@ export function Studio({
   shootId?: string;
 }) {
   const workbench = useWorkbench();
+  const dashboard = useDashboard();
+  const embedded = Boolean(workbench) || dashboard;
   const navigate = useNavigate();
   const [repository] = useState(() =>
     createShootRepository({
@@ -1951,7 +1954,7 @@ export function Studio({
 
   return (
     <div
-      className={`paper-tex min-h-screen text-ink ${workbench ? "workbench-embedded-studio" : ""}`}
+      className={`paper-tex min-h-screen text-ink${workbench ? " workbench-embedded-studio" : ""}${dashboard ? " celinen-embedded-studio" : ""}`}
       onDrop={onDrop}
       onDragEnter={(e) => {
         if (Array.from(e.dataTransfer.types).includes("Files")) {
@@ -1984,7 +1987,7 @@ export function Studio({
       <header className="sticky top-0 z-30 border-b border-border/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
-            {!workbench && (
+            {!embedded && (
               <Link to="/" className="flex shrink-0 items-center gap-2">
                 <span className="grid size-6 place-items-center rounded-full bg-ink font-display text-[11px] font-bold text-paper2">
                   L
@@ -1997,7 +2000,7 @@ export function Studio({
             <span className="truncate font-mono text-[11px] text-moss">
               {shots.length
                 ? `${counts.all} frames · ${counts.todo} to review · ${counts.keepers} keepers`
-                : workbench
+                : embedded
                   ? "Photos"
                   : "no shoot loaded"}
             </span>
@@ -2211,7 +2214,7 @@ export function Studio({
         />
       </header>
       {recovery && (
-        <div className={workbench ? "workbench-studio-recovery" : "px-6 py-3"}>{recovery}</div>
+        <div className={embedded ? "workbench-studio-recovery" : "px-6 py-3"}>{recovery}</div>
       )}
 
       {progress && (
@@ -2235,12 +2238,12 @@ export function Studio({
 
       <main
         className={
-          workbench
+          embedded
             ? "grid min-h-0 flex-1 grid-cols-1"
             : "mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]"
         }
       >
-        <div className={workbench ? "min-h-0 min-w-0" : "min-w-0 xl:order-2"}>
+        <div className={embedded ? "min-h-0 min-w-0" : "min-w-0 xl:order-2"}>
           {!shots.length && !progress ? (
             <div
               role="button"
@@ -2254,7 +2257,7 @@ export function Studio({
                 }
               }}
               className={
-                workbench
+                embedded
                   ? "workbench-empty-photos"
                   : "mt-24 cursor-pointer rounded-xl border border-dashed border-border px-6 py-24 text-center transition-colors hover:border-ink/30 focus-visible:outline-2 focus-visible:outline-rust"
               }
@@ -2291,7 +2294,7 @@ export function Studio({
               {/* toolbar */}
               <div
                 className={
-                  workbench
+                  embedded
                     ? "workbench-photo-toolbar"
                     : "flex flex-wrap items-center gap-2 border-b border-border pb-5"
                 }
@@ -2308,7 +2311,7 @@ export function Studio({
                     Develop
                   </button>
                 </div>
-                {workbench ? (
+                {embedded ? (
                   <StudioFilterMenu value={filter} counts={counts} onChange={selectFilter} />
                 ) : (
                   <>
@@ -2615,7 +2618,7 @@ export function Studio({
             </div>,
             workbench.chatTarget,
           )
-        ) : (
+        ) : dashboard ? null : (
           <aside
             className="xl:order-1 xl:sticky xl:top-16 xl:h-[calc(100vh-5rem)]"
             aria-label="Photo assistant"

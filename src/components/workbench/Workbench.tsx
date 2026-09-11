@@ -32,9 +32,11 @@ import { AccountSetup } from "@/components/account/AccountSetup";
 import { LogoMark } from "@/components/lensos/Logo";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { PRODUCT_NAME } from "@/lib/product";
+import { AppDashboard } from "@/components/dashboard/AppDashboard";
 import {
   addWorkbenchTab,
   closeWorkbenchTab,
+  isDashboardAppRoute,
   isPrivateAppRoute,
   isWorkbenchRoute,
   safeSignInPath,
@@ -112,6 +114,7 @@ export function WorkbenchBoundary({ children }: { children: ReactNode }) {
     isPrivateAppRoute(routeIds, pathname)
   )
     return <AccountSetup key={identity.scope ?? "setup"} />;
+  if (isDashboardAppRoute(routeIds, pathname)) return <AppDashboard>{children}</AppDashboard>;
   if (!isWorkbenchRoute(routeIds)) return children;
   return <AccountWorkbench>{children}</AccountWorkbench>;
 }
