@@ -1,0 +1,316 @@
+/* Public community room: black on white. No accent rings. */
+.marketing-page.community-page {
+  --marketing-accent: #111;
+  --ink: #111;
+  --moss: #5c5c5c;
+  --paper: #fff;
+  --paper2: #fff;
+  --card: #fff;
+  --muted: #f4f4f4;
+  --border: #e6e6e6;
+  --input: #c8c8c8;
+  background: #fff;
+  color: #111;
+  color-scheme: light;
+}
+
+.marketing-page.community-page :is(a, button, summary, input, textarea):focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 3px;
+}
+
+.marketing-page.community-page :is(input, textarea):focus {
+  outline: none;
+  border-color: #111;
+  box-shadow: none;
+}
+
+.marketing-page.community-page .community-page__main {
+  max-width: 34rem;
+}
+
+.marketing-page.community-page .community-page__main--wide {
+  max-width: 68rem;
+}
+
+.marketing-page.community-page .community-mark {
+  display: block;
+  color: #111;
+}
+
+.marketing-page.community-page h1 {
+  margin: 1.1rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.marketing-page.community-page .community-gate {
+  text-align: center;
+}
+
+.marketing-page.community-page .community-gate .community-mark {
+  margin-inline: auto;
+}
+
+.marketing-page.community-page .community-copy {
+  margin: 0.75rem 0 0;
+  color: #5c5c5c;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.marketing-page.community-page .community-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.marketing-page.community-page .community-field {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.marketing-page.community-page .community-field::placeholder {
+  color: #8a8a8a;
+  opacity: 1;
+}
+
+.marketing-page.community-page textarea.community-field {
+  min-height: 5.5rem;
+  resize: none;
+}
+
+.marketing-page.community-page .community-error {
+  margin: 0;
+  color: #111;
+  font-size: 0.8125rem;
+}
+
+.marketing-page.community-page .community-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: #111;
+  color: #fff;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.marketing-page.community-page .community-cta:hover:not(:disabled) {
+  background: #000;
+}
+
+.marketing-page.community-page .community-cta:disabled {
+  opacity: 0.55;
+}
+
+.marketing-page.community-page .community-gate .community-cta {
+  margin-top: 1.5rem;
+}
+
+.marketing-page.community-page .community-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.marketing-page.community-page .community-head h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.marketing-page.community-page .community-head p {
+  margin: 0.15rem 0 0;
+  color: #5c5c5c;
+  font-size: 0.8125rem;
+}
+
+.marketing-page.community-page .community-members-toggle {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #111;
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.marketing-page.community-page .community-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 1.75rem 0 1.25rem;
+  padding: 0 0 0.75rem;
+  border-bottom: 1px solid #ececec;
+}
+
+.marketing-page.community-page .community-channels button {
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #0009;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.marketing-page.community-page .community-channels [aria-selected="true"] {
+  color: #111;
+  font-weight: 600;
+}
+
+.marketing-page.community-page .community-layout {
+  display: grid;
+  gap: 2rem;
+}
+
+@media (min-width: 960px) {
+  .marketing-page.community-page .community-layout {
+    grid-template-columns: minmax(0, 1fr) 14rem;
+  }
+}
+
+.marketing-page.community-page .community-feed {
+  min-height: 12rem;
+}
+
+.marketing-page.community-page .community-empty,
+.marketing-page.community-page .community-meta {
+  color: #5c5c5c;
+  font-size: 0.8125rem;
+}
+
+.marketing-page.community-page .community-empty {
+  margin: 2.5rem 0;
+  text-align: center;
+}
+
+.marketing-page.community-page .community-posts {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.marketing-page.community-page .community-post {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.marketing-page.community-page .community-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: #2a2a2a;
+  color: #fff;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.marketing-page.community-page .community-post h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.marketing-page.community-page .community-post p {
+  margin: 0.35rem 0 0;
+  color: #111;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.marketing-page.community-page .community-post button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #5c5c5c;
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.marketing-page.community-page .community-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #ececec;
+}
+
+.marketing-page.community-page .community-composer .community-field {
+  flex: 1;
+  min-height: 48px;
+  max-height: 8rem;
+}
+
+.marketing-page.community-page .community-roster h2 {
+  margin: 0 0 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5c5c5c;
+}
+
+.marketing-page.community-page .community-roster ul {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marketing-page.community-page .community-roster li {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.marketing-page.community-page .community-roster strong {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.marketing-page.community-page .community-roster span {
+  display: block;
+  color: #5c5c5c;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 959px) {
+  .marketing-page.community-page .community-layout.is-members .community-feed,
+  .marketing-page.community-page .community-layout:not(.is-members) .community-roster {
+    display: none;
+  }
+}
+
+@media (min-width: 960px) {
+  .marketing-page.community-page .community-members-toggle {
+    display: none;
+  }
+}

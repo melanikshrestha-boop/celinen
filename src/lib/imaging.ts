@@ -3,6 +3,7 @@
  * Runs entirely in the browser: decode, analyse, score, edit, export.
  */
 import { validReviewRating } from "./studio/review-metadata";
+import type { PhotoSubject } from "./studio/people";
 
 export const RAW_EXTENSIONS = [
   "nef",
@@ -60,6 +61,8 @@ export interface Shot {
   previewBlob?: Blob | undefined;
   /** False when a restored project needs its original folder reconnected. */
   sourceAvailable?: boolean | undefined;
+  /** Versioned full-byte fingerprint, separate from the perceptual similarity hash. */
+  sourceDigest?: string | undefined;
   width: number;
   height: number;
   sizeMb: number;
@@ -75,6 +78,8 @@ export interface Shot {
   verdict: Verdict;
   edits: Edits;
   faces?: FaceReading | undefined;
+  /** Roster tags for this frame. A face box is not a name. */
+  subjects?: PhotoSubject[] | undefined;
   /** Where this frame's develop state came from. */
   develop?:
     | {

@@ -4,16 +4,19 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { access, mkdtemp, open, rmdir, stat, unlink } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Plugin } from "vite";
+import { socialFrameSchema } from "../lib/social-frame";
+import { runNativeSocial } from "./native-social";
 
 export const MAX_NATIVE_FILE_BYTES = 128 * 1024 * 1024;
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 const MAX_HEADER_BYTES = 64 * 1024;
 const MAX_BURST_BYTES = 24 * 1024 * 1024;
+const MAX_PEOPLE_BYTES = 64 * 1024 * 1024;
 const CACHE_BYTES = 64 * 1024 * 1024;
 const PREFIX = "/__native/";
 
@@ -283,6 +286,65 @@ export function burstProtocol(value: unknown): string {
   return `LENSBURST1 ${frames.length}\n${lines.join("\n")}${lines.length ? "\n" : ""}`;
 }
 
+export function insightfacePackFromEnv(): {
+  dir: string;
+  detector: boolean;
+  recognizer: boolean;
+  complete: boolean;
+} {
+  const dir = (process.env.FOTO_INSIGHTFACE_DIR ?? "").trim() || join(homedir(), ".foto/insightface");
+  const detector = existsSync(join(dir, "det_10g.onnx"));
+  const recognizer = existsSync(join(dir, "w600k_r50.onnx"));
+  return { dir, detector, recognizer, complete: detector && recognizer };
+}
+
+/** Validate embeddings only; clustering executes in C++. Never downloads buffalo weights. */
+export function peopleProtocol(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new NativeBridgeError(400, "Invalid people request.");
+  const faces = (value as Record<string, unknown>)["faces"];
+  if (!Array.isArray(faces) || faces.length > 20_000)
+    throw new NativeBridgeError(400, "People matching accepts up to 20,000 observations.");
+  const ids = new Set<string>();
+  const hex = (text: string) => {
+    if (!text || Buffer.byteLength(text) > 512 || containsControl(text))
+      throw new NativeBridgeError(400, "Invalid face observation identity.");
+    return Buffer.from(text).toString("hex");
+  };
+  const embedHex = (values: unknown) => {
+    if (!Array.isArray(values) || values.length !== 512)
+      throw new NativeBridgeError(400, "InsightFace embeddings are 512-d.");
+    const buf = Buffer.alloc(2048);
+    for (let i = 0; i < 512; i++) {
+      const n = values[i];
+      if (typeof n !== "number" || !Number.isFinite(n))
+        throw new NativeBridgeError(400, "Invalid embedding component.");
+      buf.writeFloatLE(n, i * 4);
+    }
+    return buf.toString("hex");
+  };
+  const lines = faces.map((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item))
+      throw new NativeBridgeError(400, "Invalid face observation.");
+    const face = item as Record<string, unknown>;
+    const id = face["id"];
+    const frameId = face["frameId"];
+    const source = face["source"];
+    const detScore = face["detScore"];
+    if (typeof id !== "string" || ids.has(id))
+      throw new NativeBridgeError(400, "Invalid or repeated face observation.");
+    ids.add(id);
+    if (typeof frameId !== "string" || !frameId)
+      throw new NativeBridgeError(400, "Invalid frame identifier.");
+    if (source !== "insightface" && source !== "local-descriptor")
+      throw new NativeBridgeError(400, "Unknown embedding source.");
+    if (typeof detScore !== "number" || !Number.isFinite(detScore) || detScore < 0 || detScore > 1)
+      throw new NativeBridgeError(400, "Invalid detection score.");
+    return `${hex(id)} ${hex(frameId)} ${source} ${detScore} ${embedHex(face["embedding"])}`;
+  });
+  return `LENSPPL1 ${faces.length}\n${lines.join("\n")}${lines.length ? "\n" : ""}`;
+}
+
 function runBursts(binary: string, input: string, signal: AbortSignal): Promise<Buffer> {
   return new Promise((resolveOutput, reject) => {
     if (signal.aborted) {
@@ -325,6 +387,48 @@ function runBursts(binary: string, input: string, signal: AbortSignal): Promise<
   });
 }
 
+function runPeople(binary: string, input: string, signal: AbortSignal): Promise<Buffer> {
+  return new Promise((resolveOutput, reject) => {
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const child = spawn(binary, [], { stdio: ["pipe", "pipe", "pipe"] });
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      if (error) {
+        child.kill("SIGKILL");
+        reject(error);
+      } else resolveOutput(Buffer.concat(chunks));
+    };
+    const abort = () => finish(abortError());
+    const timer = setTimeout(() => finish(new Error("C++ people matching timed out.")), 60_000);
+    signal.addEventListener("abort", abort, { once: true });
+    child.stderr.on("data", () => {});
+    child.stdout.on("data", (chunk: Buffer) => {
+      bytes += chunk.length;
+      if (bytes > MAX_PEOPLE_BYTES) finish(new Error("C++ people receipt is too large."));
+      else chunks.push(chunk);
+    });
+    child.on("error", () => finish(new Error("C++ people matching could not start.")));
+    child.stdin.on("error", () => finish(new Error("C++ people matching input was rejected.")));
+    child.on("close", (code) =>
+      finish(
+        code === 0
+          ? undefined
+          : new NativeBridgeError(400, "C++ people matching rejected these observations."),
+      ),
+    );
+    child.stdin.end(input);
+  });
+}
+
 const sendJson = (res: ServerResponse, status: number, value: unknown) => {
   if (res.destroyed || res.writableEnded) return;
   res.writeHead(status, {
@@ -343,6 +447,8 @@ export function nativeStudioPlugin(): Plugin {
     configureServer(server) {
       const binary = resolve(server.config.root, "native/build/lenslabs-native");
       const burstBinary = resolve(server.config.root, "native/build/lenslabs-bursts");
+      const peopleBinary = resolve(server.config.root, "native/build/lenslabs-people");
+      const socialBinary = resolve(server.config.root, "native/build/lenslabs-social");
       const token = randomBytes(32).toString("hex");
       const workers = Array.from({ length: 4 }, () => ({
         process: new NativeWorkerProcess(binary),
@@ -351,6 +457,8 @@ export function nativeStudioPlugin(): Plugin {
       }));
       const cache = new NativeFrameCache();
       let burstBusy = false;
+      let peopleBusy = false;
+      let socialBusy = false;
       cleanup = () => {
         for (const worker of workers) worker.process.close();
         cache.clear();
@@ -379,8 +487,23 @@ export function nativeStudioPlugin(): Plugin {
             ready = false;
           }
           if (route === "/__native/status" && req.method === "GET") {
+            const socialReady =
+              ready &&
+              (await access(socialBinary, constants.X_OK).then(
+                () => true,
+                () => false,
+              ));
+            const peopleReady =
+              ready &&
+              (await access(peopleBinary, constants.X_OK).then(
+                () => true,
+                () => false,
+              ));
             sendJson(res, 200, {
               ready,
+              socialReady,
+              peopleReady,
+              insightfacePack: insightfacePackFromEnv(),
               token: ready ? token : null,
               engine: "lenslabs-cpp-0.1",
               maxFileBytes: MAX_NATIVE_FILE_BYTES,
@@ -393,6 +516,51 @@ export function nativeStudioPlugin(): Plugin {
               "Build the local C++ engine with make -C native first.",
             );
           if (req.method !== "POST") throw new NativeBridgeError(405, "POST required.");
+          if (route === "/__native/social-frame") {
+            if (req.headers["content-type"] !== "application/octet-stream")
+              throw new NativeBridgeError(415, "Photo bytes required.");
+            const raw = req.headers["x-lenslabs-frame"];
+            let input;
+            try {
+              input = socialFrameSchema.parse(
+                JSON.parse(typeof raw === "string" && raw.length < 1024 ? raw : "null"),
+              );
+            } catch {
+              throw new NativeBridgeError(400, "Invalid social frame settings.");
+            }
+            if (socialBusy)
+              throw new NativeBridgeError(429, "Another social photo is preparing. Retry shortly.");
+            socialBusy = true;
+            let directory: string | null = null;
+            let path: string | null = null;
+            try {
+              const bytes = await readBounded(req, 16 * 1024 * 1024, signal);
+              if (!bytes.length) throw new NativeBridgeError(400, "The photo is empty.");
+              directory = await mkdtemp(join(tmpdir(), "lenslabs-social-"));
+              path = join(directory, "source");
+              const file = await open(path, "wx", 0o600);
+              try {
+                await file.writeFile(bytes);
+              } finally {
+                await file.close();
+              }
+              const jpeg = await runNativeSocial(socialBinary, path, input, signal);
+              if (signal.aborted) throw abortError();
+              res.writeHead(200, {
+                "Content-Type": "image/jpeg",
+                "Content-Length": jpeg.length,
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+                "X-LensLabs-Engine": "cpp",
+              });
+              res.end(jpeg);
+            } finally {
+              if (path) await unlink(path).catch(() => {});
+              if (directory) await rmdir(directory).catch(() => {});
+              socialBusy = false;
+            }
+            return;
+          }
           if (route === "/__native/bursts") {
             if (req.headers["content-type"] !== "application/json")
               throw new NativeBridgeError(415, "JSON receipts required.");
@@ -420,6 +588,45 @@ export function nativeStudioPlugin(): Plugin {
               res.end(output);
             } finally {
               burstBusy = false;
+            }
+            return;
+          }
+          if (route === "/__native/people") {
+            if (req.headers["content-type"] !== "application/json")
+              throw new NativeBridgeError(415, "JSON observations required.");
+            const peopleOk = await access(peopleBinary, constants.X_OK).then(
+              () => true,
+              () => false,
+            );
+            if (!peopleOk)
+              throw new NativeBridgeError(
+                503,
+                "Build the local C++ people engine with make -C native first.",
+              );
+            if (peopleBusy)
+              throw new NativeBridgeError(
+                429,
+                "Another people-matching job is running. Try again shortly.",
+              );
+            peopleBusy = true;
+            try {
+              const body = await readBounded(req, MAX_PEOPLE_BYTES, signal);
+              let parsed: unknown;
+              try {
+                parsed = JSON.parse(body.toString("utf8"));
+              } catch {
+                throw new NativeBridgeError(400, "Invalid JSON observations.");
+              }
+              const output = await runPeople(peopleBinary, peopleProtocol(parsed), signal);
+              if (signal.aborted) throw abortError();
+              res.writeHead(200, {
+                "Content-Type": "application/json",
+                "Cache-Control": "no-store",
+                "X-LensLabs-Engine": "cpp",
+              });
+              res.end(output);
+            } finally {
+              peopleBusy = false;
             }
             return;
           }

@@ -90,7 +90,7 @@ describe("expanded settings", () => {
     }
   });
   test("all categories are addressable and search is case-insensitive", () => {
-    expect(new Set(SETTINGS_SECTIONS.map((s) => s.id)).size).toBe(21);
+    expect(new Set(SETTINGS_SECTIONS.map((s) => s.id)).size).toBe(23);
     for (const section of SETTINGS_SECTIONS) {
       expect(settingsSection(section.id)).toBe(section.id);
       expect(searchSettings(section.label).map((s) => s.id)).toContain(section.id);
@@ -98,8 +98,10 @@ describe("expanded settings", () => {
     expect(searchSettings("  ADOBE SIDECARS ").map((s) => s.id)).toEqual(["import"]);
     expect(searchSettings("nonexistent-setting")).toEqual([]);
     expect(settingsSection("privacy")).toBe("account");
-    expect(settingsSection("connections")).toBe("plugins");
+    expect(settingsSection("connections")).toBe("connections");
     expect(settingsSection("invalid")).toBe("general");
+    expect(searchSettings("completion").map((s) => s.id)).toContain("general");
+    expect(searchSettings("unarchive").map((s) => s.id)).toEqual(["archived"]);
   });
   test("settings navigation retains shoot search and search keeps drafts mounted", () => {
     const source = readFileSync(
@@ -123,5 +125,13 @@ describe("expanded settings", () => {
     expect(dev).toContain('name: "Celine Nova"');
     expect(dev).toContain("user: null");
     expect(real).not.toContain("Celine");
+  });
+  test("dedicated archive view overrides retained history state", () => {
+    const source = readFileSync(
+      new URL("../src/components/workbench/ChatRecents.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("row.archived === (archivedOnly || archived)");
+    expect(source).toMatch(/history\.archive\(row.id,\s*!row.archived\)/);
   });
 });

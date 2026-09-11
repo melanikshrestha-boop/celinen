@@ -7,6 +7,7 @@
 #include <list>
 #include <map>
 #include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
@@ -268,6 +269,88 @@ std::vector<std::size_t> SimilarityIndex::nearby(std::uint64_t hash, unsigned ra
   }
   std::sort(result.begin(), result.end());
   return result;
+}
+
+namespace {
+std::string csv_cell(const std::string& value) {
+  if (value.find_first_of("\",\n\r") == std::string::npos) return value;
+  std::string out = "\"";
+  for (const char c : value) {
+    if (c == '"') out += '"';
+    out += c;
+  }
+  return out + '"';
+}
+const char* verdict_csv(Verdict verdict) {
+  switch (verdict) {
+    case Verdict::keep: return "keep";
+    case Verdict::reject: return "reject";
+    case Verdict::undecided: return "undecided";
+  }
+  return "undecided";
+}
+}
+
+std::string portable_stem(const std::filesystem::path& path) {
+  std::string out;
+  for (const unsigned char c : path.filename().stem().generic_string()) {
+    if (std::isalnum(c) || c == '-' || c == '_') out += static_cast<char>(c);
+    else if (c == ' ' || c == '.') out += '-';
+  }
+  while (!out.empty() && out.front() == '-') out.erase(out.begin());
+  while (!out.empty() && out.back() == '-') out.pop_back();
+  if (out.empty()) out = "frame";
+  if (out.size() > 64) out.resize(64);
+  return out;
+}
+
+std::string format_cull_csv(const std::vector<CullSuggestion>& rows) {
+  std::string out = "file,score,reason,decision\n";
+  for (const auto& row : rows) {
+    out += csv_cell(row.relative_path);
+    out += ',';
+    out += std::to_string(row.score);
+    out += ',';
+    out += csv_cell(row.reason);
+    out += ',';
+    out += verdict_csv(row.suggestion);
+    out += '\n';
+  }
+  return out;
+}
+
+std::string format_job_json(const std::string& job, const std::string& source,
+                            const std::vector<CullSuggestion>& rows, const char* engine,
+                            const std::string& created_at) {
+  if (job.empty() || job.size() > 160)
+    throw std::invalid_argument("Name the job before writing job.json.");
+  std::size_t keepers = 0, rejected = 0, review = 0;
+  for (const auto& row : rows) {
+    if (row.suggestion == Verdict::keep) ++keepers;
+    else if (row.suggestion == Verdict::reject) ++rejected;
+    else ++review;
+  }
+  std::string out = "{";
+  out += "\"format\":1,\"engine\":";
+  out += json_string(engine ? engine : "");
+  out += ",\"job\":";
+  out += json_string(job);
+  out += ",\"source\":";
+  out += json_string(source);
+  out += ",\"createdAt\":";
+  out += json_string(created_at);
+  out += ",\"files\":";
+  out += std::to_string(rows.size());
+  out += ",\"suggestedKeep\":";
+  out += std::to_string(keepers);
+  out += ",\"suggestedReject\":";
+  out += std::to_string(rejected);
+  out += ",\"review\":";
+  out += std::to_string(review);
+  out += ",\"note\":";
+  out += json_string("Suggestions only. Originals were not copied, moved, or modified.");
+  out += "}\n";
+  return out;
 }
 
 std::string json_string(const std::string& value) {

@@ -1,116 +1,194 @@
-import { createFileRoute, Link, useBlocker, defaultStringifySearch } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useBlocker,
+  useNavigate,
+  defaultStringifySearch,
+} from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkbench } from "@/components/workbench/context";
 import { isWorkbenchRoute, studioBindingKey } from "@/lib/workbench";
-import { resolveWorkspaceBinding } from "@/lib/workbench-projects";
-import { EditSlider } from "@/components/studio/Slider";
-import { CullChat, type ToolCall } from "@/components/studio/CullChat";
+import { readStudioHandoff, type DeliveryFocus } from "@/lib/delivery/studio-handoff";
+import {
+  DeliveryReference,
+  type DeliveryReferenceValue,
+} from "@/components/studio/DeliveryReference";
+import {
+  developWorkspaceHref,
+  resolveWorkspaceBinding,
+  shootWorkspaceHref,
+} from "@/lib/workbench-projects";
+import { createShootRepository } from "@/lib/develop/shoot-repository";
+import {
+  applyCullReviewProposal,
+  CullRefreshSuperseded,
+  createCullLightroomVerdicts,
+  createCullShootView,
+  mergeCullLightroomReviews,
+  restoreCullReview,
+} from "@/lib/develop/cull-view";
+import { getDevelopImportSession } from "@/lib/develop/import-session";
+import { CullChat, type ToolCall, type ImportAttachment } from "@/components/studio/CullChat";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useProcessingWakeLock } from "@/components/account/WorkspacePreferences";
 import { DEFAULT_PREFERENCES } from "@/lib/account-preferences";
+import { matchesShortcut } from "@/lib/shortcuts";
 import { importLanes } from "@/lib/settings-transfer";
 import { Filmstrip } from "@/components/studio/Filmstrip";
+import { PeoplePanel } from "@/components/studio/PeoplePanel";
 import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
 import { describeShoot } from "@/lib/studio/shoot-brief";
 import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
-import { listRecentShoots, rememberShoot, studioDatabaseKey } from "@/lib/studio/shoot-directory";
+import {
+  listRecentShoots,
+  rememberShoot,
+  renameShoot,
+  studioDatabaseKey,
+} from "@/lib/studio/shoot-directory";
 import { rememberStudioRuntime, restoreStudioRuntime } from "@/lib/studio/runtime";
+import { StudioSaveBoundary } from "@/lib/studio/save-boundary";
 import { BurstReview } from "@/components/studio/BurstReview";
-import { DeadlineExport } from "@/components/studio/DeadlineExport";
 import type { StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
+import { PRODUCT_NAME } from "@/lib/product";
+import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
-import { exportedReviewMetadata, importedReviewVerdict } from "@/lib/studio/review-metadata";
+import { smartCullPass } from "@/lib/studio/smart-cull";
+import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
+import { createOriginalKeeperZip } from "@/lib/studio/keeper-package";
+import { importedReviewVerdict } from "@/lib/studio/review-metadata";
+import { LIGHTROOM_MATCHING } from "@/lib/lightroom-matching";
 import type { AdobeSettingsPastePlan } from "@/lib/studio/adobe-paste";
-import { applyCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
-import {
-  applyProposal,
-  proposeCull,
-  proposeEdits,
-  type EditTarget,
-  type StudioProposal,
-} from "@/lib/studio/proposals";
+import type { CreativeEditPlan } from "@/lib/studio/creative-edits";
+import { proposeCull, type EditTarget, type StudioProposal } from "@/lib/studio/proposals";
 import {
   DEFAULT_EDITS,
-  type Edits,
   type Flag,
   type Shot,
   type Verdict,
-  autoRefine,
-  baseName,
-  buildXmpSidecar,
   decodeFile,
   faceDetectionAvailable,
   parseXmpSidecar,
-  exportShot,
   histogram,
   isRawFile,
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
+import { observationsFromPreviewUrl } from "@/lib/studio/face-descriptor";
+import { decideGallery, proposeGallery } from "@/lib/studio/gallery-select";
+import { INSIGHTFACE_WEIGHTS_NOTE, requestPeopleClusters } from "@/lib/studio/insightface";
+import {
+  shotsOfCluster,
+  shotsOfPerson,
+  type EventPerson,
+  type RosterPerson,
+} from "@/lib/studio/people";
 import {
   canPersistStudioSession,
-  clearStudioSession,
-  loadStudioSession,
+  readStudioSessionSnapshot,
   saveStudioSession,
+  setStudioEventPeople,
+  setStudioRoster,
   stableShotId,
   type StudioFilter,
   type StudioHydrationState,
 } from "@/lib/studio/session";
+import { countReviewIssue, filterReviewIssue, type ReviewIssue } from "@/lib/studio/review-filter";
 import { bridgeCredentials, bridgeFetch } from "@/lib/bridge-client";
 import { indexDuplicateFrames } from "@/lib/studio/culling-index";
-import { mergeIngestedShots, sidecarKey, uniquePhotos } from "@/lib/studio/ingest";
+import {
+  mergeIngestedShots,
+  sidecarKey,
+  uniquePhotos,
+  readImportSidecars,
+  sidecarReadNotice,
+  createIngestResolver,
+  SourceReconnectError,
+} from "@/lib/studio/ingest";
 import { analyseFile, disposeAnalysisWorkers } from "@/lib/studio/analysis-client";
 import { bridgeEndpoint, downloadLightroomPlugin, type BridgeState } from "@/lib/lightroom-plugin";
 
 export const Route = createFileRoute("/studio")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { project?: string; shoot?: string; deliveryFrame?: string; deliveryVersion?: string } => {
+  ): {
+    project?: string;
+    shoot?: string;
+    deliveryFrame?: string;
+    deliveryVersion?: string;
+    deliveryHandoff?: string;
+  } => {
     if (search["shoot"] !== undefined) {
       if (
         typeof search["shoot"] !== "string" ||
         !/^(?:legacy|[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})$/i.test(search["shoot"]) ||
-        search["project"] !== undefined
+        [
+          "project",
+          "deliveryFrame",
+          "deliveryVersion",
+          "deliveryHandoff",
+          "workspaceProject",
+          "workspaceFrame",
+          "workspaceVersion",
+          "workspaceHandoff",
+        ].some((key) => search[key] !== undefined)
       )
         throw new Error("Invalid shoot link.");
       return { shoot: search["shoot"] };
     }
-    if (search["project"] === undefined) return {};
+    if (search["project"] === undefined) {
+      if (
+        ["deliveryFrame", "deliveryVersion", "deliveryHandoff"].some(
+          (key) => search[key] !== undefined,
+        )
+      )
+        throw new Error("Invalid delivery source reference.");
+      return {};
+    }
     if (typeof search["project"] !== "string" || !/^[a-f0-9-]{36}$/i.test(search["project"]))
       throw new Error("Invalid project identifier.");
-    if (search["deliveryFrame"] !== undefined || search["deliveryVersion"] !== undefined) {
+    if (
+      ["deliveryFrame", "deliveryVersion", "deliveryHandoff"].some(
+        (key) => search[key] !== undefined,
+      )
+    ) {
       if (
         typeof search["deliveryFrame"] !== "string" ||
         !search["deliveryFrame"] ||
-        search["deliveryFrame"].length > 2000 ||
+        search["deliveryFrame"].length > PHOTO_ID_MAX_LENGTH ||
         typeof search["deliveryVersion"] !== "string" ||
         !search["deliveryVersion"] ||
-        search["deliveryVersion"].length > 2000
+        search["deliveryVersion"].length > 2000 ||
+        (search["deliveryHandoff"] !== undefined &&
+          (typeof search["deliveryHandoff"] !== "string" ||
+            !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(search["deliveryHandoff"])))
       )
         throw new Error("Invalid delivery source reference.");
       return {
         project: search["project"],
         deliveryFrame: search["deliveryFrame"],
         deliveryVersion: search["deliveryVersion"],
+        ...(typeof search["deliveryHandoff"] === "string"
+          ? { deliveryHandoff: search["deliveryHandoff"] }
+          : {}),
       };
     }
     return { project: search["project"] };
   },
   head: () => ({
     meta: [
-      { title: "LensLabs Studio — Cull & Develop Your Shoot" },
+      { title: `${PRODUCT_NAME} Studio` },
       {
         name: "description",
         content:
           "Import a RAW or JPEG shoot, get every frame scored and flagged, keep or reject with one key, then develop and export your picks.",
       },
-      { property: "og:title", content: "LensLabs Studio — Cull & Develop Your Shoot" },
+      { property: "og:title", content: `${PRODUCT_NAME} Studio` },
       {
         property: "og:description",
         content: "The LensLabs culling bench: score, flag, keep, develop, export.",
@@ -124,7 +202,7 @@ export const Route = createFileRoute("/studio")({
 
 function StudioRoute() {
   const workbench = useWorkbench();
-  const { project, deliveryFrame, deliveryVersion } = Route.useSearch();
+  const { project, shoot, deliveryFrame, deliveryVersion, deliveryHandoff } = Route.useSearch();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   // The root workspace owns one persistent controller across tool navigation.
@@ -139,10 +217,17 @@ function StudioRoute() {
     );
   return (
     <Studio
-      key={`${project ?? "legacy"}:${deliveryFrame ?? ""}`}
+      key={JSON.stringify([project, shoot, deliveryFrame, deliveryVersion, deliveryHandoff])}
       projectId={project ?? null}
+      {...(shoot ? { shootId: shoot } : {})}
       {...(deliveryFrame && deliveryVersion
-        ? { deliveryFocus: { frameId: deliveryFrame, versionId: deliveryVersion } }
+        ? {
+            deliveryFocus: {
+              frameId: deliveryFrame,
+              versionId: deliveryVersion,
+              ...(deliveryHandoff ? { handoffId: deliveryHandoff } : {}),
+            },
+          }
         : {})}
     />
   );
@@ -160,8 +245,6 @@ const FLAG_LABEL: Record<Flag, string> = {
   "eyes-closed": "eyes closed",
 };
 
-const CROPS: Edits["crop"][] = ["orig", "1:1", "4:5", "3:2", "16:9"];
-
 type UndoCheckpoint = {
   selectedId: string | null;
   frames: Array<Pick<Shot, "id" | "verdict" | "edits">>;
@@ -177,7 +260,6 @@ type EditRecipe = {
   title: string;
   description: string;
   limitations?: string[];
-  transform: (shot: Shot) => Edits;
 };
 
 export function Studio({
@@ -187,38 +269,105 @@ export function Studio({
   shootId,
 }: {
   projectId: string | null;
-  deliveryFocus?: { frameId: string; versionId: string };
+  deliveryFocus?: DeliveryFocus;
   storageScope?: string;
   shootId?: string;
 }) {
   const workbench = useWorkbench();
+  const navigate = useNavigate();
+  const [repository] = useState(() =>
+    createShootRepository({
+      scope: storageScope,
+      libraryId: projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`,
+    }),
+  );
+  const [canonicalView] = useState(() => createCullShootView(repository));
+  const [importSession] = useState(() =>
+    getDevelopImportSession({
+      scope: storageScope,
+      libraryId: projectId ? `project:${projectId}` : `shoot:${shootId ?? "legacy"}`,
+    }),
+  );
+  const unanalyzedIds = useRef(new Set<string>());
+  const nativeTreatmentIds = useRef(new Set<string>());
+  const [catalogSignal, setCatalogSignal] = useState(0);
+  const catalogRefresh = useRef(false);
+  const catalogRefreshAgain = useRef(false);
+  const studioVisible = workbench?.studioVisible ?? true;
   // Studio is keyed by project. State retains the loaded controller during
   // Fast Refresh; a memo can be invalidated while the hydration guard survives.
   const [projectSession] = useState(() =>
     projectId ? new ProjectStudioSession(projectId, deliveryFocus) : null,
   );
-  const loadStoredSession = useCallback(
-    () => (projectSession ? projectSession.load() : loadStudioSession(storageScope, shootId)),
-    [projectSession, storageScope, shootId],
-  );
+  const [saveBoundary] = useState(() => new StudioSaveBoundary());
+  const loadStoredSession = useCallback(async () => {
+    const legacy = projectSession
+      ? await projectSession.load()
+      : await readStudioSessionSnapshot(storageScope, shootId);
+    try {
+      const session = await canonicalView.read(legacy);
+      unanalyzedIds.current = session.unanalyzedIds;
+      nativeTreatmentIds.current = session.nativeTreatmentIds;
+      for (const shot of session.shots) {
+        if (shot.previewBlob) shot.previewUrl = URL.createObjectURL(shot.previewBlob);
+      }
+      return session;
+    } finally {
+      for (const shot of legacy?.shots ?? [])
+        if (shot.previewUrl) URL.revokeObjectURL(shot.previewUrl);
+    }
+  }, [projectSession, storageScope, shootId, canonicalView]);
   const saveStoredSession = useCallback(
     async (frames: Shot[], selected: string | null, scope: StudioFilter) => {
-      if (projectSession) return projectSession.save(frames, selected, scope);
+      const acknowledge = saveBoundary.begin({
+        shots: frames,
+        selectedId: selected,
+        filter: scope,
+      });
+      await canonicalView.save(frames, selected, scope);
       await saveStudioSession(frames, selected, scope, storageScope, shootId);
-      if (frames.length)
+      if (!projectSession && frames.length)
         await rememberShoot(
           storageScope,
           shootId ?? "legacy",
           frames.length,
           describeShoot(frames, selected).title,
         );
+      acknowledge();
     },
-    [projectSession, storageScope, shootId],
+    [canonicalView, projectSession, storageScope, shootId, saveBoundary],
   );
   const [shots, setShots] = useState<Shot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [roster, setRoster] = useState<RosterPerson[]>([]);
+  const [eventPeople, setEventPeople] = useState<EventPerson[]>([]);
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
+  const [clusterFilter, setClusterFilter] = useState<string | null>(null);
+  const [peopleGrouping, setPeopleGrouping] = useState(false);
+  const [reviewIssue, setReviewIssue] = useState<ReviewIssue | null>(null);
   const [sessionStatus, setSessionStatus] = useState<StudioHydrationState>("loading");
+  const [deliveryReference, setDeliveryReference] = useState<DeliveryReferenceValue | null>(null);
+  const [deliveryReferenceError, setDeliveryReferenceError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deliveryFocus?.handoffId || !projectSession || sessionStatus !== "ready") return;
+    try {
+      const reference = readStudioHandoff(
+        window.sessionStorage,
+        storageScope,
+        deliveryFocus.handoffId,
+      );
+      setDeliveryReference(projectSession.deliveryReference(reference));
+      setDeliveryReferenceError(null);
+    } catch (error) {
+      setDeliveryReference(null);
+      setDeliveryReferenceError(
+        error instanceof Error
+          ? error.message
+          : "Reopen this photo from Delivery to refresh its feedback.",
+      );
+    }
+  }, [deliveryFocus?.handoffId, projectSession, sessionStatus, storageScope]);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const recoveryReloadRef = useRef(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -271,8 +420,11 @@ export function Studio({
   const [proposal, setProposal] = useState<StudioProposal | null>(null);
   const proposalRef = useRef<StudioProposal | null>(null);
   const recipeRef = useRef<EditRecipe | null>(null);
+  const canonicalOpenRef = useRef<() => Promise<boolean>>(async () => false);
   const [compareBefore, setCompareBefore] = useState(false);
+  const [showBefore, setShowBefore] = useState(false);
   const [dropActive, setDropActive] = useState(false);
+  const [importAttachment, setImportAttachment] = useState<ImportAttachment | null>(null);
   const [folderStatus, setFolderStatus] = useState<string | null>(null);
   const [chatHasContent, setChatHasContent] = useState(false);
   const identity = useAccount();
@@ -280,8 +432,6 @@ export function Studio({
   const preferences = identity?.preferences ?? DEFAULT_PREFERENCES;
   useProcessingWakeLock(preferences.keepAwake, Boolean(progress || busy));
   const [burstOpen, setBurstOpen] = useState(false);
-  const [deadlineOpen, setDeadlineOpen] = useState(false);
-  const [deadlineCount, setDeadlineCount] = useState(20);
   const folderAbortRef = useRef<AbortController | null>(null);
   useBlocker({
     shouldBlockFn: async ({ next }) => {
@@ -305,8 +455,22 @@ export function Studio({
             ...(shootId ? { shootId } : {}),
             ...(deliveryFocus ? { deliveryFocus } : {}),
           })
-        )
-          return false;
+        ) {
+          // The next view reads the same shoot. Do not race its hydration against
+          // the 350 ms autosave debounce or an unresolved save conflict.
+          if (!canPersistStudioSession(sessionStatusRef.current)) return true;
+          try {
+            await saveStoredSession(
+              latestShotsRef.current,
+              latestSelectedIdRef.current,
+              latestFilterRef.current,
+            );
+            return false;
+          } catch (error) {
+            pauseSaving(error);
+            return true;
+          }
+        }
       }
       if (sessionStatusRef.current === "conflicted") {
         setSyncNote(
@@ -340,6 +504,11 @@ export function Studio({
       !recoveryReloadRef.current &&
       Boolean(
         sessionStatusRef.current === "conflicted" ||
+        saveBoundary.pending({
+          shots: latestShotsRef.current,
+          selectedId: latestSelectedIdRef.current,
+          filter: latestFilterRef.current,
+        }) ||
         (workbench && (progress || folderStatus || busy || proposal || chatHasContent)),
       ),
   });
@@ -377,6 +546,13 @@ export function Studio({
   const selectFilter = useCallback((next: Filter) => {
     latestFilterRef.current = next;
     setFilter(next);
+    setReviewIssue(null);
+  }, []);
+
+  const selectReviewIssue = useCallback((next: ReviewIssue) => {
+    latestFilterRef.current = "flagged";
+    setFilter("flagged");
+    setReviewIssue((current) => (current === next ? null : next));
   }, []);
 
   const selectSessionStatus = useCallback((next: StudioHydrationState) => {
@@ -459,26 +635,15 @@ export function Studio({
     return "Preview discarded. Your photos and picks are unchanged.";
   }, []);
 
-  const stageRecipe = useCallback(
-    (recipe: EditRecipe) => {
-      if (!canPersistStudioSession(sessionStatusRef.current))
-        throw new Error("Resolve the paused save before previewing changes.");
-      if (importingRef.current && recipe.target !== "selected")
-        throw new Error(
-          "Let ingest finish before previewing a whole batch. You can edit the open photo now.",
-        );
-      const next = proposeEdits(
-        latestShotsRef.current,
-        latestSelectedIdRef.current,
-        recipe.target,
-        recipe.transform,
-        recipe,
-      );
-      recipeRef.current = recipe;
-      return showProposal(next);
-    },
-    [showProposal],
-  );
+  const stageRecipe = useCallback((recipe: EditRecipe) => {
+    if (!canPersistStudioSession(sessionStatusRef.current))
+      throw new Error("Resolve the paused save before previewing changes.");
+    const note = `${recipe.title}: opening Develop for review. No image adjustments were applied or translated from the old editor.`;
+    void canonicalOpenRef.current().then((opened) => {
+      if (opened) setSyncNote(note.replace("opening Develop", "Develop opened"));
+    });
+    return note;
+  }, []);
 
   const stageCreativeEdit = useCallback(
     (plan: CreativeEditPlan) =>
@@ -487,7 +652,6 @@ export function Studio({
         title: plan.title,
         description: plan.description,
         limitations: plan.limitations,
-        transform: (shot) => applyCreativeEdit(shot.edits, plan),
       }),
     [stageRecipe],
   );
@@ -499,7 +663,6 @@ export function Studio({
         title: plan.name,
         description: plan.summary,
         limitations: plan.warnings,
-        transform: (shot) => ({ ...shot.edits, ...plan.edits }),
       }),
     [stageRecipe],
   );
@@ -517,6 +680,57 @@ export function Studio({
     },
     [showProposal],
   );
+
+  const groupFaces = useCallback(async () => {
+    if (peopleGrouping) return;
+    setPeopleGrouping(true);
+    try {
+      const observations = [];
+      for (const shot of latestShotsRef.current) {
+        if (!shot.previewUrl || shot.error) continue;
+        observations.push(...(await observationsFromPreviewUrl(shot.previewUrl, shot.id)));
+      }
+      if (!observations.length) {
+        setSyncNote(
+          "No faces to group. Use a browser with FaceDetector, or tag jersey/bib yourself. No identities were assigned.",
+        );
+        return;
+      }
+      const review = await requestPeopleClusters(observations);
+      const people: EventPerson[] = review.clusters.map((cluster) => ({
+        id: cluster.id,
+        label: "",
+        role: "unlabeled",
+        confirmed: false,
+        frameIds: cluster.frameIds,
+        observationIds: cluster.observationIds,
+        source: cluster.source,
+        minSimilarity: cluster.minSimilarity,
+      }));
+      setEventPeople(people);
+      setStudioEventPeople(people, storageScope, shootId);
+      setSyncNote(
+        `${people.length} event-local ${people.length === 1 ? "person" : "people"} grouped. Name them yourself. FOTO does not infer family roles.`,
+      );
+    } catch (error) {
+      setSyncNote(
+        error instanceof Error
+          ? error.message
+          : "People matching failed. No identities were assigned.",
+      );
+    } finally {
+      setPeopleGrouping(false);
+    }
+  }, [peopleGrouping, storageScope, shootId]);
+
+  const proposeJobGallery = useCallback(() => {
+    const plan = proposeGallery(latestShotsRef.current, { people: eventPeople });
+    return stageCull(
+      (shot) => decideGallery(shot, plan),
+      "Gallery proposal",
+      plan.limitations.join(" "),
+    );
+  }, [eventPeople, stageCull]);
 
   useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
@@ -560,9 +774,16 @@ export function Studio({
         }
         const restored = restoreStudioRuntime(runtimeKey, session.shots);
         undoRef.current = restored.undo as UndoCheckpoint[];
-        updateShots(() => restored.shots);
+        // Canonical review/edits win; the old runtime contributes only its undo record.
+        updateShots(() => session.shots);
         selectShot(session.selectedId ?? session.shots[0]?.id ?? null);
         selectFilter(session.filter);
+        setRoster(session.roster ?? []);
+        setStudioRoster(session.roster ?? [], storageScope, shootId);
+        setEventPeople(session.eventPeople ?? []);
+        setStudioEventPeople(session.eventPeople ?? [], storageScope, shootId);
+        setPersonFilter(null);
+        setClusterFilter(null);
         hydrationRecoveryRef.current = false;
         selectSessionStatus("ready");
         setSyncNote(
@@ -587,7 +808,140 @@ export function Studio({
     return () => {
       alive = false;
     };
-  }, [loadStoredSession, runtimeKey, selectFilter, selectSessionStatus, selectShot, updateShots]);
+  }, [
+    loadStoredSession,
+    runtimeKey,
+    selectFilter,
+    selectSessionStatus,
+    selectShot,
+    updateShots,
+    storageScope,
+    shootId,
+  ]);
+
+  useEffect(
+    () =>
+      repository.subscribe((change) => {
+        if (change.kind !== "import-job" && change.kind !== "presets")
+          setCatalogSignal((value) => value + 1);
+      }),
+    [repository],
+  );
+  useEffect(() => {
+    const update = () => {
+      const job = importSession.getSnapshot();
+      const running = job.phase === "discovering" || job.phase === "processing";
+      importingRef.current = running;
+      setProgress(
+        running ? { done: job.saved + job.failed + job.duplicates, total: job.found } : null,
+      );
+      setFolderStatus(job.phase === "discovering" ? `Reading folder · ${job.found} photos` : null);
+      if (!running && job.jobId) {
+        setSyncNote(
+          job.error ??
+            `${job.saved} photos saved · ${job.failed} failed · ${job.duplicates} duplicates`,
+        );
+        setCatalogSignal((value) => value + 1);
+      }
+    };
+    update();
+    const unsubscribe = importSession.subscribe(update);
+    void importSession
+      .restore()
+      .catch((error) =>
+        setSyncNote(error instanceof Error ? error.message : "Import status unavailable."),
+      );
+    return unsubscribe;
+  }, [importSession]);
+  useEffect(
+    () =>
+      repository.registerFlushParticipant("cull", async () => {
+        if (sessionStatusRef.current === "loading") await hydrationGateRef.current?.promise;
+        if (!canPersistStudioSession(sessionStatusRef.current)) return false;
+        try {
+          await saveStoredSession(
+            latestShotsRef.current,
+            latestSelectedIdRef.current,
+            latestFilterRef.current,
+          );
+          return true;
+        } catch (error) {
+          pauseSaving(error);
+          return false;
+        }
+      }),
+    [repository, saveStoredSession, pauseSaving],
+  );
+  useEffect(() => {
+    if (!catalogSignal || sessionStatus !== "ready" || !studioVisible) return;
+    if (catalogRefresh.current) {
+      catalogRefreshAgain.current = true;
+      return;
+    }
+    let cancelled = false;
+    catalogRefresh.current = true;
+    void (async () => {
+      const before = {
+        shots: latestShotsRef.current,
+        selectedId: latestSelectedIdRef.current,
+        filter: latestFilterRef.current,
+      };
+      await saveStoredSession(before.shots, before.selectedId, before.filter);
+      const current = await canonicalView.read(
+        undefined,
+        () =>
+          !cancelled &&
+          mountedRef.current &&
+          before.shots === latestShotsRef.current &&
+          before.selectedId === latestSelectedIdRef.current &&
+          before.filter === latestFilterRef.current,
+      );
+      if (cancelled || !mountedRef.current) return;
+      unanalyzedIds.current = current.unanalyzedIds;
+      nativeTreatmentIds.current = current.nativeTreatmentIds;
+      const old = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
+      for (const shot of current.shots) {
+        const prior = old.get(shot.id);
+        if (shot.previewBlob && prior?.previewBlob === shot.previewBlob)
+          shot.previewUrl = prior.previewUrl;
+        else if (shot.previewBlob) {
+          shot.previewUrl = URL.createObjectURL(shot.previewBlob);
+          previewUrlsRef.current.add(shot.previewUrl);
+        }
+        if (prior?.previewUrl && prior.previewUrl !== shot.previewUrl) {
+          URL.revokeObjectURL(prior.previewUrl);
+          previewUrlsRef.current.delete(prior.previewUrl);
+        }
+      }
+      updateShots(() => current.shots);
+      selectShot(current.selectedId);
+      selectFilter(current.filter);
+    })()
+      .catch((error) => {
+        if (error instanceof CullRefreshSuperseded) catalogRefreshAgain.current = true;
+        else if (!cancelled) pauseSaving(error);
+      })
+      .finally(() => {
+        catalogRefresh.current = false;
+        if (catalogRefreshAgain.current && mountedRef.current) {
+          catalogRefreshAgain.current = false;
+          setCatalogSignal((value) => value + 1);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    catalogSignal,
+    sessionStatus,
+    studioVisible,
+    canonicalView,
+    saveStoredSession,
+    updateShots,
+    selectShot,
+    selectFilter,
+    pauseSaving,
+  ]);
 
   useEffect(() => {
     if (!canPersistStudioSession(sessionStatus) || shots.length === 0) return;
@@ -596,7 +950,7 @@ export function Studio({
         void saveStoredSession(shots, selectedId, filter).catch(pauseSaving);
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [filter, selectedId, sessionStatus, shots, saveStoredSession, pauseSaving]);
+  }, [filter, selectedId, sessionStatus, shots, roster, eventPeople, saveStoredSession, pauseSaving]);
 
   useEffect(() => {
     if (!canPersistStudioSession(sessionStatus)) return;
@@ -646,9 +1000,10 @@ export function Studio({
         bitmapPromises.clear();
         for (const url of previewUrls) URL.revokeObjectURL(url);
         previewUrls.clear();
+        repository.close();
       }, 0);
     };
-  }, [runtimeKey]);
+  }, [runtimeKey, repository]);
 
   const checkpoint = useCallback(() => {
     if (!canPersistStudioSession(sessionStatusRef.current)) return;
@@ -666,6 +1021,11 @@ export function Studio({
   const applyReviewedProposal = useCallback(() => {
     const pending = proposalRef.current;
     if (!pending) return "There is no preview waiting to be applied.";
+    if (pending.kind === "edit") {
+      discardProposal();
+      void canonicalOpenRef.current();
+      return "Opening Develop for image adjustments. The legacy preview was discarded; no settings were applied.";
+    }
     if (!canPersistStudioSession(sessionStatusRef.current))
       throw new Error("Wait until your saved session is available before applying changes.");
     if (importingRef.current && (pending.kind === "cull" || pending.target !== "selected"))
@@ -682,11 +1042,11 @@ export function Studio({
       throw new Error(
         "Wait for the proposed photo to finish rendering before applying. If the preview fails, reconnect its source or discard the proposal.",
       );
-    const next = applyProposal(latestShotsRef.current, pending);
+    const next = applyCullReviewProposal(latestShotsRef.current, pending);
     checkpoint();
     updateShots(() => next);
     discardProposal();
-    const receipt = `${pending.kind === "edit" ? "Applied the edit to" : "Accepted suggestions for"} ${pending.frames.length.toLocaleString()} photo${pending.frames.length === 1 ? "" : "s"}. Undo is available; originals are untouched.`;
+    const receipt = `Accepted suggestions for ${pending.frames.length.toLocaleString()} photo${pending.frames.length === 1 ? "" : "s"}. Undo is available; originals are untouched.`;
     setSyncNote(receipt);
     return receipt;
   }, [checkpoint, discardProposal, selectFilter, selectShot, updateShots]);
@@ -712,321 +1072,48 @@ export function Studio({
     }
     const previous = undoRef.current.pop();
     if (!previous) return false;
-    const states = new Map(previous.frames.map((frame) => [frame.id, frame]));
-    const restoredShots = latestShotsRef.current.map((shot) => {
-      const state = states.get(shot.id);
-      return state ? { ...shot, verdict: state.verdict, edits: { ...state.edits } } : shot;
-    });
+    const restoredShots = restoreCullReview(latestShotsRef.current, previous.frames);
     latestShotsRef.current = restoredShots;
     setShots(restoredShots);
     const restoredSelection = restoredShots.some((shot) => shot.id === previous.selectedId)
       ? previous.selectedId
       : (restoredShots[0]?.id ?? null);
     selectShot(restoredSelection);
-    setSyncNote("Restored the previous edits and picks. Originals are untouched.");
+    setSyncNote(
+      "Restored the previous picks. Image adjustments stay in Develop; originals are untouched.",
+    );
     return true;
   }, [discardProposal, selectShot]);
 
   /* ---------------- import ---------------- */
-  const importFiles = useCallback(
-    async (files: File[], sourceSignal?: AbortSignal) => {
-      const requestedRun = importRunRef.current;
-      if (sourceSignal?.aborted) return;
-      if (folderAbortRef.current && folderAbortRef.current.signal !== sourceSignal) {
-        setSyncNote("A folder is being read. Finish or stop it before adding more photos.");
-        return;
-      }
-      if (sessionStatusRef.current === "loading") {
-        setProgress({ done: 0, total: uniquePhotos(files).length });
-        setSyncNote("Opening the saved Studio session before adding these files…");
+  function importFiles(files: File[]) {
+    if (!files.length) return;
+    if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
+      setSyncNote("Resolve this shoot's saved-state problem before importing.");
+      return;
+    }
+    try {
+      const job = importSession.startFiles(files);
+      void job.catch((error) =>
+        setSyncNote(error instanceof Error ? error.message : "Import paused."),
+      );
+      void (async () => {
         await hydrationGateRef.current?.promise;
-      }
-      if (!mountedRef.current || sourceSignal?.aborted || requestedRun !== importRunRef.current)
-        return;
-      if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
-        setProgress(null);
-        setSyncNote(
-          "Studio is not saving. Reload before importing; if the saved session is unreadable, choose New Shoot to replace it explicitly.",
-        );
-        return;
-      }
-      if (sessionStatusRef.current === "clearing") {
-        setSyncNote("Wait for the saved Studio session operation to finish first.");
-        return;
-      }
-      if (importingRef.current) {
-        setSyncNote("A folder is still importing. Finish or cancel it before adding another.");
-        return;
-      }
-      importingRef.current = true;
-      const abortController = new AbortController();
-      importAbortRef.current = abortController;
-      const importRun = ++importRunRef.current;
-      setProgress({ done: 0, total: uniquePhotos(files).length });
-      // Lightroom folders carry .xmp sidecars next to the negatives.
-      const sidecars = new Map<string, string>();
-      const sidecarFiles = preferences.importSidecars
-        ? files.filter((f) => f.name.toLowerCase().endsWith(".xmp"))
-        : [];
-      for (const f of sidecarFiles) {
-        if (!mountedRef.current || importRunRef.current !== importRun) return;
-        try {
-          sidecars.set(sidecarKey(f), await f.text());
-        } catch {
-          /* unreadable sidecar is simply skipped */
-        }
-      }
-      files = uniquePhotos(files);
-      if (!mountedRef.current || importRunRef.current !== importRun) return;
-      if (sidecars.size) {
-        setSyncNote(
-          `${sidecars.size} Lightroom sidecar${sidecars.size === 1 ? "" : "s"} read — develop settings and picks applied.`,
-        );
-      }
-      if (!files.length) {
-        importingRef.current = false;
-        importAbortRef.current = null;
-        setProgress(null);
-        setSyncNote(
-          "No supported photos found. Choose RAW, JPEG, or other browser-readable images.",
-        );
-        return;
-      }
-      setProgress({ done: 0, total: files.length });
-      const started = performance.now();
-      const added: Shot[] = new Array(files.length);
-      let doneCount = 0;
-      let firstPreviewMs: number | null = null;
-      let lastPublishedAt = 0;
-      let nativeFrames = 0;
-      let nativeCacheHits = 0;
-      const pending = new Map<string, Shot>();
-
-      const publishPreviews = () => {
-        if (!pending.size || !mountedRef.current || importRunRef.current !== importRun) return;
-        const batch = [...pending.values()];
-        pending.clear();
-        const prior = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
-        for (const shot of batch) {
-          const old = prior.get(shot.id);
-          if (shot.error && old && !old.error && old.previewUrl) continue;
-          if (old?.previewUrl && old.previewUrl !== shot.previewUrl) {
-            URL.revokeObjectURL(old.previewUrl);
-            previewUrlsRef.current.delete(old.previewUrl);
-          }
-          bitmapCache.current.get(shot.id)?.close?.();
-          bitmapCache.current.delete(shot.id);
-          bitmapPromisesRef.current.delete(shot.id);
-        }
-        updateShots((previous) => mergeIngestedShots(previous, batch));
-        if (!latestSelectedIdRef.current) selectShot(batch[0]?.id ?? null);
-        if (firstPreviewMs === null && batch.some((shot) => shot.previewUrl)) {
-          firstPreviewMs = performance.now() - started;
-        }
-        lastPublishedAt = performance.now();
-      };
-
-      const one = async (i: number) => {
-        if (!mountedRef.current || importRunRef.current !== importRun) return;
-        const file = files[i]!;
-        const id = stableShotId(file);
-        const raw = isRawFile(file);
-        try {
-          const result = await analyseFile(file, { signal: abortController.signal });
-          if (!mountedRef.current || importRunRef.current !== importRun) return;
-          const { analysis } = result;
-          if (result.backend === "native-cpp") {
-            nativeFrames++;
-            if (result.nativeCached) nativeCacheHits++;
-          }
-          const faces = analysis.faces;
-          const { score, flags } = scoreOf(analysis);
-
-          const sidecar = sidecars.get(sidecarKey(file));
-          const parsed = sidecar ? parseXmpSidecar(sidecar) : null;
-
-          const blob = result.previewBlob;
-          const url = URL.createObjectURL(blob);
-
-          added[i] = {
-            id,
-            file,
-            name: file.name,
-            relativePath:
-              (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-            isRaw: raw,
-            captureTimeMs: result.captureTimeMs,
-            captureTimeBasis: result.captureTimeBasis,
-            cameraKey: result.cameraKey,
-            analysisBackend: result.backend,
-            previewUrl: url,
-            previewBlob: blob ?? undefined,
-            sourceAvailable: true,
-            width: result.width,
-            height: result.height,
-            sizeMb: file.size / 1e6,
-            sharpness: analysis.sharpness,
-            brightness: analysis.brightness,
-            clippedHighlights: analysis.clippedHighlights,
-            clippedShadows: analysis.clippedShadows,
-            hash: analysis.hash,
-            tone: analysis.tone,
-            score,
-            flags,
-            verdict: importedReviewVerdict(parsed),
-            edits: { ...DEFAULT_EDITS, ...(parsed?.edits ?? {}) },
-            faces: faces ?? undefined,
-            develop: parsed
-              ? {
-                  origin: "sidecar",
-                  at: Date.now(),
-                  rating: parsed.rating ?? undefined,
-                  label: parsed.label,
-                }
-              : undefined,
-          };
-          if (url) previewUrlsRef.current.add(url);
-        } catch (err) {
-          if (!mountedRef.current || importRunRef.current !== importRun) return;
-          added[i] = {
-            id,
-            file,
-            name: file.name,
-            relativePath:
-              (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-            isRaw: raw,
-            previewUrl: null,
-            sourceAvailable: true,
-            width: 0,
-            height: 0,
-            sizeMb: file.size / 1e6,
-            sharpness: 0,
-            brightness: 0,
-            clippedHighlights: 0,
-            clippedShadows: 0,
-            hash: "",
-            score: 0,
-            flags: [],
-            verdict: "undecided",
-            edits: { ...DEFAULT_EDITS },
-            error: err instanceof Error ? err.message : "Could not read this file",
-          };
-        } finally {
-          doneCount++;
-          if (mountedRef.current && importRunRef.current === importRun) {
-            if (added[i]) pending.set(added[i]!.id, added[i]!);
-            if (doneCount === 1 || performance.now() - lastPublishedAt >= 100) publishPreviews();
-            setProgress({ done: doneCount, total: files.length });
-          }
-        }
-      };
-
-      // RAW decoders are memory-heavy, so keep those shoots deliberately narrow.
-      const lanes = importLanes(
-        files.some(isRawFile),
-        navigator.hardwareConcurrency,
-        preferences.processingSpeed,
-      );
-      let cursor = 0;
-      await Promise.all(
-        Array.from({ length: Math.min(lanes, files.length) }, async () => {
-          while (cursor < files.length && mountedRef.current && importRunRef.current === importRun)
-            await one(cursor++);
-        }),
-      );
-
-      const batch = added.filter(Boolean);
-      if (!mountedRef.current || importRunRef.current !== importRun) {
-        const visibleUrls = new Set(latestShotsRef.current.map((shot) => shot.previewUrl));
-        for (const shot of batch) {
-          if (shot.previewUrl && !visibleUrls.has(shot.previewUrl)) {
-            URL.revokeObjectURL(shot.previewUrl);
-            previewUrlsRef.current.delete(shot.previewUrl);
-          }
-        }
-        return;
-      }
-      publishPreviews();
-      updateShots((next) => {
-        const { duplicateIds } = indexDuplicateFrames(next);
-        return next.map((shot) => ({
-          ...shot,
-          flags: [
-            ...shot.flags.filter((flag) => flag !== "duplicate"),
-            ...(duplicateIds.has(shot.id) ? ["duplicate" as const] : []),
-          ],
-        }));
-      });
-      importingRef.current = false;
-      importAbortRef.current = null;
-      setProgress(null);
-      if (!latestSelectedIdRef.current) selectShot(batch[0]?.id ?? null);
-      const secs = (performance.now() - started) / 1000;
-      const successes = batch.filter((shot) => !shot.error).length;
-      const summary = `${successes} frame${successes === 1 ? "" : "s"} read in ${secs.toFixed(1)}s · ${Math.round(successes / Math.max(secs, 0.001))}/sec${firstPreviewMs === null ? "" : ` · first preview ${(firstPreviewMs / 1000).toFixed(2)}s`}${nativeFrames ? ` · C++ ${nativeFrames}${nativeCacheHits ? ` (${nativeCacheHits} cached)` : ""}` : " · browser engine"}${successes < batch.length ? ` · ${batch.length - successes} unreadable; retained for review` : ""}`;
-      setSyncNote(summary);
-      // Import starts the mechanical first pass, but never accepts it for the
-      // photographer or displaces a preview they are already working on.
-      if (!proposalRef.current && batch.some((shot) => !shot.error)) {
-        try {
-          stageCull(
-            firstPassVerdict,
-            "First pass ready",
-            "Sharpness, exposure and similarity checked. Review these suggestions; your existing picks are protected.",
-          );
-        } catch {
-          /* No eligible change: imported photos remain available. */
-        }
-      }
-    },
-    [selectShot, stageCull, updateShots, preferences.importSidecars, preferences.processingSpeed],
-  );
+        await openDevelop();
+      })();
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : "Import could not start.");
+    }
+  }
 
   /* ---------------- Lightroom live bridge ---------------- */
   const lastBridgeAt = useRef(0);
 
   const mergeBridge = useCallback(
     (state: BridgeState) => {
-      if (!state?.frames?.length) return 0;
-      let touched = 0;
-      updateShots((prev) =>
-        prev.map((s) => {
-          const frame = state.frames.find(
-            (f) => baseName(f.file ?? "").toLowerCase() === baseName(s.name).toLowerCase(),
-          );
-          if (!frame) return s;
-          touched++;
-          const d = frame.develop ?? {};
-          const next: Shot = {
-            ...s,
-            edits: {
-              ...s.edits,
-              ...(d.exposure !== undefined
-                ? { exposure: Math.max(-100, Math.min(100, d.exposure * 20)) }
-                : {}),
-              ...(d.contrast !== undefined ? { contrast: d.contrast } : {}),
-              ...(d.highlights !== undefined ? { highlights: d.highlights } : {}),
-              ...(d.shadows !== undefined ? { shadows: d.shadows } : {}),
-              ...(d.saturation !== undefined ? { saturation: d.saturation } : {}),
-              ...(d.temperature !== undefined
-                ? { temp: Math.max(-100, Math.min(100, ((d.temperature - 5500) / 4500) * 100)) }
-                : {}),
-            },
-            verdict: importedReviewVerdict(frame, s.verdict),
-            develop: {
-              origin: "lightroom",
-              at: Date.now(),
-              rating: frame.rating,
-              label: frame.label ?? null,
-              caption: frame.iptc?.caption,
-              cropped: d.cropped,
-              processVersion: d.processVersion,
-            },
-          };
-          return next;
-        }),
-      );
-      return touched;
+      const result = mergeCullLightroomReviews(latestShotsRef.current, state.frames, Date.now());
+      if (result.matched) updateShots(() => result.shots);
+      return result;
     },
     [updateShots],
   );
@@ -1034,18 +1121,37 @@ export function Studio({
   const pullFromLightroom = useCallback(
     async (quiet = false) => {
       if (!canPersistStudioSession(sessionStatusRef.current)) return;
+      if (proposalRef.current) {
+        if (!quiet) setSyncNote("Apply or discard the preview before syncing from Lightroom.");
+        return;
+      }
+      const snapshot = latestShotsRef.current;
       try {
         const res = await bridgeFetch(`${bridgeEndpoint()}?side=studio`, { cache: "no-store" });
+        if (!res.ok) throw new Error("The Lightroom bridge did not accept the request.");
         const state = (await res.json()) as BridgeState;
-        if (!state.at || state.at === lastBridgeAt.current) return;
-        lastBridgeAt.current = state.at;
-        const n = mergeBridge(state);
-        if (n)
+        if (!Number.isFinite(state.at) || state.at <= 0 || state.at === lastBridgeAt.current)
+          return;
+        // A pending request must not overwrite a newer edit, proposal or shoot.
+        if (
+          snapshot !== latestShotsRef.current ||
+          proposalRef.current ||
+          !canPersistStudioSession(sessionStatusRef.current)
+        )
+          return;
+        const result = mergeBridge(state);
+        if (result.matched) {
+          lastBridgeAt.current = state.at;
           setSyncNote(
-            `Lightroom pushed ${n} frame${n === 1 ? "" : "s"} · develop settings, rating and IPTC applied.`,
+            `Lightroom matched ${result.matched} photo${result.matched === 1 ? "" : "s"} by folder path; ${result.unmatched} unmatched. Picks, supported stars and color labels updated. Develop settings and IPTC were not imported; saved treatments are unchanged.`,
           );
-      } catch {
-        if (!quiet) setSyncNote("LensLabs bridge unreachable — is the studio server running?");
+        } else if (state.frames.length)
+          setSyncNote(
+            "No matching Lightroom source paths. Import the matching folder; filenames alone are not used.",
+          );
+      } catch (error) {
+        if (error instanceof Error) setSyncNote(error.message);
+        else if (!quiet) setSyncNote("LensLabs bridge unreachable — is the studio server running?");
       }
     },
     [mergeBridge],
@@ -1064,66 +1170,58 @@ export function Studio({
       setSyncNote("Resolve the paused save before publishing changes to Lightroom.");
       return;
     }
-    const frames = shots
-      .filter((s) => !s.error)
-      .map((s) => ({
-        file: s.name,
-        verdict: s.verdict,
-        score: s.score,
-        ...exportedReviewMetadata(s),
-        develop: {
-          exposure: s.edits.exposure / 20,
-          contrast: s.edits.contrast,
-          highlights: s.edits.highlights,
-          shadows: s.edits.shadows,
-          saturation: s.edits.saturation,
-          temperature: Math.round(5500 + (s.edits.temp / 100) * 4500),
-        },
-      }));
+    if (proposalRef.current) {
+      setSyncNote("Apply or discard the preview before publishing changes to Lightroom.");
+      return;
+    }
     try {
+      const frames = createCullLightroomVerdicts(latestShotsRef.current);
       const res = await bridgeFetch(bridgeEndpoint(), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: "verdicts", direction: "to-lightroom", frames }),
+        body: JSON.stringify({
+          kind: `verdicts-${LIGHTROOM_MATCHING}`,
+          direction: "to-lightroom",
+          frames,
+        }),
       });
-      if (!res.ok) throw new Error();
-      updateShots((prev) =>
-        prev.map((s) =>
-          s.error
-            ? s
-            : {
-                ...s,
-                develop: {
-                  ...(s.develop ?? { origin: "lens os" as const }),
-                  origin: "lens os" as const,
-                  at: Date.now(),
-                },
-              },
-        ),
-      );
+      if (!res.ok)
+        throw new Error(
+          "Could not queue folder-matched verdicts. Check that the deployed bridge and Lightroom plug-in are updated.",
+        );
       setSyncNote(
-        `${frames.length} frames queued for Lightroom — run Plug-in Extras → “Pull LensLabs verdicts”.`,
+        `${frames.length} frames queued, not yet applied. In Lightroom plug-in 1.3 or newer, run Plug-in Extras → “Pull LensLabs verdicts”.`,
       );
-    } catch {
-      setSyncNote("Could not reach the LensLabs bridge to publish verdicts.");
+    } catch (error) {
+      setSyncNote(
+        error instanceof Error
+          ? error.message
+          : "Could not reach the LensLabs bridge to publish verdicts.",
+      );
     }
-  }, [shots, updateShots]);
+  }, []);
 
   /* ---------------- derived ---------------- */
   const visible = useMemo(() => {
+    const cluster = clusterFilter
+      ? eventPeople.find((person) => person.id === clusterFilter)
+      : undefined;
+    const byCluster = cluster ? shotsOfCluster(shots, cluster) : shots;
+    const scoped = personFilter ? shotsOfPerson(byCluster, personFilter) : byCluster;
+    if (reviewIssue) return filterReviewIssue(scoped, reviewIssue);
     switch (filter) {
       case "keepers":
-        return shots.filter((s) => s.verdict === "keep");
+        return scoped.filter((s) => s.verdict === "keep");
       case "rejected":
-        return shots.filter((s) => s.verdict === "reject");
+        return scoped.filter((s) => s.verdict === "reject");
       case "flagged":
-        return shots.filter((s) => s.flags.length > 0);
+        return scoped.filter((s) => s.flags.length > 0);
       case "todo":
-        return shots.filter((s) => s.verdict === "undecided");
+        return scoped.filter((s) => s.verdict === "undecided");
       default:
-        return shots;
+        return scoped;
     }
-  }, [shots, filter]);
+  }, [shots, filter, reviewIssue, personFilter, clusterFilter, eventPeople]);
 
   const selected = shots.find((s) => s.id === selectedId) ?? null;
   const counts = useMemo(
@@ -1144,7 +1242,9 @@ export function Studio({
     const pending = bitmapPromisesRef.current.get(shot.id);
     if (pending) return pending;
 
-    const promise = decodeFile(shot.file, 1800)
+    const promise = (
+      shot.previewBlob ? createImageBitmap(shot.previewBlob) : decodeFile(shot.file, 1800)
+    )
       .then((bmp) => {
         const current = latestShotsRef.current.find((candidate) => candidate.id === shot.id);
         if (!mountedRef.current || current?.file !== shot.file) {
@@ -1172,6 +1272,7 @@ export function Studio({
   useEffect(() => {
     let cancelled = false;
     renderedProposalRef.current = null;
+    if (!studioVisible) return;
     const canvas = canvasRef.current;
     if (!selected || selected.error || !canvas) {
       setLoupeStatus(selected?.error ? "failed" : "loading");
@@ -1184,13 +1285,8 @@ export function Studio({
         const bmp = await getBitmap(selected);
         if (cancelled) return;
         const preview = proposalFrames.get(selected.id);
-        const edits =
-          preview && proposal?.kind === "edit"
-            ? compareBefore
-              ? preview.beforeEdits
-              : preview.afterEdits
-            : selected.edits;
-        renderToCanvas(canvas, bmp, edits, 1400, selected.faces?.center ?? null);
+        // Cull shows the saved import preview, not an approximation of native Develop edits.
+        renderToCanvas(canvas, bmp, DEFAULT_EDITS, 1400, null);
         setBins(histogram(canvas));
         if (proposal && preview) renderedProposalRef.current = { proposal, shotId: selected.id };
         setLoupeStatus("ready");
@@ -1205,7 +1301,7 @@ export function Studio({
     return () => {
       cancelled = true;
     };
-  }, [selected, getBitmap, proposalFrames, proposal, compareBefore]);
+  }, [selected, getBitmap, proposalFrames, proposal, compareBefore, showBefore, studioVisible]);
 
   /* ---------------- actions ---------------- */
   const setVerdict = useCallback(
@@ -1221,6 +1317,21 @@ export function Studio({
     [checkpoint, selectShot, updateShots, visible],
   );
 
+  const applyVerdicts = useCallback(
+    (changes: { id: string; verdict: Verdict }[]) => {
+      if (!changes.length || !canPersistStudioSession(sessionStatusRef.current)) return;
+      const next = new Map(changes.map((change) => [change.id, change.verdict]));
+      checkpoint();
+      updateShots((prev) =>
+        prev.map((shot) => {
+          const verdict = next.get(shot.id);
+          return verdict && shot.verdict !== verdict ? { ...shot, verdict } : shot;
+        }),
+      );
+    },
+    [checkpoint, updateShots],
+  );
+
   const step = useCallback(
     (dir: 1 | -1) => {
       if (!selectedId) return;
@@ -1231,41 +1342,13 @@ export function Studio({
     [selectShot, visible, selectedId],
   );
 
-  const updateEdits = (patch: Partial<Edits>) => {
-    if (!canPersistStudioSession(sessionStatusRef.current)) return;
-    if (!selected) return;
-    updateShots((prev) =>
-      prev.map((s) => (s.id === selected.id ? { ...s, edits: { ...s.edits, ...patch } } : s)),
-    );
-  };
-
-  /** Lightroom-style Auto: derive develop settings from the frame's own histogram. */
-  const autoRefineOne = (id?: string) => {
-    if (!canPersistStudioSession(sessionStatusRef.current)) return;
-    const target = id ?? selectedId;
-    if (!target) return;
-    updateShots((prev) =>
-      prev.map((s) =>
-        s.id === target && !s.error && s.tone ? { ...s, edits: autoRefine(s.tone, s.edits) } : s,
-      ),
-    );
-  };
-
-  const autoRefineMany = (scope: "keepers" | "all") => {
-    if (!canPersistStudioSession(sessionStatusRef.current)) return 0;
-    let n = 0;
-    updateShots((prev) =>
-      prev.map((s) => {
-        if (s.error || !s.tone) return s;
-        if (scope === "keepers" && s.verdict !== "keep") return s;
-        n++;
-        return { ...s, edits: autoRefine(s.tone, s.edits) };
-      }),
-    );
-    return n;
-  };
-
   const autoCull = () => {
+    if (latestShotsRef.current.some((shot) => unanalyzedIds.current.has(shot.id))) {
+      setSyncNote(
+        "These photos have not been analyzed for culling. Review and keep/reject them manually; no quality scores were invented.",
+      );
+      return;
+    }
     try {
       const receipt = stageCull(
         firstPassVerdict,
@@ -1278,69 +1361,85 @@ export function Studio({
     }
   };
 
-  const exportOne = async () => {
+  async function openDevelop() {
+    if (!canPersistStudioSession(sessionStatusRef.current)) {
+      setSyncNote("Resolve the paused save before opening Develop. Your work is unchanged.");
+      return false;
+    }
     if (proposalRef.current) {
-      setSyncNote(
-        "Apply or discard the preview before exporting, so the exported image matches your decision.",
-      );
-      return;
+      setSyncNote("Apply or discard the current suggestion before opening Develop.");
+      return false;
     }
-    if (!selected || selected.error) return;
-    if (selected.sourceAvailable === false) {
-      setSyncNote("Reconnect the original source folder before high-resolution JPEG export.");
-      return;
-    }
-    setBusy("Exporting…");
-    let bmp: ImageBitmap | null = null;
     try {
-      bmp = await decodeFile(selected.file);
-      await exportShot(bmp, selected.edits, selected.name, selected.faces?.center ?? null);
+      if (!(await repository.flush())) {
+        setSyncNote(
+          "Develop could not open because this shoot has an unresolved save. Review the save warning; your photos and edits are unchanged.",
+        );
+        return false;
+      }
+      const href = developWorkspaceHref(
+        {
+          kind: "ready",
+          projectId,
+          ...(shootId ? { shootId } : {}),
+          ...(deliveryFocus ? { deliveryFocus } : {}),
+        },
+        latestSelectedIdRef.current ? canonicalView.photoId(latestSelectedIdRef.current) : null,
+      );
+      if (workbench) return await workbench.openTool(href);
+      await navigate({ href });
+      return true;
     } catch (error) {
-      setSyncNote(error instanceof Error ? error.message : "Could not export this frame.");
-    } finally {
-      bmp?.close?.();
-      setBusy(null);
+      pauseSaving(error);
+      return false;
     }
+  }
+  canonicalOpenRef.current = openDevelop;
+
+  const requestDevelopOutput = useCallback((purpose: string) => {
+    const note = `Opening Develop for ${purpose}. No image was exported, downloaded or sent.`;
+    void canonicalOpenRef.current().then((opened) => {
+      if (opened) setSyncNote(note.replace("Opening Develop", "Develop opened"));
+    });
+    setSyncNote(note);
+    return note;
+  }, []);
+
+  // Image edits and rendered exports have one authority: the native Develop page.
+  const exportOne = async () => {
+    await openDevelop();
   };
 
-  const exportKeepers = async (): Promise<number> => {
+  const zipKeepers = async () => {
     if (proposalRef.current) {
-      setSyncNote("Apply or discard the preview before exporting.");
-      return 0;
+      setSyncNote("Apply or discard the preview before zipping keepers.");
+      return;
     }
-    const disconnected = latestShotsRef.current.filter(
-      (shot) => shot.verdict === "keep" && shot.sourceAvailable === false,
-    ).length;
-    if (disconnected) {
-      setSyncNote(
-        `${disconnected} keeper${disconnected === 1 ? " needs" : "s need"} the original source folder reconnected before export.`,
-      );
-      return 0;
-    }
-    const keepers = latestShotsRef.current.filter((s) => s.verdict === "keep" && !s.error);
-    let exported = 0;
+    setBusy("Packing keepers…");
     try {
-      for (let i = 0; i < keepers.length; i++) {
-        const keeper = keepers[i]!;
-        setBusy(`Exporting ${i + 1}/${keepers.length}…`);
-        let bmp: ImageBitmap | null = null;
-        try {
-          bmp = await decodeFile(keeper.file);
-          await exportShot(bmp, keeper.edits, keeper.name, keeper.faces?.center ?? null);
-          exported++;
-        } finally {
-          bmp?.close?.();
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
-      }
-    } catch (error) {
-      setSyncNote(
-        `${exported}/${keepers.length} exported · ${error instanceof Error ? error.message : "export stopped"}`,
+      const pack = await createOriginalKeeperZip(
+        latestShotsRef.current,
+        shootTitle.trim() || "Untitled shoot",
       );
-    } finally {
+      const url = URL.createObjectURL(pack.blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pack.filename;
+      document.body.appendChild(a);
+      try {
+        a.click();
+      } finally {
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
       setBusy(null);
+      setSyncNote(`${pack.keepers} keepers zipped to Downloads.`);
+    } catch (error) {
+      setBusy(null);
+      setSyncNote(
+        error instanceof Error ? error.message : "ZIP failed. Cull first; originals are unchanged.",
+      );
     }
-    return exported;
   };
 
   /* ---------------- assistant ---------------- */
@@ -1357,7 +1456,7 @@ export function Studio({
       }`,
       `filter showing: ${filter}`,
       selected
-        ? `open frame: ${selected.name} (score ${selected.score}, ${selected.verdict})`
+        ? `open frame: ${selected.name} (${unanalyzedIds.current.has(selected.id) ? "analysis pending; no quality score" : `score ${selected.score}`}, ${selected.verdict})`
         : "no frame open",
     ].join("\n");
   }, [shots, counts, filter, selected]);
@@ -1368,6 +1467,11 @@ export function Studio({
         typeof args[k] === "number" && Number.isFinite(args[k]) ? (args[k] as number) : undefined;
       const currentShots = () => latestShotsRef.current;
       const currentSelectedId = () => latestSelectedIdRef.current;
+      if (
+        ["cull", "keep_top", "reject_flagged"].includes(name) &&
+        currentShots().some((shot) => unanalyzedIds.current.has(shot.id))
+      )
+        return "These photos have not been analyzed. Review them manually; no quality-based decisions were applied.";
       switch (name) {
         case "import_photos":
           inputRef.current?.click();
@@ -1378,7 +1482,9 @@ export function Studio({
           const min = num("min_score") ?? 45;
           const keepAt = num("keep_score") ?? 70;
           return stageCull(
-            (s) => firstPassVerdict(s, { rejectBelow: min, keepAt }),
+            (s) =>
+              smartCullPass(currentShots(), [], { rejectBelow: min, keepAt }).get(s.id) ??
+              firstPassVerdict(s, { rejectBelow: min, keepAt }),
             "Suggested selections",
             "Suggestions for undecided photos only. Your existing decisions are protected.",
           );
@@ -1420,6 +1526,11 @@ export function Studio({
             .trim()
             .toLowerCase();
           const pool = currentShots().filter((s) => !s.error);
+          if (
+            (q === "best" || q === "worst") &&
+            pool.some((shot) => unanalyzedIds.current.has(shot.id))
+          )
+            return "Quality analysis is pending; choose a photo by name or number.";
           if (!pool.length) return "failed: nothing to open";
           let target = pool.find((s) => s.name.toLowerCase().includes(q));
           if (!target && q === "best") target = [...pool].sort((a, b) => b.score - a.score)[0];
@@ -1430,67 +1541,32 @@ export function Studio({
           return `opened ${target.name}`;
         }
         case "apply_edits": {
-          const patch: Partial<Edits> = {};
-          const map: [string, keyof Edits][] = [
-            ["exposure", "exposure"],
-            ["contrast", "contrast"],
-            ["temperature", "temp"],
-            ["saturation", "saturation"],
-            ["highlights", "highlights"],
-            ["shadows", "shadows"],
-          ];
-          for (const [from, to] of map) {
-            const v = num(from);
-            if (v !== undefined)
-              (patch as Record<string, unknown>)[to] = Math.max(-100, Math.min(100, v));
-          }
-          if (typeof args["crop"] === "string" && CROPS.includes(args["crop"] as Edits["crop"]))
-            patch.crop = args["crop"] as Edits["crop"];
-          if (!Object.keys(patch).length) return "failed: no supported settings given";
-          const target =
-            args["target"] === "all"
-              ? "all"
-              : args["target"] === "keepers"
-                ? "keepers"
-                : "selected";
-          return stageRecipe({
-            target,
-            title: "Proposed look",
-            description: "Preview these light, color and framing adjustments before saving them.",
-            transform: (s) => ({ ...s.edits, ...patch }),
-          });
+          const opened = await canonicalOpenRef.current();
+          return opened
+            ? "Develop opened. Adjust and review the photo there; no requested legacy settings were applied."
+            : "Develop could not open. Resolve the save or pending-review warning; no settings were applied.";
         }
         case "auto_refine": {
-          const scope =
-            args["target"] === "selected"
-              ? "selected"
-              : args["target"] === "all"
-                ? "all"
-                : "keepers";
-          return stageRecipe({
-            target: scope,
-            title: "Balanced light and color",
-            description:
-              "Gently balance each photo using its own measured light and color. This is a starting point for your eye, not a learned style.",
-            transform: (s) => (s.tone ? autoRefine(s.tone, s.edits) : { ...s.edits }),
-          });
+          const opened = await canonicalOpenRef.current();
+          return opened
+            ? "Develop opened. Use Auto there and review its result; no automatic adjustment was applied in Cull."
+            : "Develop could not open. No automatic adjustments were applied.";
         }
         case "export_keepers": {
           if (proposalRef.current) return "failed: Apply or discard the preview before exporting.";
           const n = currentShots().filter((s) => s.verdict === "keep" && !s.error).length;
           if (!n) return "failed: no keepers to export";
-          const exported = await exportKeepers();
-          return exported === n
-            ? `exported ${exported} keeper${exported === 1 ? "" : "s"}`
-            : `exported ${exported}/${n} keepers`;
+          const opened = await canonicalOpenRef.current();
+          return opened
+            ? `Develop opened for your ${n} keepers. Choose the photos and export settings there; no download has been requested.`
+            : "Develop could not open. No keepers were exported.";
         }
         case "write_xmp": {
           if (proposalRef.current)
             return "failed: Apply or discard the preview before writing sidecars.";
           const n = currentShots().filter((s) => s.verdict !== "undecided" && !s.error).length;
           if (!n) return "failed: nothing decided yet";
-          const written = exportSidecars();
-          return `requested downloads for ${written} xmp sidecars`;
+          return requestDevelopOutput("sidecars and native editing settings");
         }
         case "undo_last":
           if (proposalRef.current) return discardProposal();
@@ -1499,36 +1575,118 @@ export function Studio({
           return "failed: unknown tool";
       }
     },
-    [discardProposal, selectFilter, selectShot, stageCull, stageRecipe, undoLast],
+    [discardProposal, requestDevelopOutput, selectFilter, selectShot, stageCull, undoLast],
   );
 
-  /** Write .xmp sidecars Lightroom picks up on folder re-read. */
+  /** Download one validated archive; never flatten folders or overwrite originals. */
 
-  const exportSidecars = () => {
-    if (proposalRef.current) {
-      setSyncNote("Apply or discard the preview before writing sidecars.");
-      return 0;
-    }
-    const done = latestShotsRef.current.filter((s) => s.verdict !== "undecided" && !s.error);
-    for (const shot of done) {
-      const metadata = exportedReviewMetadata(shot);
-      const xml = buildXmpSidecar(shot.edits, shot.verdict, metadata.rating, metadata.label);
-      const url = URL.createObjectURL(new Blob([xml], { type: "application/rdf+xml" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${baseName(shot.name)}.xmp`;
-      document.body.appendChild(a);
+  const exportSidecars = () => requestDevelopOutput("sidecars and native editing settings");
+
+  const downloadText = (filename: string, text: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    try {
       a.click();
+    } finally {
       a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }
-    setSyncNote(
-      `Requested ${done.length} sidecar download${done.length === 1 ? "" : "s"}. Only supported settings are included; back up existing sidecars before replacing them. Check your downloads, then re-read metadata in Lightroom.`,
-    );
-    return done.length;
+  };
+
+  const exportCullSheet = () => {
+    if (proposalRef.current) {
+      const note = "Apply or discard the preview before exporting the cull sheet.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+    try {
+      const frames = latestShotsRef.current;
+      if (!frames.length) throw new Error("Import a shoot before exporting a cull sheet.");
+      const job = shootTitle.trim() || "Untitled shoot";
+      downloadText("cull.csv", formatCullCsv(frames), "text/csv");
+      downloadText("job.json", formatJobJson(job, "studio", frames), "application/json");
+      const keepers = frames.filter((frame) => frame.verdict === "keep" && !frame.error).length;
+      const note = `Requested cull.csv and job.json for ${frames.length} frames · ${keepers} keepers. Originals were not copied.`;
+      setSyncNote(note);
+      return note;
+    } catch (error) {
+      const note =
+        error instanceof Error
+          ? error.message
+          : "Cull sheet export failed. Originals are unchanged.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+  };
+
+  const downloadKeeperPackage = async () => {
+    requestDevelopOutput("edited keeper proofs");
+  };
+
+  const sendKeepers = async () => {
+    requestDevelopOutput("finished gallery images");
   };
 
   /* ---------------- keyboard ---------------- */
+  useEffect(() => {
+    const exportRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ project: string; respond: (note: string) => void }>)
+        .detail;
+      const expected = shootId === "legacy" ? "current" : (shootId ?? projectId ?? "current");
+      if (detail?.project !== expected || typeof detail.respond !== "function") return;
+      if (sessionStatusRef.current !== "ready" || importingRef.current) {
+        detail.respond("Wait for the shoot to finish loading or importing before exporting.");
+        return;
+      }
+      detail.respond(exportSidecars());
+    };
+    window.addEventListener("lenslabs:export-adobe", exportRequest);
+    return () => window.removeEventListener("lenslabs:export-adobe", exportRequest);
+  });
+  useEffect(() => {
+    const openFolder = (event: Event) => {
+      const detail = (event as CustomEvent<{ respond: (message: string) => void }>).detail;
+      if (typeof detail?.respond !== "function") return;
+      if (sessionStatusRef.current !== "ready" || importingRef.current || proposalRef.current) {
+        detail.respond("Finish loading, importing or reviewing the current preview first.");
+        return;
+      }
+      folderRef.current?.click();
+      detail.respond(
+        "Choose a folder to import. Only the files you select are read; originals stay untouched.",
+      );
+    };
+    window.addEventListener("lenslabs:open-folder", openFolder);
+    return () => window.removeEventListener("lenslabs:open-folder", openFolder);
+  }, []);
+  useEffect(() => {
+    const jump = (event: Event) => {
+      const detail = (event as CustomEvent<{ number: number; respond: (message: string) => void }>)
+        .detail;
+      if (typeof detail?.respond !== "function") return;
+      const frames = latestShotsRef.current;
+      if (sessionStatusRef.current !== "ready" || !frames.length) {
+        detail.respond("Import photos and wait for this shoot to load first.");
+        return;
+      }
+      if (
+        !Number.isSafeInteger(detail.number) ||
+        detail.number < 1 ||
+        detail.number > frames.length
+      ) {
+        detail.respond(`Enter a photo number from 1 to ${frames.length}.`);
+        return;
+      }
+      selectFilter("all");
+      selectShot(frames[detail.number - 1]!.id);
+      detail.respond("");
+    };
+    window.addEventListener("lenslabs:go-to-photo", jump);
+    return () => window.removeEventListener("lenslabs:go-to-photo", jump);
+  }, [selectFilter, selectShot]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -1564,74 +1722,66 @@ export function Studio({
       } else if (k === "arrowleft" || k === "arrowup") {
         e.preventDefault();
         step(-1);
-      } else if (k === "k") setVerdict(selectedId, "keep");
-      else if (k === "x") setVerdict(selectedId, "reject");
-      else if (k === "u") setVerdict(selectedId, "undecided", false);
-      else if (k === "r") {
-        checkpoint();
-        updateEdits({ ...DEFAULT_EDITS });
-      } else if (k === "a") {
-        checkpoint();
-        autoRefineOne();
+      } else if (matchesShortcut(e, preferences.shortcuts.keep) || k === "k")
+        setVerdict(selectedId, "keep");
+      else if (matchesShortcut(e, preferences.shortcuts.reject) || k === "x" || k === "r")
+        setVerdict(selectedId, "reject");
+      else if (e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        const current = latestShotsRef.current.find((s) => s.id === selectedId)?.verdict;
+        setVerdict(selectedId, current === "keep" ? "reject" : "keep");
+      } else if (matchesShortcut(e, preferences.shortcuts.undecided) || k === "u")
+        setVerdict(selectedId, "undecided", false);
+      else if (matchesShortcut(e, preferences.shortcuts.reset) && k !== "r") {
+        e.preventDefault();
+        setSyncNote(
+          stageRecipe({
+            target: "selected",
+            title: "Reset adjustments",
+            description: "Review the reset in Develop.",
+          }),
+        );
+      } else if (matchesShortcut(e, preferences.shortcuts.refine)) {
+        e.preventDefault();
+        setSyncNote(
+          stageRecipe({
+            target: "selected",
+            title: "Auto adjustments",
+            description: "Review Auto in Develop.",
+          }),
+        );
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkpoint, selectedId, step, setVerdict, undoLast, workbench]);
+  }, [selectedId, step, setVerdict, stageRecipe, undoLast, workbench, preferences.shortcuts]);
 
   const onDrop = (e: React.DragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes("Files")) return;
     e.preventDefault();
     e.stopPropagation();
     setDropActive(false);
-    if (importingRef.current || folderAbortRef.current) {
-      setSyncNote("A folder is already being read. Finish or stop it before adding another.");
+    if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
+      setSyncNote("Resolve this shoot's saved-state problem before importing.");
       return;
     }
-    const controller = new AbortController();
-    folderAbortRef.current = controller;
-    setFolderStatus("Opening folder…");
-    // Capture directory entries while the drop event still grants access.
-    void collectDroppedFiles(e.dataTransfer, {
-      signal: controller.signal,
-      onProgress: (p) => {
-        if (folderAbortRef.current === controller && !controller.signal.aborted)
-          setFolderStatus(`Reading folder · ${p.files.toLocaleString()} files found`);
-      },
-    })
-      .then(async (result) => {
-        if (controller.signal.aborted || !mountedRef.current) return;
-        setFolderStatus("Preparing photos…");
-        if (!result.files.length) {
-          setSyncNote(
-            result.warnings[0]?.message ?? "This folder has no readable files. Try Choose folder.",
-          );
-          return;
-        }
-        await importFiles(result.files, controller.signal);
-        if (result.warnings.length && mountedRef.current && !controller.signal.aborted)
-          setSyncNote(
-            `${result.warnings.length} folder item(s) could not be read. ${result.warnings[0]?.message} Available photos were kept.`,
-          );
-      })
-      .catch((error: unknown) => {
-        if (mountedRef.current && !controller.signal.aborted)
-          setSyncNote(
-            error instanceof Error
-              ? error.message
-              : "Could not read the folder. Try Choose folder.",
-          );
-      })
-      .finally(() => {
-        if (folderAbortRef.current === controller) {
-          folderAbortRef.current = null;
-          if (mountedRef.current) setFolderStatus(null);
-        }
-      });
+    try {
+      // Capture handles in the actual drop event. The session, not this route, owns the job.
+      const job = importSession.startDrop(e.dataTransfer);
+      void job.catch((error) =>
+        setSyncNote(error instanceof Error ? error.message : "Import paused."),
+      );
+      void (async () => {
+        await hydrationGateRef.current?.promise;
+        await openDevelop();
+      })();
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : "Import could not start.");
+    }
   };
 
   const cancelImport = () => {
+    importSession.cancel();
     folderAbortRef.current?.abort();
     folderAbortRef.current = null;
     setFolderStatus(null);
@@ -1656,76 +1806,14 @@ export function Studio({
   };
 
   const startNewShoot = async () => {
-    if (sessionStatusRef.current === "conflicted") return;
-    if (projectSession) {
-      setSyncNote(
-        "Named projects are preserved. Create another project from Projects; nothing here was cleared.",
-      );
+    if (!(await repository.flush())) return;
+    if (workbench?.newShoot) {
+      await workbench.newShoot();
       return;
     }
-    if (sessionStatusRef.current === "loading" || sessionStatusRef.current === "clearing") {
-      setSyncNote("Wait for the saved Studio session operation to finish first.");
-      return;
-    }
-    const replacingUnreadableSnapshot = hydrationRecoveryRef.current;
-    if (
-      (latestShotsRef.current.length || replacingUnreadableSnapshot) &&
-      !window.confirm(
-        replacingUnreadableSnapshot
-          ? "Start a new shoot and replace the saved Studio snapshot that could not be restored? Original files are never touched."
-          : "Start a new shoot? This clears the current local previews, picks, and edits from LensLabs. Your original files are never touched.",
-      )
-    ) {
-      return;
-    }
-
-    folderAbortRef.current?.abort();
-    folderAbortRef.current = null;
-    setFolderStatus(null);
-    importRunRef.current++;
-    importAbortRef.current?.abort();
-    importAbortRef.current = null;
-    importingRef.current = false;
-    selectSessionStatus("clearing");
-    setBusy("Starting new shoot…");
-
-    try {
-      await clearStudioSession({
-        force: replacingUnreadableSnapshot,
-        scope: storageScope,
-        ...(shootId ? { shootId } : {}),
-      });
-      if (!mountedRef.current) return;
-      discardProposal();
-      for (const bitmap of bitmapCache.current.values()) bitmap.close?.();
-      bitmapCache.current.clear();
-      bitmapPromisesRef.current.clear();
-      for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
-      previewUrlsRef.current.clear();
-      undoRef.current = [];
-      latestShotsRef.current = [];
-      latestSelectedIdRef.current = null;
-      latestFilterRef.current = "all";
-      setShots([]);
-      setSelectedId(null);
-      selectFilter("all");
-      setBins([]);
-      setProgress(null);
-      setBusy(null);
-      selectSessionStatus("ready");
-      hydrationRecoveryRef.current = false;
-      setSyncNote("New shoot ready · originals were not changed.");
-    } catch {
-      if (mountedRef.current) {
-        setBusy(null);
-        selectSessionStatus("failed");
-        setSyncNote(
-          replacingUnreadableSnapshot
-            ? "The previous local snapshot could not be replaced, so it remains untouched."
-            : "The saved Studio session changed elsewhere or could not be cleared. It remains untouched; reload before continuing.",
-        );
-      }
-    }
+    const id = crypto.randomUUID();
+    await renameShoot(storageScope, id, "Untitled shoot");
+    await navigate({ href: shootWorkspaceHref(id, "cull") });
   };
 
   const openWorkflow = (intent: Exclude<StudioWorkflowIntent, { kind: "refusal" }>): string => {
@@ -1739,13 +1827,11 @@ export function Studio({
       if (latestShotsRef.current.filter((shot) => !shot.error).length < 2)
         return "Import at least two readable photos to compare related frames.";
       setBurstOpen(true);
-      return "Opened burst review. Suggestions never reject alternatives or overwrite your picks.";
+      return "Opened burst review. Keeping one frame rejects the other unreviewed frames in that burst. Existing picks stay.";
     }
     if (!latestShotsRef.current.some((shot) => shot.verdict === "keep"))
       return "Keep the photos you want to deliver first. A deadline export never selects photos for you.";
-    setDeadlineCount(intent.count);
-    setDeadlineOpen(true);
-    return "Opened deadline preparation for your keepers. Review the recipe and approve the local download; nothing has been sent.";
+    return requestDevelopOutput("deadline keeper exports");
   };
 
   const shootBrief = useMemo(
@@ -1796,7 +1882,8 @@ export function Studio({
       context={chatContext}
       execute={async (tool) => {
         const result = await executeTool(tool);
-        workbench?.showStudio();
+        if (!["apply_edits", "auto_refine", "export_keepers", "write_xmp"].includes(tool.name))
+          void workbench?.showStudio();
         return result;
       }}
       stageEdit={(plan) => {
@@ -1813,6 +1900,20 @@ export function Studio({
       shoot={shootBrief}
       paused={sessionStatus === "conflicted"}
       recovery={recovery}
+      deliveryReference={
+        <DeliveryReference
+          value={deliveryReference}
+          error={deliveryReferenceError}
+          source={shots.find((shot) => shot.id === deliveryFocus?.frameId)}
+          selectedId={selectedId}
+          onSelect={() => {
+            if (deliveryFocus) {
+              selectFilter("all");
+              selectShot(deliveryFocus.frameId);
+            }
+          }}
+        />
+      }
       onReviewShoot={() => {
         selectFilter(shootBrief.undecided ? "todo" : "all");
         selectShot(shootBrief.reviewId);
@@ -1825,13 +1926,13 @@ export function Studio({
       }}
       status={folderStatus ?? (syncNote?.startsWith("0 saved frames restored") ? null : syncNote)}
       importProgress={progress}
+      importAttachment={importAttachment}
+      dragActive={dropActive}
       importing={Boolean(progress || folderStatus)}
       onImportFolder={() => {
-        workbench?.showStudio();
         folderRef.current?.click();
       }}
       onImportFiles={() => {
-        workbench?.showStudio();
         inputRef.current?.click();
       }}
       onCancelImport={cancelImport}
@@ -1874,7 +1975,7 @@ export function Studio({
           className="pointer-events-none fixed inset-3 z-50 flex flex-col items-center justify-center gap-3 bg-paper/95 outline-2 outline-rust"
           role="status"
         >
-          <span className="font-display text-3xl tracking-tight">Drop your folder to start</span>
+          <span className="font-display text-3xl tracking-tight">Drop the shoot</span>
           <small className="text-sm text-moss">
             Photos stay on this device. Originals stay untouched.
           </small>
@@ -1888,7 +1989,9 @@ export function Studio({
                 <span className="grid size-6 place-items-center rounded-full bg-ink font-display text-[11px] font-bold text-paper2">
                   L
                 </span>
-                <span className="font-display text-sm font-semibold tracking-tight">LensLabs</span>
+                <span className="font-display text-sm font-semibold tracking-tight">
+                  {PRODUCT_NAME}
+                </span>
               </Link>
             )}
             <span className="truncate font-mono text-[11px] text-moss">
@@ -1903,10 +2006,14 @@ export function Studio({
           <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px]">
             {!!counts.keepers && (
               <button
-                onClick={() => void exportKeepers()}
-                className="rounded-md px-2.5 py-1.5 text-moss transition-colors hover:bg-ink/5 hover:text-ink"
+                type="button"
+                onClick={() => void zipKeepers()}
+                disabled={Boolean(busy)}
+                className="rounded-md bg-ink px-2.5 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
               >
-                Export {counts.keepers}
+                {busy?.startsWith("Packing")
+                  ? "Packing keepers…"
+                  : `ZIP keepers (${counts.keepers})`}
               </button>
             )}
             {!workbench && (
@@ -2004,6 +2111,11 @@ export function Studio({
                       !counts.keepers,
                     ],
                     [
+                      "Share to social",
+                      () => requestDevelopOutput("social crops and exports"),
+                      !selected || Boolean(progress || folderStatus),
+                    ],
+                    [
                       "New shoot",
                       () => void startNewShoot(),
                       sessionStatus === "loading" ||
@@ -2015,6 +2127,16 @@ export function Studio({
                       exportSidecars,
                       !shots.some((s) => s.verdict !== "undecided"),
                     ],
+                    ["Export cull.csv", exportCullSheet, !shots.length],
+                    ["ZIP keepers", () => void zipKeepers(), !counts.keepers],
+                    [
+                      "Download keepers package",
+                      () => void downloadKeeperPackage(),
+                      !counts.keepers,
+                    ],
+                    ...(isLocalSingleUserMode
+                      ? [["Send keepers to gallery", () => void sendKeepers(), !counts.keepers]]
+                      : []),
                     ["Publish verdicts to Lightroom", () => void pushToLightroom(), !shots.length],
                     [
                       "Download Lightroom plugin",
@@ -2060,6 +2182,7 @@ export function Studio({
           </div>
         )}
         <input
+          id="foto-folder"
           ref={folderRef}
           type="file"
           multiple
@@ -2074,6 +2197,7 @@ export function Studio({
           }}
         />
         <input
+          id="foto-files"
           ref={inputRef}
           type="file"
           multiple
@@ -2109,8 +2233,14 @@ export function Studio({
         </div>
       )}
 
-      <main className="mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="min-w-0 xl:order-2">
+      <main
+        className={
+          workbench
+            ? "grid min-h-0 flex-1 grid-cols-1"
+            : "mx-auto grid max-w-[1600px] gap-5 px-6 pb-20 xl:grid-cols-[380px_minmax(0,1fr)]"
+        }
+      >
+        <div className={workbench ? "min-h-0 min-w-0" : "min-w-0 xl:order-2"}>
           {!shots.length && !progress ? (
             <div
               role="button"
@@ -2129,19 +2259,32 @@ export function Studio({
                   : "mt-24 cursor-pointer rounded-xl border border-dashed border-border px-6 py-24 text-center transition-colors hover:border-ink/30 focus-visible:outline-2 focus-visible:outline-rust"
               }
             >
-              <h1 className="font-display text-3xl font-semibold tracking-tight">
-                {workbench ? "Drop photos or a folder" : "Drop the shoot."}
-              </h1>
+              <h1 className="font-display text-3xl font-semibold tracking-tight">Drop the shoot</h1>
               <p className="mt-2 font-mono text-[11px] text-moss">
-                {workbench
-                  ? "Or click to choose photos. Originals stay untouched."
-                  : "RAW or JPEG · stays on your machine · ⌘ nothing else to set up"}
+                Then K keep · R reject · ZIP keepers. Originals stay on this device.
               </p>
-              {!workbench && (
-                <p className="mt-10 font-mono text-[11px] text-moss">
-                  K keep · X reject · ← → move
-                </p>
-              )}
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    inputRef.current?.click();
+                  }}
+                >
+                  Choose files
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md px-3 py-1.5 font-mono text-[11px] text-ink ring-1 ring-border"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    folderRef.current?.click();
+                  }}
+                >
+                  Choose folder
+                </button>
+              </div>
             </div>
           ) : (
             <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
@@ -2153,6 +2296,18 @@ export function Studio({
                     : "flex flex-wrap items-center gap-2 border-b border-border pb-5"
                 }
               >
+                <div className="flex gap-1">
+                  <button type="button" className="rounded-md bg-ink px-2 py-1 text-paper2">
+                    Library
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md px-2 py-1"
+                    onClick={() => void openDevelop()}
+                  >
+                    Develop
+                  </button>
+                </div>
                 {workbench ? (
                   <StudioFilterMenu value={filter} counts={counts} onChange={selectFilter} />
                 ) : (
@@ -2195,22 +2350,69 @@ export function Studio({
                   </div>
                   <Filmstrip shots={visible} selectedId={selectedId} onSelect={selectShot} />
                   <p className="mt-3 font-mono text-[10px] text-moss">
-                    ← → browse · K keep · X reject · U clear pick · ⌘Z undo
+                    ← → browse · K keep · R/X reject · Space toggle · U clear · ⌘Z undo
                   </p>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
                     <FlagTile
-                      label="Blur / soft"
-                      n={countFlag(shots, ["blur", "soft"])}
+                      label="Focus / eyes"
+                      n={countReviewIssue(shots, "focus")}
                       tone="rust"
+                      active={reviewIssue === "focus"}
+                      onClick={() => selectReviewIssue("focus")}
                     />
                     <FlagTile
                       label="Exposure"
-                      n={countFlag(shots, ["underexposed", "overexposed"])}
+                      n={countReviewIssue(shots, "exposure")}
                       tone="rust"
+                      active={reviewIssue === "exposure"}
+                      onClick={() => selectReviewIssue("exposure")}
                     />
-                    <FlagTile label="Duplicates" n={countFlag(shots, ["duplicate"])} tone="sun" />
+                    <FlagTile
+                      label="Duplicates"
+                      n={countReviewIssue(shots, "duplicates")}
+                      tone="sun"
+                      active={reviewIssue === "duplicates"}
+                      onClick={() => selectReviewIssue("duplicates")}
+                    />
                   </div>
+                  <PeoplePanel
+                    roster={roster}
+                    eventPeople={eventPeople}
+                    shots={shots}
+                    selected={selected}
+                    personFilter={personFilter}
+                    clusterFilter={clusterFilter}
+                    grouping={peopleGrouping}
+                    packNote={INSIGHTFACE_WEIGHTS_NOTE}
+                    onRoster={(next) => {
+                      setRoster(next);
+                      setStudioRoster(next, storageScope, shootId);
+                    }}
+                    onTag={(shotId, subjects) =>
+                      updateShots((current) =>
+                        current.map((shot) => (shot.id === shotId ? { ...shot, subjects } : shot)),
+                      )
+                    }
+                    onFilter={setPersonFilter}
+                    onClusterFilter={setClusterFilter}
+                    onEventPeople={(next) => {
+                      setEventPeople(next);
+                      setStudioEventPeople(next, storageScope, shootId);
+                    }}
+                    onGroupFaces={() => void groupFaces()}
+                    onProposeGallery={() => {
+                      try {
+                        setSyncNote(proposeJobGallery());
+                      } catch (error) {
+                        setSyncNote(
+                          error instanceof Error
+                            ? error.message
+                            : "Gallery proposal failed. Your picks are unchanged.",
+                        );
+                      }
+                    }}
+                  />
                 </div>
 
                 {/* loupe */}
@@ -2256,6 +2458,7 @@ export function Studio({
                         )}
                       </div>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider">
+                        <span>Unedited import preview · Develop for saved edits</span>
                         <span>
                           {selected.name} · {selected.width}×{selected.height} ·{" "}
                           {selected.sizeMb.toFixed(1)} MB {selected.isRaw && "· RAW"}
@@ -2275,7 +2478,9 @@ export function Studio({
                             </span>
                           ))}
                           <span className="rounded-full bg-moss px-2 py-0.5 text-paper2">
-                            score {selected.score}
+                            {unanalyzedIds.current.has(selected.id)
+                              ? "Analysis pending"
+                              : `score ${selected.score}`}
                           </span>
                           {selected.faces && (
                             <span className="rounded-full border border-input px-2 py-0.5">
@@ -2292,19 +2497,23 @@ export function Studio({
                               selected.develop ? "bg-ink text-paper2" : "border border-input"
                             }`}
                             title={
-                              selected.develop
-                                ? `Last develop update ${new Date(selected.develop.at).toLocaleTimeString()}`
-                                : "No develop settings applied yet"
+                              nativeTreatmentIds.current.has(selected.id)
+                                ? "The saved photo treatment is in Develop. Cull shows the unedited import preview."
+                                : selected.develop
+                                  ? `Last develop update ${new Date(selected.develop.at).toLocaleTimeString()}`
+                                  : "No develop settings applied yet"
                             }
                           >
                             develop ·{" "}
-                            {selected.develop
-                              ? selected.develop.origin === "lightroom"
-                                ? "from Lightroom (live)"
-                                : selected.develop.origin === "sidecar"
-                                  ? "from XMP sidecar"
-                                  : "LensLabs, published"
-                              : "untouched"}
+                            {nativeTreatmentIds.current.has(selected.id)
+                              ? "native editor"
+                              : selected.develop
+                                ? selected.develop.origin === "lightroom"
+                                  ? "from Lightroom (live)"
+                                  : selected.develop.origin === "sidecar"
+                                    ? "from XMP sidecar"
+                                    : "LensLabs, published"
+                                : "untouched"}
                           </span>
                           {selected.develop?.rating !== undefined &&
                             selected.develop.rating !== null && (
@@ -2352,7 +2561,7 @@ export function Studio({
                           onClick={() => void exportOne()}
                           className="ml-auto rounded-full bg-ink px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-paper2 transition-colors hover:bg-rust"
                         >
-                          Export frame
+                          Export in Develop
                         </button>
                       </div>
 
@@ -2370,109 +2579,13 @@ export function Studio({
                         ))}
                       </div>
 
-                      {/* edit desk */}
-                      <div className="mt-5 border-t border-border pt-5">
-                        <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
-                          Edit desk · Lightroom-style
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-5 md:grid-cols-3">
-                          <EditSlider
-                            label="Exposure"
-                            value={selected.edits.exposure}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ exposure: v })}
-                          />
-                          <EditSlider
-                            label="Contrast"
-                            value={selected.edits.contrast}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ contrast: v })}
-                          />
-                          <EditSlider
-                            label="Temp (WB)"
-                            value={selected.edits.temp}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ temp: v })}
-                          />
-                          <EditSlider
-                            label="Highlights"
-                            value={selected.edits.highlights}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ highlights: v })}
-                          />
-                          <EditSlider
-                            label="Shadows"
-                            value={selected.edits.shadows}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ shadows: v })}
-                          />
-                          <EditSlider
-                            label="Saturation"
-                            value={selected.edits.saturation}
-                            onChangeStart={checkpoint}
-                            onChange={(v) => updateEdits({ saturation: v })}
-                          />
-                          <div>
-                            <div className="flex justify-between font-mono text-[10px] uppercase tracking-wider">
-                              <span>Crop</span>
-                              <span className="text-ink/50">{selected.edits.crop}</span>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {CROPS.map((c) => (
-                                <button
-                                  key={c}
-                                  aria-pressed={selected.edits.crop === c}
-                                  onClick={() => {
-                                    checkpoint();
-                                    updateEdits({ crop: c });
-                                  }}
-                                  className={`rounded px-2 py-0.5 font-mono text-[10px] ${
-                                    selected.edits.crop === c
-                                      ? "bg-ink text-paper2"
-                                      : "border border-input"
-                                  }`}
-                                >
-                                  {c}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="col-span-full flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                            <button
-                              onClick={() => {
-                                checkpoint();
-                                autoRefineOne();
-                              }}
-                              disabled={!selected.tone}
-                              className="rounded-full bg-ink px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-paper2 transition-colors hover:bg-rust disabled:opacity-40"
-                            >
-                              Auto refine · A
-                            </button>
-                            <button
-                              onClick={() => {
-                                checkpoint();
-                                autoRefineMany("keepers");
-                              }}
-                              disabled={!counts.keepers}
-                              className="rounded-full border border-input px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider hover:bg-ink hover:text-paper2 disabled:opacity-40"
-                            >
-                              Auto refine all keepers
-                            </button>
-                            <span className="font-mono text-[10px] text-moss">
-                              tone, white balance and recovery from this frame's histogram
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              checkpoint();
-                              updateEdits({ ...DEFAULT_EDITS });
-                            }}
-                            className="self-end justify-self-start rounded-full border border-input px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider hover:bg-ink hover:text-paper2"
-                          >
-                            Reset · R
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        className="mt-4 rounded-md bg-ink px-4 py-2 text-paper2"
+                        onClick={() => void openDevelop()}
+                      >
+                        Open Develop
+                      </button>
                     </>
                   ) : (
                     <p className="grid h-full place-items-center font-mono text-[11px] text-moss">
@@ -2490,11 +2603,7 @@ export function Studio({
           createPortal(
             <div
               className="workbench-chat-root"
-              onDrop={(event) => {
-                const files = Array.from(event.dataTransfer.types).includes("Files");
-                onDrop(event);
-                if (files) workbench.showStudio();
-              }}
+              onDrop={onDrop}
               onDragOver={(event) => {
                 if (Array.from(event.dataTransfer.types).includes("Files")) {
                   event.preventDefault();
@@ -2521,39 +2630,52 @@ export function Studio({
         open={burstOpen}
         onOpenChange={setBurstOpen}
         shots={shots}
-        onKeep={(id) => {
-          const shot = latestShotsRef.current.find((frame) => frame.id === id);
-          if (
-            canPersistStudioSession(sessionStatusRef.current) &&
-            !proposalRef.current &&
-            shot?.verdict === "undecided"
-          )
-            setVerdict(id, "keep", false);
+        onCull={(id, groupIds) => {
+          if (!canPersistStudioSession(sessionStatusRef.current) || proposalRef.current) return;
+          try {
+            applyVerdicts(applyBurstCull(latestShotsRef.current, id, groupIds));
+          } catch (error) {
+            setSyncNote(
+              error instanceof Error
+                ? error.message
+                : "Burst cull failed. Existing picks are unchanged.",
+            );
+          }
         }}
-      />
-      <DeadlineExport
-        open={deadlineOpen}
-        onOpenChange={setDeadlineOpen}
-        shots={shots}
-        initialCount={deadlineCount}
       />
     </div>
   );
 }
 
-function countFlag(shots: Shot[], flags: Flag[]) {
-  return shots.filter((s) => s.flags.some((f) => flags.includes(f))).length;
-}
-
-function FlagTile({ label, n, tone }: { label: string; n: number; tone: "rust" | "sun" }) {
+function FlagTile({
+  label,
+  n,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  n: number;
+  tone: "rust" | "sun";
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="torn flex items-center justify-between bg-paper2 p-3 shadow">
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={n === 0}
+      onClick={onClick}
+      className="torn flex items-center justify-between bg-paper2 p-3 text-left shadow transition-colors hover:bg-ink/5 disabled:cursor-default disabled:opacity-55 data-[active=true]:bg-ink/10"
+      data-active={active}
+      title={n ? `Show ${label.toLowerCase()} issues` : `No ${label.toLowerCase()} issues`}
+    >
       <span className="font-mono text-[11px]">{label}</span>
       <span
         className={`font-display text-xl font-semibold ${tone === "rust" ? "text-rust" : "text-sun"}`}
       >
         {n}
       </span>
-    </div>
+    </button>
   );
 }

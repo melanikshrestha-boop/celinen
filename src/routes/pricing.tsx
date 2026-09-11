@@ -1,25 +1,31 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { recordSignup } from "@/utils/payments.functions";
-import { Fragment, useState } from "react";
-import { ThemeToggle } from "@/components/lensos/Theme";
-import { Footer } from "@/components/lensos/Footer";
-import { LogoMark } from "@/components/lensos/Logo";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Fragment, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
+import { Nav } from "@/components/Nav";
+import { MarketingFooter } from "@/components/marketing/MarketingFooter";
+import { useAccount } from "@/components/account/AccountProvider";
+import { publicEntry } from "@/lib/public-entry";
+import { BUSINESS, PRO_STEPS, TEAM_STEPS } from "@/lib/published-plans";
+import { PlanCardGrid, plansForAudience } from "@/components/marketing/HomePricing";
+import { SettingsSwitch } from "@/components/marketing/SettingsSwitch";
+import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
+import "@/components/marketing/marketing-page.css";
+import "@/components/marketing/sky-entry.css";
+import "@/components/marketing/pricing-page.css";
 
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     meta: [
-      { title: "LensLabs Pricing — Plans for Photographers" },
+      { title: "FOTO Pricing — Plans for Photographers" },
       {
         name: "description",
         content:
-          "Simple LensLabs pricing: Free to try, Pro from $16/mo billed yearly, Teams per user, Enterprise custom. Pick, hand off to Adobe, send the gallery tonight.",
+          "Explore FOTO plans: Pro from USD 16 per month billed yearly, Teams per user, and custom Enterprise options. Compare pricing and choose your next step.",
       },
-      { property: "og:title", content: "LensLabs Pricing — Plans for Photographers" },
+      { property: "og:title", content: "FOTO Pricing — Plans for Photographers" },
       {
         property: "og:description",
         content:
-          "Free, Pro, Teams and Enterprise plans for sports, event and wedding shooters. Same-night turnaround.",
+          "A free account entry, Pro and Teams plan options, and Enterprise enquiries for photographers.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -30,72 +36,74 @@ export const Route = createFileRoute("/pricing")({
 
 type Cycle = "monthly" | "yearly";
 type Audience = "personal" | "teams" | "enterprise";
-
-/* Usage tiers, priced like Lovable's credit ladder. */
-const PRO_STEPS = [
-  { photos: "1,000 photos / mo", plan: "starter", monthly: 20, yearly: 16 },
-  { photos: "5,000 photos / mo", plan: "sideline", monthly: 60, yearly: 48 },
-  { photos: "25,000 photos / mo", plan: "arena", monthly: 200, yearly: 160 },
-];
-
-const TEAM_STEPS = [
-  { photos: "5,000 photos / user / mo", plan: "crew", monthly: 40, yearly: 32 },
-  { photos: "25,000 photos / user / mo", plan: "agency", monthly: 80, yearly: 64 },
-];
-
-/* Enterprise Business seat: $80 monthly, $64/mo when billed yearly. */
-const BUSINESS = { monthly: 80, yearly: 64 };
+const AUDIENCES: Audience[] = ["personal", "teams", "enterprise"];
 
 /** Percent saved by paying the annual rate instead of the monthly rate. */
 const savingsPct = (monthly: number, yearly: number) =>
   monthly > 0 ? Math.round(((monthly - yearly) / monthly) * 100) : 0;
 
-/** Dollars saved over 12 months. */
+/** USD saved over 12 months. */
 const savingsPerYear = (monthly: number, yearly: number) => (monthly - yearly) * 12;
 
-
 const FAQ: [string, string][] = [
-  ["What counts as a photo?", "A frame ingested into a job during the billing period. Re-culling the same job never counts twice."],
-  ["Do I have to leave Lightroom?", "No. LensLabs decides volume; keepers hand off to Lightroom and Photoshop with XMP intact. Craft stays where it is."],
-  ["Is a reject a delete?", "Never. Rejects are soft — flagged and reversible, originals untouched."],
-  ["Can I change plans later?", "Yes, up or down at any time. Changes are prorated on your next invoice."],
-  ["What happens when I hit my limit?", "Culling pauses until the next cycle or you upgrade. Nothing is billed per extra photo without you choosing it."],
-  ["Do you offer refunds?", "Cancel anytime and keep access until the end of the paid period. Email us within 14 days of a first charge and we'll sort it out."],
+  [
+    "How should I compare the plans?",
+    "Compare the listed photo volume, billing cycle, and whether the price is per user. Confirm the available capabilities and final charge at checkout before purchasing.",
+  ],
+  [
+    "Do I have to leave my current editor?",
+    "No. You can keep your existing editor. Check compatibility with your files and metadata before moving a workflow; matching controls does not guarantee identical pixels.",
+  ],
+  [
+    "Is a reject a delete?",
+    "Never. Rejects are soft — flagged and reversible, originals untouched.",
+  ],
+  [
+    "How does annual pricing work?",
+    "The annual option shows an equivalent monthly rate. The full annual amount is shown alongside it; the savings compare twelve months at the listed monthly rate.",
+  ],
+  [
+    "What about team setup and integrations?",
+    "Contact us with your requirements before purchasing. Identity providers, shared workflows, migration, and external integrations need to be confirmed for your setup.",
+  ],
+  [
+    "Where can I check billing and refund terms?",
+    "Review the terms and final amount shown at checkout. For a plan change, cancellation, or refund question, contact hello@lenslab.dev before proceeding.",
+  ],
+  [
+    "Can I post to all my socials at once?",
+    "Connect Instagram, TikTok, YouTube, X, and the rest in Connectors. One send can go to every connected app — feed, Stories, and the specific highlights you pick. Each app has to be connected and allowed first.",
+  ],
 ];
 
 const COMPARE: { section: string; rows: string[][] }[] = [
   {
-    section: "Culling",
+    section: "Plan outline",
     rows: [
-      ["Photos per month", "100", "1k – 25k", "5k – 25k / user", "Pooled"],
-      ["RAW + JPEG ingest", "yes", "yes", "yes", "yes"],
-      ["Duplicate & stack sorting", "yes", "yes", "yes", "yes"],
-      ["Needs-you queue", "no", "yes", "yes", "yes"],
+      ["Listed photo volume / month", "Not quoted", "1k – 25k", "5k – 25k / user", "Discuss"],
+      ["Billing unit", "Account entry", "Photographer", "User", "Custom"],
+      ["Monthly and annual options", "Not applicable", "yes", "yes", "Discuss"],
     ],
   },
   {
-    section: "Delivery",
+    section: "Before you choose",
     rows: [
-      ["Lightroom / Photoshop handoff", "no", "yes", "yes", "yes"],
-      ["Client galleries", "no", "yes", "yes", "yes"],
-      ["Client favourites sync", "no", "yes", "yes", "yes"],
-      ["Custom gallery destinations", "no", "no", "no", "yes"],
-    ],
-  },
-  {
-    section: "Team & billing",
-    rows: [
-      ["Shared event workspaces", "no", "no", "yes", "yes"],
-      ["Centralized billing", "no", "no", "yes", "yes"],
-      ["SSO & seat management", "no", "no", "no", "yes"],
-      ["Invoice / PO billing", "no", "no", "no", "yes"],
+      ["Feature availability", "Check workspace", "Confirm", "Confirm", "Discuss"],
+      [
+        "External integrations",
+        "Check compatibility",
+        "Check compatibility",
+        "Check compatibility",
+        "Discuss",
+      ],
+      ["Custom migration or identity setup", "Contact us", "Contact us", "Contact us", "Discuss"],
     ],
   },
 ];
 
 function Check() {
   return (
-    <svg viewBox="0 0 16 16" className="mt-[3px] h-3.5 w-3.5 shrink-0 text-rust" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className="pricing-check" aria-hidden="true">
       <path
         d="M3 8.4 6.2 11.6 13 4.8"
         fill="none"
@@ -127,7 +135,7 @@ const ctaBase =
 function Cell({ v }: { v: string }) {
   if (v === "yes")
     return (
-      <span className="inline-flex justify-center">
+      <span className="inline-flex justify-center" role="img" aria-label="Available">
         <Check />
       </span>
     );
@@ -136,11 +144,32 @@ function Cell({ v }: { v: string }) {
 }
 
 function PricingPage() {
-  const [cycle, setCycle] = useState<Cycle>("yearly");
+  const account = useAccount();
+  const freeEntry = publicEntry(account?.status);
+  const [cycle, setCycle] = useState<Cycle>("monthly");
   const [audience, setAudience] = useState<Audience>("personal");
   const [proStep, setProStep] = useState(0);
   const [teamStep, setTeamStep] = useState(0);
   const [open, setOpen] = useState<number | null>(0);
+  /* Motion must not re-run when the audience pill follows the cursor. */
+  const motion = useMarketingMotion();
+  const trackRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLSpanElement>(null);
+  const audienceRef = useRef(audience);
+  const liveRef = useRef(false);
+  const slideRef = useRef(0);
+  audienceRef.current = audience;
+
+  const paintThumb = (slide: number, live: boolean) => {
+    slideRef.current = slide;
+    liveRef.current = live;
+    trackRef.current?.classList.toggle("is-live", live);
+    if (thumbRef.current) thumbRef.current.style.transform = `translate3d(${slide * 100}%, 0, 0)`;
+  };
+
+  useLayoutEffect(() => {
+    paintThumb(liveRef.current ? slideRef.current : AUDIENCES.indexOf(audience), liveRef.current);
+  }, [audience]);
 
   const yearly = cycle === "yearly";
   const pro = PRO_STEPS[proStep]!;
@@ -151,55 +180,54 @@ function PricingPage() {
   const activePct = savingsPct(active.monthly, active.yearly);
   const activeSaved = savingsPerYear(active.monthly, active.yearly);
 
+  /* Whole pill is hot: thumb follows cursor X 1:1; plan still maps to three bands. Touch still clicks. */
+  const followAudience = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") return;
+    const box = event.currentTarget.getBoundingClientRect();
+    if (box.width <= 0) return;
+    const pad = 5;
+    const inner = Math.max(1, box.width - pad * 2);
+    const u = (event.clientX - box.left - pad) / inner;
+    /* Thumb center tracks the pointer; clamp so the chip stays inside the track. */
+    const slide = Math.min(2, Math.max(0, u * AUDIENCES.length - 0.5));
+    paintThumb(slide, true);
+    const t = (event.clientX - box.left) / box.width;
+    const next = AUDIENCES[Math.min(2, Math.max(0, Math.floor(t * AUDIENCES.length)))];
+    if (next) setAudience((current) => (current === next ? current : next));
+  };
+
+  const releaseAudience = () => {
+    paintThumb(AUDIENCES.indexOf(audienceRef.current), false);
+  };
 
   return (
-    <div className="flex min-h-screen w-full flex-col text-ink">
-      <div className="sticky top-4 z-50 px-4">
-        <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between rounded-2xl border border-border bg-card/90 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] backdrop-blur">
-          <Link to="/" className="flex items-center gap-2">
-            <LogoMark className="text-ink" />
-            <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
-          </Link>
-
-          <nav className="hidden items-center gap-1 text-sm text-moss sm:flex">
-            <Link to="/" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
-              Product
-            </Link>
-            <span className="rounded-lg bg-muted px-3 py-1.5 text-ink">Pricing</span>
-            <Link to="/community" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
-              Community
-            </Link>
-            <a href="#enterprise" className="rounded-lg px-3 py-1.5 hover:bg-muted hover:text-ink">
-              Contact sales
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Link
-              to="/signup"
-              search={{ plan: "starter", billing: cycle }}
-              className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
-            >
-              Get started
-            </Link>
-          </div>
-        </header>
-      </div>
-
-      <section className="mx-auto w-full max-w-[1240px] flex-1 px-6 pb-24 pt-16">
+    <div ref={motion} className="marketing-page marketing-pricing">
+      <a className="marketing-skip" href="#pricing-content">
+        Skip to content
+      </a>
+      <Nav landing />
+      <main id="pricing-content" tabIndex={-1} className="pricing-content">
         {/* hero */}
-        <div className="text-center">
-          <h1 className="mx-auto font-display text-[clamp(2.2rem,5.4vw,3.6rem)] font-bold leading-[1.03] tracking-[-0.04em]">
-            Pricing that scales with your season
+        <div className="pricing-intro text-center" data-reveal>
+          <h1>
+            Pricing that <em>scales with you</em>
           </h1>
-          <p className="mx-auto mt-4 max-w-[560px] text-[15px] text-moss">
-            Start free. Upgrade when the shoots stack up. Every plan culls, hands off to Adobe and
-            sends the gallery the same night.
+          <p>
+            Choose a monthly or annual plan. Access starts after payment. Cancel anytime.
           </p>
 
-          {/* audience tabs */}
-          <div className="mt-9 inline-flex rounded-xl border border-input p-1">
+          {/* audience tabs — follow the cursor; click still works for keyboard/touch */}
+          <div
+            ref={trackRef}
+            className="pricing-audiences"
+            role="group"
+            aria-label="Plan audience"
+            onPointerMove={followAudience}
+            onPointerEnter={followAudience}
+            onPointerLeave={releaseAudience}
+            onPointerCancel={releaseAudience}
+          >
+            <span className="pricing-audiences__thumb" ref={thumbRef} aria-hidden="true" />
             {(
               [
                 ["personal", "Personal"],
@@ -209,10 +237,10 @@ function PricingPage() {
             ).map(([id, label]) => (
               <button
                 key={id}
+                type="button"
+                data-audience={id}
+                aria-pressed={audience === id}
                 onClick={() => setAudience(id)}
-                className={`rounded-lg px-4 py-1.5 text-[13px] transition-colors ${
-                  audience === id ? "bg-ink text-paper2" : "text-moss hover:text-ink"
-                }`}
               >
                 {label}
               </button>
@@ -221,28 +249,18 @@ function PricingPage() {
 
           {/* billing toggle */}
           {audience !== "enterprise" && (
-            <div className="mt-5 flex items-center justify-center gap-3 text-[13px]">
+            <div className="pricing-billing">
               <button
                 onClick={() => setCycle("monthly")}
                 className={yearly ? "text-moss hover:text-ink" : "text-ink"}
               >
                 Monthly
               </button>
-              <button
-                role="switch"
-                aria-checked={yearly}
-                aria-label="Toggle annual billing"
-                onClick={() => setCycle(yearly ? "monthly" : "yearly")}
-                className={`relative h-6 w-11 rounded-full border border-input transition-colors ${
-                  yearly ? "bg-ink" : "bg-muted"
-                }`}
-              >
-                <span
-                  className={`absolute top-[3px] h-4 w-4 rounded-full bg-paper2 transition-all ${
-                    yearly ? "left-[25px]" : "left-[3px]"
-                  }`}
-                />
-              </button>
+              <SettingsSwitch
+                checked={yearly}
+                onCheckedChange={(on) => setCycle(on ? "yearly" : "monthly")}
+                label="Yearly billing"
+              />
               <button
                 onClick={() => setCycle("yearly")}
                 className={yearly ? "text-ink" : "text-moss hover:text-ink"}
@@ -250,39 +268,49 @@ function PricingPage() {
                 Annual
               </button>
               <span className="rounded-full border border-rust/40 bg-rust/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-rust">
-                Save {activePct}% · ${activeSaved}/yr
+                Save {activePct}% · USD {activeSaved}/yr
               </span>
-
             </div>
           )}
         </div>
 
-        {/* plan cards */}
-        <div className="mt-12 grid items-stretch gap-4 text-left lg:grid-cols-3">
+        {/* Visible cards match home. Hidden block keeps checkout/test links. */}
+        <div className="home-pricing" data-reveal>
+          <PlanCardGrid plans={plansForAudience(audience, yearly)} />
+          {audience !== "enterprise" && (
+            <p className="pricing-free">
+              <Link to={freeEntry.to} search={freeEntry.search}>
+                {account?.status === "in" ? "Dashboard" : "Create free account"}
+              </Link>
+            </p>
+          )}
+        </div>
+        <div className="pricing-plans" hidden>
           {audience === "enterprise" ? (
             <>
               <div className="flex flex-col rounded-2xl border border-border bg-card p-7">
                 <span className="font-display text-sm font-semibold">Business</span>
                 <p className="mt-1 text-[13px] text-moss">Studios running multiple shooters.</p>
-                <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
-                  ${BUSINESS.yearly}
-                  <small className="ml-1 text-sm font-normal text-moss">/ user / mo</small>
+                <div className="pricing-amount mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
+                  <span className="pricing-currency">USD</span>
+                  <span className="pricing-figure">{BUSINESS.yearly}</span>
+                  <small className="pricing-period">/ user / mo</small>
                 </div>
                 <p className="mt-1 text-[12px] text-moss">
-                  Billed yearly · ${BUSINESS.monthly} / user monthly ·{" "}
+                  Billed yearly · USD {BUSINESS.yearly * 12} / user / yr · USD {BUSINESS.monthly} /
+                  user monthly ·{" "}
                   <span className="text-rust">
-                    save {savingsPct(BUSINESS.monthly, BUSINESS.yearly)}% ($
+                    save {savingsPct(BUSINESS.monthly, BUSINESS.yearly)}% (USD{" "}
                     {savingsPerYear(BUSINESS.monthly, BUSINESS.yearly)} / user / yr)
                   </span>
                 </p>
 
                 <Features
                   items={[
-                    "Everything in Teams",
-                    "Shared event workspaces",
-                    "Approval gate before send",
-                    "Centralized billing",
-                    "Priority support",
+                    "Discuss your team workflow",
+                    "Confirm shared workspace needs",
+                    "Review approval requirements",
+                    "Confirm billing and support options",
                   ]}
                 />
                 <Link
@@ -303,15 +331,16 @@ function PricingPage() {
                 <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
                   Custom
                 </div>
-                <p className="mt-1 text-[12px] text-moss">Invoiced to your terms.</p>
+                <p className="mt-1 text-[12px] text-moss">
+                  Scope and terms agreed before purchase.
+                </p>
                 <Features
                   items={[
-                    "Everything in Business",
-                    "Pooled usage across studios",
-                    "SSO and seat management",
-                    "Custom gallery destinations",
-                    "Invoice / PO billing",
-                    "Dedicated workflow support",
+                    "Discuss volume across studios",
+                    "Review identity and seat requirements",
+                    "Confirm gallery destinations",
+                    "Discuss invoice / PO requirements",
+                    "Define workflow support",
                   ]}
                 />
                 <a href="mailto:hello@lenslab.dev" className={`${ctaBase} bg-ink text-paper2`}>
@@ -321,17 +350,21 @@ function PricingPage() {
 
               <div className="flex flex-col rounded-2xl border border-border bg-card p-7">
                 <span className="font-display text-sm font-semibold">Onboarding</span>
-                <p className="mt-1 text-[13px] text-moss">We migrate your existing workflow.</p>
+                <p className="mt-1 text-[13px] text-moss">
+                  A conversation about your existing workflow.
+                </p>
                 <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
-                  Included
+                  Let’s talk
                 </div>
-                <p className="mt-1 text-[12px] text-moss">With any annual Enterprise plan.</p>
+                <p className="mt-1 text-[12px] text-moss">
+                  Confirm scope and availability with us.
+                </p>
                 <Features
                   items={[
-                    "Lightroom preset and catalog import",
-                    "Bridge install across machines",
-                    "Team training session",
-                    "Named workflow contact",
+                    "Review your current setup",
+                    "Check file and metadata compatibility",
+                    "Discuss team onboarding",
+                    "Agree migration scope",
                   ]}
                 />
                 <a
@@ -347,35 +380,32 @@ function PricingPage() {
               {/* Free */}
               <div className="flex flex-col rounded-2xl border border-border bg-card p-7">
                 <span className="font-display text-sm font-semibold">Free</span>
-                <p className="mt-1 text-[13px] text-moss">Try the cull on a real shoot.</p>
-                <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
-                  $0
-                  <small className="ml-1 text-sm font-normal text-moss">/ mo</small>
+                <p className="mt-1 text-[13px] text-moss">Create an account and explore.</p>
+                <div className="pricing-amount mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
+                  <span className="pricing-currency">USD</span>
+                  <span className="pricing-figure">0</span>
+                  <small className="pricing-period">to create an account</small>
                 </div>
-                <p className="mt-1 text-[12px] text-moss">100 photos per month.</p>
+                <p className="mt-1 text-[12px] text-moss">No paid plan selected by this button.</p>
                 <Features
                   items={[
-                    "100 photos per month",
-                    "RAW and JPEG ingest",
-                    "Duplicate and stack sorting",
-                    "Basic keeper recommendations",
-                    "Public community access",
+                    "Your own workspace account",
+                    "Explore the photography workflow",
+                    "Check available tools before choosing a plan",
                   ]}
                 />
                 <Link
-                  to="/signup"
-                  search={{ plan: "hobby", billing: cycle }}
+                  to={freeEntry.to}
+                  search={freeEntry.search}
                   className={`${ctaBase} border border-input text-ink`}
                 >
-                  Start free
+                  {account?.status === "in" ? "Dashboard" : "Create free account"}
                 </Link>
               </div>
 
               {/* Pro / Teams — highlighted */}
               <div className="relative flex flex-col rounded-2xl border border-ink/25 bg-card p-7 shadow-[0_10px_40px_rgba(0,0,0,0.07)]">
-                <span className="absolute -top-2.5 left-7 rounded-full bg-ink px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-paper2">
-                  Most popular
-                </span>
+                <span className="pricing-popular">Most popular</span>
                 <span className="font-display text-sm font-semibold">
                   {audience === "teams" ? "Teams" : "Pro"}
                 </span>
@@ -384,33 +414,35 @@ function PricingPage() {
                     ? "Second shooter, editor, one bill."
                     : "One shooter working a real schedule."}
                 </p>
-                <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
-                  ${audience === "teams" ? teamPrice : proPrice}
-                  <small className="ml-1 text-sm font-normal text-moss">
+                <div className="pricing-amount mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
+                  <span className="pricing-currency">USD</span>
+                  <span className="pricing-figure">
+                    {audience === "teams" ? teamPrice : proPrice}
+                  </span>
+                  <small className="pricing-period">
                     {audience === "teams" ? "/ user / mo" : "/ mo"}
                   </small>
                 </div>
                 <p className="mt-1 text-[12px] text-moss">
                   {yearly ? (
                     <>
-                      Billed yearly (${active.yearly * 12}
-                      {audience === "teams" ? " / user" : ""} / yr) · ${active.monthly} monthly ·{" "}
+                      Billed yearly (USD {active.yearly * 12}
+                      {audience === "teams" ? " / user" : ""} / yr) · USD {active.monthly} monthly ·{" "}
                       <span className="text-rust">
-                        save {activePct}% (${activeSaved}
+                        save {activePct}% (USD {activeSaved}
                         {audience === "teams" ? " / user" : ""} / yr)
                       </span>
                     </>
                   ) : (
                     <>
-                      Billed monthly · switch to annual for ${active.yearly} / mo and{" "}
+                      Billed monthly · switch to annual for USD {active.yearly} / mo and{" "}
                       <span className="text-rust">
-                        save {activePct}% (${activeSaved}
+                        save {activePct}% (USD {activeSaved}
                         {audience === "teams" ? " / user" : ""} / yr)
                       </span>
                     </>
                   )}
                 </p>
-
 
                 {/* usage selector */}
                 <label className="mt-4 block">
@@ -428,11 +460,10 @@ function PricingPage() {
                   >
                     {(audience === "teams" ? TEAM_STEPS : PRO_STEPS).map((s, i) => (
                       <option key={s.plan} value={i}>
-                        {s.photos} — ${yearly ? s.yearly : s.monthly}/mo
+                        {s.photos} — USD {yearly ? s.yearly : s.monthly}/mo
                         {yearly ? ` (save ${savingsPct(s.monthly, s.yearly)}%)` : ""}
                       </option>
                     ))}
-
                   </select>
                 </label>
 
@@ -440,19 +471,16 @@ function PricingPage() {
                   items={
                     audience === "teams"
                       ? [
-                          "Everything in Pro, plus:",
-                          "Shared event workspaces",
-                          "Centralized team billing",
-                          "Approval gate before send",
-                          "Per-seat culling limits",
+                          team.photos,
+                          "Per-user plan pricing",
+                          "Confirm shared workflow requirements",
+                          "Check feature availability before purchase",
                         ]
                       : [
-                          "Everything in Free, plus:",
-                          "Lightroom and Photoshop handoff with XMP",
-                          "Client galleries and same-night send",
-                          "Client favourites synced back to the job",
-                          "Needs-you queue for story frames",
-                          "Parking-lot review while ingest continues",
+                          pro.photos,
+                          "Monthly or annual billing options",
+                          "Choose the volume that fits your work",
+                          "Check feature availability before purchase",
                         ]
                   }
                 />
@@ -464,7 +492,7 @@ function PricingPage() {
                   }}
                   className={`${ctaBase} bg-ink text-paper2`}
                 >
-                  {audience === "teams" ? "Get Teams" : "Get Pro"}
+                  {audience === "teams" ? "Choose Teams" : "Choose Pro"}
                 </Link>
               </div>
 
@@ -475,15 +503,15 @@ function PricingPage() {
                 <div className="mt-4 font-display text-4xl font-bold tracking-[-0.03em]">
                   Custom
                 </div>
-                <p className="mt-1 text-[12px] text-moss">Invoiced to your terms.</p>
+                <p className="mt-1 text-[12px] text-moss">
+                  Scope and terms agreed before purchase.
+                </p>
                 <Features
                   items={[
-                    "Everything in Teams, plus:",
-                    "Pooled usage across studios",
-                    "SSO and seat management",
-                    "Custom gallery destinations",
-                    "Invoice / PO billing",
-                    "Dedicated workflow support",
+                    "Discuss volume across studios",
+                    "Review identity and seat requirements",
+                    "Confirm gallery destinations",
+                    "Discuss invoice / PO requirements",
                   ]}
                 />
                 <button
@@ -497,22 +525,22 @@ function PricingPage() {
           )}
         </div>
 
-        {/* upgrade form */}
-        <div id="upgrade" className="mt-20 scroll-mt-8">
-          <UpgradeForm cycle={cycle} audience={audience} proPlan={pro.plan} teamPlan={team.plan} />
-        </div>
-
         {/* comparison table */}
-        <div className="mt-20">
+        <div className="pricing-compare" data-reveal>
           <h2 className="text-center font-display text-[26px] font-bold tracking-[-0.03em]">
-            Compare plans
+            At a glance
           </h2>
-          <div className="mt-7 overflow-x-auto rounded-2xl border border-border bg-card">
+          <div
+            className="pricing-table-scroll"
+            role="region"
+            aria-label="Plan comparison"
+            tabIndex={0}
+          >
             <table className="w-full min-w-[680px] text-left text-[13.5px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="w-[34%] px-5 py-4 font-mono text-[10px] uppercase tracking-[0.14em] text-moss">
-                    Feature
+                    Plan detail
                   </th>
                   {["Free", "Pro", "Teams", "Enterprise"].map((h) => (
                     <th key={h} className="px-5 py-4 text-center font-display text-[13px]">
@@ -550,7 +578,7 @@ function PricingPage() {
         </div>
 
         {/* FAQ accordion */}
-        <div className="mt-20 grid gap-8 md:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="pricing-faq" data-reveal>
           <div>
             <h2 className="font-display text-[26px] font-bold tracking-[-0.03em]">
               Frequently asked
@@ -569,26 +597,36 @@ function PricingPage() {
                 <button
                   onClick={() => setOpen(open === i ? null : i)}
                   aria-expanded={open === i}
+                  aria-controls={`pricing-answer-${i}`}
                   className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-sm font-medium"
                 >
                   {q}
-                  <span className={`text-moss transition-transform ${open === i ? "rotate-45" : ""}`}>
+                  <span
+                    className={`text-moss transition-transform ${open === i ? "rotate-45" : ""}`}
+                  >
                     +
                   </span>
                 </button>
-                {open === i && <p className="px-5 pb-4 text-[13.5px] text-moss">{a}</p>}
+                {open === i && (
+                  <p id={`pricing-answer-${i}`} className="px-5 pb-4 text-[13.5px] text-moss">
+                    {a}
+                  </p>
+                )}
               </div>
             ))}
           </div>
         </div>
 
         {/* closing CTA */}
-        <div className="mt-20 flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-8">
+        <div className="pricing-closing" data-reveal>
+          <img src="/images/foto-open-sky.webp" width={1672} height={941} alt="" loading="lazy" />
           <div>
             <p className="font-display text-xl font-semibold tracking-tight">
-              Your turnaround date is tonight.
+              Make room for your next great shot.
             </p>
-            <p className="mt-1 text-[13.5px] text-moss">Import, pick, hand off, send.</p>
+            <p className="mt-1 text-[13.5px] text-moss">
+              A workflow shaped around your photography.
+            </p>
           </div>
           <div className="ml-auto flex gap-2">
             <Link
@@ -606,135 +644,10 @@ function PricingPage() {
             </a>
           </div>
         </div>
-      </section>
+      </main>
 
-      <Footer />
+      <MarketingFooter />
     </div>
   );
 }
 
-/** Saves the email, then hands off to checkout with the plan pre-selected. */
-function UpgradeForm({
-  cycle,
-  audience,
-  proPlan,
-  teamPlan,
-}: {
-  cycle: Cycle;
-  audience: Audience;
-  proPlan: string;
-  teamPlan: string;
-}) {
-  const navigate = useNavigate();
-  const save = useServerFn(recordSignup);
-  const [email, setEmail] = useState("");
-  const [studio, setStudio] = useState("");
-  const [plan, setPlan] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const suggested = audience === "teams" ? teamPlan : proPlan;
-  const chosen = plan ?? suggested;
-  const option = UPGRADE_PLANS.find((p) => p.id === chosen) ?? UPGRADE_PLANS[1]!;
-  const price = cycle === "yearly" ? option.yearly : option.monthly;
-  const saved = (option.monthly - option.yearly) * 12;
-  const pct = Math.round(((option.monthly - option.yearly) / option.monthly) * 100);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(null);
-    if (!email.trim()) return setErr("We need an email to put the plan on.");
-    setBusy(true);
-    try {
-      const res = await save({
-        data: { email: email.trim().toLowerCase(), plan: chosen, billing: cycle, studio },
-      });
-      if ("error" in res && res.error) throw new Error(res.error);
-      await navigate({
-        to: "/signup",
-        search: { plan: chosen, billing: cycle, email: email.trim().toLowerCase() },
-      });
-    } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "Could not start checkout");
-      setBusy(false);
-    }
-  };
-
-  const field =
-    "mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink outline-none focus:border-rust sm:py-2 sm:text-[14px]";
-
-  return (
-    <div className="mx-auto max-w-[720px] rounded-2xl border border-border bg-card p-6 sm:p-8">
-      <h2 className="font-display text-[24px] font-bold tracking-[-0.03em]">Upgrade now</h2>
-      <p className="mt-1.5 text-[13.5px] text-moss">
-        Pick a plan, drop your email, pay on the next screen. Cancel any time.
-      </p>
-
-      <form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-2">
-        <label className="text-[12px] text-moss">
-          Plan
-          <select value={chosen} onChange={(e) => setPlan(e.target.value)} className={field}>
-            {UPGRADE_PLANS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label} — ${cycle === "yearly" ? p.yearly : p.monthly}/mo
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-[12px] text-moss">
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@studio.com"
-            className={field}
-          />
-        </label>
-        <label className="text-[12px] text-moss sm:col-span-2">
-          Studio name (optional)
-          <input value={studio} onChange={(e) => setStudio(e.target.value)} className={field} />
-        </label>
-
-        <div className="rounded-xl border border-border bg-background px-4 py-3 text-[13px] sm:col-span-2">
-          <span className="font-mono text-[15px]">${price}</span>
-          <span className="text-moss">
-            {option.perUser ? " / user" : ""} per month, billed {cycle}
-          </span>
-          {cycle === "yearly" ? (
-            <span className="ml-2 text-rust">
-              save {pct}% — ${saved}
-              {option.perUser ? " / user" : ""} a year vs ${option.monthly}/mo
-            </span>
-          ) : (
-            <span className="ml-2 text-moss">
-              switch to yearly and save {pct}% (${saved}
-              {option.perUser ? " / user" : ""} a year)
-            </span>
-          )}
-        </div>
-
-        {err && <p className="text-[13px] text-destructive sm:col-span-2">{err}</p>}
-
-        <div className="sm:col-span-2">
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-xl bg-rust px-5 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
-          >
-            {busy ? "Starting…" : "Continue to checkout"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-const UPGRADE_PLANS = [
-  { id: "hobby", label: "Hobby", monthly: 20, yearly: 16, perUser: false },
-  { id: "starter", label: "Pro · 1,000 photos", monthly: 20, yearly: 16, perUser: false },
-  { id: "sideline", label: "Pro · 5,000 photos", monthly: 60, yearly: 48, perUser: false },
-  { id: "arena", label: "Pro · 25,000 photos", monthly: 200, yearly: 160, perUser: false },
-  { id: "crew", label: "Teams · Crew", monthly: 40, yearly: 32, perUser: true },
-  { id: "agency", label: "Teams · Agency", monthly: 80, yearly: 64, perUser: true },
-];

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <istream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace lenslabs {
@@ -45,8 +46,11 @@ struct BurstReview {
 };
 
 // No pixels are decoded here. These conservative review groups use existing native
-// analysis receipts; no verdict is changed, and the recommendation is not sports AI.
+// analysis receipts; grouping itself never changes a verdict.
 BurstReview group_bursts(const std::vector<BurstFrame>& frames);
+// Keep one unreviewed frame; reject the other unreviewed members. Existing picks stay.
+std::vector<std::pair<std::string, Verdict>> apply_burst_cull(
+    const BurstGroup& group, const std::vector<BurstFrame>& frames, const std::string& keep_id);
 std::vector<BurstFrame> read_burst_protocol(std::istream& input);
 std::string burst_review_json(const BurstReview& review);
 

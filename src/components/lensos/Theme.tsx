@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { THEME_PRESETS } from "@/lib/appearance";
 
 type Mode = "light" | "dark";
 
@@ -23,8 +24,14 @@ export function ThemeToggle({ className }: { className?: string | undefined }) {
   const flip = () => {
     if (account?.scope) {
       try {
+        const light = document.documentElement.classList.contains("dark");
         account.savePreferences({
-          theme: document.documentElement.classList.contains("dark") ? "light" : "dark",
+          theme: light ? "light" : "dark",
+          appearance: {
+            ...account.preferences.appearance,
+            preset: light ? "paper" : "lenslabs",
+            ...(light ? THEME_PRESETS.paper : THEME_PRESETS.lenslabs),
+          },
         });
       } catch {
         /* No unsaved preference is presented as saved. */

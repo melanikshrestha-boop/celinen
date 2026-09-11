@@ -1,0 +1,130 @@
+.settings-accent-choice,
+.settings-hex-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.settings-accent-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #8886;
+}
+.settings-hex-form input:not([type="color"]) {
+  width: 94px;
+  min-width: 0;
+  border: 1px solid var(--settings-border, var(--border));
+  border-radius: 7px;
+  padding: 6px 8px;
+  font: 12px var(--ll-code-font, monospace);
+  background: transparent;
+  color: inherit;
+}
+.settings-hex-form input[type="color"] {
+  width: 28px;
+  height: 28px;
+  padding: 1px;
+  background: transparent;
+  border: 0;
+}
+.settings-gradient-sample {
+  width: 36px;
+  height: 22px;
+  border-radius: 5px;
+}
+.settings-destination {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.settings-shell {
+  --settings-accent: var(--ll-settings-accent);
+  accent-color: var(--settings-accent);
+}
+.settings-shell [role="switch"][data-state="checked"] > span {
+  background: var(--ll-accent-ink, #111);
+}
+.settings-shell [role="switch"][data-state="checked"] {
+  border: 1px solid #777;
+}
+.ll-photo-jump {
+  display: grid;
+  gap: 14px;
+}
+.ll-photo-jump label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.ll-photo-jump input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid hsl(var(--input));
+  border-radius: 8px;
+  background: transparent;
+}
+.ll-photo-jump [role="alert"] {
+  font-size: 13px;
+  color: hsl(var(--destructive));
+}
+html[data-workspace-grid="true"] .workbench-conversation {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--wb-text) 11%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+html[data-contrast="more"] .settings-shell {
+  --settings-muted: var(--ll-settings-foreground, #454545);
+  --settings-border: #888;
+  --settings-text: var(--ll-settings-foreground, #000);
+}
+html.dark[data-contrast="more"] .settings-shell {
+  --settings-muted: var(--ll-settings-foreground, #d1d1d1);
+  --settings-border: #888;
+  --settings-text: var(--ll-settings-foreground, #fff);
+}
+html[data-contrast="more"] .photo-workbench {
+  --wb-muted: var(--wb-user-fg, #444);
+}
+html.dark[data-contrast="more"] .photo-workbench {
+  --wb-muted: var(--wb-user-fg, #d1d1d1);
+}
+html[data-contrast="more"] :is(.ll-chat-hover, .ll-chat-title) {
+  color: var(--wb-text);
+}
+html[data-contrast="more"] :is(button, input, [role="combobox"]):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+@media (prefers-contrast: more) {
+  html[data-contrast="system"] .settings-shell {
+    --settings-muted: var(--ll-settings-foreground, #454545);
+    --settings-border: #888;
+    --settings-text: var(--ll-settings-foreground, #000);
+  }
+  html.dark[data-contrast="system"] .settings-shell {
+    --settings-muted: var(--ll-settings-foreground, #d1d1d1);
+    --settings-border: #888;
+    --settings-text: var(--ll-settings-foreground, #fff);
+  }
+  html[data-contrast="system"] .photo-workbench {
+    --wb-muted: var(--wb-user-fg, #444);
+  }
+  html.dark[data-contrast="system"] .photo-workbench {
+    --wb-muted: var(--wb-user-fg, #d1d1d1);
+  }
+}
+@media (max-width: 600px) {
+  .settings-destination {
+    justify-content: flex-start;
+  }
+  .settings-hex-form input:not([type="color"]) {
+    width: 88px;
+  }
+}

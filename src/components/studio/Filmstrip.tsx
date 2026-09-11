@@ -5,16 +5,18 @@ import {
   getFilmstripRows,
   getFilmstripWindow,
 } from "@/lib/studio/filmstrip-window";
+import { frameAvailability, frameAvailabilityLabel } from "@/lib/studio/frame-availability";
 
 interface FilmstripProps {
   shots: Shot[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   compact?: boolean;
+  numbered?: boolean;
 }
 
 /** Virtualized contact sheet, or a single-row-height rail below the image in compact mode. */
-export function Filmstrip({ shots, selectedId, onSelect, compact = false }: FilmstripProps) {
+export function Filmstrip({ shots, selectedId, onSelect, compact = false, numbered = false }: FilmstripProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 520, columns: 4 });
@@ -28,6 +30,7 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false }: Film
     scrollTop,
   });
   const rows = getFilmstripRows(window, selectedIndex);
+  const unreadable = shots.filter((shot) => frameAvailability(shot) === "unreadable").length;
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -92,7 +95,7 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false }: Film
     <div
       ref={viewportRef}
       role="region"
-      aria-label={`Filmstrip, ${shots.length} frames`}
+      aria-label={`Filmstrip, ${shots.length} frames${unreadable ? `, ${unreadable} unreadable for manual review` : ""}`}
       className={`relative overflow-y-auto pr-1 ${compact ? "shrink-0" : "max-h-[520px]"}`}
       style={compact ? { height: window.rowHeight, maxHeight: window.rowHeight } : undefined}
       onScroll={() => {
@@ -120,17 +123,25 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false }: Film
               gridTemplateColumns: `repeat(${window.columns}, minmax(0, 1fr))`,
             }}
           >
-            {shots.slice(row * window.columns, (row + 1) * window.columns).map((shot, column) => (
+            {shots.slice(row * window.columns, (row + 1) * window.columns).map((shot, column) => {
+              const index = row * window.columns + column;
+              return (
               <div
                 key={shot.id}
                 role="listitem"
-                aria-posinset={row * window.columns + column + 1}
+                aria-posinset={index + 1}
                 aria-setsize={shots.length}
                 className="min-w-0"
               >
-                <FrameButton shot={shot} selected={shot.id === selectedId} onSelect={onSelect} />
+                <FrameButton
+                  shot={shot}
+                  selected={shot.id === selectedId}
+                  onSelect={onSelect}
+                  index={numbered ? index + 1 : null}
+                />
               </div>
-            ))}
+            );
+            })}
           </div>
         ))}
       </div>
@@ -142,35 +153,51 @@ const FrameButton = memo(function FrameButton({
   shot: s,
   selected,
   onSelect,
+  index,
 }: {
   shot: Shot;
   selected: boolean;
   onSelect: (id: string) => void;
+  index: number | null;
 }) {
+  const availability = frameAvailability(s);
+  const status = frameAvailabilityLabel(availability);
+  const showPreview = availability === "ready" && Boolean(s.previewUrl);
   return (
     <button
       onClick={() => onSelect(s.id)}
       aria-pressed={selected}
-      aria-label={`${s.name} · score ${s.score} · ${s.verdict}`}
-      title={`${s.name} · score ${s.score}`}
+      aria-label={`${s.name} · ${status} · ${s.verdict}`}
+      title={`${s.name} · ${status}`}
+      data-frame-availability={availability}
       className={`relative block aspect-[4/5] w-full overflow-hidden bg-mist/50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rust ${
         selected ? "outline outline-2 -outline-offset-2 outline-rust" : ""
       }`}
     >
-      {s.previewUrl ? (
+      {showPreview ? (
         <img
-          src={s.previewUrl}
+          src={s.previewUrl!}
           alt={s.name}
           loading="lazy"
           className={`size-full object-cover ${s.verdict === "reject" ? "opacity-30" : ""}`}
         />
       ) : (
-        <span className="grid size-full place-items-center px-1 font-mono text-[8px] text-moss">
-          no preview
+        <span
+          className={`grid size-full place-items-center px-1 text-center font-mono text-[8px] ${availability === "unreadable" ? "text-rust" : "text-moss"}`}
+        >
+          {availability === "unreadable"
+            ? "unreadable\nselect to recover"
+            : availability === "source-offline"
+              ? "source offline"
+              : "preview pending"}
         </span>
       )}
       <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
-        {s.score || "—"}
+        {index != null
+          ? String(index)
+          : availability === "unreadable"
+            ? "review"
+            : s.score || "—"}
       </span>
       {s.develop && (
         <span

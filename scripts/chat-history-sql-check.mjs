@@ -27,6 +27,14 @@ const save = async (record) =>
       JSON.stringify(record),
     ])
   ).rows[0].result;
+const remove = async (id, project, revision) =>
+  (
+    await db.query("SELECT public.delete_workspace_chat($1,$2,$3) AS removed", [
+      id,
+      project,
+      revision,
+    ])
+  ).rows[0].removed;
 const fresh = () => ({
   id: crypto.randomUUID(),
   project: "current",
@@ -58,6 +66,15 @@ try {
   const original = fresh(),
     saved = await save(original);
   check(saved.revision, 1);
+  // Upgrade with a pre-existing row, rather than testing a fresh-only schema.
+  await db.exec("RESET ROLE");
+  await db.exec(
+    await readFile(
+      new URL("../drizzle/migrations/0020_conversation_controls.sql", import.meta.url),
+      "utf8",
+    ),
+  );
+  await identity(a);
   check((await db.query("SELECT count(*)::int AS n FROM public.workspace_chats")).rows[0].n, 1);
   await denied(() => save(original)); // stale revision
   await denied(() => db.query("UPDATE public.workspace_chats SET record='{}'::jsonb"));
@@ -78,6 +95,39 @@ try {
   check(archived.messages, original.messages);
   const restored = await save({ ...archived, archived: false });
   check(restored.revision, 3);
+  check(restored.pinned, false);
+  check(restored.section, "");
+  check(restored.unread, false);
+  const controlled = await save({
+    ...fresh(),
+    pinned: true,
+    section: "Client selects",
+    unread: true,
+  });
+  const { pinned: _pinned, section: _section, unread: _unread, ...oldClient } = controlled;
+  const compatible = await save({ ...oldClient, title: "Older client write" });
+  check([compatible.pinned, compatible.section, compatible.unread], [true, "Client selects", true]);
+  await denied(() => remove(compatible.id, compatible.project, controlled.revision));
+  await denied(() => remove(compatible.id, "wrong-shoot", compatible.revision));
+  await denied(() => remove(compatible.id, compatible.project, null));
+  await denied(() => remove(compatible.id, null, compatible.revision));
+  await denied(() => db.query("DELETE FROM public.workspace_chats WHERE id=$1", [compatible.id]));
+  await identity(b);
+  await denied(() => remove(compatible.id, compatible.project, compatible.revision));
+  await db.exec("RESET ROLE; SET ROLE anon");
+  await denied(() => remove(compatible.id, compatible.project, compatible.revision));
+  await identity(a);
+  check(await remove(compatible.id, compatible.project, compatible.revision), true);
+  await denied(() => remove(compatible.id, compatible.project, compatible.revision));
+  await denied(() => save(compatible));
+  check(
+    (
+      await db.query("SELECT count(*)::int AS n FROM public.workspace_chats WHERE id=$1", [
+        saved.id,
+      ])
+    ).rows[0].n,
+    1,
+  );
   for (const patch of [
     { title: {} },
     { title: null },
@@ -93,6 +143,10 @@ try {
     { revision: -1 },
     { owner_id: b },
     { draft: "search my Gmail for private-client" },
+    { pinned: "true" },
+    { unread: null },
+    { section: [] },
+    { section: "x".repeat(61) },
   ])
     await denied(() => save({ ...fresh(), ...patch }));
   const missingTime = fresh();

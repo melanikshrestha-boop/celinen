@@ -15,41 +15,76 @@ import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as BusinessRouteImport } from './routes/business'
+import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
+import { Route as DevelopRouteImport } from './routes/develop'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as GalleriesRouteImport } from './routes/galleries'
+import { Route as HelpRouteImport } from './routes/help'
+import { Route as JobsRouteImport } from './routes/jobs'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MailRouteImport } from './routes/mail'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MetadataRouteImport } from './routes/metadata'
+import { Route as MoneyRouteImport } from './routes/money'
 import { Route as NetworkRouteImport } from './routes/network'
+import { Route as OutboundRouteImport } from './routes/outbound'
 import { Route as PackagesRouteImport } from './routes/packages'
 import { Route as PhotographersRouteImport } from './routes/photographers'
 import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProductRouteImport } from './routes/product'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as RatesRouteImport } from './routes/rates'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
+import { Route as ShootsRouteImport } from './routes/shoots'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TonightRouteImport } from './routes/tonight'
+import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as DocsPermissionsRouteImport } from './routes/docs_.permissions'
+import { Route as DocsSettingsRouteImport } from './routes/docs_.settings'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as PPostIdRouteImport } from './routes/p.$postId'
 import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$ownerId'
 import { Route as ReviewIdRouteImport } from './routes/review.$id'
 import { Route as STokenRouteImport } from './routes/s.$token'
+import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
+import { Route as ShootsIndexRouteImport } from './routes/shoots.index'
+import { Route as ShootsIdRouteImport } from './routes/shoots.$id'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
+import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
+import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
+import { Route as ShootsIdCullRouteImport } from './routes/shoots.$id.cull'
+import { Route as ShootsIdDevelopRouteImport } from './routes/shoots.$id.develop'
+import { Route as ShootsIdGalleryRouteImport } from './routes/shoots.$id.gallery'
+import { Route as ShootsIdSmartFileRouteImport } from './routes/shoots.$id.smart-file'
+import { Route as ShootsIdSocialRouteImport } from './routes/shoots.$id.social'
 import { Route as ApiPublicStripeConnectCallbackRouteImport } from './routes/api/public/stripe/connect-callback'
 import { Route as ApiPublicStripeConnectWebhookRouteImport } from './routes/api/public/stripe/connect-webhook'
+import { Route as ApiPublicStoriesPostIdCoverRouteImport } from './routes/api/public/stories/$postId/cover'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -81,6 +116,11 @@ const BusinessRoute = BusinessRouteImport.update({
   path: '/business',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientsRoute = ClientsRouteImport.update({
   id: '/clients',
   path: '/clients',
@@ -89,6 +129,16 @@ const ClientsRoute = ClientsRouteImport.update({
 const CommunityRoute = CommunityRouteImport.update({
   id: '/community',
   path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiePolicyRoute = CookiePolicyRouteImport.update({
+  id: '/cookie-policy',
+  path: '/cookie-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeliverRoute = DeliverRouteImport.update({
@@ -101,9 +151,39 @@ const DeskRoute = DeskRouteImport.update({
   path: '/desk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevelopRoute = DevelopRouteImport.update({
+  id: '/develop',
+  path: '/develop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EarningsRoute = EarningsRouteImport.update({
   id: '/earnings',
   path: '/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleriesRoute = GalleriesRouteImport.update({
+  id: '/galleries',
+  path: '/galleries',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MailRoute = MailRouteImport.update({
@@ -111,14 +191,29 @@ const MailRoute = MailRouteImport.update({
   path: '/mail',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MetadataRoute = MetadataRouteImport.update({
   id: '/metadata',
   path: '/metadata',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MoneyRoute = MoneyRouteImport.update({
+  id: '/money',
+  path: '/money',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NetworkRoute = NetworkRouteImport.update({
   id: '/network',
   path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OutboundRoute = OutboundRouteImport.update({
+  id: '/outbound',
+  path: '/outbound',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PackagesRoute = PackagesRouteImport.update({
@@ -151,6 +246,16 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductRoute = ProductRouteImport.update({
+  id: '/product',
+  path: '/product',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -171,6 +276,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecurityRoute = SecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SendRoute = SendRouteImport.update({
   id: '/send',
   path: '/send',
@@ -184,6 +294,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ShootRoute = ShootRouteImport.update({
   id: '/shoot',
   path: '/shoot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShootsRoute = ShootsRouteImport.update({
+  id: '/shoots',
+  path: '/shoots',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShopRoute = ShopRouteImport.update({
@@ -201,6 +316,21 @@ const StudioRoute = StudioRouteImport.update({
   path: '/studio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TonightRoute = TonightRouteImport.update({
+  id: '/tonight',
+  path: '/tonight',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UseCasesRoute = UseCasesRouteImport.update({
+  id: '/use-cases',
+  path: '/use-cases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VideoRoute = VideoRouteImport.update({
   id: '/video',
   path: '/video',
@@ -214,6 +344,31 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsPermissionsRoute = DocsPermissionsRouteImport.update({
+  id: '/docs_/permissions',
+  path: '/docs/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsSettingsRoute = DocsSettingsRouteImport.update({
+  id: '/docs_/settings',
+  path: '/docs/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GSlugRoute = GSlugRouteImport.update({
@@ -241,10 +396,60 @@ const STokenRoute = STokenRouteImport.update({
   path: '/s/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsSectionRoute = SettingsSectionRouteImport.update({
+  id: '/settings_/$section',
+  path: '/settings/$section',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShootsIndexRoute = ShootsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShootsRoute,
+} as any)
+const ShootsIdRoute = ShootsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ShootsRoute,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTrafficRoute = ApiPublicTrafficRouteImport.update({
+  id: '/api/public/traffic',
+  path: '/api/public/traffic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShootsIdIndexRoute = ShootsIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdCullRoute = ShootsIdCullRouteImport.update({
+  id: '/cull',
+  path: '/cull',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdDevelopRoute = ShootsIdDevelopRouteImport.update({
+  id: '/develop',
+  path: '/develop',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdGalleryRoute = ShootsIdGalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdSmartFileRoute = ShootsIdSmartFileRouteImport.update({
+  id: '/smart-file',
+  path: '/smart-file',
+  getParentRoute: () => ShootsIdRoute,
+} as any)
+const ShootsIdSocialRoute = ShootsIdSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => ShootsIdRoute,
 } as any)
 const ApiPublicStripeConnectCallbackRoute =
   ApiPublicStripeConnectCallbackRouteImport.update({
@@ -258,6 +463,12 @@ const ApiPublicStripeConnectWebhookRoute =
     path: '/api/public/stripe/connect-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicStoriesPostIdCoverRoute =
+  ApiPublicStoriesPostIdCoverRouteImport.update({
+    id: '/api/public/stories/$postId/cover',
+    path: '/api/public/stories/$postId/cover',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -266,41 +477,76 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
+  '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/cookie-policy': typeof CookiePolicyRoute
+  '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/develop': typeof DevelopRoute
+  '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/galleries': typeof GalleriesRoute
+  '/help': typeof HelpRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
+  '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
+  '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
+  '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
   '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/product': typeof ProductRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
   '/research': typeof ResearchRoute
+  '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shoots': typeof ShootsRouteWithChildren
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/terms': typeof TermsRoute
+  '/tonight': typeof TonightRoute
+  '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/mcp': typeof ApiMcpRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/docs/permissions': typeof DocsPermissionsRoute
+  '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
+  '/settings/$section': typeof SettingsSectionRoute
+  '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/blog/': typeof BlogIndexRoute
+  '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/shoots/$id/cull': typeof ShootsIdCullRoute
+  '/shoots/$id/develop': typeof ShootsIdDevelopRoute
+  '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
+  '/shoots/$id/smart-file': typeof ShootsIdSmartFileRoute
+  '/shoots/$id/social': typeof ShootsIdSocialRoute
+  '/shoots/$id/': typeof ShootsIdIndexRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
+  '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -309,41 +555,74 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
+  '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/cookie-policy': typeof CookiePolicyRoute
+  '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/develop': typeof DevelopRoute
+  '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/galleries': typeof GalleriesRoute
+  '/help': typeof HelpRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
+  '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
+  '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
+  '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
   '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/product': typeof ProductRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
   '/research': typeof ResearchRoute
+  '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/terms': typeof TermsRoute
+  '/tonight': typeof TonightRoute
+  '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/mcp': typeof ApiMcpRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/docs/permissions': typeof DocsPermissionsRoute
+  '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
+  '/settings/$section': typeof SettingsSectionRoute
+  '/blog': typeof BlogIndexRoute
+  '/shoots': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/shoots/$id/cull': typeof ShootsIdCullRoute
+  '/shoots/$id/develop': typeof ShootsIdDevelopRoute
+  '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
+  '/shoots/$id/smart-file': typeof ShootsIdSmartFileRoute
+  '/shoots/$id/social': typeof ShootsIdSocialRoute
+  '/shoots/$id': typeof ShootsIdIndexRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
+  '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -353,41 +632,76 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/business': typeof BusinessRoute
+  '/changelog': typeof ChangelogRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/cookie-policy': typeof CookiePolicyRoute
+  '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
+  '/develop': typeof DevelopRoute
+  '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/galleries': typeof GalleriesRoute
+  '/help': typeof HelpRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
+  '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
+  '/money': typeof MoneyRoute
   '/network': typeof NetworkRoute
+  '/outbound': typeof OutboundRoute
   '/packages': typeof PackagesRoute
   '/photographers': typeof PhotographersRoute
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/product': typeof ProductRoute
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
   '/research': typeof ResearchRoute
+  '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
+  '/shoots': typeof ShootsRouteWithChildren
   '/shop': typeof ShopRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
+  '/terms': typeof TermsRoute
+  '/tonight': typeof TonightRoute
+  '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/mcp': typeof ApiMcpRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/docs_/permissions': typeof DocsPermissionsRoute
+  '/docs_/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
+  '/settings_/$section': typeof SettingsSectionRoute
+  '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/blog/': typeof BlogIndexRoute
+  '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/shoots/$id/cull': typeof ShootsIdCullRoute
+  '/shoots/$id/develop': typeof ShootsIdDevelopRoute
+  '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
+  '/shoots/$id/smart-file': typeof ShootsIdSmartFileRoute
+  '/shoots/$id/social': typeof ShootsIdSocialRoute
+  '/shoots/$id/': typeof ShootsIdIndexRoute
   '/api/public/stripe/connect-callback': typeof ApiPublicStripeConnectCallbackRoute
   '/api/public/stripe/connect-webhook': typeof ApiPublicStripeConnectWebhookRoute
+  '/api/public/stories/$postId/cover': typeof ApiPublicStoriesPostIdCoverRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -398,41 +712,76 @@ export interface FileRouteTypes {
     | '/auth'
     | '/book'
     | '/business'
+    | '/changelog'
     | '/clients'
     | '/community'
+    | '/cookie-policy'
+    | '/dashboard'
     | '/deliver'
     | '/desk'
+    | '/develop'
+    | '/docs'
     | '/earnings'
+    | '/galleries'
+    | '/help'
+    | '/jobs'
+    | '/library'
     | '/mail'
+    | '/mcp'
     | '/metadata'
+    | '/money'
     | '/network'
+    | '/outbound'
     | '/packages'
     | '/photographers'
     | '/pick'
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/privacy'
+    | '/product'
     | '/projects'
     | '/publish'
     | '/rates'
     | '/research'
+    | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shoots'
     | '/shop'
     | '/signup'
     | '/studio'
+    | '/terms'
+    | '/tonight'
+    | '/use-cases'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/mcp'
+    | '/blog/$slug'
+    | '/docs/permissions'
+    | '/docs/settings'
     | '/g/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
+    | '/settings/$section'
+    | '/shoots/$id'
+    | '/blog/'
+    | '/shoots/'
     | '/api/public/lightroom'
+    | '/api/public/traffic'
+    | '/shoots/$id/cull'
+    | '/shoots/$id/develop'
+    | '/shoots/$id/gallery'
+    | '/shoots/$id/smart-file'
+    | '/shoots/$id/social'
+    | '/shoots/$id/'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
+    | '/api/public/stories/$postId/cover'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -441,41 +790,74 @@ export interface FileRouteTypes {
     | '/auth'
     | '/book'
     | '/business'
+    | '/changelog'
     | '/clients'
     | '/community'
+    | '/cookie-policy'
+    | '/dashboard'
     | '/deliver'
     | '/desk'
+    | '/develop'
+    | '/docs'
     | '/earnings'
+    | '/galleries'
+    | '/help'
+    | '/jobs'
+    | '/library'
     | '/mail'
+    | '/mcp'
     | '/metadata'
+    | '/money'
     | '/network'
+    | '/outbound'
     | '/packages'
     | '/photographers'
     | '/pick'
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/privacy'
+    | '/product'
     | '/projects'
     | '/publish'
     | '/rates'
     | '/research'
+    | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/shop'
     | '/signup'
     | '/studio'
+    | '/terms'
+    | '/tonight'
+    | '/use-cases'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/mcp'
+    | '/blog/$slug'
+    | '/docs/permissions'
+    | '/docs/settings'
     | '/g/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
+    | '/settings/$section'
+    | '/blog'
+    | '/shoots'
     | '/api/public/lightroom'
+    | '/api/public/traffic'
+    | '/shoots/$id/cull'
+    | '/shoots/$id/develop'
+    | '/shoots/$id/gallery'
+    | '/shoots/$id/smart-file'
+    | '/shoots/$id/social'
+    | '/shoots/$id'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
+    | '/api/public/stories/$postId/cover'
   id:
     | '__root__'
     | '/'
@@ -484,41 +866,76 @@ export interface FileRouteTypes {
     | '/auth'
     | '/book'
     | '/business'
+    | '/changelog'
     | '/clients'
     | '/community'
+    | '/cookie-policy'
+    | '/dashboard'
     | '/deliver'
     | '/desk'
+    | '/develop'
+    | '/docs'
     | '/earnings'
+    | '/galleries'
+    | '/help'
+    | '/jobs'
+    | '/library'
     | '/mail'
+    | '/mcp'
     | '/metadata'
+    | '/money'
     | '/network'
+    | '/outbound'
     | '/packages'
     | '/photographers'
     | '/pick'
     | '/portal'
     | '/portfolio'
     | '/pricing'
+    | '/privacy'
+    | '/product'
     | '/projects'
     | '/publish'
     | '/rates'
     | '/research'
+    | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
+    | '/shoots'
     | '/shop'
     | '/signup'
     | '/studio'
+    | '/terms'
+    | '/tonight'
+    | '/use-cases'
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/mcp'
+    | '/blog/$slug'
+    | '/docs_/permissions'
+    | '/docs_/settings'
     | '/g/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
+    | '/settings_/$section'
+    | '/shoots/$id'
+    | '/blog/'
+    | '/shoots/'
     | '/api/public/lightroom'
+    | '/api/public/traffic'
+    | '/shoots/$id/cull'
+    | '/shoots/$id/develop'
+    | '/shoots/$id/gallery'
+    | '/shoots/$id/smart-file'
+    | '/shoots/$id/social'
+    | '/shoots/$id/'
     | '/api/public/stripe/connect-callback'
     | '/api/public/stripe/connect-webhook'
+    | '/api/public/stories/$postId/cover'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -528,41 +945,68 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
   BusinessRoute: typeof BusinessRoute
+  ChangelogRoute: typeof ChangelogRoute
   ClientsRoute: typeof ClientsRoute
   CommunityRoute: typeof CommunityRoute
+  CookiePolicyRoute: typeof CookiePolicyRoute
+  DashboardRoute: typeof DashboardRoute
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
+  DevelopRoute: typeof DevelopRoute
+  DocsRoute: typeof DocsRoute
   EarningsRoute: typeof EarningsRoute
+  GalleriesRoute: typeof GalleriesRoute
+  HelpRoute: typeof HelpRoute
+  JobsRoute: typeof JobsRoute
+  LibraryRoute: typeof LibraryRoute
   MailRoute: typeof MailRoute
+  McpRoute: typeof McpRoute
   MetadataRoute: typeof MetadataRoute
+  MoneyRoute: typeof MoneyRoute
   NetworkRoute: typeof NetworkRoute
+  OutboundRoute: typeof OutboundRoute
   PackagesRoute: typeof PackagesRoute
   PhotographersRoute: typeof PhotographersRoute
   PickRoute: typeof PickRoute
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  ProductRoute: typeof ProductRoute
   ProjectsRoute: typeof ProjectsRoute
   PublishRoute: typeof PublishRoute
   RatesRoute: typeof RatesRoute
   ResearchRoute: typeof ResearchRoute
+  SecurityRoute: typeof SecurityRoute
   SendRoute: typeof SendRoute
   SettingsRoute: typeof SettingsRoute
   ShootRoute: typeof ShootRoute
+  ShootsRoute: typeof ShootsRouteWithChildren
   ShopRoute: typeof ShopRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
+  TermsRoute: typeof TermsRoute
+  TonightRoute: typeof TonightRoute
+  UseCasesRoute: typeof UseCasesRoute
   VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiMcpRoute: typeof ApiMcpRoute
+  BlogSlugRoute: typeof BlogSlugRoute
+  DocsPermissionsRoute: typeof DocsPermissionsRoute
+  DocsSettingsRoute: typeof DocsSettingsRoute
   GSlugRoute: typeof GSlugRoute
   PPostIdRoute: typeof PPostIdRoute
   PhotographerOwnerIdRoute: typeof PhotographerOwnerIdRoute
   ReviewIdRoute: typeof ReviewIdRoute
   STokenRoute: typeof STokenRoute
+  SettingsSectionRoute: typeof SettingsSectionRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
+  ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
+  ApiPublicStoriesPostIdCoverRoute: typeof ApiPublicStoriesPostIdCoverRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -609,6 +1053,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BusinessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/changelog': {
+      id: '/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof ChangelogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/clients': {
       id: '/clients'
       path: '/clients'
@@ -621,6 +1072,20 @@ declare module '@tanstack/react-router' {
       path: '/community'
       fullPath: '/community'
       preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookie-policy': {
+      id: '/cookie-policy'
+      path: '/cookie-policy'
+      fullPath: '/cookie-policy'
+      preLoaderRoute: typeof CookiePolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/deliver': {
@@ -637,11 +1102,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/develop': {
+      id: '/develop'
+      path: '/develop'
+      fullPath: '/develop'
+      preLoaderRoute: typeof DevelopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/earnings': {
       id: '/earnings'
       path: '/earnings'
       fullPath: '/earnings'
       preLoaderRoute: typeof EarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/galleries': {
+      id: '/galleries'
+      path: '/galleries'
+      fullPath: '/galleries'
+      preLoaderRoute: typeof GalleriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mail': {
@@ -651,6 +1158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MailRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/metadata': {
       id: '/metadata'
       path: '/metadata'
@@ -658,11 +1172,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MetadataRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/money': {
+      id: '/money'
+      path: '/money'
+      fullPath: '/money'
+      preLoaderRoute: typeof MoneyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/network': {
       id: '/network'
       path: '/network'
       fullPath: '/network'
       preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/outbound': {
+      id: '/outbound'
+      path: '/outbound'
+      fullPath: '/outbound'
+      preLoaderRoute: typeof OutboundRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/packages': {
@@ -707,6 +1235,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product': {
+      id: '/product'
+      path: '/product'
+      fullPath: '/product'
+      preLoaderRoute: typeof ProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects': {
       id: '/projects'
       path: '/projects'
@@ -735,6 +1277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/security': {
+      id: '/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof SecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/send': {
       id: '/send'
       path: '/send'
@@ -754,6 +1303,13 @@ declare module '@tanstack/react-router' {
       path: '/shoot'
       fullPath: '/shoot'
       preLoaderRoute: typeof ShootRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shoots': {
+      id: '/shoots'
+      path: '/shoots'
+      fullPath: '/shoots'
+      preLoaderRoute: typeof ShootsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shop': {
@@ -777,6 +1333,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tonight': {
+      id: '/tonight'
+      path: '/tonight'
+      fullPath: '/tonight'
+      preLoaderRoute: typeof TonightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/use-cases': {
+      id: '/use-cases'
+      path: '/use-cases'
+      fullPath: '/use-cases'
+      preLoaderRoute: typeof UseCasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/video': {
       id: '/video'
       path: '/video'
@@ -796,6 +1373,41 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs_/permissions': {
+      id: '/docs_/permissions'
+      path: '/docs/permissions'
+      fullPath: '/docs/permissions'
+      preLoaderRoute: typeof DocsPermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs_/settings': {
+      id: '/docs_/settings'
+      path: '/docs/settings'
+      fullPath: '/docs/settings'
+      preLoaderRoute: typeof DocsSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/g/$slug': {
@@ -833,12 +1445,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/$section': {
+      id: '/settings_/$section'
+      path: '/settings/$section'
+      fullPath: '/settings/$section'
+      preLoaderRoute: typeof SettingsSectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shoots/': {
+      id: '/shoots/'
+      path: '/'
+      fullPath: '/shoots/'
+      preLoaderRoute: typeof ShootsIndexRouteImport
+      parentRoute: typeof ShootsRoute
+    }
+    '/shoots/$id': {
+      id: '/shoots/$id'
+      path: '/$id'
+      fullPath: '/shoots/$id'
+      preLoaderRoute: typeof ShootsIdRouteImport
+      parentRoute: typeof ShootsRoute
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
       fullPath: '/api/public/lightroom'
       preLoaderRoute: typeof ApiPublicLightroomRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/public/traffic': {
+      id: '/api/public/traffic'
+      path: '/api/public/traffic'
+      fullPath: '/api/public/traffic'
+      preLoaderRoute: typeof ApiPublicTrafficRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shoots/$id/': {
+      id: '/shoots/$id/'
+      path: '/'
+      fullPath: '/shoots/$id/'
+      preLoaderRoute: typeof ShootsIdIndexRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/cull': {
+      id: '/shoots/$id/cull'
+      path: '/cull'
+      fullPath: '/shoots/$id/cull'
+      preLoaderRoute: typeof ShootsIdCullRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/develop': {
+      id: '/shoots/$id/develop'
+      path: '/develop'
+      fullPath: '/shoots/$id/develop'
+      preLoaderRoute: typeof ShootsIdDevelopRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/gallery': {
+      id: '/shoots/$id/gallery'
+      path: '/gallery'
+      fullPath: '/shoots/$id/gallery'
+      preLoaderRoute: typeof ShootsIdGalleryRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/smart-file': {
+      id: '/shoots/$id/smart-file'
+      path: '/smart-file'
+      fullPath: '/shoots/$id/smart-file'
+      preLoaderRoute: typeof ShootsIdSmartFileRouteImport
+      parentRoute: typeof ShootsIdRoute
+    }
+    '/shoots/$id/social': {
+      id: '/shoots/$id/social'
+      path: '/social'
+      fullPath: '/shoots/$id/social'
+      preLoaderRoute: typeof ShootsIdSocialRouteImport
+      parentRoute: typeof ShootsIdRoute
     }
     '/api/public/stripe/connect-callback': {
       id: '/api/public/stripe/connect-callback'
@@ -854,8 +1536,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeConnectWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stories/$postId/cover': {
+      id: '/api/public/stories/$postId/cover'
+      path: '/api/public/stories/$postId/cover'
+      fullPath: '/api/public/stories/$postId/cover'
+      preLoaderRoute: typeof ApiPublicStoriesPostIdCoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface ShootsIdRouteChildren {
+  ShootsIdCullRoute: typeof ShootsIdCullRoute
+  ShootsIdDevelopRoute: typeof ShootsIdDevelopRoute
+  ShootsIdGalleryRoute: typeof ShootsIdGalleryRoute
+  ShootsIdSmartFileRoute: typeof ShootsIdSmartFileRoute
+  ShootsIdSocialRoute: typeof ShootsIdSocialRoute
+  ShootsIdIndexRoute: typeof ShootsIdIndexRoute
+}
+
+const ShootsIdRouteChildren: ShootsIdRouteChildren = {
+  ShootsIdCullRoute: ShootsIdCullRoute,
+  ShootsIdDevelopRoute: ShootsIdDevelopRoute,
+  ShootsIdGalleryRoute: ShootsIdGalleryRoute,
+  ShootsIdSmartFileRoute: ShootsIdSmartFileRoute,
+  ShootsIdSocialRoute: ShootsIdSocialRoute,
+  ShootsIdIndexRoute: ShootsIdIndexRoute,
+}
+
+const ShootsIdRouteWithChildren = ShootsIdRoute._addFileChildren(
+  ShootsIdRouteChildren,
+)
+
+interface ShootsRouteChildren {
+  ShootsIdRoute: typeof ShootsIdRouteWithChildren
+  ShootsIndexRoute: typeof ShootsIndexRoute
+}
+
+const ShootsRouteChildren: ShootsRouteChildren = {
+  ShootsIdRoute: ShootsIdRouteWithChildren,
+  ShootsIndexRoute: ShootsIndexRoute,
+}
+
+const ShootsRouteWithChildren =
+  ShootsRoute._addFileChildren(ShootsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -864,41 +1588,68 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BookRoute: BookRoute,
   BusinessRoute: BusinessRoute,
+  ChangelogRoute: ChangelogRoute,
   ClientsRoute: ClientsRoute,
   CommunityRoute: CommunityRoute,
+  CookiePolicyRoute: CookiePolicyRoute,
+  DashboardRoute: DashboardRoute,
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
+  DevelopRoute: DevelopRoute,
+  DocsRoute: DocsRoute,
   EarningsRoute: EarningsRoute,
+  GalleriesRoute: GalleriesRoute,
+  HelpRoute: HelpRoute,
+  JobsRoute: JobsRoute,
+  LibraryRoute: LibraryRoute,
   MailRoute: MailRoute,
+  McpRoute: McpRoute,
   MetadataRoute: MetadataRoute,
+  MoneyRoute: MoneyRoute,
   NetworkRoute: NetworkRoute,
+  OutboundRoute: OutboundRoute,
   PackagesRoute: PackagesRoute,
   PhotographersRoute: PhotographersRoute,
   PickRoute: PickRoute,
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
+  ProductRoute: ProductRoute,
   ProjectsRoute: ProjectsRoute,
   PublishRoute: PublishRoute,
   RatesRoute: RatesRoute,
   ResearchRoute: ResearchRoute,
+  SecurityRoute: SecurityRoute,
   SendRoute: SendRoute,
   SettingsRoute: SettingsRoute,
   ShootRoute: ShootRoute,
+  ShootsRoute: ShootsRouteWithChildren,
   ShopRoute: ShopRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
+  TermsRoute: TermsRoute,
+  TonightRoute: TonightRoute,
+  UseCasesRoute: UseCasesRoute,
   VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiMcpRoute: ApiMcpRoute,
+  BlogSlugRoute: BlogSlugRoute,
+  DocsPermissionsRoute: DocsPermissionsRoute,
+  DocsSettingsRoute: DocsSettingsRoute,
   GSlugRoute: GSlugRoute,
   PPostIdRoute: PPostIdRoute,
   PhotographerOwnerIdRoute: PhotographerOwnerIdRoute,
   ReviewIdRoute: ReviewIdRoute,
   STokenRoute: STokenRoute,
+  SettingsSectionRoute: SettingsSectionRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
+  ApiPublicTrafficRoute: ApiPublicTrafficRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
+  ApiPublicStoriesPostIdCoverRoute: ApiPublicStoriesPostIdCoverRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

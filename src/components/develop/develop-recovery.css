@@ -1,0 +1,94 @@
+.develop-recovery-dialog {
+  width: min(540px, 100%);
+}
+.develop-recovery-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.develop-recovery-file {
+  display: grid;
+  gap: 8px;
+  color: #dedede;
+}
+.develop-recovery .develop-recovery-file input {
+  height: auto;
+  padding: 0;
+  color: #c2c2c2;
+  font: inherit;
+}
+.develop-recovery-file input::file-selector-button {
+  font: inherit;
+  color: #e1e1e1;
+  background: #3b3b3b;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin-right: 9px;
+  padding: 7px 10px;
+}
+.develop-recovery .develop-recovery-filename {
+  margin: 9px 0 14px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.develop-recovery-selection-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 15px 0 8px;
+  color: #bcbcbc;
+  font-size: 11px;
+}
+.develop-recovery-selection-bar > div {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.develop-recovery-photo-list {
+  max-height: min(32vh, 260px);
+  overflow: auto;
+  background: #232323;
+  border-radius: 4px;
+  padding: 4px;
+}
+.develop-recovery-photo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  color: #ddd;
+  border-radius: 3px;
+}
+.develop-recovery-photo:focus-within,
+.develop-recovery-photo:hover {
+  background: #343434;
+}
+.develop-recovery-photo input {
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #dadada;
+}
+.develop-recovery-photo span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.develop-recovery .develop-recovery-missing,
+.develop-recovery .develop-recovery-preview {
+  font-size: 11px;
+  margin: 12px 0 0;
+}
+.develop-recovery .develop-recovery-error {
+  color: #f0aba2;
+  margin: 12px 0 0;
+}
+.develop-recovery .develop-recovery-status {
+  margin: 12px 0 0;
+}
+.develop-recovery .develop-dialog-actions {
+  flex-wrap: wrap;
+}

@@ -27,13 +27,13 @@ function Candidate({
   recommended,
   view,
   onView,
-  onKeep,
+  onCull,
 }: {
   frame: BurstFrame;
   recommended: boolean;
   view: View;
   onView: (next: View) => void;
-  onKeep: (id: string) => void;
+  onCull: (id: string) => void;
 }) {
   const image = useRef<HTMLImageElement>(null);
   const drag = useRef<{ clientX: number; clientY: number; x: number; y: number } | null>(null);
@@ -121,7 +121,7 @@ function Candidate({
           type="button"
           disabled={frame.verdict !== "undecided" || !!frame.error}
           onClick={() => {
-            if (frame.verdict === "undecided" && !frame.error) onKeep(frame.id);
+            if (frame.verdict === "undecided" && !frame.error) onCull(frame.id);
           }}
           className="shrink-0 rounded-md bg-ink px-3 py-1.5 text-xs text-paper disabled:cursor-default disabled:bg-transparent disabled:text-moss"
         >
@@ -129,7 +129,7 @@ function Candidate({
             ? "Kept"
             : frame.verdict === "reject"
               ? "Pick protected"
-              : "Keep this frame"}
+              : "Keep this, reject the rest"}
         </button>
       </div>
     </section>
@@ -139,11 +139,11 @@ function Candidate({
 function GroupComparison({
   group,
   frames,
-  onKeep,
+  onCull,
 }: {
   group: BurstGroup;
   frames: ReadonlyMap<string, BurstFrame>;
-  onKeep: (id: string) => void;
+  onCull: (id: string) => void;
 }) {
   const available = group.frameIds.flatMap((id) => (frames.get(id) ? [frames.get(id)!] : []));
   const first = group.recommendedId || group.frameIds[0] || "";
@@ -221,7 +221,7 @@ function GroupComparison({
                   recommended={selected.id === group.recommendedId}
                   view={view}
                   onView={setView}
-                  onKeep={onKeep}
+                  onCull={onCull}
                 />
               )}
             </div>
@@ -229,8 +229,8 @@ function GroupComparison({
         })}
       </div>
       <p className="text-[11px] text-moss">
-        A suggestion uses focus/exposure signals, not player identity or peak-action understanding.
-        Keeping a frame never rejects its alternatives.
+        Culling this burst keeps one frame and rejects the other unreviewed frames. Existing
+        keep/reject picks stay.
       </p>
     </>
   );
@@ -240,12 +240,12 @@ export function BurstReview({
   open,
   onOpenChange,
   shots,
-  onKeep,
+  onCull,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shots: readonly BurstFrame[];
-  onKeep: (id: string) => void;
+  onCull: (keepId: string, groupIds: readonly string[]) => void;
 }) {
   const [result, setResult] = useState<BurstReviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -307,7 +307,7 @@ export function BurstReview({
         <DialogHeader className="pr-8">
           <DialogTitle className="font-display text-xl font-normal">Review bursts</DialogTitle>
           <DialogDescription className="text-xs text-moss">
-            Compare related frames. Your picks stay yours; nothing is rejected automatically.
+            Cull the burst: keep one frame, reject the other unreviewed frames. Existing picks stay.
           </DialogDescription>
         </DialogHeader>
         {loading && (
@@ -371,8 +371,8 @@ export function BurstReview({
               key={group.id}
               group={group}
               frames={frames}
-              onKeep={(id) => {
-                if (frames.get(id)?.verdict === "undecided") onKeep(id);
+              onCull={(id) => {
+                if (frames.get(id)?.verdict === "undecided") onCull(id, group.frameIds);
               }}
             />
           </>

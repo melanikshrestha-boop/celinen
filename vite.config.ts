@@ -6,9 +6,26 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { nativeStudioPlugin } from "./src/server/native-studio-plugin";
+import { nativeDevelopPlugin } from "./src/server/native-develop";
+import { nativeReferencePlugin } from "./src/server/native-reference";
+import { nativeCropPlugin } from "./src/server/native-crop";
+import { nativeObjectRemovePlugin } from "./src/server/native-object-remove";
+import { nativeReceiptPlugin } from "./src/server/native-receipt";
 
 export default defineConfig({
-  vite: { plugins: [nativeStudioPlugin()] },
+  vite: {
+    optimizeDeps: {
+      include: ["embla-carousel-react"],
+    },
+    plugins: [
+      nativeStudioPlugin(),
+      nativeDevelopPlugin(),
+      nativeReferencePlugin(),
+      nativeCropPlugin(),
+      nativeObjectRemovePlugin(),
+      nativeReceiptPlugin(),
+    ],
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import {
   authorizeNativeRequest,
   burstProtocol,
+  peopleProtocol,
   MAX_NATIVE_FILE_BYTES,
   NativeBridgeError,
   NativeFrameCache,
@@ -15,6 +16,8 @@ import {
   nativeStudioPlugin,
 } from "../src/server/native-studio-plugin";
 import { decodeNativeFrame } from "../src/lib/studio/native-client";
+import { DEFAULT_SOCIAL_FRAME } from "../src/lib/social-frame";
+import { jpegDimensions } from "../src/lib/delivery/media-integrity";
 
 const token = "a".repeat(64);
 const binary = resolve("native/build/lenslabs-native");
@@ -139,6 +142,21 @@ describe("native burst framing", () => {
     expect(Buffer.from(columns[7]!, "hex").toString()).toBe("Match α");
     expect(columns[8]).toBe("undecided");
     expect(burstProtocol({ frames: [] })).toBe("LENSBURST1 0\n");
+  });
+  test("people protocol never names anyone and requires 512-d embeddings", () => {
+    const embedding = Array.from({ length: 512 }, (_, i) => (i === 0 ? 1 : 0));
+    const output = peopleProtocol({
+      faces: [{ id: "obs-a", frameId: "frame-a", source: "local-descriptor", detScore: 0.5, embedding }],
+    });
+    expect(output).toStartWith("LENSPPL1 1\n");
+    expect(output).toContain("local-descriptor");
+    expect(output).not.toContain("Jane");
+    expect(() => peopleProtocol({ faces: [{ id: "obs-a", frameId: "frame-a", source: "buffalo", detScore: 0.5, embedding }] })).toThrow();
+    expect(() =>
+      peopleProtocol({
+        faces: [{ id: "obs-a", frameId: "frame-a", source: "insightface", detScore: 0.5, embedding: [1, 0] }],
+      }),
+    ).toThrow();
   });
   test("keeps timestamps, camera identity and decisions in separate fields", () => {
     const output = burstProtocol({
@@ -432,6 +450,73 @@ describe.skipIf(!hasNative)("local HTTP bridge", () => {
         })
       ).status,
     ).toBe(400);
+  });
+  test("social export requires the same local authorization and a bounded recipe", async () => {
+    const endpoint = origin + "/__native/social-frame";
+    const headers = {
+      ...auth,
+      "content-type": "application/octet-stream",
+      "x-lenslabs-frame": JSON.stringify(DEFAULT_SOCIAL_FRAME),
+    };
+    for (const patch of [{ origin: "https://evil.example" }, { "x-lenslabs-token": "invalid" }]) {
+      expect(
+        (await fetch(endpoint, { method: "POST", headers: { ...headers, ...patch }, body: "x" }))
+          .status,
+      ).toBe(403);
+    }
+    expect(
+      (
+        await fetch(endpoint, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(415);
+    for (const frame of [
+      "not-json",
+      JSON.stringify({ ...DEFAULT_SOCIAL_FRAME, source: good }),
+      JSON.stringify({ ...DEFAULT_SOCIAL_FRAME, zoom: 100 }),
+    ]) {
+      expect(
+        (
+          await fetch(endpoint, {
+            method: "POST",
+            headers: { ...headers, "x-lenslabs-frame": frame },
+            body: "x",
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect((await fetch(endpoint, { method: "POST", headers, body: "" })).status).toBe(400);
+  });
+  test("social HTTP output is a C++ JPEG, excludes paths, and preserves original bytes", async () => {
+    const before = await readFile(good);
+    for (const [format, height] of [
+      ["portrait", 1350],
+      ["square", 1080],
+      ["story", 1920],
+    ] as const) {
+      const result = await fetch(origin + "/__native/social-frame?path=/etc/passwd", {
+        method: "POST",
+        headers: {
+          ...auth,
+          "content-type": "application/octet-stream",
+          "x-lenslabs-frame": JSON.stringify({ ...DEFAULT_SOCIAL_FRAME, format }),
+        },
+        body: before,
+        signal: AbortSignal.timeout(5000),
+      });
+      expect(result.status).toBe(200);
+      expect(result.headers.get("x-lenslabs-engine")).toBe("cpp");
+      expect(result.headers.get("content-type")).toBe("image/jpeg");
+      expect(result.headers.get("cache-control")).toBe("no-store");
+      expect(jpegDimensions(new Uint8Array(await result.arrayBuffer()))).toEqual({
+        width: 1080,
+        height,
+      });
+    }
+    expect(await readFile(good)).toEqual(before);
   });
   test("oversized Content-Length fails before the body is received", async () => {
     const status = await new Promise<number>((done, reject) => {

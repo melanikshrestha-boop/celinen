@@ -174,7 +174,12 @@ describe("indexDuplicateFrames", () => {
       { id: "legacy-browser-best", hash, score: 95 },
       { id: "native-near", hash: flip(hash, [5, 31]), score: 90, analysisBackend: "native-cpp" },
       { id: "worker-near", hash: flip(hash, [5, 31]), score: 85, analysisBackend: "worker" },
-      { id: "main-thread-near", hash: flip(hash, [5, 31]), score: 80, analysisBackend: "main-thread" },
+      {
+        id: "main-thread-near",
+        hash: flip(hash, [5, 31]),
+        score: 80,
+        analysisBackend: "main-thread",
+      },
     ];
     const before = JSON.stringify(frames);
     const result = indexDuplicateFrames(frames);

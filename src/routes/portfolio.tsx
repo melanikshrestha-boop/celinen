@@ -1,22 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Btn, Card, SectionTitle, Shell } from "@/components/lensos/Shell";
-import { importPortfolio, type ImportedTheme } from "@/lib/portfolio-import.functions";
+import type { ImportedTheme } from "@/lib/portfolio-import.functions";
+import { useAccount } from "@/components/account/AccountProvider";
+import { PortfolioImportPanel } from "@/components/portfolio/PortfolioImportPanel";
+import { fillEmptyPortfolioFields, type PortfolioImportContent } from "@/lib/portfolio-import";
 
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
     meta: [
-      { title: "Portfolio Builder — LensLabs" },
+      { title: "Portfolio Import — FOTO" },
       {
         name: "description",
         content:
-          "Paste your Pixieset, Squarespace, Format or Wix site and LensLabs rebuilds it — palette, type, layout and photos — as an editable portfolio you can publish in seconds.",
+          "Review saved website text and Pixieset collection metadata before adding content to a FOTO portfolio preview. Your existing website stays untouched.",
       },
-      { property: "og:title", content: "Replicate your photo site — LensLabs" },
+      { property: "og:title", content: "Bring your website content — FOTO" },
       {
         property: "og:description",
-        content: "Paste a link. LensLabs rebuilds the site, then you change whatever you want.",
+        content: "File-based content review. No automatic domain transfer or website publishing.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -44,53 +46,28 @@ const DEFAULT_THEME: ImportedTheme = {
 };
 
 const fontStack = (name: string, serif: boolean) =>
-  `${name ? `"${name}", ` : ""}${serif ? "Georgia, 'Times New Roman', serif" : "system-ui, -apple-system, 'Helvetica Neue', sans-serif"}`;
+  `${name ? `"${name}", ` : ""}${serif ? "Georgia, 'Times New Roman', serif" : "var(--font-sans)"}`;
 
 function Portfolio() {
+  const account = useAccount();
+  return <PortfolioEditor key={account?.scope ?? "signed-out"} />;
+}
+
+function PortfolioEditor() {
   const [items, setItems] = useState<Item[]>([]);
   const [handle, setHandle] = useState("");
-  const [name, setName] = useState("");
-  const [bio, setBio] = useState("");
-  const [hero, setHero] = useState("");
-  const [nav, setNav] = useState<string[]>([]);
+  const [content, setContent] = useState<PortfolioImportContent>({
+    name: "",
+    bio: "",
+    hero: "",
+    nav: [],
+  });
+  const { name, bio, hero, nav } = content;
+  const setName = (name: string) => setContent((old) => ({ ...old, name }));
+  const setBio = (bio: string) => setContent((old) => ({ ...old, bio }));
+  const setHero = (hero: string) => setContent((old) => ({ ...old, hero }));
   const [theme, setTheme] = useState<ImportedTheme>(DEFAULT_THEME);
   const [live, setLive] = useState(false);
-  const [srcUrl, setSrcUrl] = useState("");
-  const [cloning, setCloning] = useState(false);
-  const [cloneNote, setCloneNote] = useState<string | null>(null);
-  const [cloneError, setCloneError] = useState<string | null>(null);
-  const runImport = useServerFn(importPortfolio);
-
-  const clone = async () => {
-    if (!srcUrl.trim()) return;
-    setCloning(true);
-    setCloneError(null);
-    setCloneNote(null);
-    try {
-      const site = await runImport({ data: { url: srcUrl.trim() } });
-      setName(site.name);
-      setBio(site.bio);
-      setHandle(site.handle);
-      setHero(site.hero);
-      setNav(site.nav);
-      setTheme(site.theme);
-      setItems(
-        site.photos.map((ph, i) => ({
-          id: `imported-${i}-${Math.random().toString(36).slice(2, 7)}`,
-          url: ph.url,
-          title: ph.title,
-          story: ph.story,
-        })),
-      );
-      setCloneNote(
-        `Rebuilt your ${site.platform} site — ${site.photos.length} frames, ${site.nav.length} nav links, palette and type copied. Change anything below.`,
-      );
-    } catch (err) {
-      setCloneError(err instanceof Error ? err.message : "Could not read that site.");
-    } finally {
-      setCloning(false);
-    }
-  };
 
   const input = useRef<HTMLInputElement>(null);
   const urls = useRef<string[]>([]);
@@ -136,33 +113,16 @@ function Portfolio() {
     <Shell hideEventHeader>
       <SectionTitle
         kicker="Portfolio"
-        title="Paste your old site. Get it back, editable."
-        sub="Pixieset, Squarespace, Format, Wix, SmugMug — LensLabs copies the palette, the type, the layout and every photo, then hands you the controls."
+        title="Your work. Your next website."
+        sub="Bring over approved text. Keep your photos, edits and existing site."
       />
 
       <Card className="mb-4">
-        <p className="font-display text-[17px] font-semibold tracking-tight">
-          Replicate an existing site
-        </p>
-        <p className="mt-1 text-[13px] text-moss">
-          One link. LensLabs reads the live page and rebuilds it here.
-        </p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            value={srcUrl}
-            onChange={(e) => setSrcUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void clone();
-            }}
-            placeholder="yourname.pixieset.com"
-            className="w-full rounded-lg border border-input bg-card px-3 py-2 font-mono text-sm outline-none focus:border-rust/50"
-          />
-          <Btn variant="primary" disabled={cloning || !srcUrl.trim()} onClick={() => void clone()}>
-            {cloning ? "Replicating…" : "Replicate site"}
-          </Btn>
-        </div>
-        {cloneNote && <p className="mt-2 text-[13px] text-moss">{cloneNote}</p>}
-        {cloneError && <p className="mt-2 text-[13px] text-rust">{cloneError}</p>}
+        <PortfolioImportPanel
+          onApply={(proposed) =>
+            setContent((current) => fillEmptyPortfolioFields(current, proposed))
+          }
+        />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.25fr]">
@@ -193,15 +153,15 @@ function Portfolio() {
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
                   placeholder="handle"
-                  className="w-full rounded-lg border border-input bg-card px-3 py-2 font-mono text-sm outline-none focus:border-rust/50"
+                  className="w-full rounded-lg border border-input bg-card px-3 py-2 font-sans text-sm outline-none focus:border-rust/50"
                 />
-                <span className="font-mono text-[13px] text-moss">.lens.photo</span>
+                <span className="text-[13px] text-moss">preview label</span>
               </div>
             </div>
 
             <div className="mt-4 space-y-2 rounded-xl border border-border p-3">
-              <p className="font-mono text-[11px] uppercase tracking-wide text-moss">
-                Replicated look — change it
+              <p className="font-sans text-[11px] uppercase tracking-wide text-moss">
+                Preview Appearance
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 text-[13px]">
@@ -237,24 +197,16 @@ function Portfolio() {
                   <button
                     key={l}
                     onClick={() => setTheme({ ...theme, layout: l })}
-                    className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] ${
+                    className={`rounded-lg border px-2.5 py-1 font-sans text-[11px] ${
                       theme.layout === l ? "border-rust text-rust" : "border-input text-moss"
                     }`}
                   >
                     {l}
                   </button>
                 ))}
-                <button
-                  onClick={() => setTheme({ ...theme, serif: !theme.serif })}
-                  className={`rounded-lg border px-2.5 py-1 font-mono text-[11px] ${
-                    theme.serif ? "border-rust text-rust" : "border-input text-moss"
-                  }`}
-                >
-                  {theme.serif ? "serif" : "sans"}
-                </button>
               </div>
               {theme.headingFont && (
-                <p className="font-mono text-[11px] text-moss">
+                <p className="font-sans text-[11px] text-moss">
                   detected type: {theme.headingFont}
                   {theme.bodyFont && theme.bodyFont !== theme.headingFont
                     ? ` / ${theme.bodyFont}`
@@ -270,10 +222,18 @@ function Portfolio() {
                 add(e.dataTransfer.files);
               }}
               onClick={() => input.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  input.current?.click();
+                }
+              }}
               className="mt-4 cursor-pointer rounded-xl border border-dashed border-input p-8 text-center transition-colors hover:border-rust/50"
             >
               <p className="text-sm">Drop photos here, or click to choose</p>
-              <p className="mt-1 font-mono text-[11px] text-moss">
+              <p className="mt-1 font-sans text-[11px] text-moss">
                 JPEG / PNG / WebP · stays in your browser
               </p>
               <input
@@ -288,10 +248,15 @@ function Portfolio() {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Btn variant="primary" disabled={!items.length} onClick={() => setLive(true)}>
-                Preview layout
+                Preview Layout
               </Btn>
               {live && (
-                <span className="text-sm text-moss">Preview only · <a href="/publish" className="underline">Publish approved finals</a></span>
+                <span className="text-sm text-moss">
+                  Preview only ·{" "}
+                  <a href="/publish" className="underline">
+                    Publish Approved Finals
+                  </a>
+                </span>
               )}
             </div>
           </Card>
@@ -328,12 +293,11 @@ function Portfolio() {
         <Card className="p-0">
           <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
             <span className="size-2 rounded-full bg-border" />
-            <span className="font-mono text-[11px] text-moss">{slug}.lens.photo</span>
+            <span className="text-[11px] text-moss">
+              {slug} · layout preview, no domain assigned
+            </span>
           </div>
-          <div
-            className="p-8"
-            style={{ background: theme.bg, color: theme.ink, ...bodyStyle }}
-          >
+          <div className="p-8" style={{ background: theme.bg, color: theme.ink, ...bodyStyle }}>
             {nav.length > 0 && (
               <nav
                 className={`mb-8 flex flex-wrap gap-4 text-[12px] opacity-70 ${

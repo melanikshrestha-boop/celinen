@@ -1,17 +1,18 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { APPLICATION_ORIGIN, applicationUrl } from "@/lib/application-origin";
+import { ArrowRight, Camera, Eye, EyeOff, Images, Send, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { LogoMark } from "@/components/lensos/Logo";
-import { lovable } from "@/integrations/lovable";
+import { signInWithOAuth } from "@/lib/auth/oauth";
 import { supabase } from "@/integrations/supabase/client";
 import { authReturnUrl, isLocalAuthOrigin, type AuthSearch } from "@/lib/auth-flow";
 import { safeSignInPath } from "@/lib/workbench";
+import { PRODUCT_NAME } from "@/lib/product";
 import "./auth-screen.css";
 
 type Props = AuthSearch & { onAuthenticated: () => void };
 
 /** Real account entry; the appearance is independent of the workspace theme. */
-export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
+export function AuthScreen({ next, mode, source, google, onAuthenticated }: Props) {
   const signup = mode !== "signin";
   const fromGallery = source === "client-gallery";
   const [email, setEmail] = useState("");
@@ -26,6 +27,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
   const emailInput = useRef<HTMLInputElement>(null);
   const requestPending = useRef(false);
   const mounted = useRef(false);
+  const googleStarted = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -57,7 +59,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
     if (mounted.current) setError(message);
   }
 
-  function google() {
+  function googleSignIn() {
     void run("google", async () => {
       if (isLocalAuthOrigin(window.location.origin)) {
         setLocalGoogle(true);
@@ -66,16 +68,28 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
         );
         return;
       }
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: authReturnUrl(window.location.origin, next, fromGallery),
+      const result = await signInWithOAuth("google", {
+        redirect_uri: authReturnUrl(
+          window.location.origin,
+          next,
+          fromGallery,
+          signup ? "signup" : "signin",
+        ),
       });
-      if (result.error)
+      if (result.status === "error")
         return providerError(
           result.error.message || "Google sign-in didn’t finish. Please try again.",
         );
-      if (!result.redirected && mounted.current) onAuthenticated();
+      if (result.status === "authenticated" && mounted.current) onAuthenticated();
     });
   }
+
+  useEffect(() => {
+    if (!ready || !google || googleStarted.current) return;
+    if (typeof window !== "undefined" && isLocalAuthOrigin(window.location.origin)) return;
+    googleStarted.current = true;
+    googleSignIn();
+  }, [ready, google]);
 
   function magicLink() {
     // Validate only email, not the password or optional sign-up fields.
@@ -143,40 +157,68 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
   };
   return (
     <main className="auth-screen">
-      <section className="auth-panel" aria-labelledby="auth-title">
-        <Link to="/" className="auth-brand" aria-label="LensLabs home">
-          <LogoMark size={32} />
-          <span>LensLabs</span>
+      <div className="auth-scene">
+        <img
+          className="auth-scene-image"
+          src="/images/foto-open-sky.webp"
+          alt=""
+          aria-hidden="true"
+          fetchPriority="high"
+        />
+        <Link to="/" className="auth-brand" aria-label={`${PRODUCT_NAME} home`}>
+          {PRODUCT_NAME}
         </Link>
+        <h1>
+          Send the gallery <em>tonight</em>
+        </h1>
+        <p className="auth-scene-plan">Pro · USD 16 / mo billed yearly · 1,000 photo credits / mo</p>
+        <ul className="auth-scene-points">
+          <li>
+            <Camera size={18} strokeWidth={1.8} aria-hidden="true" />
+            Import a shoot
+          </li>
+          <li>
+            <Images size={18} strokeWidth={1.8} aria-hidden="true" />
+            Pick the keepers
+          </li>
+          <li>
+            <Send size={18} strokeWidth={1.8} aria-hidden="true" />
+            Send a gallery
+          </li>
+          <li>
+            <SlidersHorizontal size={18} strokeWidth={1.8} aria-hidden="true" />
+            Adobe when you want it
+          </li>
+        </ul>
+      </div>
+      <section className="auth-panel" aria-labelledby="auth-title">
+        <Link to="/" className="auth-leave">
+          Back
+        </Link>
+        <p className="auth-wordmark">{PRODUCT_NAME}</p>
         <header className="auth-heading">
-          <h1 id="auth-title">{signup ? "Create Your Account" : "Sign in to LensLabs"}</h1>
-          <p>Your shoots, galleries, and storefronts in one place.</p>
-          <div className="auth-switch">
-            <span>{signup ? "Already have an account?" : "New to LensLabs?"}</span>
-            <Link
-              to="/auth"
-              search={switchSearch}
-              aria-disabled={busy !== null}
-              onClick={(event) => {
-                if (requestPending.current) event.preventDefault();
-              }}
-            >
-              {signup ? "Sign in" : "Create an account"}
-              <ArrowRight size={16} />
-            </Link>
-          </div>
+          <h1 id="auth-title">
+            {signup ? (
+              <>
+                Create an <em>account</em>
+              </>
+            ) : (
+              <>
+                Sign <em>in</em>
+              </>
+            )}
+          </h1>
         </header>
 
         <button
           className="auth-google"
           type="button"
-          onClick={google}
+          onClick={googleSignIn}
           disabled={!ready || busy !== null}
         >
           <GoogleGlyph />
           {busy === "google" ? "Connecting…" : "Continue with Google"}
         </button>
-        <p className="auth-alternative">or continue with email</p>
 
         <form className="auth-form" onSubmit={submit} aria-busy={busy !== null}>
           <fieldset disabled={!ready || busy !== null}>
@@ -196,7 +238,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
               </label>
             )}
             <label htmlFor="auth-email">
-              Email
+              Email address
               <input
                 ref={emailInput}
                 id="auth-email"
@@ -209,7 +251,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="picasso@gmail.com"
+                placeholder="picasso@studio.com"
               />
             </label>
             <label htmlFor="auth-password">Password</label>
@@ -223,7 +265,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
                 minLength={signup ? 8 : 1}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={signup ? "At least 8 characters" : "Enter your password"}
+                placeholder={signup ? "Create a password" : "Enter your password"}
               />
               <button
                 type="button"
@@ -235,13 +277,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
               </button>
             </div>
             <button className="auth-submit" type="submit">
-              {busy === "password"
-                ? signup
-                  ? "Creating your account…"
-                  : "Signing in…"
-                : signup
-                  ? "Create account"
-                  : "Sign in"}
+              {busy === "password" ? (signup ? "Creating your account…" : "Signing in…") : "Continue"}
             </button>
           </fieldset>
         </form>
@@ -255,9 +291,11 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           {localGoogle && (
             <a
               className="auth-live-link"
-              href={`https://lenslab.dev/auth?${new URLSearchParams({ next: safeSignInPath(next), mode: signup ? "signup" : "signin", ...(source ? { source } : {}) })}`}
+              href={applicationUrl(
+                `/auth?${new URLSearchParams({ next: safeSignInPath(next), mode: signup ? "signup" : "signin", ...(source ? { source } : {}) })}`,
+              )}
             >
-              Continue on lenslab.dev <ArrowRight size={16} />
+              Continue on {new URL(APPLICATION_ORIGIN).hostname} <ArrowRight size={16} />
             </a>
           )}
           {note && <p role="status">{note}</p>}
@@ -272,14 +310,23 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
             {busy === "email" ? "Sending your link…" : "Email me a sign-in link instead"}
           </button>
         )}
-
-        <div className="auth-assurance">
-          <LockKeyhole size={20} aria-hidden="true" />
-          <div>
-            <h2>Your originals stay local</h2>
-            <p>LensLabs only uploads prepared gallery copies when you publish.</p>
-          </div>
-        </div>
+        <p className="auth-switch">
+          {signup ? "Already have an account?" : `New to ${PRODUCT_NAME}?`}{" "}
+          <Link
+            to="/auth"
+            search={switchSearch}
+            aria-disabled={busy !== null}
+            onClick={(event) => {
+              if (requestPending.current) event.preventDefault();
+            }}
+          >
+            {signup ? "Sign in" : "Create an account"}
+          </Link>
+        </p>
+        <p className="auth-legal">
+          By continuing, you agree to our <Link to="/terms">Terms of Service</Link> and{" "}
+          <Link to="/privacy">Privacy Policy</Link>.
+        </p>
         <footer className="auth-footer">
           {fromGallery ? (
             <p>
@@ -296,7 +343,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
           )}
         </footer>
         <noscript>
-          <p className="auth-error">Enable JavaScript to securely sign in to LensLabs.</p>
+          <p className="auth-error">Enable JavaScript to securely sign in to {PRODUCT_NAME}.</p>
         </noscript>
       </section>
     </main>

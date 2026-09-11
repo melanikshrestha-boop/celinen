@@ -1,0 +1,70 @@
+.invite-friend-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 24px;
+  gap: 18px;
+  color: var(--foreground);
+  background: var(--background);
+  border-color: var(--input);
+  box-shadow: none;
+}
+.invite-friend-dialog h2 {
+  padding-right: 24px;
+  line-height: 1.4;
+}
+.invite-friend-dialog [id$="description"] {
+  line-height: 1.5;
+}
+.invite-friend-link label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 7px;
+}
+.invite-friend-link input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  background: transparent;
+  color: inherit;
+}
+.invite-friend-link input:focus-visible,
+.invite-friend-actions :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.invite-friend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.invite-friend-actions .settings-button {
+  min-height: 44px;
+  font-size: 14px;
+}
+.invite-friend-actions button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.invite-friend-feedback {
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.invite-friend-feedback:empty {
+  display: none;
+}
+.invite-friend-privacy {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+@media (max-width: 400px) {
+  .invite-friend-dialog {
+    padding: 20px;
+  }
+}

@@ -35,7 +35,14 @@ export const saveAccountProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(profileInputSchema.extend({ expectedOwner: z.string().uuid() }).strict())
   .handler(async ({ data, context }) => {
-    const metadata = profileMetadata({ name: data.name, workspaceName: data.workspaceName });
+    const metadata = profileMetadata({
+      name: data.name,
+      workspaceName: data.workspaceName,
+      ...(data.specialties !== undefined ? { specialties: data.specialties } : {}),
+      ...(data.customSpecialty !== undefined ? { customSpecialty: data.customSpecialty } : {}),
+      ...(data.biography !== undefined ? { biography: data.biography } : {}),
+      ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+    });
     await persistProfileMetadata({
       owner: context.userId,
       expectedOwner: data.expectedOwner,

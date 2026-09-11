@@ -1,0 +1,2113 @@
+import { z } from "zod";
+import { cropRect, DEFAULT_EDITS, type Shot } from "../imaging";
+import { fingerprintSource } from "../studio/ingest";
+import { PHOTO_ID_MAX_LENGTH } from "../photo-identity";
+import {
+  assertPhotoNameAvailable,
+  normalizePhotoDisplayName,
+  renamedDevelopPhoto,
+  uniquePhotoDisplayName,
+  virtualCopyPhoto,
+} from "./photo-management";
+import { presetPackageMetadataSchema } from "./preset-package";
+import {
+  cloneDevelopSettings,
+  defaultDevelopSettings,
+  developSettingsSchema,
+  DEVELOP_ENGINE_LIMITS,
+  type DevelopSettings,
+} from "./contract";
+
+/** Deliberately separate from Studio's databases. Develop never writes a Studio session. */
+export const DEVELOP_DATABASE_NAME = "foto-develop-v1";
+export const DEVELOP_HISTORY_LIMIT = 200;
+export const DEVELOP_RECOVERY_LIMITS = Object.freeze({
+  maxBytes: 32 * 1024 * 1024,
+  maxDocuments: 2000,
+});
+const STORES = {
+  photos: "photos",
+  documents: "documents",
+  presets: "presets",
+  manifests: "manifests",
+  importJobs: "importJobs",
+} as const;
+const nonempty = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine((value) => value.trim().length > 0, "An identifier cannot be blank.");
+/** The prefix is additive; never trim or re-key an existing Studio photo. */
+export const developPhotoIdSchema = z
+  .string()
+  .min(1)
+  .max(PHOTO_ID_MAX_LENGTH + "studio:".length)
+  .refine((value) => value.trim().length > 0, "A photo identifier cannot be blank.");
+const sourceNameSchema = z.string().min(1).max(1000);
+export const shootManifestSchema = z
+  .object({
+    version: z.literal(1),
+    revision: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER - 1),
+    photoIds: z.array(developPhotoIdSchema).max(50000),
+    selectedId: developPhotoIdSchema.nullable(),
+    filter: z.string().min(1).max(80),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.photoIds).size !== value.photoIds.length)
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Shoot photo IDs must be unique." });
+    if (value.selectedId !== null && !value.photoIds.includes(value.selectedId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "The selected photo is not in this shoot.",
+      });
+  });
+export type ShootManifest = z.infer<typeof shootManifestSchema>;
+export type ShootManifestView = Pick<ShootManifest, "photoIds" | "selectedId" | "filter">;
+export const developImportJobSchema = z
+  .object({
+    version: z.literal(1),
+    revision: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER - 1),
+    id: nonempty,
+    phase: z.enum(["discovering", "processing", "complete", "cancelled", "paused", "interrupted"]),
+    startedAt: z.number().finite().nonnegative(),
+    finishedAt: z.number().finite().nonnegative().nullable(),
+    rows: z
+      .array(
+        z
+          .object({
+            id: nonempty,
+            name: sourceNameSchema,
+            path: z.string().max(4000),
+            status: z.enum(["found", "preview-ready", "saved", "failed", "duplicate", "cancelled"]),
+            photoId: developPhotoIdSchema.optional(),
+            error: z.string().max(2000).optional(),
+          })
+          .strict(),
+      )
+      .max(50000),
+    found: z.number().int().min(0).max(50000),
+    previewReady: z.number().int().min(0).max(50000),
+    analyzed: z.number().int().min(0).max(50000),
+    saved: z.number().int().min(0).max(50000),
+    failed: z.number().int().min(0).max(50000),
+    duplicates: z.number().int().min(0).max(50000),
+    error: z.string().max(4000).nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.rows.map((row) => row.id)).size !== value.rows.length)
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Import row IDs must be unique." });
+    if (value.finishedAt !== null && value.finishedAt < value.startedAt)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Import completion precedes its start.",
+      });
+    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 8 * 1024 * 1024)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Import metadata exceeds the 8 MiB safety limit.",
+      });
+  });
+export type DevelopImportJob = z.infer<typeof developImportJobSchema>;
+const sidecarSchema = z
+  .object({ name: sourceNameSchema, path: z.string().max(4000), text: z.string() })
+  .strict()
+  .refine(
+    (value) => new TextEncoder().encode(value.text).byteLength <= 256 * 1024,
+    "A saved sidecar cannot exceed 256 KiB.",
+  );
+export type DevelopSidecar = z.infer<typeof sidecarSchema>;
+
+/** An immutable reference, not a claim that two renderers produce identical pixels. */
+export type DevelopLegacyMetadata = {
+  version: 1;
+  source: "studio";
+  shotId: string;
+  metadata: Record<string, unknown>;
+  unresolvedCrop?: Shot["edits"]["crop"] | undefined;
+};
+const legacySchema = z
+  .object({
+    version: z.literal(1),
+    source: z.literal("studio"),
+    shotId: z.string().min(1).max(PHOTO_ID_MAX_LENGTH),
+    metadata: z.record(z.unknown()),
+    unresolvedCrop: z.enum(["orig", "1:1", "4:5", "3:2", "16:9"]).optional(),
+  })
+  .strict();
+function copyLegacy(input: DevelopLegacyMetadata): DevelopLegacyMetadata {
+  const checked = legacySchema.parse(input);
+  let nodes = 0;
+  const validate = (value: unknown, depth: number): void => {
+    if (++nodes > 30000 || depth > 30)
+      throw new Error("Legacy metadata is too large or deeply nested.");
+    if (
+      value === null ||
+      value === undefined ||
+      typeof value === "boolean" ||
+      typeof value === "string"
+    )
+      return;
+    if (typeof value === "number" && Number.isFinite(value)) return;
+    if (Array.isArray(value)) {
+      for (const child of value) validate(child, depth + 1);
+      return;
+    }
+    if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const child of Object.values(value)) validate(child, depth + 1);
+      return;
+    }
+    throw new Error(
+      "Legacy metadata must contain only serializable data, not files or executable values.",
+    );
+  };
+  validate(checked.metadata, 0);
+  if (
+    checked.metadata["id"] !== checked.shotId ||
+    ["file", "previewBlob", "previewUrl"].some((key) => Object.hasOwn(checked.metadata, key))
+  )
+    throw new Error("Legacy metadata does not match its source photo.");
+  if (new TextEncoder().encode(JSON.stringify(checked)).byteLength > 1024 * 1024)
+    throw new Error("Legacy photo metadata exceeds the 1 MiB safety limit.");
+  return structuredClone(checked);
+}
+const nameSchema = z.string().trim().min(1).max(100);
+const revisionSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(Number.MAX_SAFE_INTEGER - 1);
+const historySchema = z
+  .object({
+    id: nonempty,
+    label: nameSchema,
+    settings: developSettingsSchema,
+    at: z.number().finite().nonnegative(),
+  })
+  .strict();
+const snapshotSchema = z
+  .object({
+    id: nonempty,
+    name: nameSchema,
+    settings: developSettingsSchema,
+    at: z.number().finite().nonnegative(),
+  })
+  .strict();
+const metadataSchema = z
+  .object({
+    rating: z.number().int().min(0).max(5),
+    flag: z.enum(["pick", "reject"]).nullable(),
+    colorLabel: z.enum(["red", "yellow", "green", "blue", "purple"]).nullable(),
+  })
+  .strict();
+const initialStateSchema = z
+  .object({ settings: developSettingsSchema, metadata: metadataSchema })
+  .strict();
+export const developDocumentSchema = z
+  .object({
+    photoId: developPhotoIdSchema,
+    revision: revisionSchema,
+    history: z
+      .array(historySchema)
+      .min(1)
+      .max(DEVELOP_HISTORY_LIMIT + 1),
+    cursor: z.number().int().nonnegative(),
+    snapshots: z.array(snapshotSchema).max(50),
+    metadata: metadataSchema,
+    updatedAt: z.number().finite().nonnegative(),
+  })
+  .strict()
+  .superRefine((doc, context) => {
+    if (doc.cursor >= doc.history.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "History cursor is outside the saved history.",
+      });
+    if (new Set(doc.history.map((entry) => entry.id)).size !== doc.history.length)
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "History IDs must be unique." });
+    if (new Set(doc.snapshots.map((entry) => entry.id)).size !== doc.snapshots.length)
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Snapshot IDs must be unique." });
+  });
+const presetSchema = z
+  .object({
+    id: nonempty,
+    name: nameSchema,
+    settings: developSettingsSchema,
+    revision: revisionSchema,
+    updatedAt: z.number().finite().nonnegative(),
+    packageMetadata: presetPackageMetadataSchema.optional(),
+  })
+  .strict();
+
+export type DevelopHistoryEntry = z.infer<typeof historySchema>;
+export type DevelopSnapshot = z.infer<typeof snapshotSchema>;
+export type DevelopDocument = z.infer<typeof developDocumentSchema>;
+export type DevelopPreset = z.infer<typeof presetSchema>;
+const reconnectExpectedSchema = z
+  .object({
+    sourceFileName: sourceNameSchema,
+    sourceDigest: z.string().max(200).nullable(),
+  })
+  .strict();
+export type DevelopReconnectExpected = z.infer<typeof reconnectExpectedSchema>;
+
+export type DevelopPhotoInput = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  isRaw: boolean;
+  sourceBlob: Blob | null;
+  previewBlob: Blob | null;
+  previewOrigin?: "embedded" | "raw-demosaic" | "raster" | "unknown";
+  sourceFileName: string;
+  sourceLastModified: number;
+  sourceDigest: string | null;
+  /** Immutable full legacy reference; later native edits never overwrite this snapshot. */
+  legacy?: DevelopLegacyMetadata;
+  /** Exact matched source text, not executed or treated as an equivalent native recipe. */
+  sidecar?: DevelopSidecar;
+  /** Consumed only when the photo is first inserted; never stored alongside its media. */
+  initialState?: z.infer<typeof initialStateSchema>;
+  /** Explicit source-attachment operation; never emitted by ordinary Studio imports. */
+  reconnectOriginal?: true;
+  /** Scan-time identity guard; consumed by attachment, never persisted. */
+  reconnectExpected?: DevelopReconnectExpected;
+};
+export type DevelopPhoto = Omit<
+  DevelopPhotoInput,
+  "initialState" | "reconnectOriginal" | "reconnectExpected"
+> & {
+  sourceAvailable: boolean;
+  createdAt: number;
+};
+export type DevelopLibrary = {
+  photos: DevelopPhoto[];
+  documents: Record<string, DevelopDocument>;
+  presets: DevelopPreset[];
+};
+/** Media and exact saved edit documents acknowledged by one completed transaction. */
+export type DevelopImportCommit = Pick<DevelopLibrary, "photos" | "documents">;
+export type DevelopPhotoRecord = { photo: DevelopPhoto; document: DevelopDocument };
+export type DevelopStoreChange = {
+  kind: "photos" | "documents" | "presets" | "manifest" | "import-job";
+  ids: string[];
+  /** Same-window only. Cross-tab messages carry identifiers, never image Blobs. */
+  commit?: DevelopImportCommit;
+};
+export type DevelopStoreOptions = { scope: string; libraryId: string; factory?: IDBFactory };
+type LocalObserver = {
+  scope: string;
+  namespace: string;
+  listener: (change: DevelopStoreChange) => void;
+};
+const localObservers: Set<LocalObserver> = import.meta.hot?.data["developObservers"] ?? new Set();
+// This module also loads during SSR. Workers forbid random generation at module
+// scope, so create the cross-tab identity only when the store actually uses it.
+// Share the holder across HMR even before the first save: surviving old stores
+// and new stores must not allocate different origins after a reload.
+const notificationIdentity: { value?: string } = import.meta.hot?.data[
+  "developNotificationIdentity"
+] ?? { value: import.meta.hot?.data["developNotificationOrigin"] };
+function getNotificationOrigin(): string {
+  return (notificationIdentity.value ??= uniqueId());
+}
+if (import.meta.hot)
+  import.meta.hot.dispose((data) => {
+    data["developObservers"] = localObservers;
+    data["developNotificationOrigin"] = notificationIdentity.value;
+    data["developNotificationIdentity"] = notificationIdentity;
+  });
+export type DevelopRecoveryTarget = Pick<DevelopStoreOptions, "scope" | "libraryId">;
+export type DevelopRecovery = {
+  version: 1;
+  namespace: string;
+  documents: Record<string, DevelopDocument>;
+};
+export type DevelopRecoveryPlan = {
+  namespace: string;
+  photoIds: string[];
+  expectedRevisions: Record<string, number>;
+  updates: { document: DevelopDocument; expectedRevision: number }[];
+  unchangedPhotoIds: string[];
+};
+export type DevelopRecoveryResult = {
+  documents: DevelopDocument[];
+  restoredPhotoIds: string[];
+  unchangedPhotoIds: string[];
+};
+
+function uniqueId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+  );
+}
+function timestamp(): number {
+  return Date.now();
+}
+function documentCopy(document: DevelopDocument): DevelopDocument {
+  return developDocumentSchema.parse(document);
+}
+function sameSettings(a: DevelopSettings, b: DevelopSettings): boolean {
+  return JSON.stringify(cloneDevelopSettings(a)) === JSON.stringify(cloneDevelopSettings(b));
+}
+
+export function createDevelopDocument(
+  photoId: string,
+  settings = defaultDevelopSettings(),
+): DevelopDocument {
+  const now = timestamp();
+  return developDocumentSchema.parse({
+    photoId,
+    revision: 0,
+    history: [
+      { id: uniqueId(), label: "Original", settings: cloneDevelopSettings(settings), at: now },
+    ],
+    cursor: 0,
+    snapshots: [],
+    metadata: { rating: 0, flag: null, colorLabel: null },
+    updatedAt: now,
+  });
+}
+export function createVirtualCopyDocument(
+  source: DevelopDocument,
+  photoId: string,
+  now = timestamp(),
+): DevelopDocument {
+  const document = documentCopy(source);
+  if (!photoId.startsWith("copy:") || photoId === document.photoId)
+    throw new Error("A virtual copy needs a new copy identity.");
+  return documentCopy({
+    ...document,
+    photoId,
+    revision: 1,
+    updatedAt: now,
+    history: document.history.map((entry) => ({ ...entry, id: uniqueId() })),
+    snapshots: document.snapshots.map((entry) => ({ ...entry, id: uniqueId() })),
+  });
+}
+/** A transferred Studio treatment is undoable back to the untouched source. */
+export function developDocumentForImport(input: DevelopPhotoInput): DevelopDocument {
+  const original = createDevelopDocument(input.id);
+  if (!input.initialState) return original;
+  const initial = initialStateSchema.parse(input.initialState);
+  return documentCopy({
+    ...pushHistory(original, initial.settings, "Studio settings"),
+    metadata: initial.metadata,
+  });
+}
+/** Returns a deep copy, so manipulating controls cannot silently change undo history. */
+export function currentRecipe(document: DevelopDocument): DevelopSettings {
+  const checked = documentCopy(document);
+  return cloneDevelopSettings(checked.history[checked.cursor]!.settings);
+}
+export function pushHistory(
+  document: DevelopDocument,
+  settings: DevelopSettings,
+  label = "Adjustment",
+): DevelopDocument {
+  const checked = documentCopy(document);
+  const recipe = cloneDevelopSettings(settings);
+  if (sameSettings(currentRecipe(checked), recipe)) return checked;
+  const at = timestamp();
+  let history = [
+    ...checked.history.slice(0, checked.cursor + 1),
+    { id: uniqueId(), label: nameSchema.parse(label), settings: recipe, at },
+  ];
+  // Keep Original forever and the latest 200 steps; named snapshots are independent.
+  if (history.length > DEVELOP_HISTORY_LIMIT + 1)
+    history = [history[0]!, ...history.slice(-DEVELOP_HISTORY_LIMIT)];
+  return { ...checked, history, cursor: history.length - 1, updatedAt: at };
+}
+export function undoHistory(document: DevelopDocument): DevelopDocument {
+  const checked = documentCopy(document);
+  return checked.cursor === 0
+    ? checked
+    : { ...checked, cursor: checked.cursor - 1, updatedAt: timestamp() };
+}
+export function redoHistory(document: DevelopDocument): DevelopDocument {
+  const checked = documentCopy(document);
+  return checked.cursor >= checked.history.length - 1
+    ? checked
+    : { ...checked, cursor: checked.cursor + 1, updatedAt: timestamp() };
+}
+export function jumpToHistory(document: DevelopDocument, cursor: number): DevelopDocument {
+  return documentCopy({ ...document, cursor, updatedAt: timestamp() });
+}
+export function addSnapshot(document: DevelopDocument, name: string): DevelopDocument {
+  const checked = documentCopy(document);
+  if (checked.snapshots.length >= 50)
+    throw new Error("This photo already has 50 snapshots. Remove an unused snapshot first.");
+  const settings = currentRecipe(checked);
+  void import("../personal-style").then((m) => m.recordPersonalStyleSample(settings, "snapshot"));
+  return documentCopy({
+    ...checked,
+    snapshots: [
+      ...checked.snapshots,
+      {
+        id: uniqueId(),
+        name: nameSchema.parse(name),
+        settings,
+        at: timestamp(),
+      },
+    ],
+    updatedAt: timestamp(),
+  });
+}
+export function restoreSnapshot(document: DevelopDocument, snapshotId: string): DevelopDocument {
+  const checked = documentCopy(document);
+  const snapshot = checked.snapshots.find((item) => item.id === snapshotId);
+  if (!snapshot) throw new Error("That snapshot is no longer available.");
+  return pushHistory(checked, snapshot.settings, `Snapshot: ${snapshot.name}`.slice(0, 100));
+}
+export function removeSnapshot(document: DevelopDocument, snapshotId: string): DevelopDocument {
+  const checked = documentCopy(document);
+  return {
+    ...checked,
+    snapshots: checked.snapshots.filter((item) => item.id !== snapshotId),
+    updatedAt: timestamp(),
+  };
+}
+export function createDevelopPreset(name: string, settings: DevelopSettings): DevelopPreset {
+  const preset = presetSchema.parse({
+    id: uniqueId(),
+    name,
+    settings,
+    revision: 0,
+    updatedAt: timestamp(),
+  });
+  void import("../personal-style").then((m) => m.recordPersonalStyleSample(settings, "preset"));
+  return preset;
+}
+
+/** Includes an in-progress gesture without changing the live documents or pretending it saved. */
+export function developRecoveryDocuments(
+  documents: Record<string, DevelopDocument>,
+  selectedId: string | null,
+  draft: DevelopSettings,
+): Record<string, DevelopDocument> {
+  const recovered: Record<string, DevelopDocument> = Object.create(null);
+  for (const [id, document] of Object.entries(documents)) recovered[id] = documentCopy(document);
+  if (selectedId && recovered[selectedId])
+    recovered[selectedId] = pushHistory(recovered[selectedId]!, draft, "Recovered adjustment");
+  return recovered;
+}
+
+function checkRecoverySize(text: string): void {
+  if (
+    typeof text !== "string" ||
+    text.length > DEVELOP_RECOVERY_LIMITS.maxBytes ||
+    new TextEncoder().encode(text).byteLength > DEVELOP_RECOVERY_LIMITS.maxBytes
+  )
+    throw new Error("Recovery files must be no larger than 32 MB. No saved edits were changed.");
+}
+function checkRecoveryCollections(rawDocument: unknown): void {
+  if (!rawDocument || typeof rawDocument !== "object") return;
+  const raw = rawDocument as Record<string, unknown>;
+  const bounded = (value: unknown, limit: number) => {
+    if (Array.isArray(value) && value.length > limit)
+      throw new Error(
+        "The recovery contains an invalid oversized edit history or settings collection.",
+      );
+  };
+  // Zod array limits also validate their elements. Bound hostile collections before
+  // parsing so a small JSON file containing millions of empty objects cannot expand
+  // into millions of validation errors.
+  bounded(raw["history"], DEVELOP_HISTORY_LIMIT + 1);
+  bounded(raw["snapshots"], 50);
+  const entries = [
+    ...(Array.isArray(raw["history"]) ? raw["history"] : []),
+    ...(Array.isArray(raw["snapshots"]) ? raw["snapshots"] : []),
+  ];
+  for (const entry of entries) {
+    const settings = entry?.settings;
+    if (!settings || typeof settings !== "object") continue;
+    bounded(settings.curve, 16);
+    bounded(settings.hsl, 8);
+    bounded(settings.masks, DEVELOP_ENGINE_LIMITS.maxMasks);
+    for (const channel of ["red", "green", "blue"]) bounded(settings.channelCurves?.[channel], 16);
+  }
+}
+function checkedRecovery(input: unknown, target: DevelopRecoveryTarget): DevelopRecovery {
+  const namespace = JSON.stringify([
+    nonempty.parse(target.scope),
+    nonempty.parse(target.libraryId),
+  ]);
+  const header = z
+    .object({ version: z.literal(1), namespace: z.string().max(8192), documents: z.unknown() })
+    .strict()
+    .safeParse(input);
+  if (!header.success)
+    throw new Error("This is not a supported version 1 FOTO Develop recovery file.");
+  if (header.data.namespace !== namespace)
+    throw new Error(
+      "This recovery belongs to a different workspace or project. Open its original Develop library.",
+    );
+  const rawDocuments = header.data.documents;
+  if (!rawDocuments || typeof rawDocuments !== "object" || Array.isArray(rawDocuments))
+    throw new Error("The recovery document index is invalid.");
+  const entries = Object.entries(rawDocuments);
+  if (!entries.length || entries.length > DEVELOP_RECOVERY_LIMITS.maxDocuments)
+    throw new Error("A recovery must contain between 1 and 2,000 photo documents.");
+  const documents: Record<string, DevelopDocument> = Object.create(null);
+  for (const [id, rawDocument] of entries) {
+    if (["__proto__", "prototype", "constructor"].includes(id))
+      throw new Error("The recovery contains an invalid photo identifier.");
+    checkRecoveryCollections(rawDocument);
+    const result = developDocumentSchema.safeParse(rawDocument);
+    if (!result.success)
+      throw new Error(
+        `Recovery edits for “${id.slice(0, 100)}” are invalid: ${result.error.issues[0]?.message ?? "Invalid document"}`,
+      );
+    if (id !== result.data.photoId)
+      throw new Error("A recovery photo ID does not match its document index.");
+    documents[id] = result.data;
+  }
+  const checked: DevelopRecovery = { version: 1, namespace, documents };
+  // Revalidate the size for direct callers as well as the JSON file parser.
+  checkRecoverySize(JSON.stringify(checked));
+  return checked;
+}
+
+/** Reads existing recovery exports; never imports photo bytes, metadata, or a database. */
+export function parseDevelopRecovery(text: string, target: DevelopRecoveryTarget): DevelopRecovery {
+  checkRecoverySize(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("This recovery file is not valid JSON. No saved edits were changed.");
+  }
+  return checkedRecovery(parsed, target);
+}
+
+function recoverySelection(recovery: DevelopRecovery, photoIds: string[]): string[] {
+  const checked = z
+    .array(developPhotoIdSchema)
+    .min(1)
+    .max(DEVELOP_RECOVERY_LIMITS.maxDocuments)
+    .parse(photoIds);
+  if (new Set(checked).size !== checked.length)
+    throw new Error("Select each recovery photo only once.");
+  for (const id of checked)
+    if (!Object.hasOwn(recovery.documents, id))
+      throw new Error("A selected photo is not in this recovery file.");
+  return checked;
+}
+
+/** Append a recoverable treatment without dropping saved redo steps or importing old metadata. */
+function recoveredDocument(current: DevelopDocument, recovered: DevelopDocument): DevelopDocument {
+  const checked = documentCopy(current);
+  const settings = currentRecipe(recovered);
+  const before = currentRecipe(checked);
+  if (sameSettings(before, settings)) return checked;
+  const at = timestamp();
+  const entries: DevelopHistoryEntry[] = [];
+  if (!sameSettings(checked.history.at(-1)!.settings, before))
+    entries.push({ id: uniqueId(), label: "Before recovery", settings: before, at });
+  entries.push({ id: uniqueId(), label: "Recovered adjustment", settings, at });
+  if (checked.history.length + entries.length > DEVELOP_HISTORY_LIMIT + 1)
+    throw new Error(
+      "Recovery would exceed this photo’s 200-step history limit. Export your saved work before making room; no history was removed.",
+    );
+  return documentCopy({
+    ...checked,
+    history: [...checked.history, ...entries],
+    cursor: checked.history.length + entries.length - 1,
+    updatedAt: at,
+  });
+}
+
+/** Read-only preview. Explicitly select photos, then pass its revision map to restoreRecovery. */
+export function prepareDevelopRecovery(
+  input: DevelopRecovery,
+  library: DevelopLibrary,
+  options: DevelopRecoveryTarget & { photoIds: string[] },
+): DevelopRecoveryPlan {
+  const recovery = checkedRecovery(input, options);
+  const photoIds = recoverySelection(recovery, options.photoIds);
+  const existingPhotoIds = new Set(library.photos.map((photo) => photo.id));
+  const expectedRevisions: Record<string, number> = Object.create(null);
+  const updates: DevelopRecoveryPlan["updates"] = [];
+  const unchangedPhotoIds: string[] = [];
+  for (const photoId of photoIds) {
+    if (!existingPhotoIds.has(photoId) || !Object.hasOwn(library.documents, photoId))
+      throw new Error(
+        "A selected recovery photo is missing from this library. Reconnect or import its original into this project first.",
+      );
+    const current = documentCopy(library.documents[photoId]!);
+    if (current.photoId !== photoId)
+      throw new Error("The current Develop document index is invalid.");
+    expectedRevisions[photoId] = current.revision;
+    const document = recoveredDocument(current, recovery.documents[photoId]!);
+    if (document.history.length === current.history.length) unchangedPhotoIds.push(photoId);
+    else updates.push({ document, expectedRevision: current.revision });
+  }
+  return { namespace: recovery.namespace, photoIds, expectedRevisions, updates, unchangedPhotoIds };
+}
+
+export class DevelopSaveConflict extends Error {
+  constructor(public readonly recordId: string) {
+    super(
+      "This photo or preset changed in another tab. Your edits are still in memory; reload its saved version before continuing.",
+    );
+    this.name = "DevelopSaveConflict";
+  }
+}
+export class DevelopStorageUnavailable extends Error {
+  constructor(
+    message = "Local Develop storage is unavailable. Your originals have not been changed.",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "DevelopStorageUnavailable";
+  }
+}
+function storageError(error: unknown): Error {
+  if (error instanceof DevelopSaveConflict || error instanceof DevelopStorageUnavailable)
+    return error;
+  if (error instanceof DOMException && error.name === "QuotaExceededError")
+    return new DevelopStorageUnavailable(
+      "There is not enough browser storage to save this import. Free device storage and try again; your original files are untouched.",
+      { cause: error },
+    );
+  return error instanceof Error
+    ? error
+    : new DevelopStorageUnavailable(undefined, { cause: error });
+}
+function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
+  developPhotoIdSchema.parse(input.id);
+  sourceNameSchema.parse(input.name);
+  sourceNameSchema.parse(input.sourceFileName);
+  for (const dimension of [input.width, input.height])
+    if (!Number.isSafeInteger(dimension) || dimension < 0 || dimension > 100000)
+      throw new Error("Invalid photo dimensions.");
+  if (!Number.isFinite(input.sourceLastModified) || input.sourceLastModified < 0)
+    throw new Error("Invalid photo modification time.");
+  if (typeof input.isRaw !== "boolean") throw new Error("Invalid photo format.");
+  if (input.reconnectOriginal !== undefined && input.reconnectOriginal !== true)
+    throw new Error("Invalid source reconnect operation.");
+  const reconnectExpected =
+    input.reconnectExpected === undefined
+      ? undefined
+      : reconnectExpectedSchema.parse(input.reconnectExpected);
+  if (
+    input.previewOrigin !== undefined &&
+    !["embedded", "raw-demosaic", "raster", "unknown"].includes(input.previewOrigin)
+  )
+    throw new Error("Invalid preview origin.");
+  for (const blob of [input.sourceBlob, input.previewBlob])
+    if (blob !== null && (!(blob instanceof Blob) || blob.size === 0))
+      throw new Error("Photo data is empty or invalid.");
+  if (
+    input.sourceDigest !== null &&
+    (typeof input.sourceDigest !== "string" || input.sourceDigest.length > 200)
+  )
+    throw new Error("Invalid photo identity.");
+  const initialState =
+    input.initialState === undefined ? undefined : initialStateSchema.parse(input.initialState);
+  return {
+    ...input,
+    previewOrigin: input.previewOrigin ?? "unknown",
+    ...(reconnectExpected ? { reconnectExpected } : {}),
+    ...(initialState ? { initialState } : {}),
+    ...(input.legacy ? { legacy: copyLegacy(input.legacy) } : {}),
+    ...(input.sidecar ? { sidecar: sidecarSchema.parse(input.sidecar) } : {}),
+  };
+}
+/** Identity compare-and-save guard. Recipe changes do not invalidate a media-only attachment. */
+export function assertDevelopReconnectTarget(
+  photo: DevelopPhoto,
+  expected: DevelopReconnectExpected,
+): void {
+  const guard = reconnectExpectedSchema.parse(expected);
+  checkedPhoto(photo);
+  if (
+    photo.sourceBlob !== null ||
+    photo.sourceAvailable ||
+    photo.sourceFileName !== guard.sourceFileName ||
+    photo.sourceDigest !== guard.sourceDigest
+  )
+    throw new DevelopSaveConflict(photo.id);
+}
+/**
+ * Merge a receipt from this library's store without rereading unrelated photos/history.
+ * The caller must still verify its account/library operation is current before adoption.
+ * Trusted internal receipts only: addPhotosWithDocuments already validates every recipe.
+ * External recovery/preset JSON must pass its own schema validation, never enter here raw.
+ */
+export function mergeDevelopImportCommit(
+  library: DevelopLibrary,
+  receipt: DevelopImportCommit,
+): DevelopLibrary {
+  const ids = new Set(receipt.photos.map((photo) => photo.id));
+  if (
+    ids.size !== receipt.photos.length ||
+    Object.keys(receipt.documents).length !== ids.size ||
+    [...ids].some((id) => !Object.hasOwn(receipt.documents, id))
+  )
+    throw new Error("The committed photo and edit receipt does not match.");
+  if (!ids.size) return library;
+  const incoming = new Map<string, DevelopPhoto>();
+  const documents: Record<string, DevelopDocument> = Object.assign(
+    Object.create(null),
+    library.documents,
+  );
+  for (const photo of receipt.photos) {
+    const checked = checkedPhoto(photo);
+    if (!Number.isFinite(photo.createdAt)) throw new Error("The saved photo date is invalid.");
+    const document = receipt.documents[photo.id];
+    if (!document || document.photoId !== photo.id)
+      throw new Error("The committed photo and edit receipt does not match.");
+    if (
+      !Number.isSafeInteger(document.revision) ||
+      document.revision < 0 ||
+      document.revision >= Number.MAX_SAFE_INTEGER
+    )
+      throw new Error("The committed edit revision is invalid.");
+    const previous = Object.hasOwn(library.documents, photo.id)
+      ? library.documents[photo.id]
+      : undefined;
+    if (
+      previous &&
+      (!Number.isSafeInteger(previous.revision) ||
+        previous.revision < 0 ||
+        previous.revision >= Number.MAX_SAFE_INTEGER)
+    )
+      throw new Error("The current edit revision is invalid.");
+    if (previous && document.revision < previous.revision) throw new DevelopSaveConflict(photo.id);
+    incoming.set(photo.id, {
+      ...photo,
+      ...checked,
+      sourceAvailable: Boolean(checked.sourceBlob?.size),
+    });
+    // Clone the validated tree without repeating its deep Zod traversal. Neither
+    // the receipt nor another UI owner may mutate this adopted history indirectly.
+    documents[photo.id] = structuredClone(document);
+  }
+  const photos = library.photos.map((photo) => {
+    const committed = incoming.get(photo.id);
+    incoming.delete(photo.id);
+    return committed ?? photo;
+  });
+  photos.push(...incoming.values());
+  return { photos, documents, presets: library.presets };
+}
+/**
+ * A restored Studio snapshot has no bytes with which to compare fingerprint versions.
+ * Keep a complete saved original instead of treating two algorithms as proof of a
+ * different source. This is a no-op only: never use this exception to enrich media.
+ */
+export function canPreserveDevelopOriginalOnRestore(
+  previous: DevelopPhotoInput,
+  incoming: DevelopPhotoInput,
+): boolean {
+  const scheme = (digest: string | null) => {
+    if (/^(?:sha256:)?[0-9a-f]{64}$/i.test(digest ?? "")) return "sha256";
+    if (/^sha256-chain-v1:[0-9a-f]{64}$/i.test(digest ?? "")) return "sha256-chain-v1";
+    return null;
+  };
+  const previousScheme = scheme(previous.sourceDigest);
+  const incomingScheme = scheme(incoming.sourceDigest);
+  return Boolean(
+    previous.id === incoming.id &&
+    previous.sourceBlob?.size &&
+    incoming.sourceBlob === null &&
+    !incoming.reconnectOriginal &&
+    previousScheme &&
+    incomingScheme &&
+    previousScheme !== incomingScheme,
+  );
+}
+/** Parameter migration, not a promise of identical pixels across the two renderers. */
+export function developInitialStateFromShot(shot: Shot): z.infer<typeof initialStateSchema> {
+  const legacy = { ...DEFAULT_EDITS, ...shot.edits };
+  const signed = (value: number) => {
+    if (!Number.isFinite(value))
+      throw new Error("This Studio photo has an invalid saved adjustment.");
+    return Math.max(-100, Math.min(100, value));
+  };
+  const settings = defaultDevelopSettings();
+  // Studio applies a 1 + exposure/100 gain. Map that gain to EV; the separate
+  // Adobe wire convention (/20) would greatly amplify ordinary Studio edits.
+  // Native Develop operates in linear light, so this is not pixel equivalence.
+  settings.exposure = Math.max(
+    -5,
+    Math.min(5, Math.log2(Math.max(1 / 32, 1 + signed(legacy.exposure) / 100))),
+  );
+  settings.temperature = signed(legacy.temp);
+  settings.contrast = signed(legacy.contrast);
+  settings.highlights = signed(legacy.highlights);
+  settings.shadows = signed(legacy.shadows);
+  settings.saturation = signed(legacy.saturation);
+  if (shot.width > 0 && shot.height > 0 && legacy.crop !== "orig") {
+    const rect = cropRect(shot.width, shot.height, legacy.crop, shot.faces?.center);
+    settings.crop = {
+      ...settings.crop,
+      x: rect.sx / shot.width,
+      y: rect.sy / shot.height,
+      width: Math.max(0.01, rect.sw / shot.width),
+      height: Math.max(0.01, rect.sh / shot.height),
+    };
+    settings.crop.x = Math.min(settings.crop.x, 1 - settings.crop.width);
+    settings.crop.y = Math.min(settings.crop.y, 1 - settings.crop.height);
+  }
+  const rating = shot.develop?.rating;
+  const color = shot.develop?.label?.trim().toLowerCase();
+  const parsedColor = metadataSchema.shape.colorLabel.safeParse(color);
+  return initialStateSchema.parse({
+    settings,
+    metadata: {
+      rating:
+        typeof rating === "number" && Number.isInteger(rating) && rating >= 0 && rating <= 5
+          ? rating
+          : 0,
+      flag: shot.verdict === "keep" ? "pick" : shot.verdict === "reject" ? "reject" : null,
+      colorLabel: parsedColor.success ? parsedColor.data : null,
+    },
+  });
+}
+/** A restored Studio preview stays a preview; it is never mislabeled as a RAW original. */
+export function developPhotoFromShot(shot: Shot): DevelopPhotoInput {
+  const sourceBlob = shot.sourceAvailable !== false && shot.file?.size > 0 ? shot.file : null;
+  const { file: _file, previewUrl: _previewUrl, previewBlob: _previewBlob, ...metadata } = shot;
+  const legacyCrop = shot.edits?.crop ?? "orig";
+  const unresolvedCrop =
+    legacyCrop !== "orig" && !(shot.width > 0 && shot.height > 0) ? legacyCrop : undefined;
+  return checkedPhoto({
+    id: `studio:${shot.id}`,
+    name: shot.name,
+    width: shot.width,
+    height: shot.height,
+    isRaw: shot.isRaw,
+    sourceBlob,
+    previewBlob: shot.previewBlob?.size ? shot.previewBlob : null,
+    sourceFileName: sourceBlob instanceof File ? sourceBlob.name : shot.name,
+    sourceLastModified: sourceBlob instanceof File ? sourceBlob.lastModified : 0,
+    sourceDigest: shot.sourceDigest ?? null,
+    initialState: developInitialStateFromShot(shot),
+    legacy: {
+      version: 1,
+      source: "studio",
+      shotId: shot.id,
+      metadata,
+      ...(unresolvedCrop ? { unresolvedCrop } : {}),
+    },
+  });
+}
+/** Keep the browser read owned and cancellable, without abandoning a fallback read. */
+async function readDevelopSource(file: File, signal?: AbortSignal): Promise<ArrayBuffer> {
+  signal?.throwIfAborted();
+  if (!signal || typeof FileReader === "undefined") {
+    const bytes = await file.arrayBuffer();
+    signal?.throwIfAborted();
+    if (!(bytes instanceof ArrayBuffer) || bytes.byteLength !== file.size)
+      throw new Error("The complete original photo could not be read. Try importing it again.");
+    return bytes;
+  }
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    let settled = false;
+    const abortReason = () =>
+      signal.aborted ? signal.reason : new DOMException("Photo read stopped.", "AbortError");
+    const cleanup = () => {
+      reader.removeEventListener("load", onLoad);
+      reader.removeEventListener("error", onError);
+      reader.removeEventListener("abort", onReaderAbort);
+      signal.removeEventListener("abort", onSignalAbort);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onLoad = () => {
+      if (settled) return;
+      if (signal.aborted) return fail(abortReason());
+      if (!(reader.result instanceof ArrayBuffer) || reader.result.byteLength !== file.size)
+        return fail(
+          new Error("The complete original photo could not be read. Try importing it again."),
+        );
+      settled = true;
+      cleanup();
+      resolve(reader.result);
+    };
+    const onError = () => fail(reader.error ?? new Error("The original photo could not be read."));
+    const onReaderAbort = () => fail(abortReason());
+    const onSignalAbort = () => {
+      if (settled) return;
+      // FileReader.abort dispatches synchronously while LOADING. Detach first so
+      // those events cannot settle twice or reenter a completed import.
+      settled = true;
+      cleanup();
+      try {
+        if (reader.readyState === FileReader.LOADING) reader.abort();
+      } finally {
+        reject(abortReason());
+      }
+    };
+    reader.addEventListener("load", onLoad);
+    reader.addEventListener("error", onError);
+    reader.addEventListener("abort", onReaderAbort);
+    signal.addEventListener("abort", onSignalAbort, { once: true });
+    if (signal.aborted) return onSignalAbort();
+    try {
+      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
+/** Content-addressed identities prevent unrelated files with the same name from sharing edits. */
+export async function developPhotoFromFile(
+  file: File,
+  previewBlob: Blob | null = null,
+  dimensions = { width: 0, height: 0 },
+  signal?: AbortSignal,
+): Promise<DevelopPhotoInput> {
+  signal?.throwIfAborted();
+  if (!file.size) throw new Error("This photo is empty.");
+  if (file.size > DEVELOP_ENGINE_LIMITS.maxFileBytes)
+    throw new Error("Choose a photo smaller than 128 MB for Develop.");
+  if (!globalThis.crypto?.subtle)
+    throw new Error("Secure photo fingerprinting is unavailable. Open FOTO on localhost or HTTPS.");
+  const bytes = await readDevelopSource(file, signal);
+  signal?.throwIfAborted();
+  // Web Crypto cannot cancel a digest. Await it rather than leaving expensive
+  // work behind when Stop is followed immediately by another import.
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  signal?.throwIfAborted();
+  const identity = `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  return checkedPhoto({
+    id: identity,
+    name: file.name,
+    width: dimensions.width,
+    height: dimensions.height,
+    isRaw: /\.(nef|cr2|cr3|arw|dng|raf|orf|rw2|pef|srw|raw)$/i.test(file.name),
+    sourceBlob: file,
+    previewBlob,
+    sourceFileName: file.name,
+    sourceLastModified: file.lastModified,
+    sourceDigest: identity,
+  });
+}
+
+/**
+ * Explicit user-selected attachment only, never automatic filename reconciliation.
+ * Historical records without a fingerprint may be attached only while their original
+ * is missing. A filename match alone is not claimed as proof of historical identity.
+ */
+export async function reconnectDevelopPhoto(
+  photo: DevelopPhoto,
+  file: File,
+  previewBlob: Blob,
+  dimensions = { width: 0, height: 0 },
+  previewOrigin: NonNullable<DevelopPhotoInput["previewOrigin"]> = "unknown",
+): Promise<DevelopPhotoInput> {
+  const expectedName = photo.sourceFileName || photo.name;
+  const existing = checkedPhoto({ ...photo, sourceFileName: expectedName });
+  if (file.name !== expectedName)
+    throw new Error(
+      `Choose the original named “${expectedName}”. No source or edits were changed.`,
+    );
+  if (!(previewBlob instanceof Blob) || !previewBlob.size || previewBlob.size > 32 * 1024 * 1024)
+    throw new Error("Reconnect needs a valid decoded preview of the selected original.");
+  if (photo.sourceAvailable && !existing.sourceBlob)
+    throw new Error("This photo’s source state changed. Reload Develop before reconnecting it.");
+  if (!existing.sourceDigest && (photo.sourceAvailable || existing.sourceBlob))
+    throw new Error(
+      "This photo already has an original. Its stored bytes will not be replaced by an unverified file.",
+    );
+  const incoming = await developPhotoFromFile(file, previewBlob, dimensions);
+  if (existing.sourceDigest) {
+    let matches = false;
+    if (/^sha256:[0-9a-f]{64}$/i.test(existing.sourceDigest))
+      matches = incoming.sourceDigest === existing.sourceDigest.toLowerCase();
+    else if (/^[0-9a-f]{64}$/i.test(existing.sourceDigest))
+      matches = incoming.sourceDigest === `sha256:${existing.sourceDigest.toLowerCase()}`;
+    else if (/^sha256-chain-v1:[0-9a-f]{64}$/.test(existing.sourceDigest))
+      matches = (await fingerprintSource(file)) === existing.sourceDigest;
+    else
+      throw new Error(
+        "This saved source fingerprint cannot be verified. Import the file separately; the existing photo and edits remain unchanged.",
+      );
+    if (!matches)
+      throw new Error(
+        "The selected original has different bytes. The saved photo, source and edits were preserved.",
+      );
+  }
+  if (existing.sourceBlob) {
+    const originalReceipt = await developPhotoFromFile(
+      new File([existing.sourceBlob], expectedName, { lastModified: existing.sourceLastModified }),
+    );
+    if (originalReceipt.sourceDigest !== incoming.sourceDigest)
+      throw new Error(
+        "The selected file differs from the stored original. No original was replaced.",
+      );
+  }
+  return checkedPhoto({
+    id: existing.id,
+    name: existing.name,
+    width: existing.width || incoming.width,
+    height: existing.height || incoming.height,
+    isRaw: existing.isRaw,
+    sourceBlob: existing.sourceBlob ?? file,
+    previewBlob,
+    previewOrigin,
+    sourceFileName: expectedName,
+    sourceLastModified: existing.sourceLastModified || file.lastModified,
+    sourceDigest: existing.sourceDigest ?? incoming.sourceDigest,
+    reconnectOriginal: true,
+    reconnectExpected: { sourceFileName: expectedName, sourceDigest: existing.sourceDigest },
+  });
+}
+
+type PhotoRecord = { key: string; namespace: string; value: DevelopPhoto };
+type DocumentRecord = { key: string; namespace: string; value: DevelopDocument };
+type PresetRecord = { key: string; scope: string; value: DevelopPreset };
+type ManifestRecord = { key: string; value: ShootManifest };
+type ImportJobRecord = { key: string; value: DevelopImportJob };
+
+/** Preserve membership and ordering; an older view cannot silently drop an imported photo. */
+export function advanceShootManifest(
+  previous: ShootManifest,
+  view: ShootManifestView,
+  expectedRevision: number,
+  availableIds: readonly string[],
+): ShootManifest {
+  const current = shootManifestSchema.parse(previous);
+  revisionSchema.parse(expectedRevision);
+  if (current.revision !== expectedRevision) throw new DevelopSaveConflict("shoot-manifest");
+  const incoming = shootManifestSchema.parse({ version: 1, revision: expectedRevision, ...view });
+  const ids = new Set(incoming.photoIds),
+    available = new Set(availableIds);
+  if (
+    available.size !== availableIds.length ||
+    ids.size !== available.size ||
+    [...available].some((id) => !ids.has(id)) ||
+    current.photoIds.some((id) => !ids.has(id))
+  )
+    throw new Error(
+      "The shoot manifest must retain every saved photo. Reload before saving this view.",
+    );
+  if (JSON.stringify(current) === JSON.stringify(incoming)) return current;
+  return shootManifestSchema.parse({ ...incoming, revision: expectedRevision + 1 });
+}
+function defaultManifest(ids: readonly string[]): ShootManifest {
+  return shootManifestSchema.parse({
+    version: 1,
+    revision: 0,
+    photoIds: [...ids],
+    selectedId: ids[0] ?? null,
+    filter: "all",
+  });
+}
+export function advanceDevelopImportJob(
+  previous: DevelopImportJob | null,
+  input: DevelopImportJob,
+  expectedRevision: number,
+): DevelopImportJob {
+  const next = developImportJobSchema.parse(input);
+  const current = previous === null ? null : developImportJobSchema.parse(previous);
+  revisionSchema.parse(expectedRevision);
+  if ((current?.revision ?? 0) !== expectedRevision || next.revision !== expectedRevision)
+    throw new DevelopSaveConflict("import-job");
+  const terminal = (phase: DevelopImportJob["phase"]) =>
+    ["complete", "cancelled", "interrupted"].includes(phase);
+  if (current && current.id !== next.id && !terminal(current.phase))
+    throw new Error("Finish or explicitly interrupt the previous import before starting another.");
+  if (current?.id === next.id) {
+    if (JSON.stringify(current) === JSON.stringify(next)) return current;
+    if (terminal(current.phase))
+      throw new Error("This completed import report cannot be rewritten.");
+    const incoming = new Map(next.rows.map((row) => [row.id, row]));
+    for (const row of current.rows) {
+      const update = incoming.get(row.id);
+      if (
+        !update ||
+        update.name !== row.name ||
+        update.path !== row.path ||
+        (row.photoId !== undefined && update.photoId !== row.photoId) ||
+        (row.status === "saved" && update.status !== "saved")
+      )
+        throw new Error(
+          "Import progress cannot remove prior rows or forget a durable photo receipt.",
+        );
+    }
+  }
+  return developImportJobSchema.parse({ ...next, revision: expectedRevision + 1 });
+}
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Local Develop request failed."));
+  });
+}
+function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = factory.open(DEVELOP_DATABASE_NAME, 3);
+    let blocked = false;
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORES.photos))
+        db.createObjectStore(STORES.photos, { keyPath: "key" }).createIndex(
+          "namespace",
+          "namespace",
+        );
+      if (!db.objectStoreNames.contains(STORES.documents))
+        db.createObjectStore(STORES.documents, { keyPath: "key" }).createIndex(
+          "namespace",
+          "namespace",
+        );
+      if (!db.objectStoreNames.contains(STORES.presets))
+        db.createObjectStore(STORES.presets, { keyPath: "key" }).createIndex("scope", "scope");
+      if (!db.objectStoreNames.contains(STORES.manifests))
+        db.createObjectStore(STORES.manifests, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(STORES.importJobs))
+        db.createObjectStore(STORES.importJobs, { keyPath: "key" });
+    };
+    request.onblocked = () => {
+      blocked = true;
+      reject(
+        new DevelopStorageUnavailable(
+          "Another FOTO tab is blocking local storage. Close the other tab and retry.",
+        ),
+      );
+    };
+    request.onerror = () => reject(storageError(request.error));
+    request.onsuccess = () => {
+      if (blocked) {
+        request.result.close();
+        return;
+      }
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
+  });
+}
+async function transaction<T>(
+  database: IDBDatabase,
+  names: string[],
+  mode: IDBTransactionMode,
+  action: (tx: IDBTransaction) => Promise<T>,
+): Promise<T> {
+  const tx = database.transaction(names, mode);
+  const done = new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error("Local Develop transaction was not saved."));
+    tx.onerror = () => {
+      /* onabort is authoritative; avoid claiming a write on request success. */
+    };
+  });
+  // A request can fail before action returns. Observe its abort now and rethrow below.
+  void done.catch(() => undefined);
+  try {
+    const result = await action(tx);
+    await done;
+    return result;
+  } catch (cause) {
+    try {
+      tx.abort();
+    } catch {
+      /* already finished */
+    }
+    throw storageError(cause);
+  }
+}
+
+export function createDevelopStore(options: DevelopStoreOptions) {
+  const scope = nonempty.parse(options.scope);
+  const libraryId = nonempty.parse(options.libraryId);
+  const namespace = JSON.stringify([scope, libraryId]);
+  const key = (id: string) => JSON.stringify([scope, libraryId, developPhotoIdSchema.parse(id)]);
+  const presetKey = (id: string) => JSON.stringify([scope, nonempty.parse(id)]);
+  const listeners = new Set<LocalObserver>();
+  let channel: BroadcastChannel | null = null;
+  let closed = false;
+  async function database() {
+    if (closed) throw new DevelopStorageUnavailable("This Develop library has been closed.");
+    const factory = options.factory ?? globalThis.indexedDB;
+    if (!factory) throw new DevelopStorageUnavailable();
+    return openDatabase(factory);
+  }
+  async function manifestInTransaction(
+    tx: IDBTransaction,
+  ): Promise<{ value: ShootManifest; stored: boolean }> {
+    const record = (await requestResult(tx.objectStore(STORES.manifests).get(namespace))) as
+      ManifestRecord | undefined;
+    if (record) {
+      if (record.key !== namespace)
+        throw new Error("The saved shoot manifest belongs to another library.");
+      return { value: shootManifestSchema.parse(record.value), stored: true };
+    }
+    // One-time compatibility view for libraries created before ordered manifests existed.
+    const records = (await requestResult(
+      tx.objectStore(STORES.photos).index("namespace").getAll(namespace),
+    )) as PhotoRecord[];
+    records.sort(
+      (a, b) => a.value.createdAt - b.value.createdAt || a.value.name.localeCompare(b.value.name),
+    );
+    for (const record of records) {
+      if (record.namespace !== namespace || record.key !== key(record.value.id))
+        throw new Error("The saved Develop photo index is invalid.");
+    }
+    return { value: defaultManifest(records.map((record) => record.value.id)), stored: false };
+  }
+  async function appendManifest(
+    tx: IDBTransaction,
+    ids: readonly string[],
+    previous?: { value: ShootManifest; stored: boolean },
+  ) {
+    const { value, stored } = previous ?? (await manifestInTransaction(tx));
+    const known = new Set(value.photoIds);
+    const appended = ids.filter((id) => !known.has(id));
+    if (stored && !appended.length) return;
+    const photoIds = [...value.photoIds, ...appended];
+    const next = shootManifestSchema.parse({
+      ...value,
+      photoIds,
+      selectedId: value.selectedId ?? photoIds[0] ?? null,
+      revision: value.revision + 1,
+    });
+    tx.objectStore(STORES.manifests).put({ key: namespace, value: next } satisfies ManifestRecord);
+  }
+  function notify(change: DevelopStoreChange) {
+    for (const observer of localObservers) {
+      if (
+        observer.scope !== scope ||
+        (change.kind !== "presets" && observer.namespace !== namespace)
+      )
+        continue;
+      try {
+        observer.listener({
+          ...change,
+          ids: [...change.ids],
+          ...(change.commit
+            ? {
+                commit: {
+                  photos: change.commit.photos.map((photo) => ({
+                    ...photo,
+                    ...(photo.legacy ? { legacy: copyLegacy(photo.legacy) } : {}),
+                    ...(photo.sidecar ? { sidecar: { ...photo.sidecar } } : {}),
+                  })),
+                  documents: structuredClone(change.commit.documents),
+                },
+              }
+            : {}),
+        });
+      } catch {
+        /* An observer cannot invalidate a committed write. */
+      }
+    }
+    // A writer need not itself subscribe. Never clone/send RAW Blobs through this channel.
+    const message = {
+      namespace,
+      kind: change.kind,
+      ids: change.ids,
+      origin: getNotificationOrigin(),
+    };
+    if (channel) {
+      try {
+        channel.postMessage(message);
+      } catch {
+        /* A notification failure cannot invalidate an already committed transaction. */
+      }
+    } else if (typeof BroadcastChannel !== "undefined") {
+      try {
+        const publisher = new BroadcastChannel(`foto-develop:${scope}`);
+        publisher.postMessage(message);
+        publisher.close();
+      } catch {
+        /* Optimistic revisions remain authoritative when messaging is unavailable. */
+      }
+    }
+  }
+  const store = {
+    namespace,
+    async readPhotosWithDocuments(photoIds: readonly string[]): Promise<DevelopImportCommit> {
+      const ids = z.array(developPhotoIdSchema).max(50000).parse(photoIds);
+      if (new Set(ids).size !== ids.length) throw new Error("Read each photo only once.");
+      if (!ids.length) return { photos: [], documents: Object.create(null) };
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.photos, STORES.documents], "readonly", async (tx) => {
+          const rows = await Promise.all(
+            ids.map(async (id) => {
+              const recordKey = key(id);
+              const [photo, document] = await Promise.all([
+                requestResult(tx.objectStore(STORES.photos).get(recordKey)) as Promise<
+                  PhotoRecord | undefined
+                >,
+                requestResult(tx.objectStore(STORES.documents).get(recordKey)) as Promise<
+                  DocumentRecord | undefined
+                >,
+              ]);
+              if (
+                !photo ||
+                !document ||
+                photo.key !== recordKey ||
+                document.key !== recordKey ||
+                photo.namespace !== namespace ||
+                document.namespace !== namespace ||
+                photo.value.id !== id ||
+                document.value.photoId !== id
+              )
+                throw new Error("The requested photo or its editing document is unavailable.");
+              const media = checkedPhoto(photo.value);
+              if (!Number.isFinite(photo.value.createdAt))
+                throw new Error("The saved photo date is invalid.");
+              return {
+                photo: {
+                  ...photo.value,
+                  ...media,
+                  sourceAvailable: Boolean(media.sourceBlob?.size),
+                },
+                document: documentCopy(document.value),
+              };
+            }),
+          );
+          return {
+            photos: rows.map((row) => row.photo),
+            documents: Object.fromEntries(rows.map((row) => [row.photo.id, row.document])),
+          };
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async readImportJob(): Promise<DevelopImportJob | null> {
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.importJobs], "readonly", async (tx) => {
+          const record = (await requestResult(tx.objectStore(STORES.importJobs).get(namespace))) as
+            ImportJobRecord | undefined;
+          if (!record) return null;
+          if (record.key !== namespace)
+            throw new Error("The import report belongs to another shoot.");
+          return developImportJobSchema.parse(record.value);
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async saveImportJob(
+      input: DevelopImportJob,
+      expectedRevision: number,
+    ): Promise<DevelopImportJob> {
+      const checked = developImportJobSchema.parse(input);
+      revisionSchema.parse(expectedRevision);
+      const db = await database();
+      try {
+        const result = await transaction(db, [STORES.importJobs], "readwrite", async (tx) => {
+          const jobs = tx.objectStore(STORES.importJobs);
+          const record = (await requestResult(jobs.get(namespace))) as ImportJobRecord | undefined;
+          if (record && record.key !== namespace)
+            throw new Error("The import report belongs to another shoot.");
+          const value = advanceDevelopImportJob(record?.value ?? null, checked, expectedRevision);
+          if (value.revision !== record?.value.revision)
+            jobs.put({ key: namespace, value } satisfies ImportJobRecord);
+          return value;
+        });
+        notify({ kind: "import-job", ids: [result.id] });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    /** Read only this scoped photo/document pair, never hydrate unrelated original Blobs. */
+    async readPhoto(photoId: string): Promise<DevelopPhotoRecord | null> {
+      const recordKey = key(photoId);
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.photos, STORES.documents], "readonly", async (tx) => {
+          const [photo, document] = await Promise.all([
+            requestResult(tx.objectStore(STORES.photos).get(recordKey)) as Promise<
+              PhotoRecord | undefined
+            >,
+            requestResult(tx.objectStore(STORES.documents).get(recordKey)) as Promise<
+              DocumentRecord | undefined
+            >,
+          ]);
+          if (!photo && !document) return null;
+          if (!photo || !document)
+            throw new Error(
+              "The saved photo or its Develop edits are missing. Reload before reconnecting.",
+            );
+          const media = checkedPhoto(photo.value);
+          const saved = documentCopy(document.value);
+          if (
+            photo.key !== recordKey ||
+            photo.namespace !== namespace ||
+            media.id !== photoId ||
+            document.key !== recordKey ||
+            document.namespace !== namespace ||
+            saved.photoId !== photoId ||
+            !Number.isFinite(photo.value.createdAt)
+          )
+            throw new Error("The saved Develop photo index is invalid.");
+          return {
+            photo: {
+              ...media,
+              createdAt: photo.value.createdAt,
+              sourceAvailable: Boolean(media.sourceBlob?.size),
+            },
+            document: saved,
+          };
+        });
+      } finally {
+        db.close();
+      }
+    },
+    /** Atomic media-only attachment. Never inserts a target or writes its current treatment. */
+    async attachMissingOriginal(
+      input: DevelopPhotoInput,
+      expected: DevelopReconnectExpected,
+    ): Promise<DevelopImportCommit> {
+      const guard = reconnectExpectedSchema.parse(expected);
+      const checked = checkedPhoto(input);
+      if (
+        !checked.reconnectOriginal ||
+        !checked.reconnectExpected ||
+        checked.reconnectExpected.sourceFileName !== guard.sourceFileName ||
+        checked.reconnectExpected.sourceDigest !== guard.sourceDigest
+      )
+        throw new Error(
+          "Reconnect requires the reviewed source identity. Scan again before attaching.",
+        );
+      return store.addPhotosWithDocuments([checked]);
+    },
+    async loadLibrary(): Promise<DevelopLibrary> {
+      const { photos, documents, presets } = await store.loadLibraryWithManifest();
+      return { photos, documents, presets };
+    },
+    async readManifest(): Promise<ShootManifest> {
+      const db = await database();
+      try {
+        return await transaction(
+          db,
+          [STORES.photos, STORES.manifests],
+          "readonly",
+          async (tx) => (await manifestInTransaction(tx)).value,
+        );
+      } finally {
+        db.close();
+      }
+    },
+    async saveManifest(view: ShootManifestView, expectedRevision: number): Promise<ShootManifest> {
+      revisionSchema.parse(expectedRevision);
+      const db = await database();
+      try {
+        const value = await transaction(
+          db,
+          [STORES.photos, STORES.manifests],
+          "readwrite",
+          async (tx) => {
+            const previous = await manifestInTransaction(tx);
+            const keys = await requestResult(
+              tx.objectStore(STORES.photos).index("namespace").getAllKeys(namespace),
+            );
+            const ids = keys.map((recordKey) => {
+              const parts: unknown = typeof recordKey === "string" ? JSON.parse(recordKey) : null;
+              if (
+                !Array.isArray(parts) ||
+                parts.length !== 3 ||
+                parts[0] !== scope ||
+                parts[1] !== libraryId ||
+                key(parts[2]) !== recordKey
+              )
+                throw new Error("The saved Develop photo index is invalid.");
+              return developPhotoIdSchema.parse(parts[2]);
+            });
+            let next = advanceShootManifest(previous.value, view, expectedRevision, ids);
+            if (!previous.stored && next.revision === 0) next = { ...next, revision: 1 };
+            if (!previous.stored || next.revision !== previous.value.revision)
+              tx.objectStore(STORES.manifests).put({
+                key: namespace,
+                value: next,
+              } satisfies ManifestRecord);
+            return next;
+          },
+        );
+        notify({ kind: "manifest", ids: value.selectedId ? [value.selectedId] : [] });
+        return value;
+      } finally {
+        db.close();
+      }
+    },
+    /** One transaction owns both media/documents and the corresponding ordered view. */
+    async loadLibraryWithManifest(): Promise<DevelopLibrary & { manifest: ShootManifest }> {
+      const db = await database();
+      try {
+        return await transaction(db, Object.values(STORES), "readonly", async (tx) => {
+          const [photoRecords, documentRecords, presetRecords, manifestRecord] = await Promise.all([
+            requestResult(
+              tx.objectStore(STORES.photos).index("namespace").getAll(namespace),
+            ) as Promise<PhotoRecord[]>,
+            requestResult(
+              tx.objectStore(STORES.documents).index("namespace").getAll(namespace),
+            ) as Promise<DocumentRecord[]>,
+            requestResult(tx.objectStore(STORES.presets).index("scope").getAll(scope)) as Promise<
+              PresetRecord[]
+            >,
+            requestResult(tx.objectStore(STORES.manifests).get(namespace)) as Promise<
+              ManifestRecord | undefined
+            >,
+          ]);
+          const documents: Record<string, DevelopDocument> = Object.create(null);
+          for (const record of documentRecords) {
+            const doc = documentCopy(record.value);
+            if (record.key !== key(doc.photoId) || record.namespace !== namespace)
+              throw new Error("The saved Develop edit index is invalid.");
+            documents[doc.photoId] = doc;
+          }
+          const photos = photoRecords
+            .map((record) => {
+              const input = checkedPhoto(record.value);
+              if (record.key !== key(input.id) || record.namespace !== namespace)
+                throw new Error("The saved Develop photo index is invalid.");
+              if (!documents[input.id])
+                throw new Error(
+                  "A saved photo is missing its Develop edits. Importing is paused to protect your library.",
+                );
+              if (!Number.isFinite(record.value.createdAt))
+                throw new Error("The saved Develop photo date is invalid.");
+              return {
+                ...input,
+                createdAt: record.value.createdAt,
+                sourceAvailable: Boolean(input.sourceBlob?.size),
+              };
+            })
+            .sort((a, b) => a.createdAt - b.createdAt || a.name.localeCompare(b.name));
+          const presets = presetRecords
+            .map((record) => {
+              const preset = presetSchema.parse(record.value);
+              if (record.key !== presetKey(preset.id) || record.scope !== scope)
+                throw new Error("The saved preset index is invalid.");
+              return preset;
+            })
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (manifestRecord && manifestRecord.key !== namespace)
+            throw new Error("The saved shoot manifest belongs to another library.");
+          const manifest = manifestRecord
+            ? shootManifestSchema.parse(manifestRecord.value)
+            : defaultManifest(photos.map((photo) => photo.id));
+          const indexed = new Map(photos.map((photo) => [photo.id, photo]));
+          if (
+            manifest.photoIds.length !== photos.length ||
+            manifest.photoIds.some((id) => !indexed.has(id))
+          )
+            throw new Error(
+              "The shoot manifest does not contain every saved photo. No records were changed.",
+            );
+          return {
+            photos: manifest.photoIds.map((id) => indexed.get(id)!),
+            documents,
+            presets,
+            manifest,
+          };
+        });
+      } finally {
+        db.close();
+      }
+    },
+    /** Merge-only imports: existing edits and saved originals are never replaced. */
+    async addPhotos(inputs: DevelopPhotoInput[]): Promise<DevelopPhoto[]> {
+      return (await store.addPhotosWithDocuments(inputs)).photos;
+    },
+    /** Progressive import receipt; no full-library read or fabricated local history is needed. */
+    async addPhotosWithDocuments(inputs: DevelopPhotoInput[]): Promise<DevelopImportCommit> {
+      const checked = inputs.map(checkedPhoto);
+      if (new Set(checked.map((photo) => photo.id)).size !== checked.length)
+        throw new Error("The import contains duplicate photo IDs.");
+      if (!checked.length) return { photos: [], documents: Object.create(null) };
+      const db = await database();
+      try {
+        const committed = await transaction(
+          db,
+          [STORES.photos, STORES.documents, STORES.manifests],
+          "readwrite",
+          async (tx) => {
+            const photosStore = tx.objectStore(STORES.photos),
+              documentsStore = tx.objectStore(STORES.documents);
+            const existing = await Promise.all(
+              checked.map(async (input) => {
+                const [photo, document] = await Promise.all([
+                  requestResult(photosStore.get(key(input.id))) as Promise<PhotoRecord | undefined>,
+                  requestResult(documentsStore.get(key(input.id))) as Promise<
+                    DocumentRecord | undefined
+                  >,
+                ]);
+                return { input, photo, document };
+              }),
+            );
+            const output: DevelopPhoto[] = [];
+            const documents: Record<string, DevelopDocument> = Object.create(null);
+            const previousManifest = await manifestInTransaction(tx);
+            for (const { input, photo, document } of existing) {
+              const {
+                initialState: _initialState,
+                reconnectOriginal: _reconnectOriginal,
+                reconnectExpected: _reconnectExpected,
+                ...media
+              } = input;
+              const previous = photo ? checkedPhoto(photo.value) : null;
+              if (
+                photo &&
+                (photo.key !== key(input.id) ||
+                  photo.namespace !== namespace ||
+                  previous!.id !== input.id)
+              )
+                throw new Error("The saved Develop photo index is invalid.");
+              if (Boolean(photo) !== Boolean(document))
+                throw new Error(
+                  "A saved photo or its Develop edits are missing. Importing is paused to protect your library.",
+                );
+              const savedDocument = document
+                ? documentCopy(document.value)
+                : developDocumentForImport(input);
+              if (
+                savedDocument.photoId !== input.id ||
+                (document && (document.key !== key(input.id) || document.namespace !== namespace))
+              )
+                throw new Error("The saved Develop edit index is invalid.");
+              documents[input.id] = savedDocument;
+              if (input.reconnectOriginal && (!previous || !input.sourceBlob || !input.previewBlob))
+                throw new Error(
+                  "The reconnect target is no longer available in this Develop library. Reload before attaching the original.",
+                );
+              if (input.reconnectOriginal) {
+                if (!input.reconnectExpected)
+                  throw new Error("Reconnect has no reviewed identity. Choose the original again.");
+                assertDevelopReconnectTarget(
+                  { ...photo!.value, sourceAvailable: Boolean(previous!.sourceBlob) },
+                  input.reconnectExpected,
+                );
+                if (
+                  input.sourceFileName !== input.reconnectExpected.sourceFileName ||
+                  (input.reconnectExpected.sourceDigest !== null &&
+                    input.sourceDigest !== input.reconnectExpected.sourceDigest) ||
+                  !input.sourceDigest ||
+                  input.sourceBlob!.size > DEVELOP_ENGINE_LIMITS.maxFileBytes ||
+                  input.previewBlob!.size > 32 * 1024 * 1024
+                )
+                  throw new Error("Reconnect media does not match the reviewed source identity.");
+              }
+              const refreshAttachedPreview = Boolean(
+                input.reconnectOriginal && previous && !previous.sourceBlob && input.sourceBlob,
+              );
+              if (previous && canPreserveDevelopOriginalOnRestore(previous, input)) {
+                output.push({ ...photo!.value, sourceAvailable: true });
+                continue;
+              }
+              if (
+                previous?.sourceDigest &&
+                input.sourceDigest &&
+                previous.sourceDigest !== input.sourceDigest
+              )
+                throw new Error(
+                  "This photo ID belongs to a different original. Import it as a separate photo.",
+                );
+              if (
+                previous &&
+                !(!previous.sourceBlob && input.sourceBlob) &&
+                !(!previous.previewBlob && input.previewBlob) &&
+                !(!previous.sourceBlob && !previous.sourceDigest && input.sourceDigest) &&
+                !(!previous.width && input.width) &&
+                !(!previous.height && input.height) &&
+                !(!previous.legacy && input.legacy) &&
+                !(!previous.sidecar && input.sidecar)
+              ) {
+                // Opening Develop again must not rewrite hundreds of unchanged RAW blobs.
+                output.push({ ...photo!.value, sourceAvailable: Boolean(previous.sourceBlob) });
+                continue;
+              }
+              const value: DevelopPhoto = previous
+                ? {
+                    ...photo!.value,
+                    sourceBlob: previous.sourceBlob ?? input.sourceBlob,
+                    previewBlob: refreshAttachedPreview
+                      ? input.previewBlob
+                      : (previous.previewBlob ?? input.previewBlob),
+                    previewOrigin:
+                      !refreshAttachedPreview && previous.previewBlob
+                        ? (previous.previewOrigin ?? "unknown")
+                        : (input.previewOrigin ?? "unknown"),
+                    sourceDigest:
+                      previous.sourceDigest ?? (!previous.sourceBlob ? input.sourceDigest : null),
+                    sourceFileName: previous.sourceBlob
+                      ? previous.sourceFileName
+                      : input.sourceFileName,
+                    sourceLastModified: previous.sourceBlob
+                      ? previous.sourceLastModified
+                      : input.sourceLastModified,
+                    width: previous.width || input.width,
+                    height: previous.height || input.height,
+                    sourceAvailable: Boolean(previous.sourceBlob ?? input.sourceBlob),
+                    ...((previous.legacy ?? input.legacy)
+                      ? { legacy: copyLegacy((previous.legacy ?? input.legacy)!) }
+                      : {}),
+                    ...((previous.sidecar ?? input.sidecar)
+                      ? { sidecar: sidecarSchema.parse((previous.sidecar ?? input.sidecar)!) }
+                      : {}),
+                  }
+                : { ...media, sourceAvailable: Boolean(input.sourceBlob), createdAt: timestamp() };
+              photosStore.put({ key: key(value.id), namespace, value } satisfies PhotoRecord);
+              if (!previous)
+                documentsStore.add({
+                  key: key(value.id),
+                  namespace,
+                  value: savedDocument,
+                } satisfies DocumentRecord);
+              output.push(value);
+            }
+            await appendManifest(
+              tx,
+              output.map((photo) => photo.id),
+              previousManifest,
+            );
+            return { photos: output, documents };
+          },
+        );
+        notify({
+          kind: "photos",
+          ids: committed.photos.map((photo) => photo.id),
+          commit: committed,
+        });
+        return committed;
+      } finally {
+        db.close();
+      }
+    },
+    /** Display name only: original filename, digest, media, and edit history are immutable here. */
+    async renamePhoto(photoId: string, name: string, expectedName: string): Promise<DevelopPhoto> {
+      const normalized = normalizePhotoDisplayName(name);
+      sourceNameSchema.parse(expectedName);
+      const db = await database();
+      try {
+        const result = await transaction(db, [STORES.photos], "readwrite", async (tx) => {
+          const store = tx.objectStore(STORES.photos);
+          const records = (await requestResult(
+            store.index("namespace").getAll(namespace),
+          )) as PhotoRecord[];
+          const previous = records.find((record) => record.key === key(photoId));
+          if (!previous || previous.namespace !== namespace)
+            throw new Error("This photo is no longer available in this library.");
+          checkedPhoto(previous.value);
+          if (previous.value.id !== photoId) throw new Error("The saved photo index is invalid.");
+          if (previous.value.name !== expectedName) throw new DevelopSaveConflict(photoId);
+          if (previous.value.name === normalized) return previous.value;
+          assertPhotoNameAvailable(
+            normalized,
+            records
+              .filter((record) => record.value.id !== photoId)
+              .map((record) => record.value.name),
+          );
+          const value = renamedDevelopPhoto(previous.value, normalized);
+          store.put({ key: key(photoId), namespace, value } satisfies PhotoRecord);
+          return value;
+        });
+        notify({ kind: "photos", ids: [photoId] });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    /** One atomic local insert, using the saved source revision and never modifying its original. */
+    async createVirtualCopy(
+      sourcePhotoId: string,
+      expectedRevision: number,
+      name?: string,
+    ): Promise<{ photo: DevelopPhoto; document: DevelopDocument }> {
+      revisionSchema.parse(expectedRevision);
+      if (name !== undefined) normalizePhotoDisplayName(name);
+      const db = await database();
+      try {
+        const result = await transaction(
+          db,
+          [STORES.photos, STORES.documents, STORES.manifests],
+          "readwrite",
+          async (tx) => {
+            const previousManifest = await manifestInTransaction(tx);
+            const photos = tx.objectStore(STORES.photos),
+              documents = tx.objectStore(STORES.documents);
+            const [records, sourceRecord] = await Promise.all([
+              requestResult(photos.index("namespace").getAll(namespace)) as Promise<PhotoRecord[]>,
+              requestResult(documents.get(key(sourcePhotoId))) as Promise<
+                DocumentRecord | undefined
+              >,
+            ]);
+            const photoRecord = records.find((record) => record.key === key(sourcePhotoId));
+            if (
+              !photoRecord ||
+              photoRecord.namespace !== namespace ||
+              !sourceRecord ||
+              sourceRecord.namespace !== namespace ||
+              sourceRecord.key !== key(sourcePhotoId)
+            )
+              throw new Error("This photo and its edits are no longer available in this library.");
+            checkedPhoto(photoRecord.value);
+            if (photoRecord.value.id !== sourcePhotoId)
+              throw new Error("The saved photo index is invalid.");
+            const sourceDocument = documentCopy(sourceRecord.value);
+            if (sourceDocument.photoId !== sourcePhotoId)
+              throw new Error("The saved edit index is invalid.");
+            if (sourceDocument.revision !== expectedRevision)
+              throw new DevelopSaveConflict(sourcePhotoId);
+            const names = records.map((record) => record.value.name);
+            const copyName =
+              name === undefined
+                ? uniquePhotoDisplayName(photoRecord.value.name, names)
+                : assertPhotoNameAvailable(name, names);
+            const now = timestamp(),
+              id = `copy:${uniqueId()}`;
+            const photo = virtualCopyPhoto(photoRecord.value, id, copyName, now);
+            checkedPhoto(photo);
+            const document = createVirtualCopyDocument(sourceDocument, id, now);
+            photos.add({ key: key(id), namespace, value: photo } satisfies PhotoRecord);
+            documents.add({ key: key(id), namespace, value: document } satisfies DocumentRecord);
+            await appendManifest(tx, [photo.id], previousManifest);
+            return { photo, document };
+          },
+        );
+        notify({
+          kind: "photos",
+          ids: [result.photo.id],
+          commit: { photos: [result.photo], documents: { [result.photo.id]: result.document } },
+        });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    /** Explicit edit-only restore. Revision checks and the complete batch share one transaction. */
+    async restoreRecovery(
+      input: DevelopRecovery,
+      options: { photoIds: string[]; expectedRevisions: Record<string, number> },
+    ): Promise<DevelopRecoveryResult> {
+      const recovery = checkedRecovery(input, { scope, libraryId });
+      const photoIds = recoverySelection(recovery, options.photoIds);
+      const revisions = z.record(revisionSchema).parse(options.expectedRevisions);
+      if (
+        Object.keys(revisions).length !== photoIds.length ||
+        photoIds.some((id) => !Object.hasOwn(revisions, id))
+      )
+        throw new Error("Preview each selected recovery photo before confirming its restore.");
+      const db = await database();
+      try {
+        const result = await transaction(
+          db,
+          [STORES.documents, STORES.photos],
+          "readwrite",
+          async (tx) => {
+            const documentsStore = tx.objectStore(STORES.documents);
+            const records = await Promise.all(
+              photoIds.map(async (photoId) => ({
+                photoId,
+                document: (await requestResult(documentsStore.get(key(photoId)))) as
+                  DocumentRecord | undefined,
+                photo: await requestResult(tx.objectStore(STORES.photos).getKey(key(photoId))),
+              })),
+            );
+            const result: DevelopRecoveryResult = {
+              documents: [],
+              restoredPhotoIds: [],
+              unchangedPhotoIds: [],
+            };
+            for (const { photoId, document: record, photo } of records) {
+              if (!record || photo === undefined)
+                throw new Error(
+                  "A selected recovery photo is no longer in this library. No edits were restored.",
+                );
+              const current = documentCopy(record.value);
+              if (
+                current.photoId !== photoId ||
+                record.namespace !== namespace ||
+                record.key !== key(photoId)
+              )
+                throw new Error("The saved Develop edit index is invalid.");
+              if (current.revision !== revisions[photoId]) throw new DevelopSaveConflict(photoId);
+              const restored = recoveredDocument(current, recovery.documents[photoId]!);
+              if (restored.history.length === current.history.length) {
+                result.documents.push(current);
+                result.unchangedPhotoIds.push(photoId);
+              } else {
+                result.documents.push(
+                  documentCopy({ ...restored, revision: current.revision + 1 }),
+                );
+                result.restoredPhotoIds.push(photoId);
+              }
+            }
+            const changedIds = new Set(result.restoredPhotoIds);
+            for (const value of result.documents)
+              if (changedIds.has(value.photoId))
+                documentsStore.put({
+                  key: key(value.photoId),
+                  namespace,
+                  value,
+                } satisfies DocumentRecord);
+            return result;
+          },
+        );
+        if (result.restoredPhotoIds.length)
+          notify({ kind: "documents", ids: result.restoredPhotoIds });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    async saveDocuments(
+      updates: { document: DevelopDocument; expectedRevision?: number }[],
+    ): Promise<DevelopDocument[]> {
+      const checked = updates.map(({ document, expectedRevision }) => ({
+        document: documentCopy(document),
+        expectedRevision: revisionSchema.parse(expectedRevision ?? document.revision),
+      }));
+      if (new Set(checked.map(({ document }) => document.photoId)).size !== checked.length)
+        throw new Error("A photo appears twice in this edit batch.");
+      if (!checked.length) return [];
+      const db = await database();
+      try {
+        const result = await transaction(
+          db,
+          [STORES.documents, STORES.photos],
+          "readwrite",
+          async (tx) => {
+            const store = tx.objectStore(STORES.documents);
+            const records = await Promise.all(
+              checked.map(async (update) => {
+                const [record, photo] = await Promise.all([
+                  requestResult(store.get(key(update.document.photoId))) as Promise<
+                    DocumentRecord | undefined
+                  >,
+                  requestResult(tx.objectStore(STORES.photos).getKey(key(update.document.photoId))),
+                ]);
+                return { ...update, record, photo };
+              }),
+            );
+            const documents = records.map(({ document, expectedRevision, record, photo }) => {
+              if (photo === undefined || !record)
+                throw new Error("Import this photo before saving its Develop edits.");
+              const previous = documentCopy(record.value);
+              if (previous.revision !== expectedRevision)
+                throw new DevelopSaveConflict(document.photoId);
+              return documentCopy({
+                ...document,
+                revision: expectedRevision + 1,
+                updatedAt: timestamp(),
+              });
+            });
+            for (const value of documents)
+              store.put({ key: key(value.photoId), namespace, value } satisfies DocumentRecord);
+            return documents;
+          },
+        );
+        notify({ kind: "documents", ids: result.map((document) => document.photoId) });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    async saveDocument(
+      document: DevelopDocument,
+      expectedRevision = document.revision,
+    ): Promise<DevelopDocument> {
+      const documents = await this.saveDocuments([{ document, expectedRevision }]);
+      return documents[0]!;
+    },
+    async savePreset(
+      input: DevelopPreset,
+      expectedRevision = input.revision,
+    ): Promise<DevelopPreset> {
+      const checked = presetSchema.parse(input);
+      revisionSchema.parse(expectedRevision);
+      const db = await database();
+      try {
+        const result = await transaction(db, [STORES.presets], "readwrite", async (tx) => {
+          const store = tx.objectStore(STORES.presets);
+          const previous = (await requestResult(store.get(presetKey(checked.id)))) as
+            PresetRecord | undefined;
+          if ((previous?.value.revision ?? 0) !== expectedRevision)
+            throw new DevelopSaveConflict(checked.id);
+          const value = presetSchema.parse({
+            ...checked,
+            revision: expectedRevision + 1,
+            updatedAt: timestamp(),
+          });
+          store.put({ key: presetKey(value.id), scope, value } satisfies PresetRecord);
+          return value;
+        });
+        notify({ kind: "presets", ids: [result.id] });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
+    subscribe(listener: (change: DevelopStoreChange) => void): () => void {
+      if (closed) throw new DevelopStorageUnavailable("This Develop library has been closed.");
+      const observer: LocalObserver = { scope, namespace, listener };
+      listeners.add(observer);
+      localObservers.add(observer);
+      if (!channel && typeof BroadcastChannel !== "undefined") {
+        try {
+          channel = new BroadcastChannel(`foto-develop:${scope}`);
+        } catch {
+          // A blocked messaging API must not disable same-window commits or leak registrations.
+        }
+      }
+      if (channel) {
+        channel.onmessage = (
+          event: MessageEvent<DevelopStoreChange & { namespace: string; origin?: string }>,
+        ) => {
+          if (
+            !event.data ||
+            event.data.origin === getNotificationOrigin() ||
+            !["photos", "documents", "presets", "manifest", "import-job"].includes(
+              event.data.kind,
+            ) ||
+            !Array.isArray(event.data.ids) ||
+            event.data.ids.length > 50000 ||
+            event.data.ids.some((id) => !developPhotoIdSchema.safeParse(id).success)
+          )
+            return;
+          if (event.data.kind !== "presets" && event.data.namespace !== namespace) return;
+          for (const callback of listeners) {
+            try {
+              callback.listener({ kind: event.data.kind, ids: [...event.data.ids] });
+            } catch {
+              /* observer only */
+            }
+          }
+        };
+      }
+      return () => {
+        listeners.delete(observer);
+        localObservers.delete(observer);
+        if (!listeners.size) {
+          channel?.close();
+          channel = null;
+        }
+      };
+    },
+    close() {
+      closed = true;
+      for (const observer of listeners) localObservers.delete(observer);
+      listeners.clear();
+      channel?.close();
+      channel = null;
+    },
+  };
+  return store;
+}
+export type DevelopStore = ReturnType<typeof createDevelopStore>;

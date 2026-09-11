@@ -89,6 +89,27 @@ export async function saveProfile(
     );
   return { profile, revision: data };
 }
+/** Read only the identity the creator explicitly chose to publish, never their account profile. */
+export async function publicPhotographer(owner: string, db: DB = businessDatabase()) {
+  const { data, error } = await db
+    .from("photographer_directory")
+    .select("owner_id,profile,visible")
+    .eq("owner_id", owner)
+    .eq("visible", true)
+    .maybeSingle();
+  if (error) throw new Error("This creator’s public profile is temporarily unavailable.");
+  const profile = photographerSchema.safeParse(data?.profile);
+  if (
+    !data ||
+    data.owner_id !== owner ||
+    data.visible !== true ||
+    !profile.success ||
+    !profile.data.visible
+  )
+    return null;
+  return { ...profile.data, owner };
+}
+
 export async function discover(
   query: string,
   offset: number,

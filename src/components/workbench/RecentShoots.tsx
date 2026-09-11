@@ -1,38 +1,78 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Pencil } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, MoreHorizontal, Pencil } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   listRecentShoots,
+  listShootOrganization,
   rememberShoot,
   renameShoot,
   markDeviceRecovery,
   startDeviceRecovery,
   shootHref,
   type RecentShoot,
+  type ShootOrganization,
 } from "@/lib/studio/shoot-directory";
 import { inspectPreviousShoot, copyPreviousShoot } from "@/lib/studio/session";
+import { projectDisplayTitle } from "@/lib/workspace-labels";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { shootPhotoCountLabel, shootUpdatedLabel } from "@/components/shoots/navigation";
+import { ArchiveUndo, HistoryRowActions } from "./HistoryRowActions";
+import { stopRowAction } from "./row-action-event";
+import { useShootRowActions } from "./useShootRowActions";
 
 export function RecentShoots({
   scope,
   activeId,
   open,
+  children,
+  hrefForShoot = shootHref,
+  heading = "Recent Shoots",
+  showMetadata = false,
+  archivedOnly = false,
 }: {
   scope: string;
   activeId: string | null;
   open: (href: string) => Promise<boolean>;
+  children?: ReactNode;
+  hrefForShoot?: (id: string) => string;
+  heading?: string;
+  showMetadata?: boolean;
+  archivedOnly?: boolean;
 }) {
   const [rows, setRows] = useState<RecentShoot[]>([]);
+  const [organization, setOrganization] = useState<Record<string, ShootOrganization>>({});
+  const actions = useShootRowActions(scope);
   const [previous, setPrevious] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => setExpanded(true), [activeId]);
   const alive = useRef(true);
   const recoveryTarget = useRef<string | null>(null);
+  const renameInput = useRef<HTMLInputElement>(null);
+  const skipRenameBlur = useRef(false);
+  useEffect(() => {
+    if (renaming) renameInput.current?.select();
+  }, [renaming]);
   const refresh = useCallback(async () => {
     try {
-      const next = await listRecentShoots(scope);
-      if (alive.current) setRows(next);
+      const [next, savedOrganization] = await Promise.all([
+        listRecentShoots(scope),
+        listShootOrganization(scope),
+      ]);
+      if (alive.current) {
+        setRows(next);
+        setOrganization(savedOrganization);
+        setError("");
+      }
     } catch {
       if (alive.current) setError("Recent shoots could not be read. Your photos are still saved.");
     }
@@ -69,51 +109,186 @@ export function RecentShoots({
     setName(title);
     setError("");
   };
+  const startRename = (id: string, title: string) => {
+    skipRenameBlur.current = false;
+    setRenaming(id);
+    setName(title);
+  };
+  const commitRename = async (id: string) => {
+    const next = name.trim();
+    const current = rows.find((row) => row.id === id);
+    setRenaming(null);
+    if (!next || !current || next === current.title) return;
+    try {
+      await renameShoot(scope, id, next);
+      if (alive.current) await refresh();
+    } catch (cause) {
+      if (alive.current)
+        setError(cause instanceof Error ? cause.message : "Could not rename this shoot.");
+    }
+  };
+  const displayRows = rows
+    .filter((row) => Boolean(organization[row.id]?.archived) === archivedOnly)
+    .sort(
+      (a, b) =>
+        Number(organization[b.id]?.pinned ?? false) - Number(organization[a.id]?.pinned ?? false),
+    );
+  const showHistory = displayRows.some((row) => row.id === activeId);
   return (
-    <section className="chat-recents" aria-label="Recent Shoots">
-      <div className="chat-recents-heading">
-        <span>Recent Shoots</span>
-      </div>
-      {rows.map((row) => (
-        <div key={row.id} className="recent-shoot-row">
-          <button
-            className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
-            onClick={() =>
-              row.recoveryPending
-                ? edit("recover-device", row.title, row.id)
-                : void open(shootHref(row.id))
-            }
-          >
-            <Camera size={16} />
-            <span>{row.title}</span>
-          </button>
-          <button
-            className="recent-shoot-rename"
-            aria-label={`Rename ${row.title}`}
-            onClick={() =>
-              row.recoveryPending
-                ? edit("recover-device", row.title, row.id)
-                : edit(row.id, row.title)
-            }
-          >
-            <Pencil size={14} />
-          </button>
+    <section className="chat-recents" aria-label={heading}>
+      {displayRows.length > 0 && (
+        <div className="chat-recents-heading">
+          <span>{heading}</span>
+        </div>
+      )}
+      {displayRows.map((row) => (
+        <div key={row.id} className="recent-shoot-item" data-shoot-id={row.id}>
+          <div className={`recent-shoot-row history-row ${activeId === row.id ? "is-active" : ""}`}>
+            {renaming === row.id ? (
+              <input
+                ref={renameInput}
+                className="recent-shoot-title-input"
+                value={name}
+                maxLength={200}
+                aria-label="Shoot Name"
+                onChange={(event) => setName(event.target.value)}
+                onBlur={() => {
+                  if (skipRenameBlur.current) {
+                    skipRenameBlur.current = false;
+                    return;
+                  }
+                  void commitRename(row.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    (event.currentTarget as HTMLInputElement).blur();
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipRenameBlur.current = true;
+                    setRenaming(null);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                className={`workbench-nav-item ${activeId === row.id ? "is-active" : ""}`}
+                title={projectDisplayTitle(row)}
+                aria-current={activeId === row.id ? "page" : undefined}
+                onClick={(event) => {
+                  if (event.detail > 1) return;
+                  if (row.recoveryPending) edit("recover-device", row.title, row.id);
+                  else void open(hrefForShoot(row.id));
+                }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!row.recoveryPending) startRename(row.id, row.title);
+                }}
+              >
+                <span>{projectDisplayTitle(row)}</span>
+                {showMetadata && (
+                  <small>
+                    {shootPhotoCountLabel("shoot", row.count) &&
+                      `${shootPhotoCountLabel("shoot", row.count)} · `}
+                    {shootUpdatedLabel(row.updatedAt)}
+                    {row.recoveryPending && " · Recovery unfinished"}
+                  </small>
+                )}
+              </button>
+            )}
+            {activeId === row.id && children && (
+              <button
+                className="recent-shoot-expand"
+                aria-label={`Shoots in ${projectDisplayTitle(row)}`}
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                <ChevronRight size={16} />
+              </button>
+            )}
+            <HistoryRowActions
+              title={projectDisplayTitle(row)}
+              kind="shoot"
+              pinned={organization[row.id]?.pinned ?? false}
+              archived={organization[row.id]?.archived ?? false}
+              disabled={busy || actions.busy || !!error}
+              pin={() =>
+                void actions.pin({
+                  key: row.id,
+                  title: row.title,
+                  pinned: organization[row.id]?.pinned ?? false,
+                  archived: organization[row.id]?.archived ?? false,
+                })
+              }
+              archive={() =>
+                void actions.archive({
+                  key: row.id,
+                  title: row.title,
+                  pinned: organization[row.id]?.pinned ?? false,
+                  archived: organization[row.id]?.archived ?? false,
+                })
+              }
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="recent-shoot-rename"
+                  aria-label={`More Options for ${projectDisplayTitle(row)}`}
+                  disabled={busy || actions.busy}
+                  onPointerDown={stopRowAction}
+                  onClick={stopRowAction}
+                  onDoubleClick={stopRowAction}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="ll-chat-menu">
+                <DropdownMenuItem
+                  onSelect={() =>
+                    row.recoveryPending
+                      ? edit("recover-device", row.title, row.id)
+                      : startRename(row.id, row.title)
+                  }
+                >
+                  <Pencil />
+                  Rename
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {activeId === row.id && children && (
+            <div className="recent-shoot-conversations" hidden={!expanded}>
+              {children}
+            </div>
+          )}
         </div>
       ))}
-      {!rows.length && <p className="recent-shoot-empty">Your imported shoots will appear here.</p>}
-      {activeId && !rows.some((row) => row.id === activeId) && (
-        <button className="workbench-nav-item" onClick={() => edit(activeId, "")}>
-          <Camera size={16} />
-          Name this shoot
-        </button>
+      {!showHistory && !activeId && displayRows.length > 0 && children && (
+        <div className="recent-shoot-conversations">{children}</div>
+      )}
+      {archivedOnly && !displayRows.length && (
+        <p className="recent-shoot-empty">No archived shoots.</p>
+      )}
+      {actions.archived && (
+        <ArchiveUndo
+          title={actions.archived.title}
+          disabled={actions.busy}
+          undo={() => void actions.undo()}
+        />
+      )}
+      {actions.error && (
+        <p role="alert" className="recent-shoot-empty">
+          {actions.error}
+        </p>
       )}
       {previous && (
         <button
           className="workbench-nav-item"
-          onClick={() => edit("recover-device", "Lunara Glow Shoot")}
+          onClick={() => edit("recover-device", "Recovered shoot")}
         >
-          <Camera size={16} />
-          Recover previous device shoot
+          Recover Previous Device Shoot
         </button>
       )}
       {error && (
@@ -129,12 +304,12 @@ export function RecentShoots({
       >
         <DialogContent>
           <DialogTitle>
-            {editing === "recover-device" ? "Bring back your saved shoot" : "Name this shoot"}
+            {editing === "recover-device" ? "Bring Back Your Saved Shoot" : "Rename Shoot"}
           </DialogTitle>
           <DialogDescription>
             {editing === "recover-device"
               ? "Copy the previous device’s previews, picks, and applied edits into this account. The old shoot stays untouched. Reconnect the source folder for original files."
-              : "Use a name you’ll recognize, like Lunara Glow Shoot or Real Estate Shoot."}
+              : "Choose a shoot name."}
           </DialogDescription>
           <form
             className="space-y-4"
@@ -162,7 +337,7 @@ export function RecentShoots({
                 if (editing === "recover-device") setPrevious(false);
                 setEditing(null);
                 await refresh();
-                await open(shootHref(id));
+                await open(hrefForShoot(id));
               } catch (cause) {
                 if (alive.current)
                   setError(cause instanceof Error ? cause.message : "Could not save this shoot.");
@@ -179,7 +354,7 @@ export function RecentShoots({
                 maxLength={200}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Lunara Glow Shoot"
+                placeholder="Recovered shoot"
                 className="mt-2 w-full rounded-md border border-input bg-transparent p-3"
               />
             </label>

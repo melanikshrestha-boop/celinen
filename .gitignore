@@ -34,3 +34,4 @@ dist-ssr
 
 # Local browser fixtures and verification artifacts are not application releases.
 output/
+.data/

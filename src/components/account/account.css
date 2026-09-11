@@ -19,14 +19,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.2;
 }
 .account-trigger small,
 .account-menu-identity small {
   display: block;
-  margin-top: 2px;
+  margin-top: 0;
   color: var(--moss);
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.2;
   font-weight: 400;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -87,7 +89,7 @@
   cursor: not-allowed;
 }
 .chat-recents {
-  margin-top: 28px;
+  margin-top: 8px;
   min-height: 0;
 }
 .chat-recents-heading {
@@ -95,8 +97,10 @@
   align-items: center;
   gap: 8px;
   color: var(--wb-muted);
-  padding: 0 12px 10px;
-  font-size: 12px;
+  padding: 6px 10px 2px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 400;
 }
 .chat-recents-heading > span {
   flex: 1;
@@ -113,9 +117,9 @@
   background: var(--wb-surface);
 }
 .chat-recents > p {
-  font-size: 12px;
-  padding: 6px 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  padding: 4px 10px;
+  line-height: 1.2;
   color: var(--wb-muted);
 }
 .chat-recents > input {
