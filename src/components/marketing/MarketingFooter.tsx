@@ -31,6 +31,9 @@ export function MarketingFooter() {
               <Link to="/compare">Compare</Link>
             </li>
             <li>
+              <Link to="/affiliates">Affiliates</Link>
+            </li>
+            <li>
               <Link to="/pricing">Pricing</Link>
             </li>
             <li>
@@ -51,7 +54,7 @@ export function MarketingFooter() {
               <Link to="/terms">Terms</Link>
             </li>
             <li>
-              <Link to="/cookie-policy">Cookie Policy</Link>
+              <Link to="/legal/cookies">Cookie Policy</Link>
             </li>
             <li>
               <button type="button" className="marketing-footer__text-btn" onClick={openCookiePrefs}>

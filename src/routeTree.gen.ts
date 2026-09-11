@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdobeRouteImport } from './routes/adobe'
+import { Route as AffiliatesRouteImport } from './routes/affiliates'
 import { Route as AmbassadorRouteImport } from './routes/ambassador'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
@@ -75,6 +76,7 @@ import { Route as DocsSettingsRouteImport } from './routes/docs_.settings'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
 import { Route as IntegrationsSlugRouteImport } from './routes/integrations.$slug'
+import { Route as LegalCookiesRouteImport } from './routes/legal_.cookies'
 import { Route as PPostIdRouteImport } from './routes/p.$postId'
 import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$ownerId'
 import { Route as ReviewIdRouteImport } from './routes/review.$id'
@@ -102,6 +104,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdobeRoute = AdobeRouteImport.update({
   id: '/adobe',
   path: '/adobe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AffiliatesRoute = AffiliatesRouteImport.update({
+  id: '/affiliates',
+  path: '/affiliates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AmbassadorRoute = AmbassadorRouteImport.update({
@@ -424,6 +431,11 @@ const IntegrationsSlugRoute = IntegrationsSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => IntegrationsRoute,
 } as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/legal_/cookies',
+  path: '/legal/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PPostIdRoute = PPostIdRouteImport.update({
   id: '/p/$postId',
   path: '/p/$postId',
@@ -521,6 +533,7 @@ const ApiPublicStoriesPostIdCoverRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/affiliates': typeof AffiliatesRoute
   '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
@@ -582,6 +595,7 @@ export interface FileRoutesByFullPath {
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/integrations/$slug': typeof IntegrationsSlugRoute
+  '/legal/cookies': typeof LegalCookiesRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
@@ -607,6 +621,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/affiliates': typeof AffiliatesRoute
   '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
@@ -665,6 +680,7 @@ export interface FileRoutesByTo {
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/integrations/$slug': typeof IntegrationsSlugRoute
+  '/legal/cookies': typeof LegalCookiesRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
@@ -690,6 +706,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/adobe': typeof AdobeRoute
+  '/affiliates': typeof AffiliatesRoute
   '/ambassador': typeof AmbassadorRoute
   '/auth': typeof AuthRoute
   '/book': typeof BookRoute
@@ -751,6 +768,7 @@ export interface FileRoutesById {
   '/docs_/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
   '/integrations/$slug': typeof IntegrationsSlugRoute
+  '/legal_/cookies': typeof LegalCookiesRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
@@ -778,6 +796,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/adobe'
+    | '/affiliates'
     | '/ambassador'
     | '/auth'
     | '/book'
@@ -839,6 +858,7 @@ export interface FileRouteTypes {
     | '/docs/settings'
     | '/g/$slug'
     | '/integrations/$slug'
+    | '/legal/cookies'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
@@ -864,6 +884,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/adobe'
+    | '/affiliates'
     | '/ambassador'
     | '/auth'
     | '/book'
@@ -922,6 +943,7 @@ export interface FileRouteTypes {
     | '/docs/settings'
     | '/g/$slug'
     | '/integrations/$slug'
+    | '/legal/cookies'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
@@ -946,6 +968,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/adobe'
+    | '/affiliates'
     | '/ambassador'
     | '/auth'
     | '/book'
@@ -1007,6 +1030,7 @@ export interface FileRouteTypes {
     | '/docs_/settings'
     | '/g/$slug'
     | '/integrations/$slug'
+    | '/legal_/cookies'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
@@ -1033,6 +1057,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdobeRoute: typeof AdobeRoute
+  AffiliatesRoute: typeof AffiliatesRoute
   AmbassadorRoute: typeof AmbassadorRoute
   AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
@@ -1092,6 +1117,7 @@ export interface RootRouteChildren {
   DocsPermissionsRoute: typeof DocsPermissionsRoute
   DocsSettingsRoute: typeof DocsSettingsRoute
   GSlugRoute: typeof GSlugRoute
+  LegalCookiesRoute: typeof LegalCookiesRoute
   PPostIdRoute: typeof PPostIdRoute
   PhotographerOwnerIdRoute: typeof PhotographerOwnerIdRoute
   ReviewIdRoute: typeof ReviewIdRoute
@@ -1119,6 +1145,13 @@ declare module '@tanstack/react-router' {
       path: '/adobe'
       fullPath: '/adobe'
       preLoaderRoute: typeof AdobeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/affiliates': {
+      id: '/affiliates'
+      path: '/affiliates'
+      fullPath: '/affiliates'
+      preLoaderRoute: typeof AffiliatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ambassador': {
@@ -1569,6 +1602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsSlugRouteImport
       parentRoute: typeof IntegrationsRoute
     }
+    '/legal_/cookies': {
+      id: '/legal_/cookies'
+      path: '/legal/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/p/$postId': {
       id: '/p/$postId'
       path: '/p/$postId'
@@ -1763,6 +1803,7 @@ const ShootsRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdobeRoute: AdobeRoute,
+  AffiliatesRoute: AffiliatesRoute,
   AmbassadorRoute: AmbassadorRoute,
   AuthRoute: AuthRoute,
   BookRoute: BookRoute,
@@ -1822,6 +1863,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsPermissionsRoute: DocsPermissionsRoute,
   DocsSettingsRoute: DocsSettingsRoute,
   GSlugRoute: GSlugRoute,
+  LegalCookiesRoute: LegalCookiesRoute,
   PPostIdRoute: PPostIdRoute,
   PhotographerOwnerIdRoute: PhotographerOwnerIdRoute,
   ReviewIdRoute: ReviewIdRoute,
