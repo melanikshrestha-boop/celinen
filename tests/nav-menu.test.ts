@@ -24,4 +24,10 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
   expect(hook).toContain("pointerType === \"mouse\"");
   expect(hook).toContain("!next && hovering.current");
   expect(hook).toContain("current === id ? null : current");
+  const details = readFileSync(
+    new URL("../src/components/marketing/public-details.css", import.meta.url),
+    "utf8",
+  );
+  expect(details).toContain(".marketing-nav__link:focus-visible");
+  expect(details).toContain("outline: none");
 });
