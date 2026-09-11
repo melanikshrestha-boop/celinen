@@ -781,14 +781,16 @@
   font-weight: 500;
   letter-spacing: -0.045em;
 }
-.marketing-page .marketing-value__metric--time,
+.marketing-page .marketing-value__metric--time {
+  background: #e5f2ff;
+}
 .marketing-page .marketing-value__metric--money {
-  background: transparent;
+  background: #e9f5dd;
 }
 .marketing-page .marketing-value__metric {
-  min-height: 0;
-  border-radius: 0;
-  padding: 8px 0 20px;
+  min-height: 180px;
+  border-radius: 24px;
+  padding: 25px 28px;
 }
 .marketing-page .marketing-value__explanation {
   margin-top: 13px;
@@ -799,15 +801,15 @@
 }
 .marketing-page .marketing-value__field input {
   color-scheme: light;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+  background: #fff;
+  border-color: #a3b4bd;
+  border-radius: 13px;
 }
 .marketing-page .marketing-value__field input:focus {
-  color: #4d6fff;
+  color: inherit;
 }
 .marketing-page .marketing-value__field input[aria-invalid="true"] {
-  color: #aa2929;
+  border-color: #aa2929;
 }
 .marketing-page .marketing-value__error {
   color: #aa2929;
@@ -816,10 +818,35 @@
   color: #516570;
 }
 .marketing-page .marketing-value__number {
-  font-weight: 400;
+  font-family: var(--font-sans);
+  font-weight: 500;
 }
 .marketing-page .marketing-value__metric--money .marketing-value__number {
-  color: #4d6fff;
+  color: inherit;
+}
+.marketing-page .marketing-plan-invitation {
+  width: min(100% - 48px, 1120px);
+  margin: 8px auto 48px;
+  padding: 36px 40px;
+  background: #eef7e7;
+  border-radius: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.marketing-plan-invitation h2 {
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  margin: 10px 0;
+}
+.marketing-plan-invitation p {
+  color: #516570;
+}
+.marketing-plan-invitation > a {
+  flex-shrink: 0;
 }
 .marketing-handoff {
   position: relative;
@@ -936,6 +963,11 @@
   .marketing-page .marketing-value {
     gap: 30px;
     padding-block: 40px;
+  }
+  .marketing-page .marketing-plan-invitation {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 28px 24px;
   }
 }
 @media (max-width: 540px) {

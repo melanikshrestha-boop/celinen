@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 import { Nav } from "@/components/Nav";
 import { SavingsSection } from "@/components/marketing/SavingsSection";
+import { PossibilitiesSection } from "@/components/marketing/PossibilitiesSection";
 import { WorkflowSection } from "@/components/marketing/WorkflowSection";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { IntegrationsSection } from "@/components/marketing/IntegrationsSection";
@@ -105,6 +106,9 @@ function Index() {
         </div>
         <MarketingStats />
         <SectionGuard>
+          <PossibilitiesSection />
+        </SectionGuard>
+        <SectionGuard>
           <WorkflowSection />
         </SectionGuard>
         <SectionGuard>
@@ -121,6 +125,18 @@ function Index() {
             <span aria-hidden="true">→</span>
           </Link>
         </SavingsSection>
+        </SectionGuard>
+        <SectionGuard>
+          <section className="marketing-plan-invitation" aria-labelledby="plans-heading" data-reveal>
+            <div>
+              <p className="marketing-value__eyebrow">A home for your next chapter</p>
+              <h2 id="plans-heading">Start small. Dream in full frame.</h2>
+              <p>Explore plans, compare what’s included, and find your fit.</p>
+            </div>
+            <Link to="/pricing" className="marketing-action marketing-action--primary">
+              Find your plan <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          </section>
         </SectionGuard>
         <SectionGuard>
           <HomePricing />

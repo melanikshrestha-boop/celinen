@@ -156,11 +156,11 @@ describe("public, accessible estimate presentation", () => {
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('class="marketing-value__calculator"');
     expect(html).toContain("Reset example");
-    expect(html).toContain("h ×");
-    expect(html).not.toContain("See the calculation");
+    expect(html).toContain("Make it yours");
+    expect(html).toContain("See the calculation");
   });
 
-  test("savings inputs and totals are not boxed into capsules", () => {
+  test("savings inputs and totals use the original mint and blue cards", () => {
     const value = readFileSync(
       new URL("../src/components/marketing/marketing-value.css", import.meta.url),
       "utf8",
@@ -169,31 +169,23 @@ describe("public, accessible estimate presentation", () => {
       new URL("../src/components/marketing/sky-entry.css", import.meta.url),
       "utf8",
     );
+    expect(value).toMatch(/border-radius:\s*13px/);
     expect(value).toMatch(
-      /\.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*border-radius:\s*0;/,
+      /\.marketing-value__metric \{[^}]*border-radius:\s*24px;/,
     );
-    expect(value).not.toMatch(/border-bottom:\s*1px/);
-    expect(value).toMatch(
-      /\.marketing-value__metric \{[^}]*border-radius:\s*0;[^}]*background:\s*transparent;/,
-    );
+    expect(sky).toContain("background: #e5f2ff");
+    expect(sky).toContain("background: #e9f5dd");
     expect(value).not.toContain("color-scheme: dark");
-    expect(sky).toMatch(
-      /\.marketing-page \.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*border-radius:\s*0;/,
-    );
-    expect(sky).not.toMatch(/\.marketing-value__field input \{[^}]*border-radius:\s*13px/);
-    expect(sky).not.toMatch(/border-bottom:\s*1px solid #a3b4bd/);
-    expect(sky).not.toContain("#e5f2ff");
-    expect(sky).not.toContain("#e9f5dd");
   });
 
   test("workflow has all five stages and no unbuilt AI retouching claim", () => {
     const html = renderToStaticMarkup(<WorkflowSection />);
     for (const title of ["Import", "Cull", "Edit", "Finish", "Deliver"])
       expect(html).toContain(title);
-    expect(html.match(/aria-roledescription="slide"/g)).toHaveLength(5);
+    expect(html).toContain("Lens, but less between you and your next shoot.");
+    expect(html).not.toContain("From the first frame");
     expect(html).toContain("Advanced retouching stays in your editor");
     expect(html).toContain("Publishing requires a connected account");
     expect(html).not.toContain("30+ factors");
-    expect(html).toContain('aria-label="Next workflow steps"');
   });
 });
