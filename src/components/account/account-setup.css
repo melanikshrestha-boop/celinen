@@ -90,13 +90,63 @@
 .account-setup .settings-form-actions > .settings-button.primary:hover:not(:disabled) {
   background: #1247ad;
 }
+.account-setup .settings-form-actions > .settings-button.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.account-setup .account-setup-roles {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.account-setup .account-setup-role {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 14px;
+  border: 1px solid #bcc8d0;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--auth-text);
+  font-family: var(--auth-font);
+  font-size: 1rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.account-setup .account-setup-role:hover {
+  border-color: #798f9c;
+}
+.account-setup .account-setup-role[aria-checked="true"] {
+  border-color: #4d6fff;
+  background: #eef2ff;
+  box-shadow: 0 0 0 1px #4d6fff;
+}
+.account-setup .account-setup-role[aria-checked="true"]:hover {
+  border-color: #4d6fff;
+}
+.account-setup .account-setup-role-mark {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #bcc8d0;
+  border-radius: 50%;
+  background: #fff;
+}
+.account-setup .account-setup-role[aria-checked="true"] .account-setup-role-mark {
+  border-color: #4d6fff;
+  background: #4d6fff;
+  box-shadow: inset 0 0 0 3px #fff;
+}
 .account-setup .settings-footnote {
   color: var(--auth-muted);
   font-size: 0.8125rem;
   line-height: 1.45;
 }
 .account-setup .settings-text-action {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   min-height: 44px;
   padding: 8px 0;

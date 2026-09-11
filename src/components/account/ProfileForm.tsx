@@ -2,19 +2,32 @@ import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 import { profileInputSchema } from "@/lib/account-profile";
+import {
+  profileSeedFromWorkRole,
+  type PhotographerWorkRole,
+} from "@/lib/photographer-work-roles";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { AvatarEditor } from "./AvatarEditor";
 import { PhotographySpecialtyPicker } from "./PhotographySpecialtyPicker";
 
 /** Drafts survive tabbing between fields; a failed save never clears typed information. */
-export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
+export function ProfileForm({
+  onboarding = false,
+  workRole,
+}: {
+  onboarding?: boolean;
+  workRole?: PhotographerWorkRole;
+}) {
   const account = useAccount()!;
+  const seed = workRole ? profileSeedFromWorkRole(workRole) : null;
   const [name, setName] = useState(account.name);
   const [workspaceName, setWorkspaceName] = useState(account.workspaceName);
   const [biography, setBiography] = useState(account.biography ?? "");
   const [avatar, setAvatar] = useState(account.avatar ?? "");
-  const [specialties, setSpecialties] = useState(account.specialties ?? []);
-  const [customSpecialty, setCustomSpecialty] = useState(account.customSpecialty ?? "");
+  const [specialties, setSpecialties] = useState(seed?.specialties ?? account.specialties ?? []);
+  const [customSpecialty, setCustomSpecialty] = useState(
+    seed?.customSpecialty ?? account.customSpecialty ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -85,6 +98,7 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
           avatar,
           specialties,
           customSpecialty,
+          ...(workRole ? { workRole } : {}),
         });
         setSaved(false);
         if (!result.success) {
@@ -149,24 +163,28 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
           setSaved(false);
         }}
       />
-      <label
-        className="settings-label"
-        id="profile-specialties-label"
-        htmlFor="profile-specialties"
-      >
-        What kind of photographer are you?
-      </label>
-      <PhotographySpecialtyPicker
-        value={specialties}
-        disabled={saving}
-        onChange={(value) => {
-          setSpecialties(value);
-          setSaved(false);
-        }}
-      />
-      <p className="settings-footnote profile-specialty-hint" id="profile-specialties-hint">
-        Choose up to five, or add your own.
-      </p>
+      {!(onboarding && workRole) && (
+        <>
+          <label
+            className="settings-label"
+            id="profile-specialties-label"
+            htmlFor="profile-specialties"
+          >
+            What kind of photographer are you?
+          </label>
+          <PhotographySpecialtyPicker
+            value={specialties}
+            disabled={saving}
+            onChange={(value) => {
+              setSpecialties(value);
+              setSaved(false);
+            }}
+          />
+          <p className="settings-footnote profile-specialty-hint" id="profile-specialties-hint">
+            Choose up to five, or add your own.
+          </p>
+        </>
+      )}
       {specialties.includes("other") && (
         <>
           <label className="settings-label" htmlFor="profile-custom-specialty">

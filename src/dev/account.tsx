@@ -23,11 +23,22 @@ const AccountContext = createContext<Account | null>(null);
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAccount = () => useContext(AccountContext);
 
+const labOnboardKey = "lenslabs.development-lab.onboard";
+function labOnboardPreview() {
+  if (typeof window === "undefined") return false;
+  if (/\bonboard\b/.test(`${window.location.search}${window.location.hash}`)) {
+    sessionStorage.setItem(labOnboardKey, "1");
+    return true;
+  }
+  return sessionStorage.getItem(labOnboardKey) === "1";
+}
+
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<ProfileInput>(initialProfile);
   const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
   const [error, setError] = useState<string | null>(null);
+  const [onboard, setOnboard] = useState(labOnboardPreview);
   const guards = useRef(new Set<() => Promise<boolean>>());
   const closing = useRef(false);
   useEffect(() => {
@@ -69,7 +80,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     scope: ready ? scope : null,
     user: null,
     local: true,
-    setupComplete: true,
+    setupComplete: !onboard,
     error,
     ...profile,
     preferences,
@@ -82,6 +93,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       const next = profileInputSchema.parse(value);
       localStorage.setItem(profileKey, JSON.stringify(next));
       setProfile(next);
+      sessionStorage.removeItem(labOnboardKey);
+      setOnboard(false);
     },
     savePreferences: (patch) => {
       const next = mergePreferencePatch(

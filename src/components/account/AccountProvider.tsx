@@ -13,6 +13,7 @@ import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { verifiedSessionReceiver } from "@/lib/account-access";
 import { profileInputSchema, readAccountProfile, type ProfileInput } from "@/lib/account-profile";
+import type { PhotographerWorkRole } from "@/lib/photographer-work-roles";
 import { applyAppearance } from "@/lib/appearance";
 import {
   accountName,
@@ -35,6 +36,7 @@ type Account = {
   avatar?: string | undefined;
   specialties?: string[] | undefined;
   customSpecialty?: string | undefined;
+  workRole?: PhotographerWorkRole | undefined;
   setupComplete: boolean;
   error: string | null;
   preferences: AccountPreferences;

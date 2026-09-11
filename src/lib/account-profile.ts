@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { displayNameSchema } from "./account-preferences";
 import { isPhotographySpecialty, MAX_SPECIALTIES } from "./photography-specialties";
+import {
+  PHOTOGRAPHER_WORK_ROLES,
+  type PhotographerWorkRole,
+} from "./photographer-work-roles";
 
 // Supabase includes user_metadata in access JWTs. Keep the inline thumbnail small
 // enough that authenticated requests stay below common proxy/header limits.
@@ -11,12 +15,20 @@ const specialtiesSchema = z
   .max(MAX_SPECIALTIES, "Choose up to five specialties.")
   .refine((values) => new Set(values).size === values.length, "Choose each specialty once.");
 
+const workRoleSchema = z.enum(
+  PHOTOGRAPHER_WORK_ROLES.map((role) => role.id) as [
+    PhotographerWorkRole,
+    ...PhotographerWorkRole[],
+  ],
+);
+
 export const profileInputSchema = z
   .object({
     name: displayNameSchema,
     workspaceName: displayNameSchema,
     specialties: specialtiesSchema.optional(),
     customSpecialty: z.string().trim().max(80).optional(),
+    workRole: workRoleSchema.optional(),
     biography: z.string().trim().max(500).optional(),
     avatar: z
       .string()
@@ -38,6 +50,7 @@ export function readAccountProfile(metadata: Record<string, unknown> | undefined
   const customSpecialty = profileInputSchema.shape.customSpecialty.safeParse(
     metadata?.["lenslabs_custom_specialty"],
   );
+  const workRole = workRoleSchema.safeParse(metadata?.["lenslabs_work_role"]);
   return {
     workspaceName: workspace.success ? workspace.data : "Personal workspace",
     setupComplete: metadata?.["lenslabs_setup_version"] === 1,
@@ -45,6 +58,7 @@ export function readAccountProfile(metadata: Record<string, unknown> | undefined
     ...(customSpecialty.success && customSpecialty.data !== undefined
       ? { customSpecialty: customSpecialty.data }
       : {}),
+    ...(workRole.success ? { workRole: workRole.data } : {}),
     ...(typeof metadata?.["lenslabs_biography"] === "string"
       ? { biography: String(metadata["lenslabs_biography"]).slice(0, 500) }
       : {}),
@@ -66,6 +80,7 @@ export function profileMetadata(input: ProfileInput) {
     ...(value.customSpecialty !== undefined
       ? { lenslabs_custom_specialty: value.customSpecialty }
       : {}),
+    ...(value.workRole !== undefined ? { lenslabs_work_role: value.workRole } : {}),
     ...(value.biography !== undefined ? { lenslabs_biography: value.biography } : {}),
     ...(value.avatar !== undefined ? { lenslabs_avatar: value.avatar } : {}),
   };

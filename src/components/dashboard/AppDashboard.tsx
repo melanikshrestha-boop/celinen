@@ -17,6 +17,10 @@ import {
 import { useAccount } from "@/components/account/AccountProvider";
 import { PRODUCT_NAME } from "@/lib/product";
 import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
+import {
+  dashboardGreetingFor,
+  workDestinationsFor,
+} from "@/lib/photographer-work-roles";
 import { destinationPathFor } from "@/lib/workspace-routing";
 import "./dashboard.css";
 
@@ -309,7 +313,7 @@ export function AppDashboard() {
             </section>
           ) : (
             <div className="celinen-dash__work">
-              {WORK.map((item) => (
+              {workDestinationsFor(account?.workRole, WORK).map((item) => (
                 <Link key={item.label} to={item.to}>
                   <item.icon size={18} />
                   {item.label}
@@ -333,7 +337,7 @@ export function AppDashboard() {
                 <div ref={end} />
               </div>
             ) : (
-              <h1>What should we work on?</h1>
+              <h1>{dashboardGreetingFor(account?.workRole)}</h1>
             )}
             <form
               className="celinen-dash__composer"
