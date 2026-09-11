@@ -95,7 +95,11 @@ export function PlanCardGrid({ plans }: { plans: readonly HomePlan[] }) {
             {plan.billed}
             {plan.save ? <span className="home-pricing__save">{plan.save}</span> : null}
           </p>
-          <Link to={plan.to} search={plan.search}>
+          <Link
+            to={plan.to}
+            search={plan.search}
+            className={plan.popular ? "home-pricing__shine" : undefined}
+          >
             {plan.cta}
           </Link>
           <ul>

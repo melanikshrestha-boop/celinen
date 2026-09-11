@@ -197,6 +197,40 @@
   width: 100%;
   margin: 18px 0 10px;
 }
+@keyframes home-pricing-shine {
+  0%,
+  14% {
+    background-position: 140% 0;
+  }
+  52%,
+  100% {
+    background-position: -40% 0;
+  }
+}
+.marketing-page .home-pricing__cards .is-popular a.home-pricing__shine:is(:link, :visited, :hover, :focus-visible) {
+  background-color: var(--marketing-neon);
+  background-image: linear-gradient(
+    105deg,
+    transparent 18%,
+    rgb(255 255 255 / 0.08) 38%,
+    rgb(255 255 255 / 0.58) 50%,
+    rgb(255 255 255 / 0.08) 62%,
+    transparent 82%
+  );
+  background-repeat: no-repeat;
+  background-size: 220% 100%;
+  background-position: 140% 0;
+  animation: home-pricing-shine 2.6s ease-in-out infinite;
+}
+.marketing-page .home-pricing__cards .is-popular a.home-pricing__shine:is(:hover, :focus-visible) {
+  background-color: var(--marketing-neon-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .marketing-page .home-pricing__cards .is-popular a.home-pricing__shine {
+    animation: none;
+    background-image: none;
+  }
+}
 .home-pricing__note {
   margin: 22px 0 0;
   color: #6a7a84;
