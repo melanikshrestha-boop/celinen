@@ -111,7 +111,13 @@ describe("photo-first workspace", () => {
     const html = renderToStaticMarkup(
       <CullChat workspace context="fixture" execute={async () => "ok"} onImportFolder={noop} />,
     );
-    expect(html).toContain("Choose a folder");
+    expect(html).toContain('aria-label="Attach photos or a folder"');
+    expect(html).toContain('placeholder="Message your photo assistant"');
+    expect(html.match(/>Import folder<\/button>/g)).toHaveLength(1);
+    expect(html).toContain('rows="1"');
+    expect(html).not.toContain("Choose a folder");
+    expect(html).not.toContain("workbench-chat-empty");
+    expect(html).not.toContain("On this device");
     expect(html).not.toContain("Continue reviewing");
     const compact = renderToStaticMarkup(
       <ShootOverview
@@ -124,6 +130,34 @@ describe("photo-first workspace", () => {
     );
     expect(compact).toContain("Open shoot");
     expect(compact).not.toContain("<img");
+  });
+  test("attachment shelf is conditional, counts remain unknown during enumeration", () => {
+    const html = renderToStaticMarkup(
+      <CullChat
+        workspace
+        context="fixture"
+        execute={async () => "ok"}
+        importing
+        importAttachment={{ name: "Actual folder", count: null, kind: "folder" }}
+        status="Reading folder…"
+      />,
+    );
+    expect(html).toContain("workbench-attachment");
+    expect(html).toContain("Actual folder");
+    expect(html).toContain("Reading folder…");
+    expect(html).not.toContain("selected photo");
+    expect(html).toContain(">Stop</button>");
+    const completed = renderToStaticMarkup(
+      <CullChat
+        workspace
+        context="fixture"
+        execute={async () => "ok"}
+        importAttachment={{ name: "Actual folder", count: 3, kind: "folder" }}
+        status="3 frames read"
+      />,
+    );
+    expect(completed).toContain("3 selected photos");
+    expect(completed).toContain('aria-label="Dismiss import summary"');
   });
 });
 

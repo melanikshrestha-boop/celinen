@@ -14,6 +14,8 @@ import {
 } from "@/lib/delivery/remote.functions";
 import type { DeliveryCommand } from "@/lib/delivery/workflow";
 import type { RoomView } from "@/lib/delivery/remote.server";
+import { invitationGeneration } from "@/lib/delivery/experience";
+import { commentDraftScope } from "@/lib/delivery/comment-drafts";
 
 export const Route = createFileRoute("/review/$id")({
   head: () => ({
@@ -27,10 +29,13 @@ export const Route = createFileRoute("/review/$id")({
       },
     ],
   }),
-  component: ClientDelivery,
+  component: ClientDeliveryRoute,
 });
-function ClientDelivery() {
+function ClientDeliveryRoute() {
   const { id } = Route.useParams();
+  return <ClientDelivery key={id} id={id} />;
+}
+function ClientDelivery({ id }: { id: string }) {
   const [token, setToken] = useState<string | null>(null);
   const [room, setRoom] = useState<RoomView | null>(null);
   const [error, setError] = useState("");
@@ -38,6 +43,12 @@ function ClientDelivery() {
   const [loading, setLoading] = useState(true);
   const ops = useRef(new Map<string, string>());
   const loadSequence = useRef(0);
+  useEffect(
+    () => () => {
+      loadSequence.current++;
+    },
+    [],
+  );
   useEffect(() => {
     const key = `lenslabs-private-invitation:${id}`;
     let credential = window.location.hash.slice(1);
@@ -62,7 +73,7 @@ function ClientDelivery() {
       setError(
         "This invitation is unavailable. Open the complete private link your photographer sent you.",
       );
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
       return;
     }
     try {
@@ -78,7 +89,7 @@ function ClientDelivery() {
         setError(message);
       }
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
   }, [id, token]);
   useEffect(() => {
@@ -98,10 +109,10 @@ function ClientDelivery() {
       window.removeEventListener("focus", focus);
     };
   }, [token, busy, refresh]);
-  const run = async (command: DeliveryCommand) => {
+  const run = async (command: DeliveryCommand, retryOperationId?: string) => {
     if (!room || !token) throw new Error("Open your private invitation first.");
     const key = JSON.stringify(command),
-      operationId = ops.current.get(key) ?? crypto.randomUUID();
+      operationId = retryOperationId ?? ops.current.get(key) ?? crypto.randomUUID();
     ops.current.set(key, operationId);
     setBusy(true);
     try {
@@ -142,6 +153,7 @@ function ClientDelivery() {
         </button>
       </main>
     );
+  const draftScope = commentDraftScope(id, invitationGeneration(room.state));
   return (
     <main className="delivery-client">
       <ClientGalleryHeader state={room.state} />
@@ -151,6 +163,8 @@ function ClientDelivery() {
         </p>
       )}
       <DeliveryGallery
+        key={draftScope}
+        draftScope={draftScope}
         room={room}
         actor="client"
         busy={busy}

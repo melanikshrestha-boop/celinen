@@ -20,6 +20,9 @@ export const chatSchema = z
     title: z.string().trim().min(1).max(80),
     named: z.boolean(),
     archived: z.boolean(),
+    pinned: z.boolean().default(false),
+    section: z.string().trim().max(60).default(""),
+    unread: z.boolean().default(false),
     revision: z.number().int().min(0),
     createdAt: z.number().int().positive(),
     updatedAt: z.number().int().positive(),
@@ -46,13 +49,16 @@ export function needsChatSave(
 }
 export const CHAT_CONFLICT =
   "This chat changed in another tab. Export this tab's conversation before reloading. Your photos are untouched.";
-export function newChat(project: string): ChatRecord {
+export function newChat(project: string, title = "New chat"): ChatRecord {
   return {
     id: crypto.randomUUID(),
     project,
-    title: "New chat",
-    named: false,
+    title,
+    named: title !== "New chat",
     archived: false,
+    pinned: false,
+    section: "",
+    unread: false,
     revision: 0,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -93,6 +99,7 @@ export interface ChatRepository {
   list(project: string): Promise<ChatSummary[]>;
   read(id: string): Promise<ChatRecord>;
   save(record: ChatRecord): Promise<ChatRecord>;
+  remove(id: string, project: string, revision: number): Promise<void>;
 }
 export function localChatRepository(
   scope: string,
@@ -111,6 +118,30 @@ export function localChatRepository(
     request.onblocked = () => reject(new Error("Close older LensLabs tabs to open chat storage."));
   });
   return {
+    async remove(id, project, revision) {
+      const db = await database;
+      return new Promise<void>((resolve, reject) => {
+        const tx = db.transaction("chats", "readwrite");
+        const store = tx.objectStore("chats");
+        const request = store.get(id);
+        let conflict = false;
+        request.onsuccess = () => {
+          if (
+            !request.result ||
+            request.result.project !== project ||
+            request.result.revision !== revision
+          ) {
+            conflict = true;
+            tx.abort();
+          } else store.delete(id);
+        };
+        tx.oncomplete = () => resolve();
+        tx.onabort = () =>
+          reject(
+            new Error(conflict ? CHAT_CONFLICT : "Chat could not be deleted. Nothing was removed."),
+          );
+      });
+    },
     async list(project) {
       const db = await database;
       return new Promise((resolve, reject) => {

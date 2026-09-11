@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, Copy, Plus, Upload } from "lucide-react";
+import { MessageComposer } from "@/components/customer/MessageComposer";
 import { Shell } from "@/components/lensos/Shell";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +16,8 @@ import {
 } from "@/lib/delivery/experience";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { useWorkbench } from "@/components/workbench/context";
+import { studioBindingHref } from "@/lib/workbench";
+import { prepareStudioHandoff, saveStudioHandoff } from "@/lib/delivery/studio-handoff";
 import { messageOf, type MediaReader } from "./presentation";
 import {
   clientState,
@@ -601,20 +604,30 @@ function AccountDeliveryWorkspace({
       throw new Error(
         "This file was uploaded directly. Open the source in your editor and upload a revision here.",
       );
-    const project = await loadProject(version.source.projectId);
-    ensureActive();
-    const frame = project.frames.find((f) => f.id === version.source!.frameId);
-    if (
-      !frame ||
-      frame.originalBlobId !== version.source.originalSha256 ||
-      !project.editVersions.some(
-        (v) => v.id === version.source!.editVersionId && v.assetId === frame.assetId,
-      )
-    )
-      throw new Error(
-        "The matching source version is not available on this device. Reconnect its project archive; no other frame was opened.",
-      );
-    const href = `/studio?project=${encodeURIComponent(project.id)}&deliveryFrame=${encodeURIComponent(frame.id)}&deliveryVersion=${encodeURIComponent(version.source.editVersionId)}`;
+    if (!room) throw new Error("Open the gallery before opening Studio.");
+    const scope = workbench?.storageScope ?? ownerId ?? "device-local";
+    if (ownerId && scope !== ownerId)
+      throw new Error("The workspace account changed. Reopen Delivery in the matching account.");
+    const { handoff, focus } = await prepareStudioHandoff(
+      room,
+      version.id,
+      scope,
+      loadProject,
+      () => {
+        ensureActive();
+        return (
+          roomRef.current?.id === room.id &&
+          roomRef.current?.revision === room.revision &&
+          activeId.current === room.id
+        );
+      },
+    );
+    saveStudioHandoff(window.sessionStorage, handoff);
+    const href = studioBindingHref({
+      kind: "ready",
+      projectId: handoff.source.projectId,
+      deliveryFocus: focus,
+    });
     if (workbench) await workbench.openTool(href);
     else window.location.assign(href);
   }
@@ -1130,16 +1143,26 @@ function AccountDeliveryWorkspace({
                   </a>
                 </div>
                 {invitationText && (
-                  <details className="delivery-invitation-preview">
-                    <summary>Read invitation message</summary>
-                    <textarea
-                      aria-label="Invitation message"
-                      readOnly
-                      value={invitationText}
-                      onFocus={(e) => e.target.select()}
-                    />
-                    <p className="delivery-meta">Copy only. LensLabs does not send this message.</p>
-                  </details>
+                  <MessageComposer
+                    key={`${room?.id}:${room?.revision}:${shareUrl}`}
+                    title="Your Photo Gallery"
+                    hideCopy
+                    text={invitationText}
+                    beforeAction={() => {
+                      ensureActive();
+                      if (
+                        !room ||
+                        roomRef.current?.id !== room.id ||
+                        roomRef.current?.revision !== room.revision ||
+                        shareUrlRef.current !== shareUrl ||
+                        galleryInvitation(room.state, shareUrl, new Date().toISOString()) !==
+                          invitationText
+                      )
+                        throw new Error(
+                          "This invitation changed or expired. Reopen Share before sending.",
+                        );
+                    }}
+                  />
                 )}
               </>
             ) : (

@@ -1,0 +1,39 @@
+import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { parse } from "postcss";
+import { DocsReference } from "../src/components/marketing/DocsReference";
+import { FOTO_MCP_URL } from "../src/lib/foto-mcp";
+
+test("docs match the Vugola API-reference chrome without clip-farm endpoints", () => {
+  const html = renderToStaticMarkup(createElement(DocsReference));
+  expect(html).toContain("Documentation");
+  expect(html).toContain("API Reference");
+  expect(html).toContain("celinen");
+  expect(html).not.toContain("Celinen");
+  expect(html).toContain("Get an API key");
+  expect(html).toContain("MCP on GitHub");
+  expect(html).toContain("Rate limits &amp; plans");
+  expect(html).toContain('id="errors"');
+  expect(html).toContain("insufficient_credits");
+  expect(html).toContain('id="clipping"');
+  expect(html).toContain("picking");
+  expect(html).toContain(FOTO_MCP_URL);
+  expect(html).toContain("foto_workflow");
+  expect(html).not.toContain("YouTube Automation");
+  expect(html).not.toContain("viral");
+  expect(html).not.toContain("caption_style");
+  expect(html).not.toContain("Jump to section");
+});
+
+test("docs styling stays public-scoped", () => {
+  const css = readFileSync(
+    new URL("../src/components/marketing/docs-reference.css", import.meta.url),
+    "utf8",
+  );
+  const stylesheet = parse(css);
+  stylesheet.walkRules((rule) => {
+    for (const selector of rule.selectors) expect(selector).toMatch(/^\.marketing-page \.docs-ref/);
+  });
+});

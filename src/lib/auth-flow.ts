@@ -5,6 +5,7 @@ export type AuthSearch = {
   next: string;
   mode?: "signin" | "signup";
   source?: "client-gallery";
+  google?: boolean;
 };
 
 export function parseAuthSearch(search: Record<string, unknown>): AuthSearch {
@@ -14,16 +15,22 @@ export function parseAuthSearch(search: Record<string, unknown>): AuthSearch {
       ? "/deliver?workflow=1"
       : typeof search["next"] === "string"
         ? safeSignInPath(search["next"])
-        : "/workspace",
+        : "/dashboard",
     mode: search["mode"] === "signin" ? "signin" : "signup",
     ...(fromGallery ? { source: "client-gallery" as const } : {}),
+    ...(search["google"] === true || search["google"] === "1" ? { google: true } : {}),
   };
 }
 
-export function authReturnUrl(origin: string, next: string, fromGallery = false) {
+export function authReturnUrl(
+  origin: string,
+  next: string,
+  fromGallery = false,
+  mode: "signin" | "signup" = "signup",
+) {
   const target = new URL("/auth", origin);
   target.searchParams.set("next", safeSignInPath(next));
-  target.searchParams.set("mode", "signup");
+  target.searchParams.set("mode", mode);
   if (fromGallery) target.searchParams.set("source", "client-gallery");
   return target.toString();
 }

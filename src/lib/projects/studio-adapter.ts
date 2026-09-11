@@ -12,6 +12,11 @@ import {
   type ProjectFrame,
 } from "./model";
 import { commitProject, loadProject, readProjectBlobs } from "./repository";
+import {
+  verifyStudioHandoff,
+  type DeliveryFocus,
+  type StudioHandoff,
+} from "@/lib/delivery/studio-handoff";
 
 const digestCache = new WeakMap<Blob, Promise<string>>();
 async function cachedHash(blob: Blob) {
@@ -172,6 +177,8 @@ export async function hydrateProject(
       selectedId: project.selectedId,
       filter: project.filter,
       updatedAt: Date.parse(project.updatedAt),
+      roster: [],
+      eventPeople: [],
     };
   } catch (error) {
     for (const url of urls) URL.revokeObjectURL(url);
@@ -184,7 +191,15 @@ export class ProjectStudioSession {
   private document: Project | null = null;
   private loading: Promise<Project> | null = null;
   private queue: Promise<void> = Promise.resolve();
-  constructor(readonly projectId: string, readonly deliveryFocus?: { frameId: string; versionId: string }) {}
+  constructor(
+    readonly projectId: string,
+    readonly deliveryFocus?: DeliveryFocus,
+  ) {}
+  deliveryReference(handoff: StudioHandoff) {
+    if (!this.document || !this.deliveryFocus)
+      throw new Error("Open the source project before viewing client feedback.");
+    return verifyStudioHandoff(this.document, handoff, this.deliveryFocus);
+  }
   async load() {
     // Strict Mode may start two hydration effects. Read one revision, then give
     // each caller its own disposable URLs without resetting an active writer.
@@ -193,11 +208,20 @@ export class ProjectStudioSession {
     this.document ??= initial;
     if (this.deliveryFocus) {
       const frame = this.document.frames.find((f) => f.id === this.deliveryFocus!.frameId);
-      if (!frame?.originalBlobId || !this.document.editVersions.some((v) => v.id === this.deliveryFocus!.versionId && v.assetId === frame.assetId))
-        throw new Error("The delivery source frame/version is unavailable. Reconnect its original project.");
+      if (
+        !frame?.originalBlobId ||
+        !this.document.editVersions.some(
+          (v) => v.id === this.deliveryFocus!.versionId && v.assetId === frame.assetId,
+        )
+      )
+        throw new Error(
+          "The delivery source frame/version is unavailable. Reconnect its original project.",
+        );
     }
     const session = await hydrateProject(this.document);
-    return this.deliveryFocus ? { ...session, selectedId: this.deliveryFocus.frameId, filter: "all" as const } : session;
+    return this.deliveryFocus
+      ? { ...session, selectedId: this.deliveryFocus.frameId, filter: "all" as const }
+      : session;
   }
   save(shots: Shot[], selectedId: string | null, filter: StudioFilter): Promise<void> {
     const snapshot = shots.map((shot) => ({

@@ -1,0 +1,98 @@
+.story-byline,
+.story-share-actions,
+.story-creator-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.story-byline {
+  justify-content: space-between;
+  margin: -1rem 0 2rem;
+  font-size: 14px;
+}
+.story-share-trigger,
+.story-share-actions button,
+.story-share-actions a,
+.story-inquiry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-size: 14px;
+}
+.story-share-trigger {
+  background: var(--color-card);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+.story-share-dialog {
+  max-width: min(480px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  gap: 16px;
+  border-radius: 16px;
+}
+.story-share-dialog input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: transparent;
+}
+.story-share-dialog label {
+  font-size: 14px;
+  margin-bottom: -10px;
+}
+.story-share-credit {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.story-share-status {
+  font-size: 14px;
+  min-height: 20px;
+  color: var(--color-moss);
+}
+.story-share-actions button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.story-creator-cta {
+  justify-content: space-between;
+  padding-block: 24px;
+}
+.story-creator-cta strong {
+  color: var(--color-ink);
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.story-creator-cta p {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.story-platform-credit {
+  font-size: 14px;
+  margin-top: 24px;
+}
+.story-platform-credit a,
+.story-byline a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.portfolio-story h1 {
+  overflow-wrap: anywhere;
+}
+.story-share-trigger:focus-visible,
+.story-share-actions :focus-visible,
+.story-inquiry:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}

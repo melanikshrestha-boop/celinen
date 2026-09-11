@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { preferencesSchema, type AccountPreferences } from "./account-preferences";
+import { workspaceLanguage } from "./workspace-language";
 
 const transferSchema = z
   .object({
@@ -8,20 +9,41 @@ const transferSchema = z
     preferences: preferencesSchema,
   })
   .strict();
+export const SETTINGS_FILE_MAX_BYTES = 32_768;
 export function exportSettings(preferences: AccountPreferences) {
-  return JSON.stringify(
+  const text = JSON.stringify(
     transferSchema.parse({ product: "LensLabs", version: 1, preferences }),
     null,
     2,
   );
+  if (new TextEncoder().encode(text).byteLength > SETTINGS_FILE_MAX_BYTES)
+    throw new Error("Settings exceed the 32 KB export limit.");
+  return text;
 }
 export function importSettings(text: string): AccountPreferences {
-  if (text.length > 16_384) throw new Error("Choose a LensLabs settings file smaller than 16 KB.");
+  if (new TextEncoder().encode(text).byteLength > SETTINGS_FILE_MAX_BYTES)
+    throw new Error("Choose a LensLabs settings file smaller than 32 KB.");
   try {
     return transferSchema.parse(JSON.parse(text)).preferences;
   } catch {
     throw new Error("This is not a supported LensLabs settings file. Nothing was changed.");
   }
+}
+/** Transfers may customize appearance, never expand consent or device permissions. */
+export function previewSettingsImport(current: AccountPreferences, incoming: AccountPreferences) {
+  const preferences = preferencesSchema.parse({
+    ...incoming,
+    cloudAssistant: current.cloudAssistant && incoming.cloudAssistant,
+    desktopNotifications: current.desktopNotifications && incoming.desktopNotifications,
+    learnFromYourWork: current.learnFromYourWork && incoming.learnFromYourWork,
+  });
+  const changed = (Object.keys(preferences) as (keyof AccountPreferences)[]).filter(
+    (key) => JSON.stringify(preferences[key]) !== JSON.stringify(current[key]),
+  );
+  const blocked = (["cloudAssistant", "desktopNotifications", "learnFromYourWork"] as const).filter(
+    (key) => incoming[key] && !current[key],
+  );
+  return { preferences, changed, blocked };
 }
 export function importLanes(
   raw: boolean,
@@ -37,5 +59,28 @@ export function assistantPersonalization(preferences: AccountPreferences) {
       : preferences.personality === "concise"
         ? "Be concise and practical."
         : "";
-  return [tone, preferences.customInstructions].filter(Boolean).join("\n");
+  const detail =
+    preferences.responseDetail === "brief"
+      ? "Prefer brief answers."
+      : preferences.responseDetail === "detailed"
+        ? "Explain decisions and relevant details."
+        : "";
+  const terminology = preferences.preferredTerms
+    ? `Preferred terminology: ${preferences.preferredTerms}`
+    : "";
+  const language = workspaceLanguage(
+    preferences.language,
+    typeof navigator === "undefined" ? "en" : navigator.language,
+  );
+  return [
+    language === "es"
+      ? "Respond in Spanish unless the photographer explicitly asks for another language."
+      : "",
+    tone,
+    detail,
+    terminology,
+    preferences.customInstructions,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

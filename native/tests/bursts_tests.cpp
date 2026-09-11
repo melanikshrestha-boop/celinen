@@ -8,6 +8,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 unsigned checks = 0, failures = 0;
@@ -109,6 +110,16 @@ int main() {
   CHECK(group_bursts({keep, reject}).groups[0].recommended_id.empty());
   undecided = b; undecided.sharpness = 101;
   CHECK(group_bursts({a, undecided}).groups[0].recommended_id == "b");
+
+  review = group_bursts({a, b});
+  auto culled = apply_burst_cull(review.groups[0], {a, b}, "a");
+  CHECK(culled.size() == 2);
+  CHECK(culled[0] == std::make_pair(std::string("a"), Verdict::keep));
+  CHECK(culled[1] == std::make_pair(std::string("b"), Verdict::reject));
+  CHECK(a.verdict == Verdict::undecided && b.verdict == Verdict::undecided);
+  auto already = a; already.verdict = Verdict::keep;
+  CHECK(apply_burst_cull(review.groups[0], {already, b}, "a").empty());
+  invalid([&] { apply_burst_cull(review.groups[0], {a, b}, "missing"); });
 
   invalid([&] { group_bursts({a, a}); });
   other = b; other.id.clear(); invalid([&] { group_bursts({other}); });

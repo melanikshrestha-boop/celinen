@@ -1,0 +1,77 @@
+/* Signed-in surfaces share the public landing type, color, and pill buttons. */
+:root {
+  --celinen-sans:
+    "OpenAI Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --celinen-display: "Instrument Serif", "Source Serif 4", Georgia, serif;
+  --celinen-text: #142a36;
+  --celinen-muted: #516570;
+  --celinen-line: #eceff2;
+  --celinen-bg: #fff;
+  --celinen-neon: #4d6fff;
+  --celinen-neon-hover: #6e86ff;
+  --celinen-leading: 1.3;
+}
+
+html:has(.celinen-dash, .photo-workbench, .settings-shell, .auth-screen) {
+  color-scheme: light;
+}
+
+.celinen-dash,
+.photo-workbench,
+.settings-shell,
+.auth-screen {
+  font-family: var(--celinen-sans);
+  color: var(--celinen-text);
+  line-height: var(--celinen-leading);
+}
+
+.celinen-dash h1,
+.celinen-dash h2,
+.photo-workbench h1,
+.photo-workbench h2,
+.settings-shell h1,
+.settings-shell h2,
+.auth-screen h1 {
+  font-family: var(--celinen-display);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+}
+
+.celinen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--celinen-neon);
+  color: #fff;
+  font-family: var(--celinen-sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  box-shadow:
+    0 12px 36px #4d6fff73,
+    0 0 24px #4d6fff59;
+}
+
+.celinen-btn:hover {
+  background: var(--celinen-neon-hover);
+  color: #fff;
+}
+
+.celinen-btn--ghost {
+  background: transparent;
+  color: var(--celinen-text);
+  box-shadow: none;
+  border: 1px solid var(--celinen-line);
+}
+
+.celinen-btn--ghost:hover {
+  background: #f6f8fb;
+  color: var(--celinen-text);
+  box-shadow: none;
+}

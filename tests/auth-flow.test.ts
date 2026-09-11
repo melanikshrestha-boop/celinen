@@ -3,7 +3,7 @@ import { authReturnUrl, isLocalAuthOrigin, parseAuthSearch } from "../src/lib/au
 
 describe("account entry", () => {
   test("defaults every new auth visit to account creation", () => {
-    expect(parseAuthSearch({})).toEqual({ next: "/workspace", mode: "signup" });
+    expect(parseAuthSearch({})).toEqual({ next: "/dashboard", mode: "signup" });
     expect(parseAuthSearch({ next: "/studio" })).toEqual({
       next: "/studio",
       mode: "signup",
@@ -14,6 +14,16 @@ describe("account entry", () => {
     expect(parseAuthSearch({ mode: "signin", next: "/workspace" })).toEqual({
       next: "/workspace",
       mode: "signin",
+    });
+    expect(parseAuthSearch({ mode: "signin", google: true })).toEqual({
+      next: "/dashboard",
+      mode: "signin",
+      google: true,
+    });
+    expect(parseAuthSearch({ mode: "signin", google: "1" })).toEqual({
+      next: "/dashboard",
+      mode: "signin",
+      google: true,
     });
   });
 

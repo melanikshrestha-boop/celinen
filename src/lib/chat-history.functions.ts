@@ -21,7 +21,7 @@ export const listWorkspaceChats = createServerFn({ method: "GET" })
     const { data: rows, error } = await (context.supabase as SupabaseClient)
       .from("workspace_chats")
       .select(
-        "record->id,record->project,record->title,record->named,record->archived,record->revision,record->createdAt,record->updatedAt",
+        "record->id,record->project,record->title,record->named,record->archived,record->pinned,record->section,record->unread,record->revision,record->createdAt,record->updatedAt",
       )
       .eq("owner_id", context.userId)
       .eq("project", data.project)
@@ -32,10 +32,42 @@ export const listWorkspaceChats = createServerFn({ method: "GET" })
         "Cloud chat history is unavailable. Check the chat-history migration and try again.",
       );
     return (rows ?? []).map((row) => {
-      const parsed = chatSchema.parse({ ...row, messages: [], draft: "" });
+      const parsed = chatSchema.parse({
+        ...row,
+        pinned: row.pinned ?? false,
+        section: row.section ?? "",
+        unread: row.unread ?? false,
+        messages: [],
+        draft: "",
+      });
       const { messages: _messages, draft: _draft, ...summary } = parsed;
       return summary;
     });
+  });
+
+export const deleteWorkspaceChat = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z
+      .object({
+        expectedOwner: ownerSchema,
+        id: z.string().uuid(),
+        project: z.string().min(1).max(300),
+        revision: z.number().int().min(1),
+      })
+      .strict(),
+  )
+  .handler(async ({ data, context }) => {
+    requireOwner(data.expectedOwner, context.userId);
+    const { data: removed, error } = await (context.supabase as SupabaseClient).rpc(
+      "delete_workspace_chat",
+      { chat_id: data.id, expected_project: data.project, expected_revision: data.revision },
+    );
+    if (error || removed !== true)
+      throw new Error(
+        "Chat could not be deleted or changed in another tab. Reload before trying again.",
+      );
+    return { deleted: true };
   });
 export const readWorkspaceChat = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

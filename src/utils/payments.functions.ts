@@ -5,7 +5,7 @@ import {
   getStripeErrorMessage,
 } from "@/lib/stripe.server";
 
-type CheckoutSessionResult = { clientSecret: string } | { error: string };
+type CheckoutSessionResult = { url: string } | { error: string };
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
@@ -67,17 +67,25 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
 
       const customerId = await resolveOrCreateCustomer(stripe, { email: data.customerEmail });
 
+      const origin = new URL(data.returnUrl).origin;
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: data.quantity || 1 }],
         mode: isRecurring ? "subscription" : "payment",
-        ui_mode: "embedded_page",
-        return_url: data.returnUrl,
-        ...(customerId && { customer: customerId }),
-        managed_payments: { enabled: true },
-        metadata: { managed_payments: "true", plan: data.priceId },
-      } as never);
+        success_url: `${origin}/workspace?checkout=success`,
+        cancel_url: `${origin}/pricing`,
+        allow_promotion_codes: true,
+        billing_address_collection: "auto",
+        ...(customerId
+          ? { customer: customerId }
+          : data.customerEmail
+            ? { customer_email: data.customerEmail }
+            : {}),
+        metadata: { plan: data.priceId },
+        ...(isRecurring ? { subscription_data: { metadata: { plan: data.priceId } } } : {}),
+      });
 
-      return { clientSecret: session.client_secret ?? "" };
+      if (!session.url) throw new Error("Checkout did not return a URL");
+      return { url: session.url };
     } catch (error) {
       return { error: getStripeErrorMessage(error) };
     }

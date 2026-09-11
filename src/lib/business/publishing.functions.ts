@@ -10,8 +10,24 @@ export const publishingStatus = createServerFn({ method: "GET" })
     const configured = ig.instagramConfigured();
     const connection = await ig.instagramConnection(context.userId);
     const posts = await (await import("./publishing.server")).listPublications(context.userId);
+    const nativeSocial =
+      process.platform === "darwin" &&
+      (await import("node:fs/promises")
+        .then((fs) =>
+          fs.access("native/build/lenslabs-social", fs.constants.X_OK).then(
+            () => true,
+            () => false,
+          ),
+        )
+        .catch(() => false));
     return {
       configured,
+      nativeSocial,
+      facebook: await (
+        await import("./facebook.server")
+      )
+        .facebookStatus(context.userId)
+        .catch(() => ({ configured: false, pages: [], selected: null, active: false })),
       portfolioUrl: `/photographer/${context.userId}`,
       connection: connection
         ? {

@@ -1,0 +1,158 @@
+.develop-grading {
+  min-width: 0;
+}
+.develop-grading-control {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.develop-grading-views {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin: 0 0 10px;
+}
+.foto-develop .develop-grading-views button {
+  padding: 3px 5px;
+  min-height: 25px;
+  font-size: 10px;
+  color: var(--dv-muted);
+}
+.foto-develop .develop-grading-views button[aria-selected="true"] {
+  color: var(--dv-text);
+  background: #444;
+}
+.develop-grading-range {
+  min-width: 0;
+}
+.develop-grading-range-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 9px;
+}
+.foto-develop .develop-grading-range-head button {
+  min-height: 20px;
+  width: 20px;
+  padding: 2px;
+  color: var(--dv-muted);
+}
+.foto-develop .develop-grade-wheel {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  min-height: 0;
+  width: min(100%, 158px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+  --grade-wheel-fill:
+    radial-gradient(circle closest-side, #808080, #80808000),
+    conic-gradient(from 90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  background: var(--grade-wheel-fill);
+  box-shadow: 0 0 0 1px #161616;
+}
+.foto-develop .develop-grade-wheel:hover:not(:disabled) {
+  background: var(--grade-wheel-fill);
+}
+.develop-grade-wheel:focus-visible {
+  outline: 2px solid #eee;
+  outline-offset: 4px;
+}
+.develop-grade-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #ddd;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.develop-grade-ray {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 1px;
+  background: #fff7;
+  transform-origin: left center;
+  pointer-events: none;
+}
+.develop-grade-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #f7f7f7;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #111;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.develop-grading-wheels.is-three-way {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 8px;
+}
+.is-three-way .develop-grading-range.is-midtones {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  width: calc(50% - 8px);
+  justify-self: center;
+}
+.is-three-way .develop-grade-wheel {
+  width: min(100%, 96px);
+  margin-bottom: 8px;
+}
+.is-three-way .develop-slider {
+  grid-template-columns: 1fr 32px;
+  gap: 3px;
+}
+.is-three-way .develop-slider > label {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.is-three-way .develop-slider input[type="number"] {
+  width: 32px;
+}
+.develop-grading-values > summary {
+  color: var(--dv-muted);
+  font-size: 9px;
+  cursor: pointer;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+.develop-grading-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 8px;
+  color: var(--dv-muted);
+  font-size: 9px;
+}
+.foto-develop .develop-grading-footer button {
+  padding: 2px 4px;
+  font-size: 10px;
+}
+.develop-grading-legacy {
+  margin-top: 8px;
+  color: var(--dv-muted);
+  font-size: 10px;
+}
+.develop-grading-legacy span {
+  display: block;
+  margin-bottom: 4px;
+}
+.foto-develop fieldset:disabled .develop-grade-wheel {
+  opacity: 0.4;
+  cursor: default;
+}

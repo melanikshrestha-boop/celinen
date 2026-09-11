@@ -8,15 +8,15 @@ describe("public entry without replacing the remembered workspace", () => {
   test("both real and local signed-in accounts continue straight to the workspace", () => {
     for (const local of [true, false])
       expect(publicEntry("in", local)).toEqual({
-        to: "/workspace",
+        to: "/dashboard",
         search: {},
-        label: "Open workspace",
+        label: "Dashboard",
       });
   });
   test("local mode alone does not bypass a closed workspace", () => {
     expect(publicEntry("out", true)).toEqual({
       to: "/auth",
-      search: { next: "/workspace", mode: "signup" },
+      search: { next: "/dashboard", mode: "signup" },
       label: "Open local workspace",
     });
   });
@@ -24,15 +24,16 @@ describe("public entry without replacing the remembered workspace", () => {
     for (const status of [undefined, "loading", "out"] as const) {
       expect(publicEntry(status).to).toBe("/auth");
       expect(publicEntry(status).label).toBe("Get started");
-      expect(publicEntry(status).search).toEqual({ next: "/workspace", mode: "signup" });
+      expect(publicEntry(status).search).toEqual({ next: "/dashboard", mode: "signup" });
     }
   });
   test("the public homepage and auth stay outside the private workbench", () => {
     expect(isWorkbenchRoute(["__root__", "/"])).toBe(false);
     expect(isWorkbenchRoute(["__root__", "/auth"])).toBe(false);
     expect(isWorkbenchRoute(["__root__", "/workspace"])).toBe(true);
+    expect(isWorkbenchRoute(["__root__", "/dashboard"])).toBe(false);
     expect(safeSignInPath("/deliver?workflow=1")).toBe("/deliver?workflow=1");
-    expect(safeSignInPath("https://untrusted.example")).toBe("/workspace");
+    expect(safeSignInPath("https://untrusted.example")).toBe("/dashboard");
   });
 });
 

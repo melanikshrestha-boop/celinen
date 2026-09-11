@@ -1,0 +1,193 @@
+/* Public first-login presentation only. Shared ProfileForm settings remain unchanged. */
+.auth-screen.account-setup {
+  --ink: var(--auth-text);
+  --moss: var(--auth-muted);
+  --input: #bcc8d0;
+  --destructive: #b02f26;
+  --paper: #fff;
+  --font-sans: var(--auth-font);
+  min-height: 100svh;
+  padding: 24px clamp(24px, 3vw, 48px) 24px 24px;
+}
+.account-setup .account-setup-content {
+  max-width: 400px;
+  margin: 0;
+}
+.account-setup .account-setup-email {
+  margin: 10px 0 0;
+  color: var(--auth-muted);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+.account-setup .settings-profile-form .settings-label {
+  margin-bottom: 5px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.account-setup .settings-profile-form > input,
+.account-setup .profile-specialty-trigger {
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 18px;
+  padding: 11px 14px;
+  border: 1px solid #bcc8d0;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--auth-text);
+  font-family: var(--auth-font);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.account-setup .profile-specialty-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+  text-align: left;
+}
+.account-setup .profile-specialty-trigger > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.account-setup .profile-specialty-trigger > svg {
+  flex-shrink: 0;
+}
+.account-setup .profile-specialty-placeholder,
+.account-setup .settings-profile-form > input::placeholder {
+  color: #697983;
+  opacity: 1;
+}
+.account-setup .settings-profile-form > input:hover,
+.account-setup .profile-specialty-trigger:hover:not(:disabled) {
+  border-color: #798f9c;
+}
+.account-setup .settings-profile-form > input:autofill {
+  -webkit-text-fill-color: var(--auth-text);
+  box-shadow: 0 0 0 1000px #f4f8ff inset;
+  caret-color: var(--auth-text);
+}
+.account-setup .settings-profile-form .profile-specialty-hint {
+  margin: 7px 0 18px;
+  font-size: 0.8125rem;
+  color: var(--auth-muted);
+}
+.account-setup .settings-form-actions {
+  gap: 10px;
+  margin: 20px 0 12px;
+}
+.account-setup .settings-form-actions > .settings-button.primary {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--auth-blue);
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.account-setup .settings-form-actions > .settings-button.primary:hover:not(:disabled) {
+  background: #1247ad;
+}
+.account-setup .settings-footnote {
+  color: var(--auth-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.account-setup .settings-text-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 0;
+  margin-top: 8px;
+  background: transparent;
+  color: var(--auth-blue);
+  font-size: 0.875rem;
+}
+.account-setup .settings-text-action:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.account-setup .account-setup-error,
+.account-setup .settings-form-error {
+  color: #b02f26;
+  overflow-wrap: anywhere;
+}
+.account-setup :is(button, input, a):focus-visible {
+  outline: 3px solid var(--auth-blue);
+  outline-offset: 3px;
+}
+/* Radix portals render outside the setup ancestor. This guard styles only this
+   picker while setup is mounted; it does not change the picker in Settings. */
+body:has(.account-setup) .profile-specialty-popover {
+  --popover: #fff;
+  --popover-foreground: #172a36;
+  --foreground: #172a36;
+  --background: #fff;
+  --accent: #edf4ff;
+  --accent-foreground: #172a36;
+  --muted-foreground: #586871;
+  --border: #bcc8d0;
+  --input: #bcc8d0;
+  --ink: #172a36;
+  --moss: #586871;
+  color-scheme: light;
+  width: var(--radix-popover-trigger-width);
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border: 1px solid #bcc8d0;
+  border-radius: 14px;
+  color: #172a36;
+  background: #fff;
+  font-family:
+    "OpenAI Sans",
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.875rem;
+}
+body:has(.account-setup) .profile-specialty-popover :is(input, button) {
+  font-family: inherit;
+  min-height: 44px;
+}
+body:has(.account-setup) .profile-specialty-popover input {
+  font-size: 1rem;
+}
+body:has(.account-setup) .profile-specialty-popover [cmdk-input-wrapper] {
+  border: 0;
+}
+body:has(.account-setup) .profile-specialty-popover [cmdk-list] {
+  max-height: min(280px, calc(var(--radix-popover-content-available-height) - 104px));
+}
+body:has(.account-setup) .profile-specialty-popover [cmdk-item] {
+  min-height: 44px;
+  gap: 10px;
+}
+body:has(.account-setup) .profile-specialty-popover .profile-specialty-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 2px;
+}
+body:has(.account-setup) .profile-specialty-popover :is(input, button):focus-visible {
+  outline: 3px solid #1959d1;
+  outline-offset: 2px;
+}
+@media (min-width: 1600px) {
+  .auth-screen.account-setup {
+    padding-right: max(48px, calc((100vw - 1440px) / 2));
+  }
+}
+@media (max-width: 800px) {
+  .auth-screen.account-setup {
+    padding: 16px;
+  }
+}
+@media (max-width: 360px) {
+  .auth-screen.account-setup {
+    padding: 12px;
+  }
+}

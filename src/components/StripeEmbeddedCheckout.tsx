@@ -1,5 +1,5 @@
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { getStripe, getStripeEnvironment } from "@/lib/stripe";
+import { useEffect, useRef, useState } from "react";
+import { getStripeEnvironment } from "@/lib/stripe";
 import { createCheckoutSession } from "@/utils/payments.functions";
 
 interface Props {
@@ -9,27 +9,42 @@ interface Props {
   returnUrl?: string;
 }
 
+/** Hosted Stripe Checkout (Link, promo codes, subscribe). Same surface Vugola uses. */
 export function StripeEmbeddedCheckout({ priceId, quantity, customerEmail, returnUrl }: Props) {
-  const fetchClientSecret = async (): Promise<string> => {
-    const result = await createCheckoutSession({
-      data: {
-        priceId,
-        ...(quantity ? { quantity } : {}),
-        ...(customerEmail ? { customerEmail } : {}),
-        returnUrl: returnUrl || window.location.href,
-        environment: getStripeEnvironment(),
-      },
-    });
-    if ("error" in result) throw new Error(result.error);
-    if (!result.clientSecret) throw new Error("Checkout did not return a client secret");
-    return result.clientSecret;
-  };
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    void (async () => {
+      try {
+        const result = await createCheckoutSession({
+          data: {
+            priceId,
+            ...(quantity ? { quantity } : {}),
+            ...(customerEmail ? { customerEmail } : {}),
+            returnUrl: returnUrl || window.location.href,
+            environment: getStripeEnvironment(),
+          },
+        });
+        if ("error" in result) throw new Error(result.error);
+        if (!result.url) throw new Error("Checkout did not return a URL");
+        window.location.assign(result.url);
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : "Checkout failed";
+        setError(
+          /not configured/i.test(message) ? "Checkout is not live on this machine." : message,
+        );
+      }
+    })();
+  }, [priceId, quantity, customerEmail, returnUrl]);
+
+  if (error) return <p className="pricing-checkout-error">{error}</p>;
 
   return (
-    <div id="checkout">
-      <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret }}>
-        <EmbeddedCheckout />
-      </EmbeddedCheckoutProvider>
-    </div>
+    <p className="pricing-checkout-pending" role="status">
+      Taking you to secure checkout…
+    </p>
   );
 }

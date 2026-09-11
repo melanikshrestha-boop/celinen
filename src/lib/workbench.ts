@@ -1,10 +1,19 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router";
+import type { DeliveryFocus } from "./delivery/studio-handoff";
+import { isSettingsPath } from "./settings-catalog";
+import { PHOTO_ID_MAX_LENGTH } from "./photo-identity";
 
 export const WORKBENCH_TOOLS = [
+  { path: "/tonight", label: "Tonight", group: "Workspace" },
+  { path: "/shoots", label: "Shoots", group: "Workspace" },
+  { path: "/library", label: "Library", group: "Workspace" },
+  { path: "/money", label: "Earnings (legacy link)", group: "Business" },
   { path: "/studio", label: "Studio", group: "Workspace" },
+  { path: "/develop", label: "Develop", group: "Workspace" },
   { path: "/projects", label: "Projects", group: "Workspace" },
   { path: "/deliver", label: "Delivery", group: "Workspace" },
-  { path: "/clients", label: "Clients", group: "Workspace" },
+  { path: "/clients", label: "Clients", group: "Business" },
+  { path: "/outbound", label: "Outbound", group: "Business" },
   { path: "/publish", label: "Publish", group: "Workspace" },
   { path: "/shop", label: "Print shop", group: "Business" },
   { path: "/network", label: "Photographer network", group: "Business" },
@@ -24,9 +33,17 @@ export const WORKBENCH_TOOLS = [
   { path: "/settings", label: "Settings", group: "Account" },
 ] as const;
 /** Keep everyday navigation small; the complete catalogue remains in the command menu. */
-export const WORKBENCH_PRIMARY_TOOLS = WORKBENCH_TOOLS.filter((tool) =>
-  (["/studio", "/deliver", "/clients"] as readonly string[]).includes(tool.path),
-);
+export const WORKBENCH_PRIMARY_TOOLS = [
+  "/tonight",
+  "/shoots",
+  "/clients",
+  "/library",
+  "/deliver",
+  "/earnings",
+].map((path) => ({
+  ...WORKBENCH_TOOLS.find((tool) => tool.path === path)!,
+  ...(path === "/deliver" ? { label: "Deliver" } : {}),
+}));
 export type WorkbenchTab = { href: string; label: string; path: string };
 const unsafeUrlCharacters = (value: string) =>
   [...value].some((char) => char === "\\" || char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127);
@@ -35,7 +52,7 @@ export type StudioWorkbenchBinding =
       kind: "ready";
       projectId: string | null;
       shootId?: string;
-      deliveryFocus?: { frameId: string; versionId: string };
+      deliveryFocus?: DeliveryFocus;
     }
   | { kind: "blocked"; reason: string };
 
@@ -55,8 +72,10 @@ export function studioWorkbenchBinding(
         "workspaceProject",
         "deliveryFrame",
         "deliveryVersion",
+        "deliveryHandoff",
         "workspaceFrame",
         "workspaceVersion",
+        "workspaceHandoff",
       ].some((key) => url.searchParams.has(key))
     )
       return { kind: "blocked", reason: "This shoot link is invalid. No photos were opened." };
@@ -68,8 +87,9 @@ export function studioWorkbenchBinding(
   const projectId = parsed["project"] ?? null;
   const frameId = parsed["deliveryFrame"];
   const versionId = parsed["deliveryVersion"];
+  const handoffId = parsed["deliveryHandoff"];
   if (
-    ["project", "deliveryFrame", "deliveryVersion"].some(
+    ["project", "deliveryFrame", "deliveryVersion", "deliveryHandoff"].some(
       (key) => url.searchParams.getAll(key).length > 1,
     )
   )
@@ -88,21 +108,34 @@ export function studioWorkbenchBinding(
       reason:
         "Named projects are available in the local workspace only. No private project data was loaded.",
     };
-  if (url.searchParams.has("deliveryFrame") || url.searchParams.has("deliveryVersion")) {
+  if (
+    ["deliveryFrame", "deliveryVersion", "deliveryHandoff"].some((key) => url.searchParams.has(key))
+  ) {
     if (
       typeof projectId !== "string" ||
       typeof frameId !== "string" ||
       typeof versionId !== "string" ||
       !frameId ||
       !versionId ||
-      frameId.length > 2000 ||
-      versionId.length > 2000
+      frameId.length > PHOTO_ID_MAX_LENGTH ||
+      versionId.length > 2000 ||
+      (handoffId !== undefined &&
+        (typeof handoffId !== "string" ||
+          !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(handoffId)))
     )
       return {
         kind: "blocked",
         reason: "This delivery version link is incomplete. No shoot was opened.",
       };
-    return { kind: "ready", projectId, deliveryFocus: { frameId, versionId } };
+    return {
+      kind: "ready",
+      projectId,
+      deliveryFocus: {
+        frameId,
+        versionId,
+        ...(typeof handoffId === "string" ? { handoffId } : {}),
+      },
+    };
   }
   return { kind: "ready", projectId: typeof projectId === "string" ? projectId : null };
 }
@@ -115,6 +148,7 @@ export function studioBindingKey(binding: StudioWorkbenchBinding) {
         binding.shootId,
         binding.deliveryFocus?.frameId,
         binding.deliveryFocus?.versionId,
+        binding.deliveryFocus?.handoffId,
       ]);
 }
 
@@ -122,11 +156,17 @@ export function studioBindingHref(binding: StudioWorkbenchBinding) {
   if (binding.kind === "ready" && binding.shootId)
     return `/studio?shoot=${encodeURIComponent(binding.shootId)}`;
   if (binding.kind === "blocked" || !binding.projectId) return "/studio";
-  return `/studio${defaultStringifySearch({ project: binding.projectId, ...(binding.deliveryFocus ? { deliveryFrame: binding.deliveryFocus.frameId, deliveryVersion: binding.deliveryFocus.versionId } : {}) })}`;
+  return `/studio${defaultStringifySearch({ project: binding.projectId, ...(binding.deliveryFocus ? { deliveryFrame: binding.deliveryFocus.frameId, deliveryVersion: binding.deliveryFocus.versionId, ...(binding.deliveryFocus.handoffId ? { deliveryHandoff: binding.deliveryFocus.handoffId } : {}) } : {}) })}`;
 }
 export function isWorkbenchRoute(routeIds: readonly string[]) {
   return routeIds.some(
-    (id) => id === "/workspace" || id === "/shoot" || WORKBENCH_TOOLS.some((t) => t.path === id),
+    (id) =>
+      id === "/workspace" ||
+      id === "/shoot" ||
+      id === "/jobs" ||
+      id.startsWith("/shoots/") ||
+      id === "/settings_/$section" ||
+      WORKBENCH_TOOLS.some((t) => t.path === id),
   );
 }
 export function workbenchTab(href: string): WorkbenchTab | null {
@@ -134,7 +174,28 @@ export function workbenchTab(href: string): WorkbenchTab | null {
   const url = new URL(href, "https://workspace.invalid");
   if (url.origin !== "https://workspace.invalid") return null;
   const path = url.pathname.replace(/\/$/, "").toLowerCase();
-  const tool = WORKBENCH_TOOLS.find((t) => t.path === path);
+  const shoot = path.match(/^\/shoots\/([^/]+)(?:\/(cull|develop|gallery|social|smart-file))?$/);
+  if (shoot) {
+    const label =
+      (
+        {
+          cull: "Cull",
+          develop: "Develop",
+          gallery: "Gallery",
+          social: "Social",
+          "smart-file": "SmartFile",
+        } as Record<string, string>
+      )[shoot[2] ?? ""] ?? "Overview";
+    url.searchParams.sort();
+    return {
+      href: `${url.pathname.replace(/\/$/, "")}${url.search}${url.hash}`,
+      path: url.pathname.replace(/\/$/, ""),
+      label,
+    };
+  }
+  const tool = WORKBENCH_TOOLS.find(
+    (t) => t.path === path || (t.path === "/settings" && isSettingsPath(path)),
+  );
   if (!tool) return null;
   const parsedQuery = (defaultParseSearch(url.search) as Record<string, unknown>)["q"];
   const queryLabel = typeof parsedQuery === "string" ? parsedQuery : url.searchParams.get("q");
@@ -145,7 +206,7 @@ export function workbenchTab(href: string): WorkbenchTab | null {
   // Equivalent shoot URLs describe one tab, independent of query insertion order.
   if (url.searchParams.has("shoot")) url.searchParams.sort();
   return {
-    href: `${tool.path}${url.search}`,
+    href: `${tool.path}${url.search}${["/tonight", "/shoots", "/library", "/deliver", "/money", "/earnings"].includes(tool.path) ? url.hash : ""}`,
     path: tool.path,
     label:
       tool.label +
@@ -178,6 +239,7 @@ export function workbenchNavigation(text: string): string | null {
   if (["proofing", "client proofing", "private delivery"].includes(name))
     return "/deliver?workflow=1";
   if (name === "deliver") return "/deliver";
+  if (["clients", "contacts", "client database"].includes(name)) return "/clients";
   if (["social", "social media", "instagram", "publishing"].includes(name)) return "/publish";
   if (["shop", "store", "prints", "domains", "shopify"].includes(name)) return "/shop";
   if (["network", "marketplace", "photographers", "collaborations"].includes(name))
@@ -186,15 +248,15 @@ export function workbenchNavigation(text: string): string | null {
 }
 export function safeSignInPath(path: string) {
   if (!path.startsWith("/") || path.startsWith("//") || unsafeUrlCharacters(path))
-    return "/workspace";
+    return "/dashboard";
   try {
     const decoded = decodeURIComponent(path);
-    if (unsafeUrlCharacters(decoded) || decoded.startsWith("//")) return "/workspace";
+    if (unsafeUrlCharacters(decoded) || decoded.startsWith("//")) return "/dashboard";
     const url = new URL(path, "https://workspace.invalid");
     if (url.origin !== "https://workspace.invalid" || /^\/auth\/?$/i.test(url.pathname))
-      return "/workspace";
+      return "/dashboard";
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/workspace";
+    return "/dashboard";
   }
 }

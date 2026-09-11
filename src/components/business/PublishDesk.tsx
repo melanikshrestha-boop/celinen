@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Globe,
   Instagram,
+  Facebook,
   Sparkles,
 } from "lucide-react";
 import { Shell } from "@/components/lensos/Shell";
@@ -18,6 +19,16 @@ import {
   listPrivateDeliveries,
 } from "@/lib/delivery/remote.functions";
 import { captionDraft, eligibleVersions, type Publication } from "@/lib/business/publishing";
+import { StoryShare } from "./StoryShare";
+import {
+  connectFacebook,
+  completeFacebook,
+  chooseFacebookPage,
+  disconnectFacebook,
+} from "@/lib/business/facebook.functions";
+import { DEFAULT_SOCIAL_FRAME, type SocialFrame } from "@/lib/social-frame";
+import { Slider } from "@/components/ui/slider";
+import "./story-sharing.css";
 import {
   completeInstagram,
   connectInstagram,
@@ -45,6 +56,9 @@ export function PublishDesk() {
   const [caption, setCaption] = useState("");
   const [portfolio, setPortfolio] = useState(true),
     [instagram, setInstagram] = useState(false);
+  const [instagramStory, setInstagramStory] = useState(false),
+    [facebookStory, setFacebookStory] = useState(false);
+  const [frame, setFrame] = useState<SocialFrame>(DEFAULT_SOCIAL_FRAME);
   const [permission, setPermission] = useState(false),
     [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false),
@@ -84,16 +98,27 @@ export function PublishDesk() {
       state = query.get("state");
     if (callback.current || (!code && !query.has("error"))) return;
     callback.current = true;
+    const facebook = query.get("connector") === "facebook";
     // Remove OAuth secrets from browser history/referrers before any subsequent navigation.
     window.history.replaceState(null, "", "/publish");
     if (query.has("error") || !state) {
-      setError("Instagram connection was cancelled. Nothing was connected.");
+      setError(
+        `${facebook ? "Facebook" : "Instagram"} connection was cancelled. Nothing was connected.`,
+      );
       return;
     }
     setBusy(true);
-    void completeInstagram({ data: { code: code!, state } })
+    void (
+      facebook
+        ? completeFacebook({ data: { code: code!, state } })
+        : completeInstagram({ data: { code: code!, state } })
+    )
       .then(() => {
-        setNotice("Instagram connected.");
+        setNotice(
+          facebook
+            ? "Facebook connected. Choose the Page you want to publish to."
+            : "Instagram connected.",
+        );
         return refresh();
       })
       .catch((e) => setError(e.message))
@@ -205,6 +230,11 @@ export function PublishDesk() {
               caption,
               versionIds: selected,
               instagram,
+              instagramStory,
+              facebookStory,
+              ...((instagram || instagramStory || facebookStory) && status?.nativeSocial
+                ? { frame }
+                : {}),
               portfolio,
               permission: true,
             },
@@ -232,6 +262,7 @@ export function PublishDesk() {
       if (disconnect) {
         await disconnectInstagram();
         setInstagram(false);
+        setInstagramStory(false);
         setNotice(
           "Disconnected from LensLabs. You can also revoke access in Instagram’s Apps and websites settings.",
         );
@@ -253,7 +284,7 @@ export function PublishDesk() {
           <div>
             <p className="business-eyebrow">After the handoff</p>
             <h1>Good work deserves to be seen.</h1>
-            <p>One shoot. Your portfolio and Instagram. Your final say.</p>
+            <p>One shoot. Posts, Stories, and your portfolio. Your final say.</p>
           </div>
         </header>
         {error && (
@@ -293,7 +324,79 @@ export function PublishDesk() {
           )}
           <span className="business-note">
             {status?.configured
-              ? "Business or Creator account"
+              ? "Feed: Business or Creator · Stories: Business account"
+              : "App connection needs setup before posting"}
+          </span>
+        </div>
+        <div className="business-connection">
+          <Facebook size={18} />
+          <span>Facebook Page Stories</span>
+          <button
+            disabled={busy || !status?.facebook.configured}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                window.location.assign(await connectFacebook());
+              } catch (error) {
+                setError(error instanceof Error ? error.message : "Could not connect Facebook.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {status?.facebook.pages.length ? "Reconnect" : "Connect Facebook"}
+          </button>
+          {!!status?.facebook.pages.length && (
+            <>
+              <select
+                aria-label="Facebook Page"
+                value={status.facebook.selected ?? ""}
+                disabled={busy}
+                onChange={async (event) => {
+                  if (!event.target.value) return;
+                  setBusy(true);
+                  try {
+                    await chooseFacebookPage({ data: { id: event.target.value } });
+                    await refresh();
+                  } catch (error) {
+                    setError(error instanceof Error ? error.message : "Could not select Page.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <option value="">Choose a Page…</option>
+                {status.facebook.pages.map((page) => (
+                  <option key={page.id} value={page.id}>
+                    {page.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await disconnectFacebook();
+                    setFacebookStory(false);
+                    await refresh();
+                  } catch (error) {
+                    setError(
+                      error instanceof Error ? error.message : "Could not disconnect Facebook.",
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Disconnect
+              </button>
+            </>
+          )}
+          <span className="business-note">
+            {status?.facebook.configured
+              ? "Page publishing only · not personal-profile Stories"
               : "App connection needs setup before posting"}
           </span>
         </div>
@@ -526,7 +629,119 @@ export function PublishDesk() {
                   />
                   <Instagram size={18} /> Instagram
                 </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={instagramStory}
+                    disabled={
+                      !status?.connection?.active || !status?.configured || !status?.nativeSocial
+                    }
+                    onChange={(event) => {
+                      setInstagramStory(event.target.checked);
+                      operation.current = null;
+                    }}
+                  />
+                  <Instagram size={18} /> Instagram Story
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={facebookStory}
+                    disabled={!status?.facebook.active || !status?.nativeSocial}
+                    onChange={(event) => {
+                      setFacebookStory(event.target.checked);
+                      operation.current = null;
+                    }}
+                  />
+                  <Facebook size={18} /> Facebook Page Story
+                </label>
               </div>
+              {status && !status.nativeSocial && (
+                <p className="business-note">
+                  C++ Story preparation is currently available in local Studio. This host needs the
+                  native operator deployed before it can frame and publish Stories. Existing feed
+                  publishing uses your prepared gallery crop.
+                </p>
+              )}
+              {(instagram || instagramStory || facebookStory) && status?.nativeSocial && (
+                <div className="publish-social-frame">
+                  <label className="business-label">
+                    Feed format
+                    <select
+                      value={frame.format === "square" ? "square" : "portrait"}
+                      onChange={(event) => {
+                        setFrame((previous) => ({
+                          ...previous,
+                          format: event.target.value as "square" | "portrait",
+                        }));
+                        operation.current = null;
+                      }}
+                    >
+                      <option value="portrait">Portrait · 4:5</option>
+                      <option value="square">Square · 1:1</option>
+                    </select>
+                  </label>
+                  <label className="business-label">
+                    Framing
+                    <select
+                      value={frame.mode}
+                      onChange={(event) => {
+                        setFrame((previous) => ({
+                          ...previous,
+                          mode: event.target.value as "fit" | "fill",
+                          zoom: 1,
+                        }));
+                        operation.current = null;
+                      }}
+                    >
+                      <option value="fit">Fit whole photo</option>
+                      <option value="fill">Fill frame</option>
+                    </select>
+                  </label>
+                  {(["x", "y", "zoom"] as const).map((axis) => (
+                    <label className="business-label" key={axis}>
+                      {axis === "x"
+                        ? "Horizontal position"
+                        : axis === "y"
+                          ? "Vertical position"
+                          : "Zoom"}
+                      <Slider
+                        aria-label={`Publication ${axis}`}
+                        value={[frame[axis]]}
+                        min={axis === "zoom" ? 1 : 0}
+                        max={axis === "zoom" ? 3 : 1}
+                        step={0.01}
+                        disabled={axis === "zoom" && frame.mode === "fit"}
+                        onValueChange={(values) => {
+                          setFrame((previous) => ({ ...previous, [axis]: values[0] }));
+                          operation.current = null;
+                        }}
+                      />
+                    </label>
+                  ))}
+                  <label className="business-label">
+                    Frame color
+                    <select
+                      value={frame.background}
+                      onChange={(event) => {
+                        setFrame((previous) => ({
+                          ...previous,
+                          background: event.target.value as "black" | "white",
+                        }));
+                        operation.current = null;
+                      }}
+                    >
+                      <option value="black">Black</option>
+                      <option value="white">White</option>
+                    </select>
+                  </label>
+                  <p className="business-note">
+                    C++ prepares separate social copies. Stories use 1080 × 1920 and one photo per
+                    publication. Story captions and hashtags are not overlaid; use the downloaded
+                    file to add stickers in the social app.
+                  </p>
+                </div>
+              )}
               <label className="publish-permission">
                 <input
                   type="checkbox"
@@ -542,7 +757,8 @@ export function PublishDesk() {
                   !room ||
                   !selected.length ||
                   !title.trim() ||
-                  (!portfolio && !instagram) ||
+                  (!portfolio && !instagram && !instagramStory && !facebookStory) ||
+                  ((instagramStory || facebookStory) && selected.length !== 1) ||
                   !permission ||
                   !status
                 }
@@ -571,7 +787,16 @@ export function PublishDesk() {
             )}
             <p className="business-note">
               Only selected JPEG copies are shared. RAW originals, private gallery links, client
-              notes, and contact details stay private.
+              notes, and contact details stay private. Public stories can be forwarded and their
+              covers cached by messaging apps. Unpublishing stops new access, not copies already
+              saved.
+            </p>
+            <p className="business-note">
+              Add your public creator credit and inquiry link in{" "}
+              <a href="/network" className="underline">
+                your creator profile
+              </a>
+              .
             </p>
           </section>
         </div>
@@ -587,20 +812,33 @@ export function PublishDesk() {
                   </p>
                 </div>
                 <div>
-                  {(["portfolio", "instagram"] as const).map((destination) => (
-                    <div key={destination} className="publish-result">
-                      <span>
-                        {destination === "portfolio" ? "Portfolio" : "Instagram"} ·{" "}
-                        {p.destinations[destination].status}
-                      </span>
-                      {p.destinations[destination].url && (
-                        <a href={p.destinations[destination].url} target="_blank" rel="noreferrer">
-                          Open ↗
-                        </a>
-                      )}
-                      <small>{p.destinations[destination].note}</small>
-                    </div>
-                  ))}
+                  {(["portfolio", "instagram", "instagramStory", "facebookStory"] as const)
+                    .filter((destination) => p.destinations[destination])
+                    .map((destination) => (
+                      <div key={destination} className="publish-result">
+                        <span>
+                          {
+                            {
+                              portfolio: "Portfolio",
+                              instagram: "Instagram",
+                              instagramStory: "Instagram Story",
+                              facebookStory: "Facebook Story",
+                            }[destination]
+                          }{" "}
+                          · {p.destinations[destination]!.status}
+                        </span>
+                        {p.destinations[destination]!.url && (
+                          <a
+                            href={p.destinations[destination]!.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open ↗
+                          </a>
+                        )}
+                        <small>{p.destinations[destination]!.note}</small>
+                      </div>
+                    ))}
                 </div>
                 <div>
                   {Object.values(p.destinations).some((d) =>
@@ -613,6 +851,9 @@ export function PublishDesk() {
                         ? "Check outcome"
                         : "Continue / retry"}
                     </button>
+                  )}
+                  {p.destinations.portfolio.status === "published" && (
+                    <StoryShare id={p.id} title={p.title} />
                   )}
                   {p.destinations.portfolio.status === "published" && (
                     <button
@@ -647,16 +888,21 @@ export function PublishDesk() {
           <DialogContent className="business-confirm">
             <DialogTitle>Publish {selected.length} photos publicly?</DialogTitle>
             <DialogDescription>
-              {title} · {portfolio && "LensLabs portfolio"}
-              {portfolio && instagram && " and "}
-              {instagram && `Instagram @${status?.connection?.username}`}. This is public marketing,
-              separate from your private client gallery.
+              {title} ·{" "}
+              {[
+                portfolio && "LensLabs portfolio",
+                instagram && `Instagram @${status?.connection?.username}`,
+                instagramStory && `Instagram Story @${status?.connection?.username}`,
+                facebookStory &&
+                  `Facebook Story · ${status?.facebook.pages.find((page) => page.id === status.facebook.selected)?.name ?? "selected Page"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              . This is public marketing, separate from your private client gallery.
             </DialogDescription>
             <p className="whitespace-pre-wrap text-sm">{caption || "No caption"}</p>
             <button disabled={busy} className="business-primary" onClick={() => void run()}>
-              Publish to{" "}
-              {portfolio && instagram ? "both destinations" : portfolio ? "portfolio" : "Instagram"}{" "}
-              <ArrowRight size={17} />
+              Publish to selected destinations <ArrowRight size={17} />
             </button>
           </DialogContent>
         </Dialog>

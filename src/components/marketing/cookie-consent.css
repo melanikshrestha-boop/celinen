@@ -1,0 +1,64 @@
+.marketing-cookies {
+  position: fixed;
+  z-index: 40;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 18px 22px;
+  border-radius: 22px;
+  background: #fff;
+  color: #3b4a53;
+  box-shadow: 0 12px 40px #142a3626;
+  font-size: 15px;
+  line-height: var(--marketing-leading, 1.3);
+}
+.marketing-cookies p {
+  margin: 0;
+  flex: 1 1 280px;
+}
+.marketing-cookies a {
+  color: #006eaa;
+  text-decoration: underline;
+}
+.marketing-cookies__actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.marketing-cookies button {
+  min-height: 44px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.marketing-cookies__reject {
+  border: 1px solid #c5d4dc;
+  background: #fff;
+  color: #142a36;
+}
+.marketing-cookies__accept {
+  border: 0;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .marketing-cookies {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    padding: 16px;
+  }
+  .marketing-cookies__actions {
+    width: 100%;
+  }
+  .marketing-cookies button {
+    flex: 1;
+  }
+}

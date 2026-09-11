@@ -4,11 +4,31 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronDown,
+  Copy,
   Heart,
   MessageCircle,
   RefreshCw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  activityFilters,
+  deliveryActivityCsv,
+  filteredActivity,
+  type DeliveryActivityFilter,
+} from "@/lib/delivery/activity";
+import { offerDownload } from "@/lib/delivery/downloads";
+import {
+  submittedEditorLookup,
+  submittedSelectionCsv,
+  type EditorLookupTarget,
+} from "@/lib/delivery/selection-export";
 import {
   downloadable,
   isApproved,
@@ -24,6 +44,7 @@ import type { RoomView } from "@/lib/delivery/remote.server";
 import "./delivery.css";
 import { FinalDownloads } from "./FinalDownloads";
 import { currentVersion, messageOf, sizeLabel, type MediaReader } from "./presentation";
+import { useCommentDrafts } from "./useCommentDrafts";
 const stamp = (date: string) =>
   new Date(date).toLocaleString(undefined, {
     month: "short",
@@ -43,6 +64,7 @@ export function DeliveryGallery({
   media,
   onRevise,
   onStudio,
+  draftScope,
 }: {
   onDraftChange?: (dirty: boolean) => void;
   room: RoomView;
@@ -50,28 +72,32 @@ export function DeliveryGallery({
   preview?: boolean;
   localUrls?: Record<string, string> | undefined;
   busy: boolean;
-  run: (command: DeliveryCommand) => Promise<void>;
+  run: (command: DeliveryCommand, operationId?: string) => Promise<void>;
   refresh: () => Promise<void>;
   media: MediaReader;
   onRevise?: (photo: DeliveryPhoto) => void;
   onStudio?: (version: DeliveryVersion) => Promise<void>;
+  draftScope?: string;
 }) {
   const state = room.state;
   const [tab, setTab] = useState<"photos" | "feedback" | "activity">("photos");
   const [filter, setFilter] = useState<"all" | "selected" | "changes" | "ready">("all");
+  const [activityFilter, setActivityFilter] = useState<DeliveryActivityFilter>("all");
   const [page, setPage] = useState(0);
   const [active, setActive] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [imageError, setImageError] = useState("");
   const [mediaRefresh, setMediaRefresh] = useState(0);
   const [actionError, setActionError] = useState("");
+  const [selectionNote, setSelectionNote] = useState("");
   const [downloadNote, setDownloadNote] = useState("");
   const [downloading, setDownloading] = useState(false);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  useEffect(() => { onDraftChange?.(Object.values(drafts).some((text) => text.trim())); }, [drafts, onDraftChange]);
-  const [draftPhotos, setDraftPhotos] = useState<Record<string, string>>({});
+  const notes = useCommentDrafts(preview ? undefined : draftScope, state.comments, actor);
+  const { drafts } = notes;
+  useEffect(() => {
+    onDraftChange?.(notes.dirty);
+  }, [notes.dirty, onDraftChange]);
   const [confirmationIds, setConfirmationIds] = useState<string[]>([]);
-  const [requestRevision, setRequestRevision] = useState(false);
   const [confirmation, setConfirmation] = useState<"submit" | "release" | null>(null);
   const [time, setTime] = useState(new Date().toISOString());
   const mediaRef = useRef(media);
@@ -89,6 +115,7 @@ export function DeliveryGallery({
   const displayed = shown.slice(page * 48, (page + 1) * 48);
   const photo = photos.find((p) => p.id === active);
   const version = photo && displayVersion(photo);
+  const requestRevision = !!(version && drafts[version.id]?.revision);
   const visibleIds = [
     ...new Set([...displayed.map((p) => displayVersion(p)!.id), ...(version ? [version.id] : [])]),
   ];
@@ -98,6 +125,7 @@ export function DeliveryGallery({
       (p) => p.published && isApproved(state, p.published) && !state.released.includes(p.published),
     )
     .map((p) => p.published!);
+  const activity = filteredActivity(state.events, activityFilter);
 
   useEffect(() => {
     setPage(0);
@@ -105,9 +133,6 @@ export function DeliveryGallery({
   useEffect(() => {
     setPage((old) => Math.min(old, Math.max(0, Math.ceil(shown.length / 48) - 1)));
   }, [shown.length]);
-  useEffect(() => {
-    setRequestRevision(false);
-  }, [active, version?.id]);
   useEffect(() => {
     let alive = true;
     async function updateImages() {
@@ -140,10 +165,10 @@ export function DeliveryGallery({
     };
   }, [idsKey, room.revision, localUrls, mediaRefresh]);
 
-  async function act(command: DeliveryCommand) {
+  async function act(command: DeliveryCommand, operationId?: string) {
     setActionError("");
     try {
-      await run(command);
+      await run(command, operationId);
       return true;
     } catch (error) {
       setActionError(messageOf(error));
@@ -165,21 +190,42 @@ export function DeliveryGallery({
       const { hashBlob } = await import("@/lib/projects/archive");
       if ((await hashBlob(blob)) !== v.variants[kind].sha256)
         throw new Error("Download integrity check failed. Please retry.");
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${v.filename.replace(/\.jpg$/i, "")}-v${v.number}-${kind === "full" ? "high-res" : "phone"}.jpg`;
-      document.body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      offerDownload(
+        blob,
+        `${v.filename.replace(/\.jpg$/i, "")}-v${v.number}-${kind === "full" ? "high-res" : "phone"}.jpg`,
+      );
+      const recorded = await act({
+        type: "downloadHandoff",
+        versionIds: [v.id],
+        kind,
+        container: "file",
+      });
       setDownloadNote(
-        "Download handed to your browser. On iPhone, check Files → Downloads, then use Share → Save Image for Photos.",
+        recorded
+          ? "Download handed to your browser and recorded in Activity. The browser’s final save location cannot be verified."
+          : "Download handed to your browser, but Activity was not updated. Refresh, then tap Download again to retry the receipt.",
       );
     } catch (error) {
       setActionError(messageOf(error));
     } finally {
       setDownloading(false);
+    }
+  }
+  async function copyEditorLookup(target: EditorLookupTarget) {
+    setActionError("");
+    setSelectionNote("");
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error(
+          "Clipboard access is unavailable. Download the LensLabs selection CSV instead.",
+        );
+      const lookup = submittedEditorLookup(state, target);
+      await navigator.clipboard.writeText(lookup.text);
+      setSelectionNote(
+        `Copied ${lookup.filenames.length} ${target === "lightroom" ? "Lightroom" : "Capture One"} filename${lookup.filenames.length === 1 ? "" : "s"}. The LensLabs CSV remains the exact selection record.`,
+      );
+    } catch (error) {
+      setActionError(messageOf(error));
     }
   }
   const navigation = (direction: number) => {
@@ -189,6 +235,7 @@ export function DeliveryGallery({
   };
   const countChanges = state.comments.filter((c) => c.revision && !c.resolvedAt).length;
   const pickAction = actor === "client" && !preview && !selectionsLocked(state);
+  const submitted = state.submissions.at(-1);
 
   return (
     <section className="delivery-gallery">
@@ -245,6 +292,7 @@ export function DeliveryGallery({
                 : [],
             )}
             media={media}
+            run={run}
           />
         )}
         <button
@@ -387,56 +435,145 @@ export function DeliveryGallery({
         </>
       )}
       {tab === "feedback" && (
-        <div className="delivery-feedback-list">
-          {!state.comments.length && (
-            <div className="delivery-empty">
-              <p>A conversation, right beside the photo.</p>
-              <span>Open any image to ask for a change or leave a note.</span>
+        <>
+          {!preview && actor === "owner" && submitted && (
+            <div className="delivery-feedback-tools">
+              <p>
+                Latest submission · {submitted.items.length}{" "}
+                {submitted.items.length === 1 ? "photo" : "photos"}
+              </p>
+              <div className="delivery-feedback-actions">
+                <button
+                  className="delivery-quiet"
+                  onClick={() => {
+                    setActionError("");
+                    setSelectionNote("");
+                    try {
+                      offerDownload(
+                        new Blob([submittedSelectionCsv(state)], {
+                          type: "text/csv;charset=utf-8",
+                        }),
+                        "gallery-selection.csv",
+                      );
+                      setSelectionNote(
+                        "Selection CSV handed to your browser with exact LensLabs photo and version IDs.",
+                      );
+                    } catch (error) {
+                      setActionError(messageOf(error));
+                    }
+                  }}
+                >
+                  <ArrowDown size={15} /> Export selection CSV
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="delivery-quiet" aria-label="Open editor lookup options">
+                      <Copy size={15} /> Editor lookup <ChevronDown size={14} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="delivery-editor-menu" sideOffset={6}>
+                    <DropdownMenuItem onSelect={() => void copyEditorLookup("lightroom")}>
+                      Copy Lightroom list
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void copyEditorLookup("capture-one")}>
+                      Copy Capture One list
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {selectionNote && (
+                <span className="delivery-selection-note" role="status">
+                  {selectionNote}
+                </span>
+              )}
             </div>
           )}
-          {[...state.comments].reverse().map((comment) => (
-            <article key={comment.id}>
-              <button
-                className="delivery-quiet"
-                onClick={() => {
-                  setActive(comment.photoId);
-                  setActionError("");
-                }}
-              >
-                {photos
-                  .find((p) => p.id === comment.photoId)
-                  ?.versions.find((v) => v.id === comment.versionId)?.filename ??
-                  "Earlier photo version"}{" "}
-                <ArrowRight size={14} />
-              </button>
-              <p className="delivery-comment-body">{comment.body}</p>
-              <p className="delivery-meta">
-                {comment.role === "owner" ? "Photographer" : state.clientName} · {stamp(comment.at)}
-                {comment.revision
-                  ? comment.resolvedAt
-                    ? " · Addressed"
-                    : " · Change requested"
-                  : ""}
-              </p>
-            </article>
-          ))}
-        </div>
+          <div className="delivery-feedback-list">
+            {!state.comments.length && (
+              <div className="delivery-empty">
+                <p>A conversation, right beside the photo.</p>
+                <span>Open any image to ask for a change or leave a note.</span>
+              </div>
+            )}
+            {[...state.comments].reverse().map((comment) => (
+              <article key={comment.id}>
+                <button
+                  className="delivery-quiet"
+                  onClick={() => {
+                    setActive(comment.photoId);
+                    setActionError("");
+                  }}
+                >
+                  {photos
+                    .find((p) => p.id === comment.photoId)
+                    ?.versions.find((v) => v.id === comment.versionId)?.filename ??
+                    "Earlier photo version"}{" "}
+                  <ArrowRight size={14} />
+                </button>
+                <p className="delivery-comment-body">{comment.body}</p>
+                <p className="delivery-meta">
+                  {comment.role === "owner" ? "Photographer" : state.clientName} ·{" "}
+                  {stamp(comment.at)}
+                  {comment.revision
+                    ? comment.resolvedAt
+                      ? " · Addressed"
+                      : " · Change requested"
+                    : ""}
+                </p>
+              </article>
+            ))}
+          </div>
+        </>
       )}
       {tab === "activity" && (
-        <ol className="delivery-activity">
-          {!state.events.length && <li>No shared activity yet.</li>}
-          {[...state.events]
-            .reverse()
-            .filter((e) => !e.text.startsWith("Upload reserved"))
-            .slice(0, 100)
-            .map((event) => (
-              <li key={event.id}>
-                <time dateTime={event.at}>{stamp(event.at)}</time>
-                <span>{event.text}</span>
-                <small>{event.role === "owner" ? "Photographer" : state.clientName}</small>
-              </li>
-            ))}
-        </ol>
+        <>
+          {!preview && actor === "owner" && (
+            <div className="delivery-activity-tools">
+              <div className="delivery-filters" aria-label="Filter shared activity">
+                {activityFilters.map((name) => (
+                  <button
+                    key={name}
+                    aria-pressed={activityFilter === name}
+                    onClick={() => setActivityFilter(name)}
+                  >
+                    {name === "all"
+                      ? "All"
+                      : name === "client"
+                        ? "Client"
+                        : name[0]!.toUpperCase() + name.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="delivery-quiet"
+                disabled={!activity.length}
+                onClick={() =>
+                  offerDownload(
+                    new Blob([deliveryActivityCsv(state.events, activityFilter)], {
+                      type: "text/csv;charset=utf-8",
+                    }),
+                    `gallery-activity-${activityFilter}.csv`,
+                  )
+                }
+              >
+                <ArrowDown size={15} /> Export CSV
+              </button>
+            </div>
+          )}
+          <ol className="delivery-activity">
+            {!activity.length && <li>No shared activity in this view.</li>}
+            {[...activity]
+              .reverse()
+              .slice(0, 100)
+              .map((event) => (
+                <li key={event.id}>
+                  <time dateTime={event.at}>{stamp(event.at)}</time>
+                  <span>{event.text}</span>
+                  <small>{event.role === "owner" ? "Photographer" : state.clientName}</small>
+                </li>
+              ))}
+          </ol>
+        </>
       )}
       <Dialog
         open={!!version}
@@ -602,39 +739,39 @@ export function DeliveryGallery({
                   className="delivery-composer"
                   onSubmit={async (event) => {
                     event.preventDefault();
-                    const body = drafts[version.id]?.trim();
-                    if (!body || preview) return;
+                    const sent = drafts[version.id];
+                    const body = sent?.body.trim();
+                    if (!sent || !body || preview) return;
                     if (
-                      await act({
-                        type: "comment",
-                        versionId: version.id,
-                        body,
-                        revision: actor === "client" && requestRevision,
-                      })
+                      await act(
+                        {
+                          type: "comment",
+                          versionId: version.id,
+                          body,
+                          revision: actor === "client" && sent.revision,
+                        },
+                        sent.operationId,
+                      )
                     ) {
-                      setDrafts((old) =>
-                        old[version.id]?.trim() === body ? { ...old, [version.id]: "" } : old,
-                      );
-                      setRequestRevision(false);
+                      notes.acknowledge(version.id, sent.operationId);
                     }
                   }}
                 >
                   {Object.entries(drafts)
                     .filter(
-                      ([id, body]) =>
-                        id !== version.id && body.trim() && draftPhotos[id] === photo.id,
+                      ([id, draft]) =>
+                        id !== version.id && draft.body.trim() && draft.photoId === photo.id,
                     )
-                    .map(([id, body]) => (
+                    .map(([id, draft]) => (
                       <div key={id} className="delivery-notice">
                         <p>Your unsent note for an earlier version is still here:</p>
-                        <p className="delivery-comment-body">{body}</p>
+                        <p className="delivery-comment-body">{draft.body}</p>
                         <button
                           type="button"
                           className="delivery-quiet"
-                          disabled={!!drafts[version.id]?.trim()}
+                          disabled={!!drafts[version.id]?.body.trim()}
                           onClick={() => {
-                            setDrafts((old) => ({ ...old, [version.id]: body, [id]: "" }));
-                            setDraftPhotos((old) => ({ ...old, [version.id]: photo.id }));
+                            notes.move(id, version.id, photo.id);
                           }}
                         >
                           Use this note for version {version.number}
@@ -651,11 +788,10 @@ export function DeliveryGallery({
                         ? "Reply to your client…"
                         : "Tell your photographer what you have in mind…"
                     }
-                    value={drafts[version.id] ?? ""}
+                    value={drafts[version.id]?.body ?? ""}
                     maxLength={4000}
                     onChange={(e) => {
-                      setDrafts((old) => ({ ...old, [version.id]: e.target.value }));
-                      setDraftPhotos((old) => ({ ...old, [version.id]: photo.id }));
+                      notes.update(version.id, photo.id, { body: e.target.value });
                     }}
                     disabled={preview}
                     rows={3}
@@ -666,7 +802,9 @@ export function DeliveryGallery({
                         <input
                           type="checkbox"
                           checked={requestRevision}
-                          onChange={(e) => setRequestRevision(e.target.checked)}
+                          onChange={(e) =>
+                            notes.update(version.id, photo.id, { revision: e.target.checked })
+                          }
                           disabled={preview}
                         />
                         Request a change
@@ -674,12 +812,17 @@ export function DeliveryGallery({
                     )}
                     <button
                       className="delivery-primary"
-                      disabled={busy || preview || !drafts[version.id]?.trim()}
+                      disabled={busy || preview || !drafts[version.id]?.body.trim()}
                     >
                       {busy ? "Sending…" : actor === "owner" ? "Send reply" : "Send comment"}
                       <ArrowRight size={15} />
                     </button>
                   </div>
+                  {notes.storageError && (
+                    <p className="delivery-meta" role="alert">
+                      {notes.storageError}
+                    </p>
+                  )}
                   <p className="delivery-meta">
                     {preview
                       ? "Preview only. Client actions are enabled on a published private link."

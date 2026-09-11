@@ -1,17 +1,20 @@
-#include "lenslabs/engine.hpp"
+#include "lenslabs/develop.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <ImageIO/ImageIO.h>
+#include <libraw/libraw.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <cerrno>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -104,17 +107,137 @@ bool same_file_snapshot(const struct stat& before, const struct stat& after) noe
          before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec;
 }
 
-std::size_t rgba_size(std::uint32_t width, std::uint32_t height) {
-  if (!width || !height || width > max_preview_edge || height > max_preview_edge)
-    throw std::invalid_argument("Preview dimensions must be between 1 and 4096 pixels per edge.");
+std::size_t rgba_size(std::uint32_t width, std::uint32_t height, bool high_resolution = false) {
+  if (!valid_develop_dimensions(width, height, high_resolution))
+    throw std::invalid_argument(high_resolution ? "Develop dimensions exceed 8192 pixels per edge or 36 million pixels." :
+                                "Preview dimensions must be between 1 and 4096 pixels per edge.");
   return static_cast<std::size_t>(width) * height * 4;
+}
+
+// A per-decode LibRaw stream over the SAME validated descriptor as ImageIO.
+// No path reopen, mmap (which can SIGBUS on an incomplete copy), or whole-RAW
+// buffer. Bound cumulative parser reads as well as each read/seek.
+class RawInput final : public LibRaw_abstract_datastream {
+ public:
+  explicit RawInput(Input& input) : input_(input) {}
+  int valid() override { return 1; }
+  INT64 size() override { return input_.size; }
+  INT64 tell() override { return position_; }
+  int eof() override { return position_ >= input_.size; }
+  int seek(INT64 offset, int origin) override {
+    const INT64 base = origin == SEEK_SET ? 0 : origin == SEEK_CUR ? position_ : input_.size;
+    if ((origin != SEEK_SET && origin != SEEK_CUR && origin != SEEK_END) ||
+        offset < -base || offset > input_.size - base) return -1;
+    position_ = base + offset;
+    return 0;
+  }
+  int read(void* buffer, std::size_t unit, std::size_t count) override {
+    if (!unit || !count) return 0;
+    const auto remaining = static_cast<std::size_t>(input_.size - position_);
+    count = std::min({count, remaining / unit, static_cast<std::size_t>(INT_MAX)});
+    const auto bytes = count * unit;
+    if (bytes > read_budget_) throw std::runtime_error("RAW metadata exceeds the bounded read budget.");
+    read_budget_ -= bytes;
+    const auto got = read_at(&input_, buffer, position_, bytes);
+    position_ += static_cast<INT64>(got);
+    return static_cast<int>(got / unit);
+  }
+  int get_char() override {
+    if (eof()) return EOF;
+    if (position_ < cached_start_ || position_ >= cached_end_) {
+      cached_start_ = position_;
+      const auto n = read(cache_.data(), 1, cache_.size());
+      cached_end_ = cached_start_ + n;
+      position_ = cached_start_;
+      if (!n) return EOF;
+    }
+    return cache_[static_cast<std::size_t>(position_++ - cached_start_)];
+  }
+  char* gets(char* buffer, int capacity) override {
+    if (capacity < 1) return nullptr;
+    int written = 0;
+    while (written < capacity - 1) {
+      const int c = get_char();
+      if (c == EOF) break;
+      buffer[written++] = static_cast<char>(c);
+      if (c == '\n') break;
+    }
+    buffer[written] = 0;
+    return written ? buffer : nullptr;
+  }
+  int scanf_one(const char* format, void* value) override {
+    // These are the only conversions used by the pinned LibRaw metadata parser.
+    // Limit input, use constant format strings and advance only consumed bytes.
+    std::array<char, 128> token{};
+    const auto start = position_;
+    const int n = read(token.data(), 1, token.size() - 1);
+    if (!n) return EOF;
+    int consumed = 0, result = 0;
+    if (std::strcmp(format, "%d") == 0)
+      result = std::sscanf(token.data(), "%d%n", static_cast<int*>(value), &consumed);
+    else if (std::strcmp(format, "%f") == 0)
+      result = std::sscanf(token.data(), "%f%n", static_cast<float*>(value), &consumed);
+    position_ = start + consumed;
+    return result;
+  }
+ private:
+  Input& input_;
+  INT64 position_ = 0, cached_start_ = -1, cached_end_ = -1;
+  std::size_t read_budget_ = 128 * 1024 * 1024;
+  std::array<unsigned char, 4096> cache_{};
+};
+
+struct RawPreview {
+  std::vector<std::uint8_t> jpeg;
+  std::uint32_t width = 0, height = 0;
+};
+
+RawPreview embedded_raw_preview(Input& input) {
+  RawInput stream(input);
+  bool data_error = false;
+  // LibRaw's object exceeds macOS worker-thread stack budgets. Own one on the
+  // heap per decode; never share an instance across the bounded worker pool.
+  auto processor = std::make_unique<LibRaw>();
+  auto& raw = *processor;
+  raw.imgdata.rawparams.max_raw_memory_mb = 128;
+  raw.set_dataerror_handler([](void* context, const char*, INT64) {
+    *static_cast<bool*>(context) = true;
+  }, &data_error);
+  const int opened = raw.open_datastream(&stream);
+  if (opened == LIBRAW_FILE_UNSUPPORTED) return {};
+  if (opened != LIBRAW_SUCCESS || data_error)
+    throw std::runtime_error(std::string("Unsupported or unreadable RAW metadata: ") + LibRaw::strerror(opened));
+  const auto& dimensions = raw.imgdata.sizes;
+  const auto pixels = static_cast<std::uint64_t>(dimensions.width) * dimensions.height;
+  if (!pixels || pixels > max_source_pixels || dimensions.flip < 0 || dimensions.flip > 7)
+    throw std::runtime_error("RAW dimensions or orientation exceed the supported limits.");
+  // Tier A only: unpack_thumb never runs unpack()/dcraw_process() on sensor data.
+  // The pinned library also has a compile-time 32 MiB thumbnail allocation cap.
+  const int unpacked = raw.unpack_thumb();
+  const auto& thumb = raw.imgdata.thumbnail;
+  if (unpacked != LIBRAW_SUCCESS || data_error || !thumb.thumb ||
+      thumb.tformat != LIBRAW_THUMBNAIL_JPEG || thumb.tlength > 32U * 1024 * 1024)
+    throw std::runtime_error("RAW has no readable bounded JPEG preview. Its original was preserved for review.");
+  int error = 0;
+  std::unique_ptr<libraw_processed_image_t, decltype(&LibRaw::dcraw_clear_mem)> encoded(
+      raw.dcraw_make_mem_thumb(&error), LibRaw::dcraw_clear_mem);
+  if (!encoded || error != LIBRAW_SUCCESS || encoded->type != LIBRAW_IMAGE_JPEG ||
+      !encoded->data_size || encoded->data_size > 32U * 1024 * 1024 + 65536)
+    throw std::runtime_error("RAW preview could not be prepared safely.");
+  RawPreview result;
+  result.width = dimensions.flip & 4 ? dimensions.height : dimensions.width;
+  result.height = dimensions.flip & 4 ? dimensions.width : dimensions.height;
+  // LibRaw preserves existing preview EXIF or supplies its orientation when absent.
+  result.jpeg.assign(encoded->data, encoded->data + encoded->data_size);
+  return result;
 }
 
 }  // namespace
 
-Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
-  if (max_edge < 8 || max_edge > max_preview_edge)
-    throw std::invalid_argument("Preview max_edge must be between 8 and 4096.");
+static Image decode_image(const std::filesystem::path& path, std::uint32_t max_edge, bool high_resolution) {
+  if (max_edge < 8 || max_edge > (high_resolution ? develop_max_edge : max_preview_edge))
+    throw std::invalid_argument(high_resolution ? "Develop max_edge must be between 8 and 8192." :
+                                "Preview max_edge must be between 8 and 4096.");
   const auto& native_path = path.native();
   if (native_path.empty() || native_path.find('\0') != std::string::npos)
     throw std::invalid_argument("A nonempty image path without NUL bytes is required.");
@@ -145,7 +268,18 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
   auto options = dictionary();
   CFDictionarySetValue(options.get(), kCGImageSourceShouldCache, kCFBooleanFalse);
   CFDictionarySetValue(options.get(), kCGImageSourceShouldAllowFloat, kCFBooleanFalse);
-  CFHandle<CGImageSourceRef> source(CGImageSourceCreateWithDataProvider(provider.get(), options.get()));
+  CFHandle<CGImageSourceRef> original_source(CGImageSourceCreateWithDataProvider(provider.get(), options.get()));
+  const auto type = original_source ? CGImageSourceGetType(original_source.get()) : nullptr;
+  const bool ordinary_raster = type && (CFEqual(type, CFSTR("public.jpeg")) ||
+      CFEqual(type, CFSTR("public.png")) || CFEqual(type, CFSTR("org.webmproject.webp")) ||
+      CFEqual(type, CFSTR("com.compuserve.gif")) || CFEqual(type, CFSTR("com.microsoft.bmp")) ||
+      CFEqual(type, CFSTR("public.heic")) || CFEqual(type, CFSTR("public.avif")));
+  const auto raw = ordinary_raster ? RawPreview{} : embedded_raw_preview(input);
+  CFHandle<CFDataRef> raw_data(raw.jpeg.empty() ? nullptr : CFDataCreateWithBytesNoCopy(
+      kCFAllocatorDefault, raw.jpeg.data(), raw.jpeg.size(), kCFAllocatorNull));
+  CFHandle<CGImageSourceRef> source(raw_data
+      ? CGImageSourceCreateWithData(raw_data.get(), options.get())
+      : original_source ? (CFRetain(original_source.get()), original_source.get()) : nullptr);
   if (!source || !CGImageSourceGetType(source.get()) || CGImageSourceGetCount(source.get()) == 0)
     throw std::runtime_error("Unsupported or unreadable image format; no ImageIO preview is available.");
   const auto frame_index = CGImageSourceGetPrimaryImageIndex(source.get());
@@ -161,9 +295,13 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
     throw std::invalid_argument("Source image exceeds the 250-million-pixel limit or has invalid dimensions.");
   if (orientation < 1 || orientation > 8)
     throw std::invalid_argument("Source image has an invalid EXIF orientation.");
+  if (!raw.jpeg.empty() && width * height > 32.0 * 1024 * 1024)
+    throw std::runtime_error("Embedded RAW preview exceeds the 32-million-pixel bound.");
 
   auto thumbnail_options = dictionary();
-  const auto edge = static_cast<std::int32_t>(max_edge);
+  const auto edge = static_cast<std::int32_t>(high_resolution
+      ? develop_thumbnail_edge(static_cast<unsigned>(width), static_cast<unsigned>(height), max_edge)
+      : max_edge);
   CFHandle<CFNumberRef> edge_value(CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &edge));
   if (!edge_value) throw std::runtime_error("Could not allocate thumbnail size metadata.");
   CFDictionarySetValue(thumbnail_options.get(), kCGImageSourceThumbnailMaxPixelSize, edge_value.get());
@@ -185,7 +323,11 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
   image.height = static_cast<std::uint32_t>(output_height);
   image.source_width = static_cast<std::uint32_t>(orientation >= 5 ? height : width);
   image.source_height = static_cast<std::uint32_t>(orientation >= 5 ? width : height);
-  image.rgba.resize(rgba_size(image.width, image.height));
+  if (!raw.jpeg.empty()) {
+    image.source_width = raw.width;
+    image.source_height = raw.height;
+  }
+  image.rgba.resize(rgba_size(image.width, image.height, high_resolution));
   CFHandle<CGColorSpaceRef> color_space(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
   if (!color_space) throw std::runtime_error("Could not create the sRGB output color space.");
   CFHandle<CGContextRef> context(CGBitmapContextCreate(
@@ -209,20 +351,38 @@ Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) 
   return image;
 }
 
-std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
+Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
+  return decode_image(path, max_edge, false);
+}
+
+Image decode_develop_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
+  return decode_image(path, max_edge, max_edge > develop_standard_edge);
+}
+
+static std::vector<std::uint8_t> encode_image(const Image& image, double quality, bool high_resolution) {
   if (!std::isfinite(quality) || quality < 0 || quality > 1)
     throw std::invalid_argument("JPEG quality must be finite and between 0 and 1.");
-  const auto required = rgba_size(image.width, image.height);
+  const auto required = rgba_size(image.width, image.height, high_resolution);
   if (image.rgba.size() != required)
     throw std::invalid_argument("JPEG input must contain exactly width * height * 4 RGBA bytes.");
-  auto opaque = image.rgba;
-  for (std::size_t i = 0; i < opaque.size(); i += 4) {
-    const auto alpha = static_cast<unsigned>(opaque[i + 3]);
-    for (std::size_t channel = 0; channel < 3; ++channel)
-      opaque[i + channel] = static_cast<std::uint8_t>(
-          (static_cast<unsigned>(opaque[i + channel]) * alpha + 255U * (255U - alpha) + 127U) / 255U);
-    opaque[i + 3] = 255;
+  bool has_alpha = false;
+  for (std::size_t i = 3; i < image.rgba.size(); i += 4)
+    if (image.rgba[i] != 255) { has_alpha = true; break; }
+  std::vector<std::uint8_t> composited;
+  if (has_alpha) {
+    composited = image.rgba;
+    for (std::size_t i = 0; i < composited.size(); i += 4) {
+      const auto alpha = static_cast<unsigned>(composited[i + 3]);
+      for (std::size_t channel = 0; channel < 3; ++channel)
+        composited[i + channel] = static_cast<std::uint8_t>(
+            (static_cast<unsigned>(composited[i + channel]) * alpha + 255U * (255U - alpha) + 127U) / 255U);
+      composited[i + 3] = 255;
+    }
   }
+  // Opaque input is already byte-identical to white compositing. The caller's
+  // immutable image (or this owned fallback) outlives Finalize and all provider,
+  // image and destination handles below. No CoreGraphics bitmap flags change.
+  const auto& opaque = has_alpha ? composited : image.rgba;
   CFHandle<CGColorSpaceRef> color_space(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
   CFHandle<CGDataProviderRef> provider(CGDataProviderCreateWithData(nullptr, opaque.data(), opaque.size(), nullptr));
   if (!color_space || !provider) throw std::runtime_error("Could not allocate JPEG color data.");
@@ -250,8 +410,16 @@ std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
   return {bytes, bytes + static_cast<std::size_t>(length)};
 }
 
+std::vector<std::uint8_t> encode_jpeg(const Image& image, double quality) {
+  return encode_image(image, quality, false);
+}
+
+std::vector<std::uint8_t> encode_develop_jpeg(const Image& image, double quality) {
+  return encode_image(image, quality, true);
+}
+
 const char* decoder_name() noexcept {
-  return "Apple ImageIO bounded preview (system-supported formats; not a full RAW processor)";
+  return "LibRaw 0.22.2 embedded JPEG / Apple ImageIO sRGB preview (not full RAW development)";
 }
 
 }  // namespace lenslabs

@@ -14,6 +14,13 @@ import {
 } from "../src/lib/delivery/remote.server";
 import { jpegDimensions } from "../src/lib/delivery/media-integrity";
 import {
+  commentDraftScope,
+  readCommentDrafts,
+  reconcileCommentDrafts,
+  saveCommentDrafts,
+  updateCommentDraft,
+} from "../src/lib/delivery/comment-drafts";
+import {
   objectPath,
   variantNames,
   type DeliveryCommand,
@@ -336,6 +343,79 @@ describe("private delivery server boundaries with an isolated fake Supabase tran
     await expect(
       act(r.id, null, r.token, saved.revision, op, { ...cmd, body: "Changed" }),
     ).rejects.toThrow("conflict");
+  });
+  test("verified browser handoff activity survives a stale revision retry exactly once", async () => {
+    const r = await liveRoom();
+    await clientAct(r.id, r.token, { type: "pick", photoId: r.v.photoId, on: true });
+    await clientAct(r.id, r.token, { type: "submit", photoIds: [r.v.photoId] });
+    await clientAct(r.id, r.token, { type: "approve", versionId: r.v.id });
+    await ownerAct(r.id, { type: "release", versionIds: [r.v.id] });
+    const before = rows.get(r.id)!.revision;
+    const operation = uid();
+    const command: DeliveryCommand = {
+      type: "downloadHandoff",
+      versionIds: [r.v.id],
+      kind: "phone",
+      container: "file",
+    };
+    conflictOnce = true;
+    await expect(act(r.id, null, r.token, before, operation, command)).rejects.toThrow(
+      "Another change",
+    );
+    expect(rows.get(r.id)!.state.events.some((event) => event.id === operation)).toBe(false);
+    const saved = await act(r.id, null, r.token, rows.get(r.id)!.revision, operation, command);
+    const retry = await act(r.id, null, r.token, before, operation, command);
+    expect(retry.revision).toBe(saved.revision);
+    expect(saved.state.events.filter((event) => event.id === operation)).toHaveLength(1);
+    expect(saved.state.events.find((event) => event.id === operation)?.text).toContain(
+      "final save location not verified",
+    );
+    expect(JSON.stringify(saved.state.events)).not.toContain(r.token);
+  });
+  test("a reloaded note retries the committed server receipt without creating another revision", async () => {
+    const r = await liveRoom(),
+      cached = new Map<string, string>();
+    const tab = {
+      getItem: (key: string) => cached.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        cached.set(key, value);
+      },
+      removeItem: (key: string) => {
+        cached.delete(key);
+      },
+    };
+    const scope = commentDraftScope(r.id, uid());
+    const drafts = updateCommentDraft({}, r.v.id, r.v.photoId, {
+      body: "Warmer, please — 東京",
+      revision: true,
+    });
+    saveCommentDrafts(tab, scope, drafts);
+    const before = rows.get(r.id)!.revision,
+      sent = drafts[r.v.id]!;
+    const command: DeliveryCommand = {
+      type: "comment",
+      versionId: r.v.id,
+      body: sent.body.trim(),
+      revision: sent.revision,
+    };
+    // Commit happened, but its response was lost before the browser could acknowledge it.
+    await act(r.id, null, r.token, before, sent.operationId, command);
+    const restored = readCommentDrafts(tab, scope),
+      retry = restored[r.v.id]!;
+    const result = await act(r.id, null, r.token, before, retry.operationId, {
+      type: "comment",
+      versionId: r.v.id,
+      body: retry.body.trim(),
+      revision: retry.revision,
+    });
+    expect(result.state.comments).toHaveLength(1);
+    expect(result.state.comments[0]!.revision).toBe(true);
+    expect(result.state.comments[0]!.versionId).toBe(r.v.id);
+    expect(result.state.approvals).toEqual([]);
+    expect(result.state.released).toEqual([]);
+    const reconciled = reconcileCommentDrafts(restored, result.state.comments, "client");
+    saveCommentDrafts(tab, scope, reconciled);
+    expect(readCommentDrafts(tab, scope)).toEqual({});
   });
   test("client sees proofs but cannot obtain finals until exact-version release", async () => {
     const r = await liveRoom();

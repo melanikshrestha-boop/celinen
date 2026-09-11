@@ -13,6 +13,9 @@ import {
   getInvoicePaymentLink,
 } from "@/lib/client-portal.functions";
 import { getStudioRates, type StudioRates } from "@/lib/rates.functions";
+import { uploadReferenceBatch, type ReferenceUpload } from "@/lib/reference-upload";
+import { useAccount } from "@/components/account/AccountProvider";
+import "@/components/portal/client-portal.css";
 
 export const Route = createFileRoute("/portal")({
   ssr: false,
@@ -47,6 +50,12 @@ type Upload = Awaited<ReturnType<typeof listClientUploads>>[number];
 const SHOOT_TYPES = ["Portrait", "Wedding", "Event", "Brand / product", "Family", "Editorial"];
 
 function Portal() {
+  const accountId = useAccount()?.scope ?? null;
+  // Account changes discard this view's RAM-only retry queue, never persisted uploads.
+  return <AccountPortal key={accountId ?? "signed-out"} accountId={accountId} />;
+}
+
+function AccountPortal({ accountId }: { accountId: string | null }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState<string | null>(null);
   const [data, setData] = useState<Data | null>(null);
@@ -66,42 +75,72 @@ function Portal() {
   /* uploads */
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const uploadLock = useRef(false);
+  const uploadGeneration = useRef(0);
+  const [pendingUploads, setPendingUploads] = useState<ReferenceUpload[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [studios, setStudios] = useState<StudioRates[]>([]);
 
   const refresh = useCallback(async () => {
+    const generation = uploadGeneration.current;
     const [b, u, r] = await Promise.all([
       listBookingRequests(),
       listClientUploads(),
       getStudioRates().catch(() => ({ studios: [] as StudioRates[] })),
     ]);
+    if (generation !== uploadGeneration.current) return;
     setBookings(b);
     setUploads(u);
     setStudios(r.studios);
   }, []);
 
+  useEffect(() => {
+    const lifetime = uploadGeneration;
+    const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => {
+      if ((session?.user.id ?? null) === accountId) return;
+      // Fence synchronously at the auth event, before verified AccountProvider
+      // remounts the page. No old File may enter a newly authenticated request.
+      uploadGeneration.current++;
+      uploadLock.current = false;
+      setPendingUploads([]);
+      setUploadError(null);
+      setUploading(null);
+      if (fileRef.current) fileRef.current.value = "";
+      setState("anon");
+      setData(null);
+      setUploads([]);
+      setBookings([]);
+    });
+    return () => {
+      lifetime.current++;
+      auth.subscription.unsubscribe();
+    };
+  }, [accountId]);
 
   useEffect(() => {
     let alive = true;
+    const generation = uploadGeneration.current;
+    const isCurrent = () => alive && generation === uploadGeneration.current;
     void (async () => {
       const { data: u } = await supabase.auth.getUser();
-      if (!alive) return;
-      if (!u.user) return setState("anon");
+      if (!isCurrent()) return;
+      if (!u.user || u.user.id !== accountId) return setState("anon");
       setEmail(u.user.email ?? null);
       try {
         const res = await getClientPortal();
-        if (!alive) return;
+        if (!isCurrent()) return;
         setData(res);
         setState("ready");
         await refresh();
       } catch {
-        if (alive) setState("error");
+        if (isCurrent()) setState("error");
       }
     })();
     return () => {
       alive = false;
     };
-  }, [refresh]);
+  }, [refresh, accountId]);
 
   const submitBooking = async () => {
     setBookErr(null);
@@ -128,23 +167,59 @@ function Portal() {
     await refresh();
   };
 
-  const onFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
-    for (const file of Array.from(files)) {
-      setUploading(file.name);
-      const slot = await createClientUploadUrl({ data: { filename: file.name } });
-      if (!("signedUrl" in slot) || !slot.signedUrl || !slot.path) break;
-      const put = await fetch(slot.signedUrl, { method: "PUT", body: file });
-      if (!put.ok) break;
-      await recordClientUpload({ data: { storage_path: slot.path, filename: file.name } });
+  const uploadFiles = async (entries: ReferenceUpload[]) => {
+    if (!entries.length || uploadLock.current) return;
+    const generation = uploadGeneration.current;
+    const isCurrent = () => generation === uploadGeneration.current;
+    uploadLock.current = true;
+    setPendingUploads(entries);
+    setUploadError(null);
+    try {
+      const result = await uploadReferenceBatch(entries, {
+        isCurrent,
+        createUrl: (file) => createClientUploadUrl({ data: { filename: file.name } }),
+        put: (url, file) => fetch(url, { method: "PUT", body: file }),
+        record: (path, file) =>
+          recordClientUpload({ data: { storage_path: path, filename: file.name } }),
+        isRecorded: async (path) =>
+          (await listClientUploads()).some(
+            (upload) =>
+              upload.storage_path === path && typeof upload.url === "string" && !!upload.url.trim(),
+          ),
+        onProgress: (file) => setUploading(file.name),
+      });
+      if (!isCurrent()) return;
+      setPendingUploads(result.pending);
+      setUploadError(result.error);
+      if (!result.pending.length && fileRef.current) fileRef.current.value = "";
+      if (result.completed) {
+        try {
+          await refresh();
+        } catch {
+          if (!isCurrent()) return;
+          setUploadError(
+            [
+              result.error,
+              "Confirmed uploads were saved, but the list could not refresh. Reload to see them.",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          );
+        }
+      }
+    } finally {
+      if (isCurrent()) {
+        uploadLock.current = false;
+        setUploading(null);
+      }
     }
-    setUploading(null);
-    if (fileRef.current) fileRef.current.value = "";
-    await refresh();
+  };
+  const onFiles = (files: FileList | null) => {
+    return files?.length ? uploadFiles(Array.from(files, (file) => ({ file }))) : Promise.resolve();
   };
 
-
   const signOut = async () => {
+    uploadGeneration.current++;
     await supabase.auth.signOut();
     void navigate({ to: "/portal", replace: true });
     setState("anon");
@@ -153,7 +228,7 @@ function Portal() {
 
   if (state === "loading") {
     return (
-      <div className="grid min-h-screen place-items-center text-moss">
+      <div className="client-portal grid min-h-screen place-items-center text-moss">
         <p className="font-mono text-[12px] uppercase tracking-[0.2em]">loading your portal…</p>
       </div>
     );
@@ -161,7 +236,7 @@ function Portal() {
 
   if (state === "anon") {
     return (
-      <div className="grid min-h-screen place-items-center px-6 py-16 text-ink">
+      <div className="client-portal grid min-h-screen place-items-center px-6 py-16 text-ink">
         <div className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-8">
           <div className="flex flex-col items-center text-center">
             <LogoMark className="text-ink" />
@@ -176,7 +251,7 @@ function Portal() {
           <Link
             to="/auth"
             search={{ next: "/portal", mode: "signin" }}
-            className="mt-6 block w-full rounded-lg bg-rust px-4 py-2.5 text-center text-[14px] font-semibold text-paper2 hover:opacity-90"
+            className="client-portal__cta mt-6 block w-full rounded-lg px-4 py-2.5 text-center text-[14px] font-semibold hover:opacity-90"
           >
             Sign in
           </Link>
@@ -198,7 +273,7 @@ function Portal() {
 
   if (state === "error" || !data) {
     return (
-      <div className="grid min-h-screen place-items-center px-6 text-center text-moss">
+      <div className="client-portal grid min-h-screen place-items-center px-6 text-center text-moss">
         <div>
           <p className="text-sm">We couldn&apos;t load your portal.</p>
           <button onClick={() => void signOut()} className="mt-3 text-[13px] underline">
@@ -213,7 +288,7 @@ function Portal() {
   const studioName = data.clients[0]?.org || data.clients[0]?.name;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[900px] px-4 py-8 sm:px-6 sm:py-14 text-ink">
+    <div className="client-portal mx-auto min-h-screen w-full max-w-[900px] px-4 py-8 sm:px-6 sm:py-14 text-ink">
       <header className="flex flex-wrap items-center gap-3">
         <LogoMark className="text-ink" />
         <div>
@@ -248,7 +323,7 @@ function Portal() {
         <div className="mt-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
           {booking === "sent" ? (
             <div>
-              <p className="text-[15px] font-medium text-rust">Request sent.</p>
+              <p className="client-portal__accent text-[15px] font-medium">Request sent.</p>
               <p className="mt-1.5 text-[13px] leading-relaxed text-moss">
                 Your photographer has it — you&apos;ll see the status update below the moment they
                 confirm.
@@ -312,14 +387,12 @@ function Portal() {
                   className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-[16px] text-ink sm:py-2 sm:text-[14px]"
                 />
               </label>
-              {bookErr && (
-                <p className="text-[13px] text-destructive sm:col-span-2">{bookErr}</p>
-              )}
+              {bookErr && <p className="text-[13px] text-destructive sm:col-span-2">{bookErr}</p>}
               <div className="sm:col-span-2">
                 <button
                   onClick={() => void submitBooking()}
                   disabled={booking === "sending"}
-                  className="rounded-lg bg-rust px-4 py-2.5 text-[14px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+                  className="client-portal__cta rounded-lg px-4 py-2.5 text-[14px] font-semibold hover:opacity-90 disabled:opacity-60"
                 >
                   {booking === "sending" ? "Sending…" : "Request this date"}
                 </button>
@@ -339,7 +412,7 @@ function Portal() {
                 {b.location && <span className="text-[13px] text-moss">{b.location}</span>}
                 <span
                   className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
-                    b.status === "confirmed" ? "bg-rust text-paper2" : "bg-muted text-moss"
+                    b.status === "confirmed" ? "client-portal__cta" : "bg-muted text-moss"
                   }`}
                 >
                   {b.status}
@@ -362,19 +435,36 @@ function Portal() {
         </h2>
         <div className="mt-3 rounded-2xl border border-dashed border-input bg-card p-4 sm:p-6">
           <p className="text-[13px] leading-relaxed text-moss">
-            Send reference shots, moodboards or your own photos straight to your photographer.
-            Private — only the two of you can open them.
+            Keep reference shots, moodboards or your own photos in your private account. These
+            uploads are not assigned or sent to a photographer.
           </p>
           <input
             ref={fileRef}
             type="file"
             multiple
             accept="image/*"
+            disabled={!!uploading}
             onChange={(e) => void onFiles(e.target.files)}
-            className="mt-4 block w-full text-[13px] text-moss file:mr-3 file:rounded-lg file:border-0 file:bg-rust file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-paper2"
+            className="client-portal__file mt-4 block w-full text-[13px] text-moss"
           />
           {uploading && (
             <p className="mt-3 font-mono text-[12px] text-moss">uploading {uploading}…</p>
+          )}
+          {uploadError && (
+            <p role="alert" className="mt-3 text-[13px] text-destructive">
+              {uploadError}
+            </p>
+          )}
+          {!!pendingUploads.length && !uploading && (
+            <button
+              type="button"
+              onClick={() => void uploadFiles(pendingUploads)}
+              className="mt-3 text-[13px] underline"
+            >
+              {pendingUploads[0]?.confirmationUnknown
+                ? "Check upload status"
+                : "Retry remaining uploads"}
+            </button>
           )}
         </div>
 
@@ -399,8 +489,6 @@ function Portal() {
           </div>
         )}
       </section>
-
-
 
       {linked && (
         <div className="mt-10 space-y-10">
@@ -461,9 +549,7 @@ function Portal() {
 
           {studios.length > 0 && (
             <section>
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
-                Rates
-              </h2>
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">Rates</h2>
               <div className="mt-3 grid gap-3">
                 {studios.map((st) => (
                   <div key={st.userId} className="rounded-2xl border border-border bg-card p-5">
@@ -538,7 +624,7 @@ function Portal() {
                   <span className="ml-auto font-mono text-[14px]">
                     {money(Number(inv.amount), inv.currency)}
                   </span>
-                  {inv.status !== "paid" && <PayButton id={inv.id} url={inv.hosted_invoice_url} />}
+                  {inv.status !== "paid" && <PayButton id={inv.id} />}
                 </div>
               ))}
             </div>
@@ -549,22 +635,25 @@ function Portal() {
   );
 }
 
-/** Opens the photographer's Stripe payment page, creating it on demand. */
-function PayButton({ id, url }: { id: string; url: string | null }) {
+/** Opens only the current server-verified payment page; never creates an invoice. */
+function PayButton({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const pay = async () => {
-    if (url) {
-      window.open(url, "_blank", "noopener");
-      return;
-    }
+    if (busy) return;
     setBusy(true);
     setErr(null);
-    const res = await getInvoicePaymentLink({ data: { invoice_id: id } });
-    setBusy(false);
-    if ("url" in res && res.url) window.open(res.url, "_blank", "noopener");
-    else setErr("error" in res ? (res.error ?? "Could not open payment") : "Could not open payment");
+    try {
+      const res = await getInvoicePaymentLink({ data: { invoice_id: id } });
+      if ("url" in res && res.url) window.location.assign(res.url);
+      else
+        setErr("error" in res ? (res.error ?? "Could not open payment") : "Could not open payment");
+    } catch {
+      setErr("The payment page could not be verified. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -573,7 +662,7 @@ function PayButton({ id, url }: { id: string; url: string | null }) {
       <button
         onClick={() => void pay()}
         disabled={busy}
-        className="rounded-lg bg-rust px-3 py-1.5 text-[13px] font-semibold text-paper2 hover:opacity-90 disabled:opacity-60"
+        className="client-portal__cta rounded-lg px-3 py-1.5 text-[13px] font-semibold hover:opacity-90 disabled:opacity-60"
       >
         {busy ? "Opening…" : "Pay now"}
       </button>

@@ -195,6 +195,89 @@ describe("local finance snapshots", () => {
 });
 
 describe("local invoice safety", () => {
+  test("optional currency, selected shoot and payer metadata roundtrip without relinking legacy records", () => {
+    const old = ledgerEntry();
+    const cash = buildLocalLedgerEntry(
+      {
+        occurredOn: "2026-09-08",
+        description: "Cash coverage",
+        kind: "income",
+        category: "Coverage",
+        amount: "1234",
+        currency: "JPY",
+        shootId: "shoot-chosen",
+        clientId: "client-chosen",
+        clientName: " Athletics ",
+        paymentMethod: "cash",
+      },
+      { id: "yen-cash", now },
+    );
+    const draft = buildLocalInvoiceDraft(
+      {
+        clientName: "Athletics",
+        clientEmail: "",
+        description: "Upcoming job",
+        amount: "1.234",
+        currency: "KWD",
+        dueDate: "",
+        shootId: "shoot-chosen",
+      },
+      { id: "kwd-draft", now },
+    );
+    if (!cash.ok || !draft.ok) throw new Error("Expected valid currency records");
+    expect(cash.value.amountCents).toBe(1234);
+    expect(cash.value.clientName).toBe("Athletics");
+    expect(draft.value.amountCents).toBe(1234);
+    const storage = new MemoryStorage();
+    const saved = saveLocalFinanceState(
+      { ...emptyLocalFinanceState(), entries: [old, cash.value], invoices: [draft.value] },
+      storage,
+      now,
+    );
+    expect(saved.ok).toBe(true);
+    const read = loadLocalFinanceState(storage);
+    expect(read.ok).toBe(true);
+    expect(read.state.entries[0]).toEqual(old);
+    expect(read.state.entries[0]?.currency).toBeUndefined();
+    expect(read.state.entries[1]).toEqual(cash.value);
+    expect(read.state.invoices[0]?.shootId).toBe("shoot-chosen");
+    expect(read.state.invoices[0]?.status).toBe("draft");
+  });
+
+  test("malformed new optional fields block saving while old snapshot bytes remain unchanged", () => {
+    const storage = new MemoryStorage();
+    const saved = saveLocalFinanceState(
+      { ...emptyLocalFinanceState(), entries: [ledgerEntry()] },
+      storage,
+      now,
+    );
+    if (!saved.ok) throw new Error(saved.error);
+    const before = storage.value;
+    for (const patch of [
+      { currency: "ZZZ" },
+      { paymentMethod: "card-invented" },
+      { clientName: 123 },
+    ]) {
+      const next = {
+        ...saved.state,
+        entries: [{ ...saved.state.entries[0]!, ...patch }],
+      } as typeof saved.state;
+      expect(saveLocalFinanceState(next, storage, now).ok).toBe(false);
+      expect(storage.value).toBe(before);
+    }
+    expect(
+      buildLocalLedgerEntry({
+        occurredOn: "2026-09-08",
+        description: "Work",
+        kind: "income",
+        category: "Other",
+        amount: "1.23",
+        currency: "JPY",
+        shootId: null,
+      }).ok,
+    ).toBe(false);
+  });
+
   test("preserves explicit CRM identities while accepting untouched legacy drafts", () => {
     const draft = invoiceDraft();
     const crmDraft = buildLocalInvoiceDraft(

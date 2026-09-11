@@ -65,4 +65,16 @@ private:
 std::string json_string(const std::string& value);
 void write_new_file(const std::filesystem::path& destination,
                     const std::vector<std::uint8_t>& bytes);
+
+struct CullSuggestion {
+  std::string relative_path;
+  int score = 0;
+  Verdict suggestion = Verdict::undecided;
+  std::string reason;
+};
+std::string format_cull_csv(const std::vector<CullSuggestion>& rows);
+std::string format_job_json(const std::string& job, const std::string& source,
+                            const std::vector<CullSuggestion>& rows, const char* engine,
+                            const std::string& created_at);
+std::string portable_stem(const std::filesystem::path& path);
 } // namespace lenslabs

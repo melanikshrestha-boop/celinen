@@ -52,7 +52,7 @@ export function makeZip(entries: ZipEntry[]): Blob {
     const local = join([
       u32(0x04034b50),
       u16(20),
-      u16(0),
+      u16(0x0800), // entry names are UTF-8
       u16(0), // stored
       u16(0),
       u16(0),
@@ -71,7 +71,7 @@ export function makeZip(entries: ZipEntry[]): Blob {
         u32(0x02014b50),
         u16(20),
         u16(20),
-        u16(0),
+        u16(0x0800), // must match the local header's UTF-8 flag
         u16(0),
         u16(0),
         u16(0),

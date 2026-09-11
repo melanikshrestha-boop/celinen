@@ -15,8 +15,8 @@ import {
 import { projectScope, scopeToolHref, tabProjectScope } from "../src/lib/workbench-projects";
 import { ShootTabs } from "../src/components/workbench/ShootTabs";
 
-describe("Black and Light appearance", () => {
-  test("Black is the default and old System settings preserve other preferences", () => {
+describe("Dark, Light and System appearance", () => {
+  test("Dark is the default and System settings preserve other preferences", () => {
     expect(preferencesSchema.parse({}).theme).toBe("dark");
     expect(
       readPreferences(
@@ -29,7 +29,7 @@ describe("Black and Light appearance", () => {
       ),
     ).toEqual({
       ...DEFAULT_PREFERENCES,
-      theme: "dark",
+      theme: "system",
       textSize: "large",
       reduceMotion: true,
       sidebarOpen: false,
@@ -51,7 +51,7 @@ describe("tabs belong to a shoot", () => {
     expect(restored).toHaveLength(41);
     expect(restored.at(-1)?.href).toBe(current);
   });
-  test("Studio, Delivery and Clients survive reload, with separate tabs for other shoots", () => {
+  test("Studio and Delivery retain shoot context while global Clients survives reload separately", () => {
     const urls = ["/studio", "/deliver?workflow=1", "/clients"].map((href) =>
       scopeToolHref(href, binding),
     );
@@ -60,7 +60,9 @@ describe("tabs belong to a shoot", () => {
     expect(restored).toHaveLength(4);
     expect(
       restored.filter((tab) => tabProjectScope(tab.href) === projectScope(binding)),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
+    expect(scopeToolHref("/clients", binding)).toBe("/clients");
+    expect(restored.find((tab) => tab.path === "/clients")?.href).toBe("/clients");
     expect(restored.filter((tab) => tabProjectScope(tab.href) === b)).toHaveLength(1);
     expect(restorableTabs(["/studio?shoot=legacy"])).toHaveLength(1);
   });
@@ -102,8 +104,8 @@ describe("tabs belong to a shoot", () => {
         onNew={() => {}}
       />,
     );
-    expect(html).toContain('aria-label="Tabs in this shoot"');
-    expect(html).toContain('aria-label="Open a new tab in this shoot"');
+    expect(html).toContain('aria-label="Tabs in this project"');
+    expect(html).toContain('aria-label="Open a new tab in this project"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain(`href="/workspace?shoot=${a}"`);
   });

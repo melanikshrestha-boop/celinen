@@ -22,6 +22,8 @@ export type DroppedFilesResult = {
 export type DropImportOptions = {
   signal?: AbortSignal;
   onProgress?: (progress: DropProgress) => void;
+  /** Newly registered handles in deterministic traversal order, not saved/decoded photos. */
+  onFiles?: (files: readonly File[]) => void;
 };
 
 const MAX_ENTRIES = 100000;
@@ -29,6 +31,7 @@ const MAX_FILES = 50000;
 const MAX_DEPTH = 64;
 const MAX_WARNINGS = 1000;
 const READ_TIMEOUT_MS = 10000;
+const FILE_READ_CONCURRENCY = 8;
 
 type Root = { entry: FileSystemEntry | null; file: File | null };
 type Work =
@@ -149,25 +152,130 @@ export async function collectDroppedFiles(
   checkAbort(options.signal);
   const roots = captureDrop(transfer); // No await before this synchronous capture.
   const result: DroppedFilesResult = { files: [], warnings: [], directories: 0, duplicates: 0 };
-  const warn = (code: DropWarning["code"], path: string, message: string) => {
-    if (result.warnings.length < MAX_WARNINGS) result.warnings.push({ code, path, message });
+  let eventOrder = 0;
+  let warningOverflow = false;
+  const warningOrder = new Map<DropWarning, number>();
+  const warn = (code: DropWarning["code"], path: string, message: string, order = eventOrder) => {
+    if (
+      result.warnings.length === MAX_WARNINGS &&
+      order >= warningOrder.get(result.warnings[MAX_WARNINGS - 1]!)!
+    ) {
+      warningOverflow = true;
+      return;
+    }
+    const warning = { code, path, message };
+    warningOrder.set(warning, order);
+    result.warnings.push(warning);
+    result.warnings.sort((a, b) => warningOrder.get(a)! - warningOrder.get(b)!);
+    if (result.warnings.length > MAX_WARNINGS) {
+      warningOverflow = true;
+      warningOrder.delete(result.warnings.pop()!);
+    }
   };
   const work: Work[] = [];
-  const fileKeys = new Set<string>();
+  const filePaths = new WeakMap<File, Set<string>>();
   const visited = new WeakSet<FileSystemEntry>();
   let entries = 0;
   let operations = 0;
-  let warningOverflow = false;
+  let fileSequence = 0;
+  let nextPublished = 0;
+  const active = new Set<Promise<void>>();
+  const completed = new Map<
+    number,
+    { file?: File; path: string; failed: boolean; order: number }
+  >();
+
+  const progress = (path: string) => {
+    if (options.signal?.aborted) return;
+    try {
+      options.onProgress?.({
+        files: result.files.length,
+        directories: result.directories,
+        entries,
+        currentPath: path,
+      });
+    } catch {
+      /* A display observer cannot discard a discovered file. */
+    }
+  };
 
   const addFile = (file: File, path: string) => {
-    const key = JSON.stringify([path, file.size, file.lastModified]);
-    if (fileKeys.has(key)) {
+    const paths = filePaths.get(file) ?? new Set<string>();
+    if (paths.has(path)) {
       result.duplicates++;
       return;
     }
     // Never mutate the caller's File to attach its read-only relative path.
-    result.files.push(withRelativePath(file, path));
-    fileKeys.add(key);
+    const registered = withRelativePath(file, path);
+    result.files.push(registered);
+    paths.add(path);
+    filePaths.set(file, paths);
+    try {
+      options.onFiles?.([registered]);
+    } catch {
+      /* Registration is an observer, not permission to drop a readable source. */
+    }
+  };
+
+  const publish = () => {
+    // Entry callbacks may finish in any order. Keep metadata collisions, XMP paths,
+    // and the compatible final result independent from callback timing.
+    while (!options.signal?.aborted && completed.has(nextPublished)) {
+      const item = completed.get(nextPublished)!;
+      completed.delete(nextPublished++);
+      if (item.file) {
+        try {
+          if (!(item.file instanceof File)) throw new Error("Invalid file handle");
+          addFile(item.file, item.path);
+        } catch {
+          warn(
+            "unreadable",
+            item.path,
+            "This file handle could not be registered. Other files remain available.",
+            item.order,
+          );
+        }
+      } else if (item.failed)
+        warn(
+          "unreadable",
+          item.path,
+          "This item could not be read. Other dropped files remain available; try importing it again.",
+          item.order,
+        );
+      progress(item.path);
+    }
+  };
+
+  const scheduleFile = (item: Extract<Work, { kind: "entry" | "file" }>) => {
+    const sequence = fileSequence++,
+      order = eventOrder;
+    const task = (async () => {
+      let file: File | undefined;
+      try {
+        file =
+          item.kind === "file"
+            ? item.file
+            : await readEntry<File>(
+                (success, fail) => (item.entry as FileSystemFileEntry).file(success, fail),
+                options.signal,
+              );
+      } catch {
+        if (item.kind === "entry" && !options.signal?.aborted) file = item.fallback;
+      }
+      if (!options.signal?.aborted) {
+        completed.set(sequence, {
+          ...(file ? { file } : {}),
+          path: item.path,
+          failed: !file,
+          order,
+        });
+        publish();
+      }
+    })();
+    active.add(task);
+    // Every task settles normally, including canceled read callbacks. The outer
+    // operation rejects cancellation and drains all wrappers before it returns.
+    void task.finally(() => active.delete(task));
   };
 
   for (const { entry, file } of roots) {
@@ -188,146 +296,153 @@ export async function collectDroppedFiles(
   }
   work.reverse();
 
-  while (work.length) {
-    checkAbort(options.signal);
-    if (entries >= MAX_ENTRIES || result.files.length >= MAX_FILES) {
-      warn(
-        "limit",
-        "",
-        `Import stopped at the safety limit (${MAX_ENTRIES} entries / ${MAX_FILES} files). Remaining items were not imported; use smaller folders.`,
-      );
-      break;
-    }
-    const item = work.pop()!;
-    if (item.kind !== "directory") entries++;
-    try {
-      if (item.kind === "file") addFile(item.file, item.path);
-      else if (item.kind === "entry") {
-        if (visited.has(item.entry)) {
-          if (item.entry.isDirectory)
-            warn(
-              "repeated-directory",
-              item.path,
-              "This folder was encountered again and was not traversed twice.",
-            );
-          else result.duplicates++;
-        } else {
-          visited.add(item.entry);
-          if (item.entry.isFile) {
-            let file: File;
-            try {
-              file = await readEntry<File>(
-                (success, fail) => (item.entry as FileSystemFileEntry).file(success, fail),
-                options.signal,
-              );
-            } catch (error) {
-              checkAbort(options.signal);
-              if (!item.fallback) throw error;
-              file = item.fallback;
-            }
-            addFile(file, item.path);
-          } else if (item.entry.isDirectory) {
-            result.directories++;
-            if (item.depth >= MAX_DEPTH)
-              warn(
-                "limit",
-                item.path,
-                `This folder exceeds ${MAX_DEPTH} nested levels and was not read.`,
-              );
-            else
-              work.push({
-                kind: "directory",
-                path: item.path,
-                depth: item.depth,
-                reader: (item.entry as FileSystemDirectoryEntry).createReader(),
-                seen: new Set(),
-                batches: 0,
-              });
-          } else
-            warn(
-              "unreadable",
-              item.path,
-              "This dropped item is neither a readable file nor a folder.",
-            );
-        }
-      } else {
-        if (++item.batches > 10000) {
-          warn(
-            "limit",
-            item.path,
-            "The folder reader exceeded 10,000 batches. Remaining items were not imported.",
-          );
-          continue;
-        }
-        const batch = await readEntry<FileSystemEntry[]>(
-          (success, fail) => item.reader.readEntries(success, fail),
-          options.signal,
-        );
-        if (!batch.length) {
-          if (!item.seen.size)
-            warn(
-              "empty-folder",
-              item.path,
-              "This folder is empty; no files were imported from it.",
-            );
-        } else {
-          const children: Work[] = [];
-          let newNames = 0;
-          for (const entry of batch) {
-            if (entries + work.length + children.length >= MAX_ENTRIES) {
-              warn(
-                "limit",
-                item.path,
-                `The folder exceeds the ${MAX_ENTRIES}-entry safety limit; remaining items were not imported.`,
-              );
-              break;
-            }
-            const name = `${entry.isDirectory ? "directory" : "file"}:${entry.name}`;
-            if (item.seen.has(name)) continue;
-            item.seen.add(name);
-            newNames++;
-            const path = childPath(item.path, entry.name);
-            if (!path)
-              warn(
-                "invalid-path",
-                item.path,
-                "A child item has an unsafe path and was not imported.",
-              );
-            else children.push({ kind: "entry", entry, path, depth: item.depth + 1 });
-          }
-          if (!newNames)
-            warn(
-              "repeated-directory",
-              item.path,
-              "The folder reader returned no new entries; traversal stopped to avoid looping.",
-            );
-          else {
-            work.push(item); // Read the next batch only after this one has been visited.
-            for (let index = children.length - 1; index >= 0; index--) work.push(children[index]!);
-          }
-        }
+  try {
+    while (work.length) {
+      checkAbort(options.signal);
+      // Include outstanding handles in the safety budget. Drain at the boundary so
+      // failed/repeated handles do not incorrectly consume the successful-file cap.
+      if (result.files.length + active.size + completed.size >= MAX_FILES) {
+        await Promise.all(active);
+        checkAbort(options.signal);
+        publish();
       }
-    } catch (error) {
-      checkAbort(options.signal);
-      warn(
-        "unreadable",
-        item.path,
-        "This item could not be read. Other dropped files remain available; try importing it again.",
-      );
+      if (entries >= MAX_ENTRIES || result.files.length >= MAX_FILES) {
+        warn(
+          "limit",
+          "",
+          `Import stopped at the safety limit (${MAX_ENTRIES} entries / ${MAX_FILES} files). Remaining items were not imported; use smaller folders.`,
+        );
+        break;
+      }
+      const item = work.pop()!;
+      eventOrder++;
+      if (item.kind !== "directory") entries++;
+      try {
+        if (item.kind === "file") {
+          while (active.size >= FILE_READ_CONCURRENCY) await Promise.race(active);
+          checkAbort(options.signal);
+          scheduleFile(item);
+        } else if (item.kind === "entry") {
+          if (visited.has(item.entry)) {
+            if (item.entry.isDirectory)
+              warn(
+                "repeated-directory",
+                item.path,
+                "This folder was encountered again and was not traversed twice.",
+              );
+            else result.duplicates++;
+          } else {
+            visited.add(item.entry);
+            if (item.entry.isFile) {
+              while (active.size >= FILE_READ_CONCURRENCY) await Promise.race(active);
+              checkAbort(options.signal);
+              scheduleFile(item);
+            } else if (item.entry.isDirectory) {
+              result.directories++;
+              if (item.depth >= MAX_DEPTH)
+                warn(
+                  "limit",
+                  item.path,
+                  `This folder exceeds ${MAX_DEPTH} nested levels and was not read.`,
+                );
+              else
+                work.push({
+                  kind: "directory",
+                  path: item.path,
+                  depth: item.depth,
+                  reader: (item.entry as FileSystemDirectoryEntry).createReader(),
+                  seen: new Set(),
+                  batches: 0,
+                });
+            } else
+              warn(
+                "unreadable",
+                item.path,
+                "This dropped item is neither a readable file nor a folder.",
+              );
+          }
+        } else {
+          if (++item.batches > 10000) {
+            warn(
+              "limit",
+              item.path,
+              "The folder reader exceeded 10,000 batches. Remaining items were not imported.",
+            );
+            continue;
+          }
+          const batch = await readEntry<FileSystemEntry[]>(
+            (success, fail) => item.reader.readEntries(success, fail),
+            options.signal,
+          );
+          if (!batch.length) {
+            if (!item.seen.size)
+              warn(
+                "empty-folder",
+                item.path,
+                "This folder is empty; no files were imported from it.",
+              );
+          } else {
+            const children: Work[] = [];
+            let newNames = 0;
+            for (const entry of batch) {
+              if (entries + work.length + children.length >= MAX_ENTRIES) {
+                warn(
+                  "limit",
+                  item.path,
+                  `The folder exceeds the ${MAX_ENTRIES}-entry safety limit; remaining items were not imported.`,
+                );
+                break;
+              }
+              const name = `${entry.isDirectory ? "directory" : "file"}:${entry.name}`;
+              if (item.seen.has(name)) continue;
+              item.seen.add(name);
+              newNames++;
+              const path = childPath(item.path, entry.name);
+              if (!path)
+                warn(
+                  "invalid-path",
+                  item.path,
+                  "A child item has an unsafe path and was not imported.",
+                );
+              else children.push({ kind: "entry", entry, path, depth: item.depth + 1 });
+            }
+            if (!newNames)
+              warn(
+                "repeated-directory",
+                item.path,
+                "The folder reader returned no new entries; traversal stopped to avoid looping.",
+              );
+            else {
+              work.push(item); // Read the next batch only after this one has been visited.
+              for (let index = children.length - 1; index >= 0; index--)
+                work.push(children[index]!);
+            }
+          }
+        }
+      } catch (error) {
+        checkAbort(options.signal);
+        warn(
+          "unreadable",
+          item.path,
+          "This item could not be read. Other dropped files remain available; try importing it again.",
+        );
+      }
+      progress(item.path);
+      if (++operations % 50 === 0) {
+        // Browser callbacks may complete synchronously. A real task yield lets
+        // review, paint and cancellation events run during 3,000+ file drops.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        checkAbort(options.signal);
+      }
     }
-    options.onProgress?.({
-      files: result.files.length,
-      directories: result.directories,
-      entries,
-      currentPath: item.path,
-    });
-    warningOverflow ||= result.warnings.length >= MAX_WARNINGS;
-    if (++operations % 50 === 0) {
-      // Browser callbacks may complete synchronously. A real task yield lets
-      // review, paint and cancellation events run during 3,000+ file drops.
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      checkAbort(options.signal);
-    }
+    await Promise.all(active);
+    checkAbort(options.signal);
+    publish();
+  } finally {
+    // readEntry aborts its promise/listeners immediately; the browser's uncancelable
+    // late entry callback is ignored and cannot publish after this invocation.
+    await Promise.all(active);
+    completed.clear();
   }
   if (warningOverflow)
     result.warnings[MAX_WARNINGS - 1] = {

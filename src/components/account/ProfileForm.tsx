@@ -1,19 +1,61 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { useAccount } from "./AccountProvider";
 import { profileInputSchema } from "@/lib/account-profile";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
+import { AvatarEditor } from "./AvatarEditor";
+import { PhotographySpecialtyPicker } from "./PhotographySpecialtyPicker";
 
 /** Drafts survive tabbing between fields; a failed save never clears typed information. */
 export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
   const account = useAccount()!;
   const [name, setName] = useState(account.name);
   const [workspaceName, setWorkspaceName] = useState(account.workspaceName);
+  const [biography, setBiography] = useState(account.biography ?? "");
+  const [avatar, setAvatar] = useState(account.avatar ?? "");
+  const [specialties, setSpecialties] = useState(account.specialties ?? []);
+  const [customSpecialty, setCustomSpecialty] = useState(account.customSpecialty ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const pending = useRef(false);
-  const changed = name.trim() !== account.name || workspaceName.trim() !== account.workspaceName;
+  const currentProfile = JSON.stringify({
+    name: account.name,
+    workspaceName: account.workspaceName,
+    biography: account.biography ?? "",
+    avatar: account.avatar ?? "",
+    specialties: account.specialties ?? [],
+    customSpecialty: account.customSpecialty ?? "",
+  });
+  const baseline = useRef(currentProfile);
+  const changed =
+    JSON.stringify({
+      name: name.trim(),
+      workspaceName: workspaceName.trim(),
+      biography: biography.trim(),
+      avatar,
+      specialties,
+      customSpecialty: customSpecialty.trim(),
+    }) !== baseline.current;
+  useEffect(() => {
+    if (!changed && !saving) {
+      const value = JSON.parse(currentProfile) as {
+        name: string;
+        workspaceName: string;
+        biography: string;
+        avatar: string;
+        specialties: string[];
+        customSpecialty: string;
+      };
+      baseline.current = currentProfile;
+      setName(value.name);
+      setWorkspaceName(value.workspaceName);
+      setBiography(value.biography);
+      setAvatar(value.avatar);
+      setSpecialties(value.specialties);
+      setCustomSpecialty(value.customSpecialty);
+    }
+  }, [currentProfile, changed, saving]);
   useToolLeaveGuard(
     saving
       ? "Your profile is still saving."
@@ -24,10 +66,26 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
   return (
     <form
       className="settings-profile-form"
+      id="setting-profile-details"
+      data-setting-id="setting-profile-details"
+      tabIndex={-1}
       onSubmit={(event) => {
         event.preventDefault();
         if (pending.current) return;
-        const result = profileInputSchema.safeParse({ name, workspaceName });
+        if (baseline.current !== currentProfile) {
+          setError(
+            "Your profile changed in another tab. Cancel to load the current values before saving.",
+          );
+          return;
+        }
+        const result = profileInputSchema.safeParse({
+          name,
+          workspaceName,
+          biography,
+          avatar,
+          specialties,
+          customSpecialty,
+        });
         setSaved(false);
         if (!result.success) {
           setError(result.error.issues[0]?.message ?? "Check your profile details.");
@@ -39,8 +97,20 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
         void account
           .saveProfile(result.data)
           .then(() => {
+            baseline.current = JSON.stringify({
+              name: result.data.name,
+              workspaceName: result.data.workspaceName,
+              biography: result.data.biography ?? "",
+              avatar: result.data.avatar ?? "",
+              specialties: result.data.specialties ?? [],
+              customSpecialty: result.data.customSpecialty ?? "",
+            });
             setName(result.data.name);
             setWorkspaceName(result.data.workspaceName);
+            setBiography(result.data.biography ?? "");
+            setAvatar(result.data.avatar ?? "");
+            setSpecialties(result.data.specialties ?? []);
+            setCustomSpecialty(result.data.customSpecialty ?? "");
             setSaved(true);
           })
           .catch((reason: unknown) =>
@@ -52,6 +122,17 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
           });
       }}
     >
+      {!onboarding && (
+        <AvatarEditor
+          value={avatar}
+          name={name}
+          disabled={saving}
+          onChange={(value) => {
+            setAvatar(value);
+            setSaved(false);
+          }}
+        />
+      )}
       <label className="settings-label" htmlFor="profile-display-name">
         Your name
       </label>
@@ -68,25 +149,62 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
           setSaved(false);
         }}
       />
-      <label className="settings-label" htmlFor="profile-workspace-name">
-        Workspace name
+      <label
+        className="settings-label"
+        id="profile-specialties-label"
+        htmlFor="profile-specialties"
+      >
+        What kind of photographer are you?
       </label>
-      <input
-        id="profile-workspace-name"
-        autoComplete="organization"
-        placeholder="Your studio"
-        maxLength={80}
-        required
-        value={workspaceName}
+      <PhotographySpecialtyPicker
+        value={specialties}
         disabled={saving}
-        onChange={(event) => {
-          setWorkspaceName(event.target.value);
+        onChange={(value) => {
+          setSpecialties(value);
           setSaved(false);
         }}
       />
-      <p className="settings-footnote">
-        Your personal workspace. Renaming it keeps every shoot and conversation.
+      <p className="settings-footnote profile-specialty-hint" id="profile-specialties-hint">
+        Choose up to five, or add your own.
       </p>
+      {specialties.includes("other") && (
+        <>
+          <label className="settings-label" htmlFor="profile-custom-specialty">
+            Your specialty
+          </label>
+          <input
+            id="profile-custom-specialty"
+            placeholder="Your kind of photography"
+            maxLength={80}
+            value={customSpecialty}
+            disabled={saving}
+            required
+            onChange={(event) => {
+              setCustomSpecialty(event.target.value);
+              setSaved(false);
+            }}
+          />
+        </>
+      )}
+      {!onboarding && (
+        <>
+          <label className="settings-label" htmlFor="profile-biography">
+            Biography (optional)
+          </label>
+          <textarea
+            id="profile-biography"
+            maxLength={500}
+            rows={3}
+            value={biography}
+            disabled={saving}
+            onChange={(e) => {
+              setBiography(e.target.value);
+              setSaved(false);
+            }}
+          />
+          <p className="settings-footnote">Private profile · {biography.length}/500</p>
+        </>
+      )}
       <div className="settings-form-actions">
         <button
           className="settings-button primary"
@@ -101,8 +219,13 @@ export function ProfileForm({ onboarding = false }: { onboarding?: boolean }) {
             type="button"
             disabled={saving}
             onClick={() => {
+              baseline.current = currentProfile;
               setName(account.name);
               setWorkspaceName(account.workspaceName);
+              setBiography(account.biography ?? "");
+              setAvatar(account.avatar ?? "");
+              setSpecialties(account.specialties ?? []);
+              setCustomSpecialty(account.customSpecialty ?? "");
               setError("");
               setSaved(false);
             }}
