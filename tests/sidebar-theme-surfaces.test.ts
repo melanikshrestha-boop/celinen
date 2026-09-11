@@ -228,8 +228,8 @@ describe("Neutral sidebar theme surfaces", () => {
     const settings = css("components/account/settings-workspace.css");
     for (const stale of ["#10141a", "#202226", "#171b21", "#2a2c30"])
       expect(settings).not.toContain(stale);
-    expect(settings).toContain("--settings-surface: var(--foto-settings-surface, #fafafa)");
-    expect(settings).toContain("--settings-rail: var(--foto-sidebar-material, #f9f9f9cc)");
+    expect(settings).toContain("--settings-surface: var(--foto-settings-surface, #fff)");
+    expect(settings).toContain("--settings-rail: #fff");
     expect(settings).toContain("-webkit-backdrop-filter: var(--foto-sidebar-filter, blur(30px))");
     expect(settings).toContain('html[data-settings-translucency="false"] .settings-rail');
     expect(settings).toContain("prefers-reduced-transparency: reduce");
@@ -256,16 +256,19 @@ describe("Neutral sidebar theme surfaces", () => {
   });
   test("black canvas retains separate neutral hover, selected, composer and menu controls", () => {
     const workbench = css("components/workbench/workbench.css");
-    const shared = workbench.match(
+    const light = workbench.match(
       /html:has\(\.photo-workbench, \.workbench-lock\)\s*\{([^}]+)\}/,
     )?.[1];
-    for (const declaration of [
-      "--surface-hover: #141414;",
-      "--surface-selected: #1a1a1a;",
-      "--surface-composer: #212121;",
-      "--surface-menu: #242424;",
-    ])
-      expect(shared).toContain(declaration);
+    expect(light).toContain("--surface-hover: #f6f8fb;");
+    expect(light).toContain("--surface-selected: #eef2ff;");
+    expect(light).toContain("--surface-composer: #ffffff;");
+    const dark = workbench.match(
+      /html\.dark:has\(\.photo-workbench, \.workbench-lock, \.celinen-dash\)\s*\{([^}]+)\}/,
+    )?.[1];
+    expect(dark).toContain("--surface-hover: #1a1a1a;");
+    expect(dark).toContain("--surface-selected: #1f2430;");
+    expect(dark).toContain("--surface-composer: #121212;");
+    expect(dark).toContain("--wb-bg: #000000;");
   });
   test("late collapsed and mobile rules retain 44px targets and unsupported blur has a rail fallback", () => {
     const workbench = css("components/workbench/workbench.css");

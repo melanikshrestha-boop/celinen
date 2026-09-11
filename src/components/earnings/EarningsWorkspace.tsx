@@ -102,7 +102,8 @@ export function EarningsWorkspace() {
 
 function EarningsContent() {
   const data = useEarningsData();
-  const receiptBusinessName = useAccount()?.name ?? "";
+  const account = useAccount();
+  const receiptBusinessName = account?.name ?? "";
   const workbench = useWorkbench();
   const directory = useShootNavigationData(data.owner, data.localMode);
   const [period, setPeriod] = useState<EarningsPeriod>("month");
@@ -342,385 +343,442 @@ function EarningsContent() {
           opener.current = event.target;
       }}
     >
-      <FinanceOs desk={desk} onDesk={openDesk} onInvoice={() => newForm("invoice")}>
-      <header className="earnings-heading">
-        <div className="earnings-actions">
-          <button onClick={() => newForm("entry")} disabled={!data.writable}>
-            <Plus size={15} />
-            Add Entry
-          </button>
-          <button
-            className="earnings-primary"
-            onClick={() => newForm("invoice")}
-            disabled={!data.writable}
-          >
-            <Plus size={15} />
-            New Invoice
-          </button>
-        </div>
-      </header>
-      <div className="earnings-toolbar">
-        <div className="earnings-actions">
-          <select
-            aria-label="Earnings period"
-            value={period}
-            onChange={(event) => setPeriod(event.target.value as EarningsPeriod)}
-          >
-            <option value="month">This month</option>
-            <option value="year">This year</option>
-            <option value="all">All dates</option>
-          </select>
-          <select
-            aria-label="Currency"
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-          >
-            {currencies.map((code) => (
-              <option key={code}>{code}</option>
-            ))}
-          </select>
-        </div>
-        <div className="earnings-connection">
-          <span>{connection}</span>
-          {!data.localMode && data.snapshot?.connection === "not-connected" && (
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const response = await startStripeConnect();
-                  if (response.error || !response.url)
-                    throw new Error(response.error ?? "Stripe did not return a connection link.");
-                  const url = new URL(response.url);
-                  if (url.protocol !== "https:" || url.hostname !== "connect.stripe.com")
-                    throw new Error("Invalid Stripe connection destination.");
-                  window.location.assign(url.href);
-                })
-              }
-            >
-              Connect Stripe
-              <ArrowUpRight size={12} />
+      <FinanceOs
+        desk={desk}
+        onDesk={openDesk}
+        onInvoice={() => newForm("invoice")}
+        invoiceDisabled={!data.writable}
+      >
+        <header className="earnings-heading">
+          <div className="earnings-actions">
+            {account && (
+              <select
+                aria-label="Appearance"
+                value={account.preferences.theme}
+                onChange={(event) =>
+                  account.savePreferences({
+                    theme: event.target.value as "light" | "dark" | "system",
+                  })
+                }
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+              </select>
+            )}
+            <button onClick={() => newForm("entry")} disabled={!data.writable}>
+              <Plus size={15} />
+              Add Entry
             </button>
-          )}
-          <button
-            onClick={() => void data.refresh()}
-            disabled={data.loading}
-            aria-label="Refresh earnings"
-          >
-            <RefreshCw size={13} />
-          </button>
-        </div>
-      </div>
-      {(data.error || ledger.error) && (
-        <p className="earnings-notice earnings-error" role="alert">
-          {data.error || ledger.error}
-        </p>
-      )}
-      {data.localMode && directory.error && (
-        <p className="earnings-notice earnings-error" role="alert">
-          {directory.error}
-        </p>
-      )}
-      {!data.loading && !ledger.complete && !ledger.error && (
-        <p className="earnings-notice" role="status">
-          Payment history is incomplete. Available records are shown; totals stay unavailable until
-          they can be verified.
-        </p>
-      )}
-      {notice && !formKind && !selectedRow && (
-        <p className="earnings-notice" role="status">
-          {notice}
-        </p>
-      )}
-      {desk === "earnings" ? (
-        <FinanceOverview
-          books={books}
-          rows={ledger.rows}
-          today={today}
-          money={(value) => formatEarningsMoney(value, currency)}
-          onOpen={(id) => {
-            setNotice("");
-            setSelected(id);
-          }}
-          onRange={(next) => {
-            if (next === "YTD") setPeriod("year");
-            else if (next === "ALL") setPeriod("all");
-            else setPeriod("month");
-          }}
-        />
-      ) : desk === "invest" ? (
-        <FinanceInvest books={books} rows={ledger.rows} money={(value) => formatEarningsMoney(value, currency)} />
-      ) : desk === "equity" ? (
-        <FinanceEquity books={books} money={(value) => formatEarningsMoney(value, currency)} />
-      ) : desk === "forecast" ? (
-        <FinanceForecast
-          rows={ledger.rows}
-          today={today}
-          money={(value) => formatEarningsMoney(value, currency)}
-          onOpen={(id) => {
-            setNotice("");
-            setSelected(id);
-          }}
-        />
-      ) : desk === "tax" ? (
-        <FinanceTax books={books} money={(value) => formatEarningsMoney(value, currency)} />
-      ) : (
-        <>
-      <div className="finance-os__title">
-        <h1 id="earnings-title" tabIndex={-1}>
-          Transactions
-        </h1>
-      </div>
-      <dl className="earnings-pulse">
-        <div>
-          <dt>Collected</dt>
-          <dd>{money(metric?.collectedMinor)}</dd>
-          <small>After refunds · selected period</small>
-        </div>
-        <div>
-          <dt>Outstanding</dt>
-          <dd>{balancesAvailable ? money(metric?.outstandingMinor) : "—"}</dd>
-          <small>
-            {balancesAvailable ? "Issued invoices · as of today" : "No verified invoice balances"}
-          </small>
-        </div>
-        <div>
-          <dt>Overdue</dt>
-          <dd>{balancesAvailable ? money(metric?.overdueMinor) : "—"}</dd>
-          <small>
-            {balancesAvailable ? "Past due · as of today" : "No verified invoice balances"}
-          </small>
-        </div>
-        <div>
-          <dt>Gallery Sales</dt>
-          <dd>{galleryAvailable ? money(metric?.gallerySalesMinor) : "—"}</dd>
-          <small>{galleryAvailable ? "Verified gallery payments" : "Checkout not connected"}</small>
-        </div>
-        <div>
-          <dt>Net Cash Flow</dt>
-          <dd>{money(metric?.netMinor)}</dd>
-          <small>Recorded cash in less expenses</small>
-        </div>
-      </dl>
-      {books ? <BooksDashboard books={books} stripeLabel={connection} /> : null}
-      <EarningsCharts
-        model={charts}
-        loading={data.loading}
-        scopeLabel={`${period === "month" ? "This Month" : period === "year" ? "This Year" : "All Dates"} · ${shootFilter ? shootName(shootFilter) : "All Shoots"}`}
-      />
-      <div className="earnings-ledger-heading">
-        <h2>Ledger</h2>
-        <button
-          disabled={unavailable || !rows.length}
-          onClick={() => {
-            try {
-              downloadEarningsFile(
-                earningsCsv(rows, shootName),
-                `foto-ledger-${period}-${currency}.csv`,
-              );
-            } catch {
-              setNotice("Export failed. Your records are unchanged.");
-            }
-          }}
-        >
-          <ArrowDownToLine size={14} />
-          Export CSV
-        </button>
-      </div>
-      <div className="earnings-filter-bar">
-        <div className="earnings-filters" aria-label="Ledger filters">
-          {FILTERS.map((item) => (
             <button
-              key={item.value}
-              aria-pressed={filter === item.value}
-              onClick={() => setFilter(item.value)}
+              className="earnings-primary"
+              onClick={() => newForm("invoice")}
+              disabled={!data.writable}
             >
-              {item.label}
+              <Plus size={15} />
+              New Invoice
             </button>
-          ))}
+          </div>
+        </header>
+        <div className="earnings-toolbar">
+          <div className="earnings-actions">
+            <select
+              aria-label="Earnings period"
+              value={period}
+              onChange={(event) => setPeriod(event.target.value as EarningsPeriod)}
+            >
+              <option value="month">This month</option>
+              <option value="year">This year</option>
+              <option value="all">All dates</option>
+            </select>
+            <select
+              aria-label="Currency"
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value)}
+            >
+              {currencies.map((code) => (
+                <option key={code}>{code}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Filter by shoot"
+              value={shootFilter}
+              onChange={(event) => setShootFilter(event.target.value)}
+            >
+              <option value="">All shoots</option>
+              {shootFilter && !shoots.some((shoot) => shoot.id === shootFilter) && (
+                <option value={shootFilter}>{shootName(shootFilter)}</option>
+              )}
+              {shoots.map((shoot) => (
+                <option key={shoot.id} value={shoot.id}>
+                  {shoot.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="earnings-connection">
+            <span>{connection}</span>
+            {!data.localMode && data.snapshot?.connection === "not-connected" && (
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const response = await startStripeConnect();
+                    if (response.error || !response.url)
+                      throw new Error(response.error ?? "Stripe did not return a connection link.");
+                    const url = new URL(response.url);
+                    if (url.protocol !== "https:" || url.hostname !== "connect.stripe.com")
+                      throw new Error("Invalid Stripe connection destination.");
+                    window.location.assign(url.href);
+                  })
+                }
+              >
+                Connect Stripe
+                <ArrowUpRight size={12} />
+              </button>
+            )}
+            <button
+              onClick={() => void data.refresh()}
+              disabled={data.loading}
+              aria-label="Refresh earnings"
+            >
+              <RefreshCw size={13} />
+            </button>
+          </div>
         </div>
-        <div className="earnings-actions">
-          <select
-            aria-label="Filter by shoot"
-            value={shootFilter}
-            onChange={(event) => setShootFilter(event.target.value)}
-          >
-            <option value="">All shoots</option>
-            {shoots.map((shoot) => (
-              <option key={shoot.id} value={shoot.id}>
-                {shoot.name}
-              </option>
-            ))}
-          </select>
-          <label className="earnings-search">
-            <Search size={14} />
-            <input
-              aria-label="Search ledger"
-              placeholder="Search ledger"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+        {(data.error || ledger.error) && (
+          <p className="earnings-notice earnings-error" role="alert">
+            {data.error || ledger.error}
+          </p>
+        )}
+        {data.localMode && directory.error && (
+          <p className="earnings-notice earnings-error" role="alert">
+            {directory.error}
+          </p>
+        )}
+        {!data.loading && !ledger.complete && !ledger.error && (
+          <p className="earnings-notice" role="status">
+            Payment history is incomplete. Available records are shown; totals stay unavailable
+            until they can be verified.
+          </p>
+        )}
+        {notice && !formKind && !selectedRow && (
+          <p className="earnings-notice" role="status">
+            {notice}
+          </p>
+        )}
+        {desk === "earnings" || desk === "spending" ? (
+          <FinanceOverview
+            key={desk}
+            spending={desk === "spending"}
+            range={period === "all" ? "ALL" : period === "year" ? "YTD" : "1M"}
+            books={books}
+            balancesAvailable={Boolean(balancesAvailable)}
+            rows={ledger.rows.filter((row) => !shootFilter || row.shootId === shootFilter)}
+            today={today}
+            money={(value) => formatEarningsMoney(value, currency)}
+            onOpen={(id) => {
+              setNotice("");
+              setSelected(id);
+            }}
+            onRange={(next) => {
+              if (next === "YTD") setPeriod("year");
+              else if (next === "ALL") setPeriod("all");
+              else setPeriod("month");
+            }}
+          />
+        ) : desk === "invest" ? (
+          <FinanceInvest
+            books={books}
+            rows={ledger.rows}
+            money={(value) => formatEarningsMoney(value, currency)}
+            scope={{
+              currency,
+              period: dateRange,
+              ...(shootFilter ? { shootId: shootFilter } : {}),
+              complete: !unavailable,
+            }}
+          />
+        ) : desk === "equity" ? (
+          <FinanceEquity
+            books={books}
+            balancesAvailable={Boolean(balancesAvailable)}
+            money={(value) => formatEarningsMoney(value, currency)}
+          />
+        ) : desk === "forecast" ? (
+          <FinanceForecast
+            scope={{
+              currency,
+              period: dateRange,
+              ...(shootFilter ? { shootId: shootFilter } : {}),
+              complete: !unavailable,
+              invoiceBalancesAvailable: Boolean(balancesAvailable),
+            }}
+            rows={ledger.rows}
+            today={today}
+            money={(value) => formatEarningsMoney(value, currency)}
+            onOpen={(id) => {
+              setNotice("");
+              setSelected(id);
+            }}
+          />
+        ) : desk === "tax" ? (
+          <FinanceTax books={books} money={(value) => formatEarningsMoney(value, currency)} />
+        ) : (
+          <>
+            <div className="finance-os__title">
+              <h1 id="earnings-title" tabIndex={-1}>
+                Transactions
+              </h1>
+            </div>
+            <dl className="earnings-pulse">
+              <div>
+                <dt>Collected</dt>
+                <dd>{money(metric?.collectedMinor)}</dd>
+                <small>After refunds · selected period</small>
+              </div>
+              <div>
+                <dt>Outstanding</dt>
+                <dd>{balancesAvailable ? money(metric?.outstandingMinor) : "—"}</dd>
+                <small>
+                  {balancesAvailable
+                    ? "Issued invoices · as of today"
+                    : "No verified invoice balances"}
+                </small>
+              </div>
+              <div>
+                <dt>Overdue</dt>
+                <dd>{balancesAvailable ? money(metric?.overdueMinor) : "—"}</dd>
+                <small>
+                  {balancesAvailable ? "Past due · as of today" : "No verified invoice balances"}
+                </small>
+              </div>
+              <div>
+                <dt>Gallery Sales</dt>
+                <dd>{galleryAvailable ? money(metric?.gallerySalesMinor) : "—"}</dd>
+                <small>
+                  {galleryAvailable ? "Verified gallery payments" : "Checkout not connected"}
+                </small>
+              </div>
+              <div>
+                <dt>Net Cash Flow</dt>
+                <dd>{money(metric?.netMinor)}</dd>
+                <small>Recorded cash in less expenses</small>
+              </div>
+            </dl>
+            {books ? <BooksDashboard books={books} stripeLabel={connection} /> : null}
+            <EarningsCharts
+              model={charts}
+              loading={data.loading}
+              scopeLabel={`${period === "month" ? "This Month" : period === "year" ? "This Year" : "All Dates"} · ${shootFilter ? shootName(shootFilter) : "All Shoots"}`}
             />
-          </label>
-        </div>
-      </div>
-      <div className="earnings-table-scroll">
-        <table className="earnings-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Shoot</th>
-              <th>Who</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th className="earnings-amount">Amount</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                tabIndex={0}
-                aria-label={`Open ${row.description}`}
-                aria-selected={selected === row.id}
+            <div className="earnings-ledger-heading">
+              <h2>Ledger</h2>
+              <button
+                disabled={unavailable || !rows.length}
                 onClick={() => {
-                  setNotice("");
-                  setSelected(row.id);
-                }}
-                onKeyDown={(event) => {
-                  if (event.target !== event.currentTarget) return;
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelected(row.id);
+                  try {
+                    downloadEarningsFile(
+                      earningsCsv(rows, shootName),
+                      `foto-ledger-${period}-${currency}.csv`,
+                    );
+                  } catch {
+                    setNotice("Export failed. Your records are unchanged.");
                   }
                 }}
               >
-                <td className="earnings-muted">
-                  {row.date
-                    ? new Date(`${row.date}T12:00:00`).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        ...(period === "all" ? { year: "numeric" } : {}),
-                      })
-                    : "Date unknown"}
-                </td>
-                <td>
-                  {row.shootId && parseShootKey(row.shootId) ? (
-                    <a
-                      href={shootWorkspaceHref(row.shootId)}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                <ArrowDownToLine size={14} />
+                Export CSV
+              </button>
+            </div>
+            <div className="earnings-filter-bar">
+              <div className="earnings-filters" aria-label="Ledger filters">
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.value}
+                    aria-pressed={filter === item.value}
+                    onClick={() => setFilter(item.value)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="earnings-actions">
+                <label className="earnings-search">
+                  <Search size={14} />
+                  <input
+                    aria-label="Search ledger"
+                    placeholder="Search ledger"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="earnings-table-scroll">
+              <table className="earnings-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Shoot</th>
+                    <th>Who</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th className="earnings-amount">Amount</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      tabIndex={0}
+                      aria-label={`Open ${row.description}`}
+                      aria-selected={selected === row.id}
+                      onClick={() => {
+                        setNotice("");
+                        setSelected(row.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          void open(shootWorkspaceHref(row.shootId!));
+                          setSelected(row.id);
                         }
                       }}
                     >
-                      {shootName(row.shootId)}
-                    </a>
-                  ) : (
-                    <span className="earnings-muted">{shootName(row.shootId)}</span>
-                  )}
-                </td>
-                <td title={row.description}>
-                  {row.who ??
-                    data.clients.find((client) => client.id === row.clientId)?.name ??
-                    row.description}
-                </td>
-                <td>{typeLabel(row)}</td>
-                <td>
-                  <span className="earnings-status" data-status={row.status}>
-                    {row.status.replaceAll("-", " ")}
-                  </span>
-                </td>
-                <td className="earnings-amount">
-                  {row.accounting === "expense" ? "−" : ""}
-                  {row.currency
-                    ? formatEarningsMoney(row.amountMinor, row.currency)
-                    : `${minorUnitsDecimal(row.amountMinor, "USD")} · currency unknown`}
-                </td>
-                <td className="earnings-muted">{sourceLabel(row)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {!rows.length && (
-        <div className="earnings-empty">
-          <FileText size={27} strokeWidth={1.4} />
-          <h3>
-            {data.loading
-              ? "Opening earnings…"
-              : query || shootFilter
-                ? "No matching entries"
-                : filter === "invoices"
-                  ? "Your next shoot starts with an invoice"
-                  : filter === "gallery"
-                    ? "No gallery payments yet"
-                    : filter === "payouts"
-                      ? "No recorded payouts"
-                      : filter === "expenses"
-                        ? "No expenses in this period"
-                        : "Your work. Your first payment."}
-          </h3>
-          <p>
-            {data.loading
-              ? "Reading saved records."
-              : filter === "gallery"
-                ? "Gallery checkout isn’t connected yet. Only verified gallery payments will appear here."
-                : filter === "payouts"
-                  ? "Payouts are transfers, not additional income. Live payout reporting isn’t connected here yet."
-                  : "Create an invoice for a shoot, or record a payment you’ve already received."}
-          </p>
-          {!data.loading && !query && filter !== "gallery" && filter !== "payouts" && (
-            <button
-              onClick={() => newForm(filter === "expenses" ? "entry" : "invoice")}
-              disabled={!data.writable}
-            >
-              {filter === "expenses" ? "Record an expense" : "Create invoice"}
-              <ArrowUpRight size={14} />
-            </button>
-          )}
-        </div>
-      )}
-      {!!rows.length && (
-        <p className="earnings-note">
-          {rows.length} {rows.length === 1 ? "entry" : "entries"}
-          {rows.some((row) => !row.linked)
-            ? " · Unlinked historical entries are preserved. Open a manual entry to link its shoot."
-            : ""}
-        </p>
-      )}
-      {(metric?.unlinkedMinor ?? 0) > 0 && (
-        <p className="earnings-notice">
-          {formatEarningsMoney(metric!.unlinkedMinor, currency)} in unlinked Stripe payments is
-          excluded from shoot earnings.
-        </p>
-      )}
-      {!!data.snapshot?.warnings.length && (
-        <p className="earnings-note">{data.snapshot.warnings.join(" ")}</p>
-      )}
-      <details className="earnings-method">
-        <summary>How these numbers work</summary>
-        <p>
-          Collected is recorded payments less dated refunds in the selected period. Net Cash Flow
-          subtracts recorded expenses. It is not profit, taxable income or a bank balance; it does
-          not include unrecorded fees or other unrecorded costs. Outstanding and overdue use
-          verified issued invoice balances as of today. Drafts, failed payments, test charges and
-          payouts are not income. Gallery Sales is part of Collected, not additional income.
-          Currencies are never combined.
-        </p>
-        <p>
-          {data.localMode
-            ? "This local workspace saves cash entries and invoice drafts on this device. It does not send invoices or verify Stripe payments. Local drafts are not included in outstanding."
-            : "Stripe amounts are read from the connected photographer account. Unmatched imports remain available for audit but are not counted twice."}{" "}
-          SmartFile deposits and gallery checkout are not connected yet.
-        </p>
-        {ledger.warnings.map((warning) => (
-          <p key={warning}>{warning}</p>
-        ))}
-      </details>
-        </>
-      )}
+                      <td className="earnings-muted">
+                        {row.date
+                          ? new Date(`${row.date}T12:00:00`).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              ...(period === "all" ? { year: "numeric" } : {}),
+                            })
+                          : "Date unknown"}
+                      </td>
+                      <td>
+                        {row.shootId && parseShootKey(row.shootId) ? (
+                          <a
+                            href={shootWorkspaceHref(row.shootId)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (
+                                !event.metaKey &&
+                                !event.ctrlKey &&
+                                !event.shiftKey &&
+                                !event.altKey
+                              ) {
+                                event.preventDefault();
+                                void open(shootWorkspaceHref(row.shootId!));
+                              }
+                            }}
+                          >
+                            {shootName(row.shootId)}
+                          </a>
+                        ) : (
+                          <span className="earnings-muted">{shootName(row.shootId)}</span>
+                        )}
+                      </td>
+                      <td title={row.description}>
+                        {row.who ??
+                          data.clients.find((client) => client.id === row.clientId)?.name ??
+                          row.description}
+                      </td>
+                      <td>{typeLabel(row)}</td>
+                      <td>
+                        <span className="earnings-status" data-status={row.status}>
+                          {row.status.replaceAll("-", " ")}
+                        </span>
+                      </td>
+                      <td className="earnings-amount">
+                        {row.accounting === "expense" ? "−" : ""}
+                        {row.currency
+                          ? formatEarningsMoney(row.amountMinor, row.currency)
+                          : `${minorUnitsDecimal(row.amountMinor, "USD")} · currency unknown`}
+                      </td>
+                      <td className="earnings-muted">{sourceLabel(row)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!rows.length && (
+              <div className="earnings-empty">
+                <FileText size={27} strokeWidth={1.4} />
+                <h3>
+                  {data.loading
+                    ? "Opening earnings…"
+                    : query || shootFilter
+                      ? "No matching entries"
+                      : filter === "invoices"
+                        ? "Your next shoot starts with an invoice"
+                        : filter === "gallery"
+                          ? "No gallery payments yet"
+                          : filter === "payouts"
+                            ? "No recorded payouts"
+                            : filter === "expenses"
+                              ? "No expenses in this period"
+                              : "Your work. Your first payment."}
+                </h3>
+                <p>
+                  {data.loading
+                    ? "Reading saved records."
+                    : filter === "gallery"
+                      ? "Gallery checkout isn’t connected yet. Only verified gallery payments will appear here."
+                      : filter === "payouts"
+                        ? "Payouts are transfers, not additional income. Live payout reporting isn’t connected here yet."
+                        : "Create an invoice for a shoot, or record a payment you’ve already received."}
+                </p>
+                {!data.loading && !query && filter !== "gallery" && filter !== "payouts" && (
+                  <button
+                    onClick={() => newForm(filter === "expenses" ? "entry" : "invoice")}
+                    disabled={!data.writable}
+                  >
+                    {filter === "expenses" ? "Record an expense" : "Create invoice"}
+                    <ArrowUpRight size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+            {!!rows.length && (
+              <p className="earnings-note">
+                {rows.length} {rows.length === 1 ? "entry" : "entries"}
+                {rows.some((row) => !row.linked)
+                  ? " · Unlinked historical entries are preserved. Open a manual entry to link its shoot."
+                  : ""}
+              </p>
+            )}
+            {(metric?.unlinkedMinor ?? 0) > 0 && (
+              <p className="earnings-notice">
+                {formatEarningsMoney(metric!.unlinkedMinor, currency)} in unlinked Stripe payments
+                is excluded from shoot earnings.
+              </p>
+            )}
+            {!!data.snapshot?.warnings.length && (
+              <p className="earnings-note">{data.snapshot.warnings.join(" ")}</p>
+            )}
+            <details className="earnings-method">
+              <summary>How these numbers work</summary>
+              <p>
+                Collected is recorded payments less dated refunds in the selected period. Net Cash
+                Flow subtracts recorded expenses. It is not profit, taxable income or a bank
+                balance; it does not include unrecorded fees or other unrecorded costs. Outstanding
+                and overdue use verified issued invoice balances as of today. Drafts, failed
+                payments, test charges and payouts are not income. Gallery Sales is part of
+                Collected, not additional income. Currencies are never combined.
+              </p>
+              <p>
+                {data.localMode
+                  ? "This local workspace saves cash entries and invoice drafts on this device. It does not send invoices or verify Stripe payments. Local drafts are not included in outstanding."
+                  : "Stripe amounts are read from the connected photographer account. Unmatched imports remain available for audit but are not counted twice."}{" "}
+                SmartFile deposits and gallery checkout are not connected yet.
+              </p>
+              {ledger.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </details>
+          </>
+        )}
       </FinanceOs>
 
       <Sheet

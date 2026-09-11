@@ -112,15 +112,23 @@ export function AppDashboard() {
           ) : (
             <div className="celinen-dash__home">
               <h1>Welcome back{name && name !== PRODUCT_NAME ? `, ${name.split(" ")[0]}` : ""}.</h1>
-              <p>Pick keepers, send a gallery, or open a connected social.</p>
-              <div className="celinen-dash__actions">
-                <Link to="/shoots" className="celinen-btn">
+              <div className="celinen-dash__cards">
+                <Link to="/shoots" className="celinen-dash__card" data-crop="sky">
+                  <span className="celinen-dash__card-still">
+                    <img src="/images/foto-open-sky.webp" alt="" />
+                  </span>
                   Open a shoot
                 </Link>
-                <Link to="/deliver" className="celinen-btn celinen-btn--ghost">
+                <Link to="/deliver" className="celinen-dash__card" data-crop="ridge">
+                  <span className="celinen-dash__card-still">
+                    <img src="/images/foto-open-sky.webp" alt="" />
+                  </span>
                   Send a gallery
                 </Link>
-                <Link to="/publish" className="celinen-btn celinen-btn--ghost">
+                <Link to="/publish" className="celinen-dash__card" data-crop="lake">
+                  <span className="celinen-dash__card-still">
+                    <img src="/images/foto-open-sky.webp" alt="" />
+                  </span>
                   Connect socials
                 </Link>
               </div>

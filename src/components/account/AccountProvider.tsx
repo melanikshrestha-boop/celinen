@@ -163,7 +163,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     if (!scope) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      applyAppearance({ ...preferences, theme: "light" }, false);
+      applyAppearance(preferences, media.matches);
       document.documentElement.dataset["reduceMotion"] = String(preferences.reduceMotion);
       document.documentElement.dataset["chatText"] = preferences.textSize;
     };
