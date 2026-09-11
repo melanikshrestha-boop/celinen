@@ -1,14 +1,16 @@
 /** Local social connections. AES-GCM at rest. No passwords. No fake live posts. */
 
+/** Picker order matches the add-channel sheet: IG → Facebook → X → LinkedIn → Pinterest → Bluesky → Threads → TikTok → YouTube Shorts → Google Business → Mastodon → Discord → WooCommerce. */
 export const SOCIAL_NETWORKS = [
   { id: "instagram", title: "Instagram", kind: "Social" },
+  { id: "facebook", title: "Facebook", kind: "Social" },
   { id: "x", title: "X (Twitter)", kind: "Social" },
   { id: "linkedin", title: "LinkedIn", kind: "Social" },
   { id: "pinterest", title: "Pinterest", kind: "Social" },
   { id: "bluesky", title: "Bluesky", kind: "Social" },
   { id: "threads", title: "Threads", kind: "Social" },
   { id: "tiktok", title: "TikTok", kind: "Social" },
-  { id: "youtube", title: "YouTube", kind: "Social" },
+  { id: "youtube-shorts", title: "YouTube Shorts", kind: "Social" },
   { id: "google-business", title: "Google Business", kind: "Social" },
   { id: "mastodon", title: "Mastodon", kind: "Social" },
   { id: "discord", title: "Discord", kind: "Community" },

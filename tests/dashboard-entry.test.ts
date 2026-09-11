@@ -53,6 +53,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("celinen-dash__card");
   expect(source).toContain("Minimize sidebar");
   expect(source).toContain("Expand sidebar");
+  expect(source).toContain('visual === "mini"');
   expect(source).not.toContain("Close sidebar");
   expect(source).toContain('RailMode = "open" | "mini"');
   expect(source).toContain("Resize sidebar");

@@ -313,18 +313,31 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     >
       <aside className="celinen-dash__rail">
         <div className="celinen-dash__top">
-          <Link to="/dashboard" className="celinen-dash__brand">
-            <LogoMark size={28} />
-            <span>{PRODUCT_NAME}</span>
-          </Link>
-          <button
-            type="button"
-            className="celinen-dash__close"
-            aria-label={visual === "mini" ? "Expand sidebar" : "Minimize sidebar"}
-            onClick={() => setRail(visual === "mini" ? "open" : "mini")}
-          >
-            <PanelLeft size={18} />
-          </button>
+          {visual === "mini" ? (
+            <button
+              type="button"
+              className="celinen-dash__brand"
+              aria-label="Expand sidebar"
+              onClick={() => setRail("open")}
+            >
+              <LogoMark size={28} />
+            </button>
+          ) : (
+            <>
+              <Link to="/dashboard" className="celinen-dash__brand">
+                <LogoMark size={28} />
+                <span>{PRODUCT_NAME}</span>
+              </Link>
+              <button
+                type="button"
+                className="celinen-dash__close"
+                aria-label="Minimize sidebar"
+                onClick={() => setRail("mini")}
+              >
+                <PanelLeft size={18} />
+              </button>
+            </>
+          )}
         </div>
         <nav className="celinen-dash__nav" aria-label="Dashboard">
           {MAIN.map((item) => {
