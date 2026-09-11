@@ -159,6 +159,30 @@ export function studioBindingHref(binding: StudioWorkbenchBinding) {
   if (binding.kind === "blocked" || !binding.projectId) return "/studio";
   return `/studio${defaultStringifySearch({ project: binding.projectId, ...(binding.deliveryFocus ? { deliveryFrame: binding.deliveryFocus.frameId, deliveryVersion: binding.deliveryFocus.versionId, ...(binding.deliveryFocus.handoffId ? { deliveryHandoff: binding.deliveryFocus.handoffId } : {}) } : {}) })}`;
 }
+/** Photographer rail destinations live in the dashboard ChatGPT shell, not Workbench. */
+export const DASHBOARD_APP_PATHS = [
+  "/studio",
+  "/deliver",
+  "/develop",
+  "/earnings",
+  "/publish",
+  "/library",
+  "/settings",
+  "/help",
+  "/community",
+] as const;
+
+export function isDashboardAppPath(pathname: string) {
+  const path = pathname.replace(/\/$/, "").toLowerCase() || "/";
+  return DASHBOARD_APP_PATHS.some((base) => path === base || path.startsWith(`${base}/`));
+}
+
+export function isDashboardAppRoute(routeIds: readonly string[], pathname = "") {
+  if (isDashboardAppPath(pathname)) return true;
+  if (routeIds.includes("/settings_/$section")) return true;
+  return DASHBOARD_APP_PATHS.some((path) => routeIds.includes(path));
+}
+
 export function isWorkbenchRoute(routeIds: readonly string[]) {
   return routeIds.some(
     (id) =>
@@ -166,14 +190,14 @@ export function isWorkbenchRoute(routeIds: readonly string[]) {
       id === "/shoot" ||
       id === "/jobs" ||
       id.startsWith("/shoots/") ||
-      id === "/settings_/$section" ||
-      WORKBENCH_TOOLS.some((t) => t.path === id),
+      (WORKBENCH_TOOLS.some((t) => t.path === id) && !isDashboardAppPath(id)),
   );
 }
 
 /** Signed-in app surfaces, including Dashboard which is not a workbench chrome route. */
 export function isPrivateAppRoute(routeIds: readonly string[], pathname = "") {
   if (isWorkbenchRoute(routeIds)) return true;
+  if (isDashboardAppRoute(routeIds, pathname)) return true;
   const path = pathname.replace(/\/$/, "") || "/";
   return routeIds.includes("/dashboard") || path === "/dashboard";
 }

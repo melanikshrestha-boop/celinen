@@ -53,9 +53,24 @@ describe("chat-first workspace boundaries", () => {
       WORKBENCH_TOOLS.filter((tool) => tool.group === "Connections").map((tool) => tool.path),
     ).toEqual(["/mail", "/research"]);
   });
-  for (const path of ["/workspace", "/shoot", ...WORKBENCH_TOOLS.map((t) => t.path)]) {
+  const dashboardApp = new Set([
+    "/studio",
+    "/deliver",
+    "/develop",
+    "/earnings",
+    "/publish",
+    "/library",
+    "/settings",
+  ]);
+  for (const path of ["/workspace", "/shoot", ...WORKBENCH_TOOLS.map((t) => t.path)].filter(
+    (path) => !dashboardApp.has(path),
+  )) {
     test(`wraps private tool ${path}`, () =>
       expect(isWorkbenchRoute(["__root__", path])).toBe(true));
+  }
+  for (const path of dashboardApp) {
+    test(`dashboard ChatGPT shell owns ${path}`, () =>
+      expect(isWorkbenchRoute(["__root__", path])).toBe(false));
   }
   for (const path of [
     "/",

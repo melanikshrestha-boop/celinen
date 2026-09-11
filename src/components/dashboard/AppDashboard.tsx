@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -23,6 +23,7 @@ import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
 import { destinationPathFor } from "@/lib/workspace-routing";
 import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
+import { DashboardContext } from "./context";
 import "./dashboard.css";
 
 const MAIN = [
@@ -114,10 +115,11 @@ function monthCells(year: number, month: number) {
   );
 }
 
-export function AppDashboard() {
+export function AppDashboard({ children }: { children?: ReactNode }) {
   const account = useAccount();
   const navigate = useNavigate();
   const search = useRouterState({ select: (state) => state.location.searchStr });
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const calendarOpen =
     new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("view") ===
     "calendar";
@@ -317,6 +319,7 @@ export function AppDashboard() {
   const keepRail = shown > 0;
 
   return (
+    <DashboardContext.Provider value={true}>
     <div
       className={`celinen-dash${visual === "mini" ? " is-mini" : visual === "closed" ? " is-closed" : ""}${liveWidth != null ? " is-resizing" : ""}`}
       style={{ ["--rail" as string]: `${shown}px` }}
@@ -340,7 +343,11 @@ export function AppDashboard() {
         <nav className="celinen-dash__nav" aria-label="Dashboard">
           {MAIN.map((item) => {
             const calendar = "view" in item;
-            const on = calendar ? calendarOpen : Boolean("end" in item && item.end) && !calendarOpen;
+            const on = calendar
+              ? calendarOpen
+              : "end" in item && item.end
+                ? pathname === "/dashboard" && !calendarOpen
+                : pathname === item.to || pathname.startsWith(`${item.to}/`);
             return (
               <Link
                 key={item.label}
@@ -368,11 +375,11 @@ export function AppDashboard() {
               key={item.label}
               to={item.to}
               title={item.label}
-              className={
-                "upgrade" in item && item.upgrade
-                  ? "celinen-dash__link celinen-dash__upgrade"
+              className={`${
+                pathname === item.to || pathname.startsWith(`${item.to}/`)
+                  ? "celinen-dash__link is-active"
                   : "celinen-dash__link"
-              }
+              }${"upgrade" in item && item.upgrade ? " celinen-dash__upgrade" : ""}`}
             >
               <item.icon size={18} strokeWidth={1.7} aria-hidden="true" />
               <span>{item.label}</span>
@@ -405,12 +412,14 @@ export function AppDashboard() {
         onLostPointerCapture={onResizeUp}
         onDoubleClick={() => setRail(visual === "open" ? "mini" : "open")}
       />
-      <main className="celinen-dash__body">
+      <main className={`celinen-dash__body${children ? " is-tool" : ""}`}>
         {loading ? (
           <div className="celinen-dash__loading">
             <span className="celinen-dash__spinner" aria-hidden="true" />
             <p>Loading your workspace…</p>
           </div>
+        ) : children ? (
+          children
         ) : calendarOpen ? (
           <section className="celinen-dash__cal" aria-label="Calendar">
             <h1>{now.toLocaleString("en-US", { month: "long", year: "numeric" })}</h1>
@@ -490,5 +499,6 @@ export function AppDashboard() {
         )}
       </main>
     </div>
+    </DashboardContext.Provider>
   );
 }
