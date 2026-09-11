@@ -46,13 +46,14 @@ const RAIL_WIDTH_KEY = "celinen.dashboard.rail.width.v1";
 const OPEN_W = 248;
 const MINI_W = 60;
 const MIN_OPEN = 176;
-const MAX_OPEN = 420;
+/** Open rail stops here — labeled column, not a wide drawer. */
+const MAX_OPEN = OPEN_W;
 const SNAP_MINI = 132;
 
 function readOpenWidth() {
   try {
     const n = Number(localStorage.getItem(RAIL_WIDTH_KEY));
-    if (Number.isFinite(n) && n >= MIN_OPEN && n <= MAX_OPEN) return Math.round(n);
+    if (Number.isFinite(n) && n >= MIN_OPEN) return Math.round(Math.min(MAX_OPEN, n));
   } catch {
     /* ignore */
   }
