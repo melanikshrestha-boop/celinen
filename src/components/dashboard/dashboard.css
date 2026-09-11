@@ -292,7 +292,8 @@ html:has(.celinen-dash) {
   padding: 24px;
   background: #fff;
 }
-.celinen-dash__body.is-tool {
+.celinen-dash__body.is-tool,
+.celinen-dash__body.is-chat {
   padding: 0;
   overflow: auto;
 }
@@ -378,6 +379,24 @@ html:has(.celinen-dash) {
   font-size: 16px;
   line-height: 1.4;
   outline: none;
+}
+/* Home reuses the Ocoya composer. Do not collapse it into the ChatGPT pill. */
+.social-post .celinen-dash__composer {
+  display: block;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  padding: 18px 18px 12px;
+  border: 1px solid #e6edf3;
+  border-radius: 22px;
+  box-shadow: 0 10px 32px #142a360f;
+}
+.social-post .celinen-dash__composer textarea {
+  flex: none;
+  width: 100%;
+  min-height: 120px;
+  max-height: none;
+  margin: 0;
 }
 .celinen-dash__plus,
 .celinen-dash__send {
