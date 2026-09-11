@@ -10,6 +10,7 @@ type HomePlan = {
   price: string;
   period?: string;
   billed: string;
+  save?: string;
   points: readonly Point[];
   cta: string;
   to: "/signup" | "/auth";
@@ -90,7 +91,10 @@ export function PlanCardGrid({ plans }: { plans: readonly HomePlan[] }) {
               </>
             )}
           </p>
-          <p className="home-pricing__billed">{plan.billed}</p>
+          <p className="home-pricing__billed">
+            {plan.billed}
+            {plan.save ? <span className="home-pricing__save">{plan.save}</span> : null}
+          </p>
           <Link to={plan.to} search={plan.search}>
             {plan.cta}
           </Link>
@@ -117,7 +121,10 @@ export function plansForAudience(
 ): HomePlan[] {
   const hobbyAmt = yearly ? 16 : 20;
   const creatorAmt = yearly ? 24 : 30;
-  const billedAt = (yearlyRate: number) => `Billed yearly at $${yearlyRate * 12}`;
+  const billedYearly = (monthlyRate: number, yearlyRate: number) => ({
+    billed: `Billed yearly at $${yearlyRate * 12}`,
+    save: `Save $${(monthlyRate - yearlyRate) * 12}`,
+  });
   const enterprise: HomePlan = {
     name: "Enterprise",
     price: "Custom",
@@ -136,7 +143,7 @@ export function plansForAudience(
         name: "Crew",
         price: String(crew),
         period: "/ user /month",
-        billed: billedAt(32),
+        ...billedYearly(40, 32),
         points: [{ label: "5,000 credits/month", included: true, accent: true }, ...HOBBY_POINTS],
         cta: "Choose Crew",
         to: "/signup",
@@ -146,7 +153,7 @@ export function plansForAudience(
         name: "Studio",
         price: String(studio),
         period: "/ user /month",
-        billed: billedAt(64),
+        ...billedYearly(80, 64),
         points: [{ label: "25,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
         cta: "Choose Studio",
         to: "/signup",
@@ -161,7 +168,7 @@ export function plansForAudience(
       name: "Hobby",
       price: String(hobbyAmt),
       period: "/month",
-      billed: billedAt(16),
+      ...billedYearly(20, 16),
       points: [{ label: "1,000 credits/month", included: true, accent: true }, ...HOBBY_POINTS],
       cta: "Choose Hobby",
       to: "/signup",
@@ -171,7 +178,7 @@ export function plansForAudience(
       name: "Creator",
       price: String(creatorAmt),
       period: "/month",
-      billed: billedAt(24),
+      ...billedYearly(30, 24),
       points: [{ label: "5,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
       cta: "Choose Creator",
       to: "/signup",
