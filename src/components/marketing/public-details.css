@@ -260,6 +260,9 @@
   margin-top: 16px;
   padding-top: 0;
 }
+.marketing-page .marketing-public-page:has(.docs-ref) {
+  max-width: 1180px;
+}
 .marketing-public-page {
   max-width: 1120px;
   margin-inline: auto;

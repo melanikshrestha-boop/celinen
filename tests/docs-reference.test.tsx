@@ -54,4 +54,7 @@ test("docs styling stays public-scoped", () => {
   expect(css).toContain("#7dcfff");
   expect(css).toContain("#9ece6a");
   expect(css).toContain("#bb9af7");
+  expect(css).toContain("13.5rem minmax(0, 1fr)");
+  expect(css).toContain("9.5rem minmax(0, 1fr)");
+  expect(css).not.toMatch(/@media \(max-width: 800px\)[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
