@@ -82,6 +82,42 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
   expect(html).not.toContain("Origin");
 });
 
+test("yearly goal is chips and collected, not HoneyBook copy or insurance", () => {
+  const html = renderToStaticMarkup(
+    createElement(FinanceOverview, {
+      books,
+      rows: [],
+      today: "2026-09-10",
+      money: (value) => `USD ${(value / 100).toFixed(2)}`,
+      onOpen: () => {},
+      yearCollectedMinor: 250000,
+      goalMinor: null,
+      onGoal: () => {},
+      onAsk: () => {},
+    }),
+  );
+  expect(html).toContain("40k");
+  expect(html).toContain("Ask");
+  expect(html).not.toContain("New year, new goals");
+  expect(html).not.toContain("small business insurance");
+  expect(html).not.toContain("QuickBooks");
+  const set = renderToStaticMarkup(
+    createElement(FinanceOverview, {
+      books,
+      rows: [],
+      today: "2026-09-10",
+      money: (value) => `USD ${(value / 100).toFixed(2)}`,
+      onOpen: () => {},
+      yearCollectedMinor: 250000,
+      goalMinor: 4_000_000,
+      onGoal: () => {},
+    }),
+  );
+  expect(set).toContain("progressbar");
+  expect(set).toContain("/ mo");
+  expect(set).not.toContain("40k");
+});
+
 test("invest and equity stay honest about photographer books", () => {
   const invest = renderToStaticMarkup(
     createElement(FinanceInvest, {

@@ -13,10 +13,12 @@ import {
   buildEarningsLedger,
   filterEarningsRows,
   earningsCsv,
+  summarizeEarnings,
   type EarningsFilter,
   type EarningsInvoice,
   type EarningsRow,
 } from "@/lib/earnings-ledger";
+import { readRevenueGoal, writeRevenueGoal } from "@/lib/revenue-goal";
 import {
   addTransaction,
   saveClient,
@@ -139,6 +141,10 @@ function EarningsContent() {
     });
   };
   const today = localDate(new Date());
+  const year = Number(today.slice(0, 4));
+  const [goalMinor, setGoalMinor] = useState<number | null>(() =>
+    account?.scope ? readRevenueGoal(account.scope, year) : null,
+  );
   const dateRange = useMemo(() => earningsPeriodRange(period, today), [period, today]);
   const shoots = data.localMode
     ? directory.rows.map((row) => ({ id: row.key, name: row.title }))
@@ -282,6 +288,20 @@ function EarningsContent() {
       return null;
     }
   }, [unavailable, ledger.rows, dateRange, today, currency, shootFilter]);
+  const yearCollectedMinor = useMemo(() => {
+    if (unavailable) return 0;
+    try {
+      return (
+        summarizeEarnings(ledger.rows, {
+          period: { from: `${year}-01-01`, to: today },
+          today,
+          currency,
+        }).find((row) => row.currency === currency)?.collectedMinor ?? 0
+      );
+    } catch {
+      return 0;
+    }
+  }, [unavailable, ledger.rows, year, today, currency]);
   const money = (value: number | undefined) =>
     unavailable ? "—" : formatEarningsMoney(value ?? 0, currency);
   const balancesAvailable =
@@ -485,6 +505,41 @@ function EarningsContent() {
               if (next === "YTD") setPeriod("year");
               else if (next === "ALL") setPeriod("all");
               else setPeriod("month");
+            }}
+            yearCollectedMinor={yearCollectedMinor}
+            goalMinor={goalMinor}
+            onGoal={(minor) => {
+              if (!account?.scope) return;
+              writeRevenueGoal(account.scope, year, minor);
+              setGoalMinor(minor);
+            }}
+            askBusy={busy}
+            onAsk={(amount) => {
+              void run(async () => {
+                const built = buildLocalInvoiceDraft(
+                  {
+                    clientName: "Pay request",
+                    clientEmail: "",
+                    description: "Pay request",
+                    amount,
+                    currency,
+                    shootId: shootFilter || null,
+                    dueDate: today,
+                  },
+                  {},
+                );
+                if (!built.ok) throw new Error(built.error);
+                if (!data.localMode) {
+                  throw new Error("Open a shoot invoice to request payment on this account.");
+                }
+                const saved = await commitLocalFinanceState(
+                  upsertLocalInvoiceDraft(data.local, built.value),
+                );
+                if (!saved.ok) throw new Error(saved.error);
+                earningsChanged();
+                await data.refresh();
+                setNotice("Draft saved. It is not counted as income.");
+              });
             }}
           />
         ) : desk === "invest" ? (
