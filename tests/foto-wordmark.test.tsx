@@ -30,6 +30,10 @@ test("marketing footer branding is white with a fading giant wordmark", () => {
   expect(footer).toContain("background: #fff");
   expect(footer).not.toContain("#0a0a0a");
   expect(css).toContain(".marketing-footer__giant");
+  const legal = css.match(/\.marketing-footer__legal\s*\{[^}]+\}/)?.[0];
+  expect(legal).toContain("width: calc(100% + 80px)");
+  expect(legal).toContain("margin: 48px -40px 0");
+  expect(legal).not.toContain("1120px");
   expect(css).toContain("background-clip: text");
   expect(css).toContain("grid-template-columns: repeat(4, minmax(0, 1fr))");
   expect(css).toContain("max-height: 0.86em");
