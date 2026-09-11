@@ -1,5 +1,14 @@
+import { highlightDocsCode } from "@/lib/docs-highlight";
 import { FOTO_MCP_URL } from "@/lib/foto-mcp";
 import { PRODUCT_NAME } from "@/lib/product";
+
+function Code({ children }: { children: string }) {
+  return (
+    <pre>
+      <code dangerouslySetInnerHTML={{ __html: highlightDocsCode(children) }} />
+    </pre>
+  );
+}
 
 const TOC = [
   ["introduction", "Introduction"],
@@ -99,9 +108,7 @@ export function DocsReference() {
           <p>
             <strong>Base URL:</strong>
           </p>
-          <pre>
-            <code>{FOTO_MCP_URL}</code>
-          </pre>
+          <Code>{FOTO_MCP_URL}</Code>
           <p>
             <strong>Agent-friendly from day one.</strong> Workflow, plans, and public notes are MCP
             tools at <code>{FOTO_MCP_URL}</code>. See <a href="#mcp">MCP server</a>.
@@ -117,28 +124,24 @@ export function DocsReference() {
             tools. Public MCP list/call for workflow, plans, and articles does not need a key.
           </p>
           <h3>2. Check your credits</h3>
-          <pre>
-            <code>{`curl ${FOTO_MCP_URL} \\
+          <Code>{`curl ${FOTO_MCP_URL} \\
   -H "Content-Type: application/json" \\
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
     "method": "tools/call",
     "params": { "name": "foto_plans", "arguments": {} }
-  }'`}</code>
-          </pre>
+  }'`}</Code>
           <p>Returns published plan names and monthly amounts in USD. Not a quote.</p>
           <h3>3. Walk the shoot</h3>
-          <pre>
-            <code>{`curl ${FOTO_MCP_URL} \\
+          <Code>{`curl ${FOTO_MCP_URL} \\
   -H "Content-Type: application/json" \\
   -d '{
     "jsonrpc": "2.0",
     "id": 2,
     "method": "tools/call",
     "params": { "name": "foto_workflow", "arguments": {} }
-  }'`}</code>
-          </pre>
+  }'`}</Code>
         </section>
 
         <section id="authentication">
@@ -148,9 +151,7 @@ export function DocsReference() {
             account still owns shoots, galleries, and invoices. Do not paste workspace secrets into
             a prompt.
           </p>
-          <pre>
-            <code>Authorization: Bearer your_key_here</code>
-          </pre>
+          <Code>Authorization: Bearer your_key_here</Code>
           <p>
             Keys are tied to a single account. Rotate from the dashboard. Accounts without an
             active paid plan receive <code>403 subscription_required</code> on billed workspace
@@ -275,12 +276,10 @@ export function DocsReference() {
             keepers. Rejects are flags, not deletes.
           </p>
           <p>Call the workflow tool when an assistant needs the order of work:</p>
-          <pre>
-            <code>{`{
+          <Code>{`{
   "method": "tools/call",
   "params": { "name": "foto_workflow", "arguments": {} }
-}`}</code>
-          </pre>
+}`}</Code>
         </section>
 
         <section id="captions">
@@ -317,12 +316,10 @@ export function DocsReference() {
         <section id="credits">
           <h2>Credits</h2>
           <p>Photo credits come with the published plan. Confirm the amount at checkout.</p>
-          <pre>
-            <code>{`{
+          <Code>{`{
   "method": "tools/call",
   "params": { "name": "foto_plans", "arguments": {} }
-}`}</code>
-          </pre>
+}`}</Code>
           <p>Hobby 1,000 / month. Creator 5,000 / month. Unused credits do not roll into cash.</p>
         </section>
 
@@ -340,8 +337,7 @@ export function DocsReference() {
             </a>
             .
           </p>
-          <pre>
-            <code>{`from openai import OpenAI
+          <Code>{`from openai import OpenAI
 
 client = OpenAI(
     api_key="<YOUR_XAI_API_KEY_HERE>",
@@ -357,8 +353,7 @@ response = client.responses.create(
         "server_label": "celinen",
     }],
 )
-print(response.output_text)`}</code>
-          </pre>
+print(response.output_text)`}</Code>
         </section>
 
         <section id="changelog">
