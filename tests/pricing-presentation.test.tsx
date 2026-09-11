@@ -186,30 +186,42 @@ if (!process.argv.includes(fixtureFlag)) {
             /prorated|SSO and seat management|Cancel any time|within 14 days|100 photos per month|Everything in Free|catalog import/,
           );
           if (audience === "personal") {
-            assert.match(visible, /Billed yearly at \$192/);
-            assert.match(visible, /Save \$48/);
-            assert.match(visible, /Billed yearly at \$288/);
-            assert.match(visible, /Save \$72/);
+            if (cycle === "yearly") {
+              assert.match(visible, /Billed yearly at \$192/);
+              assert.match(visible, /Save \$48/);
+              assert.match(visible, /Billed yearly at \$288/);
+              assert.match(visible, /Save \$72/);
+            } else {
+              assert.match(visible, /Billed monthly/);
+              assert.doesNotMatch(visible, /Save \$48/);
+              assert.doesNotMatch(visible, /Save \$72/);
+            }
           }
           if (audience === "teams") {
-            assert.match(visible, /Billed yearly at \$384/);
-            assert.match(visible, /Save \$96/);
-            assert.match(visible, /Billed yearly at \$768/);
-            assert.match(visible, /Save \$192/);
+            if (cycle === "yearly") {
+              assert.match(visible, /Billed yearly at \$384/);
+              assert.match(visible, /Save \$96/);
+              assert.match(visible, /Billed yearly at \$768/);
+              assert.match(visible, /Save \$192/);
+            } else {
+              assert.match(visible, /Billed monthly/);
+              assert.doesNotMatch(visible, /Save \$96/);
+              assert.doesNotMatch(visible, /Save \$192/);
+            }
           }
           assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
           assert.match(visible, /USD/);
           const list = links(html);
           if (audience !== "enterprise") {
             const free = list.find(
-              (link) => link.label === (status === "in" ? "Open workspace" : "Create free account"),
+              (link) => link.label === (status === "in" ? "Dashboard" : "Create free account"),
             );
             assert.ok(free);
-            assert.equal(free.url.pathname, status === "in" ? "/workspace" : "/auth");
+            assert.equal(free.url.pathname, status === "in" ? "/dashboard" : "/auth");
             assert.equal(free.url.searchParams.has("plan"), false);
             if (status !== "in") {
               assert.equal(free.url.searchParams.get("mode"), "signup");
-              assert.equal(free.url.searchParams.get("next"), "/workspace");
+              assert.equal(free.url.searchParams.get("next"), "/dashboard");
             }
             const paid = list.find(
               (link) => link.label === (audience === "teams" ? "Choose Teams" : "Choose Pro"),
@@ -219,8 +231,12 @@ if (!process.argv.includes(fixtureFlag)) {
             assert.equal(paid.url.searchParams.get("plan"), plan);
             assert.equal(paid.url.searchParams.get("billing"), cycle);
             assert.ok(visible.includes(`USD ${cycle === "yearly" ? yearly : monthly}`));
-            assert.ok(visible.includes(`USD ${(monthly - yearly) * 12}`));
-            if (cycle === "yearly") assert.ok(visible.includes(`USD ${yearly * 12}`));
+            if (cycle === "yearly") {
+              assert.ok(visible.includes(`USD ${(monthly - yearly) * 12}`));
+              assert.ok(visible.includes(`USD ${yearly * 12}`));
+            } else {
+              assert.ok(!visible.includes(`Save $`));
+            }
             assert.doesNotMatch(html, /class="pricing-pay"/);
             assert.doesNotMatch(visible, /Choose your plan|you@studio\.com|Studio name|Continue to checkout/);
           } else {
