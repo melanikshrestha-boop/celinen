@@ -1,7 +1,8 @@
 .celinen-dash {
+  --rail: 248px;
   position: relative;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: var(--rail) minmax(0, 1fr);
   min-height: 100svh;
   background: #fff;
   color: #20242b;
@@ -11,16 +12,56 @@
 .celinen-dash.is-closed {
   grid-template-columns: minmax(0, 1fr);
 }
-.celinen-dash.is-mini {
-  grid-template-columns: 60px minmax(0, 1fr);
+.celinen-dash.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+.celinen-dash.is-resizing * {
+  cursor: col-resize;
+  user-select: none;
 }
 .celinen-dash__rail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 16px 12px 18px;
   background: #fff;
   border-right: 1px solid #eef0f3;
+}
+.celinen-dash__resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: max(0px, calc(var(--rail) - 5px));
+  width: 10px;
+  z-index: 8;
+  cursor: col-resize;
+  touch-action: none;
+}
+.celinen-dash.is-closed .celinen-dash__resize,
+.celinen-dash__resize.is-edge {
+  left: 0;
+}
+.celinen-dash__resize:hover,
+.celinen-dash.is-resizing .celinen-dash__resize {
+  background: transparent;
+}
+.celinen-dash__resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  pointer-events: none;
+}
+.celinen-dash__resize:hover::after,
+.celinen-dash.is-resizing .celinen-dash__resize::after {
+  width: 2px;
+  background: #c5cad1;
 }
 .celinen-dash.is-mini .celinen-dash__rail {
   overflow: hidden;
@@ -327,7 +368,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .celinen-dash.is-mini {
-    grid-template-columns: 60px minmax(0, 1fr);
+    grid-template-columns: var(--rail, 60px) minmax(0, 1fr);
+  }
+  .celinen-dash:not(.is-mini):not(.is-closed) .celinen-dash__resize {
+    display: none;
   }
   .celinen-dash__rail {
     flex-direction: row;
