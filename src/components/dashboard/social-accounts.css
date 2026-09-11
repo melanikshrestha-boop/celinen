@@ -1,0 +1,229 @@
+.social-post {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100%;
+  padding: 48px 24px 28px;
+  background:
+    radial-gradient(90% 70% at 50% 0%, #d7ecff 0%, #eef8f3 38%, #ffffff 72%);
+}
+.social-post__hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.social-post__mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #e7f0ff;
+  color: #4d6fff;
+}
+.celinen-dash .social-post__hero h1,
+.social-post__hero h1 {
+  margin: 0;
+  color: #142a36;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-size: clamp(26px, 3.2vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+.social-post__composer {
+  width: min(100%, 720px);
+  padding: 16px 16px 12px;
+  border: 1px solid #e6edf3;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 10px 32px #142a360f;
+}
+.social-post__composer textarea {
+  width: 100%;
+  min-height: 88px;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+  outline: none;
+}
+.social-post__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.social-post__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e6edf3;
+  border-radius: 12px;
+  background: #f7f9fb;
+  color: #3a4450;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.social-post__chip:hover {
+  background: #eef3f8;
+}
+.social-post__spacer {
+  flex: 1;
+}
+.social-post__icon,
+.social-post__send {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.social-post__icon {
+  background: transparent;
+  color: #5b6570;
+}
+.social-post__send {
+  background: #e8eaee;
+  color: #9aa3ad;
+  font-size: 16px;
+}
+.social-post__send:not(:disabled) {
+  background: #4d6fff;
+  color: #fff;
+}
+.social-post__send:disabled {
+  cursor: default;
+}
+.social-post__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(100%, 720px);
+  margin-top: 16px;
+}
+.social-post__suggest button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e6edf3;
+  border-radius: 999px;
+  background: #fff;
+  color: #3a4450;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.social-post__dock {
+  width: min(100%, 720px);
+  margin-top: auto;
+  padding-top: 36px;
+}
+.social-dock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.social-dock__chip,
+.social-dock__plus {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e6edf3;
+  border-radius: 10px;
+  background: #fff;
+  color: #142a36;
+  text-decoration: none;
+  cursor: pointer;
+}
+.social-dock__chip svg,
+.social-picker__mark svg {
+  width: 18px;
+  height: 18px;
+}
+.social-dock__plus {
+  color: #5b6570;
+}
+.social-picker {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 12;
+  width: min(280px, calc(100vw - 32px));
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #eceff2;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 40px #142a361f;
+}
+.social-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.social-picker__row:hover {
+  background: #f4f6f8;
+}
+.social-picker__mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f4f6f8;
+}
+.social-picker__row strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.social-picker__row small {
+  display: block;
+  color: #8b919a;
+  font-size: 12px;
+}
+.social-picker__check {
+  margin-left: auto;
+  color: #16a34a;
+}
+.social-picker__go {
+  margin-left: auto;
+  color: #9aa3ad;
+  font-size: 16px;
+}
+.celinen-dash__social {
+  position: relative;
+  padding: 8px 10px 4px;
+}
+.celinen-dash.is-mini .celinen-dash__social {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+.celinen-dash.is-mini .social-dock.is-mini .social-picker {
+  left: 8px;
+}

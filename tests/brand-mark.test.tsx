@@ -27,6 +27,9 @@ test("connector marks use official X and Snapchat paths, not fat stand-ins", () 
   expect(instagram).toContain("#d6249f");
   expect(instagram).not.toContain("#E4405F");
   expect(instagram).not.toContain("M7.0301.084");
+  expect(renderToStaticMarkup(<BrandMark id="pinterest" />)).toContain("#E60023");
+  expect(renderToStaticMarkup(<BrandMark id="discord" />)).toContain("#5865F2");
+  expect(renderToStaticMarkup(<BrandMark id="mastodon" />)).toContain("#6364FF");
   const source = readFileSync(new URL("../src/lib/connector-orbit.ts", import.meta.url), "utf8");
   expect(source).toContain("0.12");
 });

@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PublishDesk } from "@/components/business/PublishDesk";
+import { SocialAccounts } from "@/components/dashboard/SocialAccounts";
+import { PRODUCT_NAME } from "@/lib/product";
+
 export const Route = createFileRoute("/publish")({
   head: () => ({
-    meta: [{ title: "Publish — LensLabs" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: `Social accounts — ${PRODUCT_NAME}` }, { name: "robots", content: "noindex, nofollow" }],
   }),
-  component: PublishDesk,
+  component: SocialAccounts,
 });

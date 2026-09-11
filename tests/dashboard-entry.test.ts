@@ -40,6 +40,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain('label: "Guide"');
   expect(source).not.toContain('label: "Community"');
   expect(source).toContain("AccountMenu");
+  expect(source).toContain("SocialDock");
   expect(source).toContain("Aperture");
   expect(source).toContain('to: "/studio"');
   expect(source).toContain('to: "/deliver"');
