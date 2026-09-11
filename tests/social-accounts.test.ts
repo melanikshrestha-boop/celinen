@@ -39,8 +39,17 @@ test("social catalog includes the popular networks from the picker", () => {
     "utf8",
   );
   expect(page).toContain("What should we post?");
+  expect(page).toContain("Turn a simple idea into a polished, on-brand social post");
+  expect(page).toContain("Hashtags");
+  expect(page).toContain("Professional");
+  expect(page).toContain("Medium");
+  expect(page).toContain("Generate inside");
+  expect(page).toContain("Create a campaign");
+  expect(page).toContain("Browse templates");
   expect(page).not.toContain("Good work deserves to be seen");
   expect(page).not.toContain("Ocoya");
+  expect(page).not.toContain("Planner");
+  expect(page).not.toContain("Campaigns");
   const dock = readFileSync(
     new URL("../src/components/dashboard/SocialDock.tsx", import.meta.url),
     "utf8",
