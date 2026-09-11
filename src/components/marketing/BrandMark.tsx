@@ -353,6 +353,15 @@ export function BrandMark({ id }: { id: string }) {
           />
         </svg>
       );
+    case "gmail":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#4285F4" d="M1.5 6.75v10.5A1.75 1.75 0 0 0 3.25 19H5.5V9.4L12 14.15 1.5 6.75z" />
+          <path fill="#34A853" d="M18.5 19h2.25A1.75 1.75 0 0 0 22.5 17.25V6.75L12 14.15 18.5 19z" />
+          <path fill="#EA4335" d="M1.5 6.75C1.5 4.9 3.6 3.85 5.05 4.9L12 10.4V14.15L1.5 6.75z" />
+          <path fill="#FBBC04" d="M22.5 6.75C22.5 4.9 20.4 3.85 18.95 4.9L12 10.4v3.75l10.5-7.4z" />
+        </svg>
+      );
     default:
       return null;
   }
