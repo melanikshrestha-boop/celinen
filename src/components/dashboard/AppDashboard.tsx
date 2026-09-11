@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -48,6 +48,33 @@ type DashMessage = { id: string; role: Role; text: string };
 type DashThread = { id: string; title: string; messages: DashMessage[]; updatedAt: number };
 
 const RAIL_KEY = "celinen.dashboard.rail.v1";
+const RAIL_WIDTH_KEY = "celinen.dashboard.rail.width.v1";
+const OPEN_W = 248;
+const MINI_W = 60;
+const MIN_OPEN = 176;
+const MAX_OPEN = 420;
+const SNAP_MINI = 132;
+const SNAP_CLOSE = 36;
+
+function readOpenWidth() {
+  try {
+    const n = Number(localStorage.getItem(RAIL_WIDTH_KEY));
+    if (Number.isFinite(n) && n >= MIN_OPEN && n <= MAX_OPEN) return Math.round(n);
+  } catch {
+    /* ignore */
+  }
+  return OPEN_W;
+}
+function widthToMode(px: number): "open" | "mini" | "closed" {
+  if (px < SNAP_CLOSE) return "closed";
+  if (px < SNAP_MINI) return "mini";
+  return "open";
+}
+function modeWidth(mode: "open" | "mini" | "closed", openW: number) {
+  if (mode === "closed") return 0;
+  if (mode === "mini") return MINI_W;
+  return openW;
+}
 
 function threadKey(scope: string) {
   return `celinen.dashboard.chat.v1:${scope}`;
@@ -113,11 +140,82 @@ export function AppDashboard() {
       /* ignore */
     }
   }
+  const [openWidth, setOpenWidth] = useState(readOpenWidth);
+  const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const drag = useRef<{ startX: number; startW: number } | null>(null);
+  const liveRef = useRef<number | null>(null);
+  const winMove = useRef<(event: globalThis.PointerEvent) => void>(undefined);
+  const winUp = useRef<(event: globalThis.PointerEvent) => void>(undefined);
+  function persistOpenWidth(px: number) {
+    const next = Math.max(MIN_OPEN, Math.min(MAX_OPEN, Math.round(px)));
+    setOpenWidth(next);
+    try {
+      localStorage.setItem(RAIL_WIDTH_KEY, String(next));
+    } catch {
+      /* ignore */
+    }
+  }
+  function shownWidth() {
+    return liveWidth ?? modeWidth(rail, openWidth);
+  }
+  function detachResize() {
+    if (winMove.current) window.removeEventListener("pointermove", winMove.current);
+    if (winUp.current) {
+      window.removeEventListener("pointerup", winUp.current);
+      window.removeEventListener("pointercancel", winUp.current);
+    }
+    winMove.current = undefined;
+    winUp.current = undefined;
+  }
+  function applyLive(px: number) {
+    const next = Math.max(0, Math.min(MAX_OPEN, px));
+    liveRef.current = next;
+    setLiveWidth(next);
+  }
+  function onResizeDown(event: PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startW = shownWidth();
+    drag.current = { startX: event.clientX, startW };
+    applyLive(startW);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* synthetic / no active pointer */
+    }
+    detachResize();
+    winMove.current = (move) => {
+      const start = drag.current;
+      if (!start) return;
+      applyLive(start.startW + move.clientX - start.startX);
+    };
+    winUp.current = () => onResizeUp();
+    window.addEventListener("pointermove", winMove.current);
+    window.addEventListener("pointerup", winUp.current);
+    window.addEventListener("pointercancel", winUp.current);
+  }
+  function onResizeMove(event: PointerEvent<HTMLDivElement>) {
+    const start = drag.current;
+    if (!start) return;
+    applyLive(start.startW + event.clientX - start.startX);
+  }
+  function onResizeUp() {
+    if (!drag.current) return;
+    drag.current = null;
+    detachResize();
+    const px = liveRef.current ?? shownWidth();
+    liveRef.current = null;
+    setLiveWidth(null);
+    const next = widthToMode(px);
+    if (next === "open") persistOpenWidth(px);
+    setRail(next);
+  }
   const [draft, setDraft] = useState("");
   const [threads, setThreads] = useState<DashThread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
+
+  useEffect(() => () => detachResize(), []);
 
   useEffect(() => {
     if (account?.status === "out")
@@ -214,11 +312,16 @@ export function AppDashboard() {
     return map;
   }, [shoots, now]);
 
+  const shown = shownWidth();
+  const visual = liveWidth == null ? rail : widthToMode(liveWidth);
+  const keepRail = shown > 0;
+
   return (
     <div
-      className={`celinen-dash${rail === "mini" ? " is-mini" : rail === "closed" ? " is-closed" : ""}`}
+      className={`celinen-dash${visual === "mini" ? " is-mini" : visual === "closed" ? " is-closed" : ""}${liveWidth != null ? " is-resizing" : ""}`}
+      style={{ ["--rail" as string]: `${shown}px` }}
     >
-      {rail !== "closed" ? (
+      {keepRail ? (
       <aside className="celinen-dash__rail">
         <div className="celinen-dash__top">
           <Link to="/dashboard" className="celinen-dash__brand">
@@ -228,8 +331,8 @@ export function AppDashboard() {
           <button
             type="button"
             className="celinen-dash__close"
-            aria-label={rail === "mini" ? "Close sidebar" : "Minimize sidebar"}
-            onClick={() => setRail(rail === "mini" ? "closed" : "mini")}
+            aria-label={visual === "mini" ? "Close sidebar" : "Minimize sidebar"}
+            onClick={() => setRail(visual === "mini" ? "closed" : "mini")}
           >
             <PanelLeft size={18} />
           </button>
@@ -287,6 +390,21 @@ export function AppDashboard() {
           <PanelLeft size={18} />
         </button>
       )}
+      <div
+        className={keepRail ? "celinen-dash__resize" : "celinen-dash__resize is-edge"}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuenow={shown}
+        aria-valuemin={0}
+        aria-valuemax={MAX_OPEN}
+        onPointerDown={onResizeDown}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeUp}
+        onPointerCancel={onResizeUp}
+        onLostPointerCapture={onResizeUp}
+        onDoubleClick={() => setRail(visual === "open" ? "mini" : "open")}
+      />
       <main className="celinen-dash__body">
         {loading ? (
           <div className="celinen-dash__loading">
