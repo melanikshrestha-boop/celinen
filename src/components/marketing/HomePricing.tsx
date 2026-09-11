@@ -125,10 +125,13 @@ export function plansForAudience(
 ): HomePlan[] {
   const hobbyAmt = yearly ? 16 : 20;
   const creatorAmt = yearly ? 24 : 30;
-  const billedYearly = (monthlyRate: number, yearlyRate: number) => ({
-    billed: `Billed yearly at $${yearlyRate * 12}`,
-    save: `Save $${(monthlyRate - yearlyRate) * 12}`,
-  });
+  const billedFor = (monthlyRate: number, yearlyRate: number) =>
+    yearly
+      ? {
+          billed: `Billed yearly at $${yearlyRate * 12}`,
+          save: `Save $${(monthlyRate - yearlyRate) * 12}`,
+        }
+      : { billed: "Billed monthly" };
   const enterprise: HomePlan = {
     name: "Enterprise",
     price: "Custom",
@@ -147,7 +150,7 @@ export function plansForAudience(
         name: "Crew",
         price: String(crew),
         period: "/ user /month",
-        ...billedYearly(40, 32),
+        ...billedFor(40, 32),
         points: [{ label: "5,000 credits/month", included: true, accent: true }, ...HOBBY_POINTS],
         cta: "Choose Crew",
         to: "/signup",
@@ -157,7 +160,7 @@ export function plansForAudience(
         name: "Studio",
         price: String(studio),
         period: "/ user /month",
-        ...billedYearly(80, 64),
+        ...billedFor(80, 64),
         points: [{ label: "25,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
         cta: "Choose Studio",
         to: "/signup",
@@ -172,7 +175,7 @@ export function plansForAudience(
       name: "Hobby",
       price: String(hobbyAmt),
       period: "/month",
-      ...billedYearly(20, 16),
+      ...billedFor(20, 16),
       points: [{ label: "1,000 credits/month", included: true, accent: true }, ...HOBBY_POINTS],
       cta: "Choose Hobby",
       to: "/signup",
@@ -182,7 +185,7 @@ export function plansForAudience(
       name: "Creator",
       price: String(creatorAmt),
       period: "/month",
-      ...billedYearly(30, 24),
+      ...billedFor(30, 24),
       points: [{ label: "5,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
       cta: "Choose Creator",
       to: "/signup",

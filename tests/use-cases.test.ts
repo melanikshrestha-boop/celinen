@@ -81,6 +81,10 @@ describe("use cases", () => {
     expect(marks).not.toContain("#990000");
     expect(marks).not.toContain("Palatino");
     expect(marks).not.toMatch(/>\s*S\s*</);
+    expect(marks).toContain("#034694");
+    expect(marks).toContain("#C9A227");
+    expect(marks).not.toContain('rect x="4.6"');
+    expect(marks).toContain('cx="14" cy="16.4"');
 
     const bigTen = join(root, "public/images/schools/bigten");
     for (const team of BIG_TEN_TEAMS) {
