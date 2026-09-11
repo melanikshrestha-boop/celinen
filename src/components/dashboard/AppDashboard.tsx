@@ -95,27 +95,29 @@ export function AppDashboard() {
     new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("view") ===
     "calendar";
   const [shoots, setShoots] = useState<RecentShoot[]>([]);
-  const [railOpen, setRailOpen] = useState(() => {
+  type RailMode = "open" | "mini" | "closed";
+  const [rail, setRailMode] = useState<RailMode>(() => {
     try {
-      return localStorage.getItem(RAIL_KEY) !== "closed";
+      const stored = localStorage.getItem(RAIL_KEY);
+      if (stored === "mini" || stored === "closed" || stored === "open") return stored;
     } catch {
-      return true;
+      /* ignore */
     }
+    return "open";
   });
+  function setRail(next: RailMode) {
+    setRailMode(next);
+    try {
+      localStorage.setItem(RAIL_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }
   const [draft, setDraft] = useState("");
   const [threads, setThreads] = useState<DashThread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
-
-  function setRail(open: boolean) {
-    setRailOpen(open);
-    try {
-      localStorage.setItem(RAIL_KEY, open ? "open" : "closed");
-    } catch {
-      /* ignore */
-    }
-  }
 
   useEffect(() => {
     if (account?.status === "out")
@@ -213,19 +215,21 @@ export function AppDashboard() {
   }, [shoots, now]);
 
   return (
-    <div className={`celinen-dash${railOpen ? "" : " is-closed"}`}>
-      {railOpen ? (
+    <div
+      className={`celinen-dash${rail === "mini" ? " is-mini" : rail === "closed" ? " is-closed" : ""}`}
+    >
+      {rail !== "closed" ? (
       <aside className="celinen-dash__rail">
         <div className="celinen-dash__top">
           <Link to="/dashboard" className="celinen-dash__brand">
             <LogoMark size={28} />
-            {PRODUCT_NAME}
+            <span>{PRODUCT_NAME}</span>
           </Link>
           <button
             type="button"
             className="celinen-dash__close"
-            aria-label="Close sidebar"
-            onClick={() => setRail(false)}
+            aria-label={rail === "mini" ? "Close sidebar" : "Minimize sidebar"}
+            onClick={() => setRail(rail === "mini" ? "closed" : "mini")}
           >
             <PanelLeft size={18} />
           </button>
@@ -238,6 +242,7 @@ export function AppDashboard() {
               <Link
                 key={item.label}
                 to={item.to}
+                title={item.label}
                 search={calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined}
                 activeOptions={"end" in item || calendar ? { exact: true } : undefined}
                 className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
@@ -259,6 +264,7 @@ export function AppDashboard() {
             <Link
               key={item.label}
               to={item.to}
+              title={item.label}
               className={
                 "upgrade" in item && item.upgrade
                   ? "celinen-dash__link celinen-dash__upgrade"
@@ -276,7 +282,7 @@ export function AppDashboard() {
           type="button"
           className="celinen-dash__open"
           aria-label="Open sidebar"
-          onClick={() => setRail(true)}
+          onClick={() => setRail("open")}
         >
           <PanelLeft size={18} />
         </button>
