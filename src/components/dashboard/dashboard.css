@@ -1,157 +1,97 @@
 .celinen-dash {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100svh;
   background: #fff;
-  color: #0d0d0d;
+  color: #20242b;
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
   color-scheme: light;
 }
 .celinen-dash__rail {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  padding: 12px 10px 14px;
-  background: #f9f9f9;
-}
-.celinen-dash__top {
-  display: flex;
-  align-items: center;
   gap: 4px;
-  margin-bottom: 6px;
+  padding: 16px 12px 18px;
+  background: #fff;
+  border-right: 1px solid #eef0f3;
 }
 .celinen-dash__brand {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 10px;
-  color: #0d0d0d;
-  font-size: 15px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.celinen-dash__icon,
-.celinen-dash__new,
-.celinen-dash__recents button,
-.celinen-dash__recents a,
-.celinen-dash__foot a,
-.celinen-dash__foot button {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #0d0d0d;
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-.celinen-dash__icon {
-  width: 36px;
-  justify-content: center;
-  padding: 0;
-  color: #5d5d5d;
-}
-.celinen-dash__icon:hover,
-.celinen-dash__new:hover,
-.celinen-dash__recents button:hover,
-.celinen-dash__recents a:hover,
-.celinen-dash__foot a:hover,
-.celinen-dash__foot button:hover {
-  background: #ececec;
-}
-.celinen-dash__find {
-  width: 100%;
-  min-height: 36px;
-  margin: 0 0 8px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 10px;
-  background: #ececec;
-  color: inherit;
-  font: inherit;
-  font-size: 14px;
-  outline: none;
-}
-.celinen-dash__new {
-  margin-bottom: 12px;
-  font-weight: 500;
-}
-.celinen-dash__recents {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding-bottom: 12px;
-}
-.celinen-dash__recents p {
-  margin: 14px 10px 4px;
-  color: #8f8f8f;
-  font-size: 12px;
+  min-height: 44px;
+  margin: 0 4px 14px;
+  color: #142a36;
+  font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.03em;
+  text-decoration: none;
 }
-.celinen-dash__recents button,
-.celinen-dash__recents a {
-  overflow: hidden;
-  color: #3d3d3d;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.celinen-dash__brand svg {
+  flex-shrink: 0;
+  color: #142a36;
 }
-.celinen-dash__recents button.is-active {
-  background: #ececec;
-  color: #0d0d0d;
-}
+.celinen-dash__nav,
 .celinen-dash__foot {
-  display: grid;
-  gap: 2px;
-  padding-top: 8px;
-}
-.celinen-dash__stage {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  background: #fff;
+  gap: 2px;
 }
-.celinen-dash__modes {
+.celinen-dash__nav {
+  flex: 1;
+}
+.celinen-dash__foot {
+  padding-top: 12px;
+}
+.celinen-dash__link {
   display: flex;
-  justify-content: center;
-  gap: 4px;
-  padding: 16px 16px 0;
-}
-.celinen-dash__modes button {
-  min-height: 36px;
-  padding: 0 16px;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #6d6d6d;
+  color: #5b6570;
   font: inherit;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.3;
+  text-decoration: none;
   cursor: pointer;
 }
-.celinen-dash__modes button.is-on {
-  background: #f4f4f4;
-  color: #0d0d0d;
+.celinen-dash__link svg {
+  flex-shrink: 0;
 }
-.celinen-dash__loading,
-.celinen-dash__chat,
-.celinen-dash__work {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  padding: 24px 16px 40px;
+.celinen-dash__link:hover {
+  background: #f4f6f8;
+  color: #142a36;
+}
+.celinen-dash__link.is-active {
+  background: #eef2ff;
+  color: #4d6fff;
+  font-weight: 600;
+}
+.celinen-dash__upgrade {
+  color: #4d6fff;
+  font-weight: 600;
+}
+.celinen-dash__upgrade:hover {
+  background: #eef2ff;
+  color: #4d6fff;
+}
+.celinen-dash__body {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f7f8fa;
 }
 .celinen-dash__loading {
+  display: grid;
+  justify-items: center;
   gap: 14px;
-  color: #8f8f8f;
+  color: #8b919a;
+  font-size: 15px;
 }
 .celinen-dash__loading p {
   margin: 0;
@@ -159,8 +99,8 @@
 .celinen-dash__spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid #ececec;
-  border-top-color: #4d6fff;
+  border: 3px solid #e6e8ee;
+  border-top-color: #7b93ff;
   border-radius: 50%;
   animation: celinen-dash-spin 0.8s linear infinite;
 }
@@ -169,118 +109,21 @@
     transform: rotate(360deg);
   }
 }
-.celinen-dash__chat h1 {
-  margin: 0 0 28px;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+.celinen-dash__home {
+  width: min(100%, 640px);
   text-align: center;
 }
-.celinen-dash__thread {
-  width: min(100%, 720px);
-  flex: 1;
-  overflow: auto;
-  padding: 12px 8px 24px;
-}
-.celinen-dash__thread p {
-  width: fit-content;
-  max-width: 85%;
-  margin: 0 0 14px;
-  padding: 10px 14px;
-  border-radius: 18px;
-  font-size: 15px;
-  line-height: 1.45;
-}
-.celinen-dash__thread p[data-role="user"] {
-  margin-left: auto;
-  background: #f4f4f4;
-}
-.celinen-dash__thread p[data-role="assistant"] {
-  background: transparent;
-  padding-left: 0;
-}
-.celinen-dash__composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  width: min(100%, 720px);
-  padding: 10px 10px 10px 8px;
-  border: 1px solid #e5e5e5;
-  border-radius: 28px;
-  background: #fff;
-  box-shadow: 0 8px 28px #0000000f;
-}
-.celinen-dash__composer textarea {
-  flex: 1;
-  min-height: 24px;
-  max-height: 160px;
-  margin: 10px 0;
-  border: 0;
-  resize: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 16px;
-  line-height: 1.4;
-  outline: none;
-}
-.celinen-dash__plus,
-.celinen-dash__send {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-}
-.celinen-dash__plus {
-  background: transparent;
-  color: #5d5d5d;
-}
-.celinen-dash__plus:hover {
-  background: #f4f4f4;
-}
-.celinen-dash__send {
-  background: #4d6fff;
-  color: #fff;
-}
-.celinen-dash__send:disabled {
-  background: #e8e8e8;
-  color: #b0b0b0;
-  cursor: default;
-}
-.celinen-dash__work {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 200px));
-  gap: 10px;
-  justify-content: center;
-  align-content: center;
-}
-.celinen-dash__work a,
-.celinen-dash__work button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 14px;
-  background: #f7f7f7;
-  color: #0d0d0d;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-}
-.celinen-dash__work a:hover,
-.celinen-dash__work button:hover {
-  background: #ececec;
+.celinen-dash__home h1 {
+  margin: 0;
+  color: #142a36;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 .celinen-dash__cal {
   width: min(100%, 920px);
+  align-self: start;
+  justify-self: stretch;
   padding: 12px 8px 32px;
 }
 .celinen-dash__cal h1 {
@@ -296,7 +139,7 @@
 }
 .celinen-dash__cal-week {
   margin-bottom: 8px;
-  color: #8f8f8f;
+  color: #8b919a;
   font-size: 12px;
   font-weight: 600;
   text-align: center;
@@ -304,8 +147,14 @@
 .celinen-dash__cal-day {
   min-height: 92px;
   padding: 8px;
-  border-top: 1px solid #ececec;
+  border-top: 1px solid #eceff3;
+  color: #20242b;
   font-size: 13px;
+}
+.celinen-dash__cal-day span {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 .celinen-dash__cal-day a {
   display: block;
@@ -321,7 +170,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .celinen-dash__rail {
-    max-height: 42vh;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .celinen-dash__nav,
+  .celinen-dash__foot {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 @media (prefers-reduced-motion: reduce) {
