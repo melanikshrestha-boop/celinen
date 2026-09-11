@@ -37,7 +37,7 @@ describe("use cases", () => {
       "utf8",
     );
     expect(menu).toContain("marketing-nav-branch");
-    expect(menu).toContain("onPointerEnter");
+    expect(menu).toContain("footballOpen");
     expect(menu).toContain("ChevronRight");
     expect(menu).toContain("marketing-nav-teams");
     expect(menu).toContain("collisionPadding");
@@ -48,12 +48,12 @@ describe("use cases", () => {
     expect(navCss).toContain(".marketing-nav-teams");
     expect(navCss).toContain("scrollbar-color: #9a9a9a #fff");
     expect(menu).toContain("right: 256");
-    expect(menu).toContain("marketing-nav-feature--label");
-    expect(menu).not.toContain("marketing-nav-chevron-down");
+    expect(menu).toContain("marketing-nav-chevron-down");
     expect(menu).not.toContain("is-start");
     expect(menu).not.toContain("teamsWouldOverflow");
     expect(menu).not.toContain("avoidCollisions={false}");
     expect(menu).toContain("marketing-nav-feature--flyout");
+    expect(menu).not.toContain("onPointerEnter={() => setOpenConference(conference.id)}");
     expect(menu).not.toContain("openCase");
     expect(USE_CASES.some((item) => item.title.includes("Wedding"))).toBe(true);
   });
