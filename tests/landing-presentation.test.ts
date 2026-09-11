@@ -256,6 +256,12 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.match(html, />Accept</);
     assert.match(html, />Reject</);
     assert.ok(html.includes('id="workflow"'));
+    assert.ok(html.includes("Lens, but less between you and your next shoot."));
+    assert.ok(!html.includes("From the first frame"));
+    assert.ok(html.includes('id="possibilities"'));
+    assert.ok(html.includes("Less busywork."));
+    assert.ok(html.includes("Find your favorites."));
+    assert.ok(html.includes("Start small. Dream in full frame."));
     assert.ok(html.includes('id="savings"'));
     for (const step of ["Import", "Cull", "Edit", "Finish", "Deliver"])
       assert.ok(html.includes(`<h3>${step}</h3>`), `Real workflow step ${step} is missing`);

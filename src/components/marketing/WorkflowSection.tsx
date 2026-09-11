@@ -39,8 +39,7 @@ export function WorkflowSection() {
       aria-labelledby="workflow-heading"
     >
       <div data-reveal>
-        <p className="marketing-value__eyebrow">From the first frame to the final gallery</p>
-        <h2 id="workflow-heading">Less between you and your next shoot.</h2>
+        <h2 id="workflow-heading">Lens, but less between you and your next shoot.</h2>
       </div>
       <div className="marketing-workflow__carousel" aria-label="Photography workflow">
         {WORKFLOW.map(({ title, icon: Icon, copy, ...rest }, index) => (
