@@ -97,6 +97,9 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(motion).toContain("animation: marketing-hero-develop");
     expect(motion).toContain("animation: marketing-hero-ken");
     expect(motion).toContain("animation: marketing-hero-rise");
+    expect(motion).toContain("animation: marketing-bob");
+    expect(motion).toContain("animation: marketing-wheel-turn");
+    expect(motion).toContain("cubic-bezier(0.21, 0.68, 0.35, 1)");
     expect(css).toMatch(/\.marketing-hero\s*\{[^}]*border-radius:\s*28px/);
     expect(css).toMatch(/\.marketing-hero\s*\{[^}]*min\(100% - 40px/);
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
