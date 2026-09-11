@@ -1,7 +1,6 @@
 import { collectDroppedFiles, type DroppedFilesResult } from "../studio/drop-import";
 import { readImportSidecars, sidecarKey, supportedPhoto } from "../studio/ingest";
-import { defaultDevelopSettings } from "./contract";
-import { developEngineStatus, renderDevelop } from "./client";
+import { prepareDevelopPreview } from "./preview";
 import { completeDevelopImportIds, runDevelopImport, type DevelopImportProgress } from "./import";
 import {
   createDevelopStore,
@@ -71,39 +70,8 @@ export async function prepareDevelopImportPreview(
   input: DevelopPhotoInput,
   signal: AbortSignal,
 ): Promise<DevelopPhotoInput> {
-  let preview: Blob;
-  let previewOrigin: DevelopPhotoInput["previewOrigin"] = input.isRaw ? "unknown" : "raster";
-  try {
-    preview = await renderDevelop(file, defaultDevelopSettings(), {
-      edge: 1600,
-      signal,
-      priority: "background",
-    });
-  } catch (error) {
-    signal.throwIfAborted();
-    if (!input.isRaw || !(await developEngineStatus())?.rawSupported) throw error;
-    preview = await renderDevelop(file, defaultDevelopSettings(), {
-      edge: 1600,
-      sourceMode: "raw",
-      signal,
-      priority: "background",
-    });
-    previewOrigin = "raw-demosaic";
-  }
-  signal.throwIfAborted();
-  const bitmap = await createImageBitmap(preview);
-  try {
-    signal.throwIfAborted();
-    return {
-      ...input,
-      previewBlob: preview,
-      previewOrigin,
-      width: bitmap.width,
-      height: bitmap.height,
-    };
-  } finally {
-    bitmap.close();
-  }
+  const preview = await prepareDevelopPreview(file, input, signal, { priority: "background" });
+  return { ...input, ...preview };
 }
 
 async function browserImportLock(name: string, work: (exclusive: boolean) => Promise<void>) {

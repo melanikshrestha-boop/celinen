@@ -102,6 +102,23 @@ afterEach(() => {
   else Reflect.deleteProperty(globalThis, "window");
 });
 
+describe("Develop engine status cache", () => {
+  test("a failed status is not reused as a five-second ready cache", async () => {
+    statusCalls = 0;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      if (input === "/__develop/status") {
+        statusCalls++;
+        return Response.json({ error: "down" }, { status: 503 });
+      }
+      throw new Error("Unexpected test request");
+    }) as typeof fetch;
+    expect(await developEngineStatus(true)).toBe(null);
+    expect(statusCalls).toBe(1);
+    expect(await developEngineStatus()).toBe(null);
+    expect(statusCalls).toBe(2);
+  });
+});
+
 describe("Develop high-resolution capability gate", () => {
   test("old engine capability fails clearly before sending a larger source request", async () => {
     await expect(renderDevelop(source, undefined, { edge: 8192 })).rejects.toThrow(

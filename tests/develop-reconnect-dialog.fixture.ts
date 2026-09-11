@@ -107,7 +107,7 @@ mock.module("../src/lib/develop/reconnect", () => ({
   runDevelopReconnect: (...args: Parameters<typeof execute>) => execute(...args),
 }));
 mock.module("../src/lib/develop/client", () => ({
-  developEngineStatus: async () => ({ rawSupported: true }),
+  developEngineStatus: async () => ({ ready: true, token: "test-token", rawSupported: true }),
   renderDevelop: (...args: Parameters<typeof renderNative>) => renderNative(...args),
 }));
 const { DevelopReconnectDialog } = await import("../src/components/develop/DevelopReconnectDialog");

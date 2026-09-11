@@ -48,13 +48,13 @@
 }
 .develop-reconnect-list > li:hover,
 .develop-reconnect-list > li:focus-within {
-  background: #ffffff09;
+  background: var(--dv-hover);
 }
 .develop-reconnect-list label {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #e3e3e3;
+  color: var(--dv-text);
   min-height: 20px;
 }
 .develop-reconnect-description {
@@ -71,7 +71,7 @@
 .develop-reconnect-list input {
   margin: 0;
   flex-shrink: 0;
-  accent-color: #e3e3e3;
+  accent-color: var(--dv-text);
 }
 .develop-reconnect-name {
   min-width: 0;
@@ -81,7 +81,7 @@
   white-space: nowrap;
 }
 .develop-reconnect-badge {
-  color: #c2c2c2;
+  color: var(--dv-muted);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -93,7 +93,7 @@
 .develop-reconnect-path {
   display: block;
   margin: 3px 0 0 21px;
-  color: #9e9e9e;
+  color: var(--dv-muted);
   font-size: 11px;
   overflow: hidden;
   white-space: nowrap;
@@ -101,7 +101,7 @@
 }
 .develop-reconnect-pagination {
   flex-wrap: wrap;
-  color: #b8b8b8;
+  color: var(--dv-muted);
   font-size: 11px;
 }
 .develop-reconnect-pagination > span {
@@ -118,7 +118,7 @@
 }
 .develop-reconnect-issues {
   margin-top: 12px;
-  color: #bdbdbd;
+  color: var(--dv-muted);
 }
 .develop-reconnect-issues summary {
   cursor: pointer;
@@ -138,7 +138,7 @@
 }
 .develop-reconnect-issues strong {
   font-weight: 500;
-  color: #ddd;
+  color: var(--dv-text);
 }
 .develop-reconnect .develop-dialog-actions {
   margin-top: 16px;
