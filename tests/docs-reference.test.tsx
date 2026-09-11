@@ -51,9 +51,13 @@ test("docs styling stays public-scoped", () => {
   expect(css).toContain("font-size: 13.5px");
   expect(css).toContain("box-shadow: none");
   expect(css).toContain(".docs-tok-key");
-  expect(css).toContain("#7dcfff");
-  expect(css).toContain("#9ece6a");
-  expect(css).toContain("#bb9af7");
+  expect(css).toContain("background: #000");
+  expect(css).toContain("#f3f3f3");
+  expect(css).toContain("#d7b3ff");
+  expect(css).toContain("#c6f07a");
+  expect(css).toContain("#9ae8ff");
+  expect(css).not.toContain("#1a1b26");
+  expect(css).not.toContain("#c0caf5");
   expect(css).toContain("13.5rem minmax(0, 1fr)");
   expect(css).toContain("9.5rem minmax(0, 1fr)");
   expect(css).not.toMatch(/@media \(max-width: 800px\)[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
