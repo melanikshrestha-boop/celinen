@@ -536,6 +536,7 @@
     0 0 28px #8aa4ff73;
 }
 .marketing-page .marketing-hero .marketing-action--primary {
+  margin-inline: auto;
   background: #fff;
   color: #142a36;
   box-shadow: none;
