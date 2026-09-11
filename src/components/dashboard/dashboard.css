@@ -239,12 +239,13 @@ html:has(.celinen-dash) {
   width: 100%;
   padding: 24px 16px 40px;
 }
-.celinen-dash__chat h1 {
+.celinen-dash .celinen-dash__chat h1 {
   margin: 0 0 28px;
-  color: #142a36;
-  font-size: clamp(28px, 4vw, 40px);
-  font-weight: 600;
-  letter-spacing: -0.04em;
+  color: #20242b;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 400;
+  letter-spacing: -0.022em;
   text-align: center;
 }
 .celinen-dash__thread {
