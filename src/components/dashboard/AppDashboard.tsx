@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  ArrowUp,
   BarChart3,
   BookOpen,
   Calendar,
   Home,
   Images,
+  PanelLeft,
+  Plus,
   Scissors,
   Settings,
   Share2,
@@ -18,6 +21,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { LogoMark } from "@/components/lensos/Logo";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
+import { destinationPathFor } from "@/lib/workspace-routing";
 import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
 import "./dashboard.css";
 
@@ -39,6 +43,42 @@ const FOOT = [
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
+type Role = "user" | "assistant";
+type DashMessage = { id: string; role: Role; text: string };
+type DashThread = { id: string; title: string; messages: DashMessage[]; updatedAt: number };
+
+const RAIL_KEY = "celinen.dashboard.rail.v1";
+
+function threadKey(scope: string) {
+  return `celinen.dashboard.chat.v1:${scope}`;
+}
+function readThreads(scope: string): DashThread[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(threadKey(scope)) ?? "[]") as DashThread[];
+    return Array.isArray(parsed) ? parsed.slice(0, 40) : [];
+  } catch {
+    return [];
+  }
+}
+function writeThreads(scope: string, threads: DashThread[]) {
+  localStorage.setItem(threadKey(scope), JSON.stringify(threads.slice(0, 40)));
+}
+function titleFrom(text: string) {
+  const line = text.trim().replace(/\s+/g, " ");
+  return line.slice(0, 42) || "Chat";
+}
+function replyFor(text: string) {
+  const path = destinationPathFor(text);
+  if (path === "/earnings") return { text: "Opening Analytics.", href: "/earnings" };
+  if (path === "/deliver") return { text: "Opening Galleries.", href: "/deliver" };
+  if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
+  if (path === "/adobe") return { text: "Opening Develop.", href: "/develop" };
+  if (path === "/studio") return { text: "Opening Pick.", href: "/studio" };
+  if (path === "/video") return { text: "Opening video.", href: "/video" };
+  if (path === "/bookings") return { text: "Opening Calendar.", href: "/dashboard" };
+  return { text: "Say send a gallery, check earnings, or open Pick to keep frames.", href: null };
+}
+
 function monthCells(year: number, month: number) {
   const first = new Date(year, month, 1).getDay();
   const days = new Date(year, month + 1, 0).getDate();
@@ -55,6 +95,27 @@ export function AppDashboard() {
     new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("view") ===
     "calendar";
   const [shoots, setShoots] = useState<RecentShoot[]>([]);
+  const [railOpen, setRailOpen] = useState(() => {
+    try {
+      return localStorage.getItem(RAIL_KEY) !== "closed";
+    } catch {
+      return true;
+    }
+  });
+  const [draft, setDraft] = useState("");
+  const [threads, setThreads] = useState<DashThread[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const end = useRef<HTMLDivElement>(null);
+
+  function setRail(open: boolean) {
+    setRailOpen(open);
+    try {
+      localStorage.setItem(RAIL_KEY, open ? "open" : "closed");
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (account?.status === "out")
@@ -71,6 +132,9 @@ export function AppDashboard() {
   useEffect(() => {
     if (!scope) return;
     let alive = true;
+    const rows = readThreads(scope);
+    setThreads(rows);
+    setActiveId(rows[0]?.id ?? null);
     void listRecentShoots(scope)
       .then((rows) => {
         if (alive) setShoots(rows);
@@ -82,6 +146,57 @@ export function AppDashboard() {
       alive = false;
     };
   }, [scope]);
+
+  const active = threads.find((thread) => thread.id === activeId) ?? null;
+
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [active?.messages.length]);
+
+  function persist(next: DashThread[], id: string | null) {
+    if (!scope) return;
+    setThreads(next);
+    setActiveId(id);
+    writeThreads(scope, next);
+  }
+  function send() {
+    const text = draft.trim();
+    if (!text || !scope) return;
+    const reply = replyFor(text);
+    const user: DashMessage = { id: crypto.randomUUID(), role: "user", text };
+    const assistant: DashMessage = { id: crypto.randomUUID(), role: "assistant", text: reply.text };
+    const stamp = Date.now();
+    let id = activeId;
+    let next: DashThread[];
+    if (active) {
+      const updated = {
+        ...active,
+        title: active.messages.length ? active.title : titleFrom(text),
+        messages: [...active.messages, user, assistant],
+        updatedAt: stamp,
+      };
+      next = [updated, ...threads.filter((thread) => thread.id !== active.id)];
+      id = updated.id;
+    } else {
+      const created: DashThread = {
+        id: crypto.randomUUID(),
+        title: titleFrom(text),
+        messages: [user, assistant],
+        updatedAt: stamp,
+      };
+      next = [created, ...threads];
+      id = created.id;
+    }
+    setDraft("");
+    persist(next, id);
+    if (reply.href) {
+      const href = reply.href;
+      window.setTimeout(() => {
+        if (href === "/dashboard") void navigate({ to: "/dashboard", search: { view: "calendar" } });
+        else void navigate({ to: href as "/studio" });
+      }, 280);
+    }
+  }
 
   const now = useMemo(() => new Date(), []);
   const cells = monthCells(now.getFullYear(), now.getMonth());
@@ -98,12 +213,23 @@ export function AppDashboard() {
   }, [shoots, now]);
 
   return (
-    <div className="celinen-dash">
+    <div className={`celinen-dash${railOpen ? "" : " is-closed"}`}>
+      {railOpen ? (
       <aside className="celinen-dash__rail">
-        <Link to="/dashboard" className="celinen-dash__brand">
-          <LogoMark size={28} />
-          {PRODUCT_NAME}
-        </Link>
+        <div className="celinen-dash__top">
+          <Link to="/dashboard" className="celinen-dash__brand">
+            <LogoMark size={28} />
+            {PRODUCT_NAME}
+          </Link>
+          <button
+            type="button"
+            className="celinen-dash__close"
+            aria-label="Close sidebar"
+            onClick={() => setRail(false)}
+          >
+            <PanelLeft size={18} />
+          </button>
+        </div>
         <nav className="celinen-dash__nav" aria-label="Dashboard">
           {MAIN.map((item) => {
             const calendar = "view" in item;
@@ -145,6 +271,16 @@ export function AppDashboard() {
           ))}
         </div>
       </aside>
+      ) : (
+        <button
+          type="button"
+          className="celinen-dash__open"
+          aria-label="Open sidebar"
+          onClick={() => setRail(true)}
+        >
+          <PanelLeft size={18} />
+        </button>
+      )}
       <main className="celinen-dash__body">
         {loading ? (
           <div className="celinen-dash__loading">
@@ -176,8 +312,56 @@ export function AppDashboard() {
             </div>
           </section>
         ) : (
-          <div className="celinen-dash__home">
-            <h1>{dashboardGreetingFor(account?.workRole)}</h1>
+          <div className="celinen-dash__chat">
+            {active?.messages.length ? (
+              <div className="celinen-dash__thread">
+                {active.messages.map((message) => (
+                  <p key={message.id} data-role={message.role}>
+                    {message.text}
+                  </p>
+                ))}
+                <div ref={end} />
+              </div>
+            ) : (
+              <h1>{dashboardGreetingFor(account?.workRole)}</h1>
+            )}
+            <form
+              className="celinen-dash__composer"
+              onSubmit={(event) => {
+                event.preventDefault();
+                send();
+              }}
+            >
+              <button
+                type="button"
+                className="celinen-dash__plus"
+                aria-label="Open Pick"
+                onClick={() => void navigate({ to: "/studio" })}
+              >
+                <Plus size={18} />
+              </button>
+              <textarea
+                ref={box}
+                rows={1}
+                value={draft}
+                placeholder="Message"
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    send();
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                className="celinen-dash__send"
+                disabled={!draft.trim()}
+                aria-label="Send"
+              >
+                <ArrowUp size={18} />
+              </button>
+            </form>
           </div>
         )}
       </main>
