@@ -13,4 +13,9 @@ describe("workspace command routing", () => {
     expect(destinationPathFor("review these video clips")).toBe("/video");
     expect(destinationPathFor("cull the strongest RAW photos")).toBe("/studio");
   });
+
+  test("contracts and session bookings open the bookings desk", () => {
+    expect(destinationPathFor("open the sideline contract")).toBe("/bookings");
+    expect(destinationPathFor("college football session types")).toBe("/bookings");
+  });
 });

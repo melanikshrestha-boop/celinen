@@ -1,11 +1,24 @@
 export type WorkspaceDestination =
-  "/studio" | "/video" | "/deliver" | "/clients" | "/earnings" | "/adobe";
+  | "/studio"
+  | "/video"
+  | "/deliver"
+  | "/clients"
+  | "/earnings"
+  | "/adobe"
+  | "/bookings";
 
 export function destinationPathFor(text: string): WorkspaceDestination {
   const value = text.toLowerCase();
 
   // Strong actions beat incidental media or client nouns. "Send these video
   // clips" belongs at delivery; "invoice this shoot" belongs in earnings.
+  if (
+    /\b(contract|contracts|booking|bookings|session types?|questionnaire|quote)\b/.test(
+      value,
+    )
+  ) {
+    return "/bookings";
+  }
   if (
     /\b(earning|earnings|income|expense|invoice|invoicing|bill|billing|money|revenue|tax)\b/.test(
       value,
