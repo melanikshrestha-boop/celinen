@@ -96,28 +96,35 @@
   margin: 24px 0 0;
 }
 
-.marketing-page .docs-ref__btn {
+.marketing-page .docs-ref__actions a,
+.marketing-page .docs-ref__actions a:link,
+.marketing-page .docs-ref__actions a:visited {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 12px 24px;
+  min-height: 48px;
+  padding: 12px 28px;
+  border: 0;
   border-radius: 999px;
-  font-size: 14px;
-  font-weight: 500;
+  background: #4d6fff;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 20px;
   text-decoration: none;
+  box-shadow:
+    0 12px 36px #4d6fff73,
+    0 0 24px #4d6fff59;
 }
 
-.marketing-page .docs-ref__btn--solid {
-  background: #0a0a0a;
+.marketing-page .docs-ref__actions a:hover,
+.marketing-page .docs-ref__actions a:focus-visible {
+  background: #6e86ff;
   color: #fff;
-}
-
-.marketing-page .docs-ref__btn--ghost {
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #0a0a0a;
+  text-decoration: none;
+  box-shadow:
+    0 16px 42px #4d6fff8c,
+    0 0 28px #8aa4ff73;
 }
 
 .marketing-page .docs-ref__body header {
