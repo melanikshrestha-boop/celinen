@@ -108,6 +108,22 @@
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 12px 40px #142a3614;
+  scrollbar-width: thin;
+  scrollbar-color: #9a9a9a #fff;
+}
+.marketing-nav-teams::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.marketing-nav-teams::-webkit-scrollbar-track {
+  background: #fff;
+}
+.marketing-nav-teams::-webkit-scrollbar-thumb {
+  background: #9a9a9a;
+  border-radius: 999px;
+}
+.marketing-nav-teams::-webkit-scrollbar-thumb:hover {
+  background: #c0c0c0;
 }
 .marketing-nav-teams::before {
   content: "";
