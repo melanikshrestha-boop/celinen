@@ -6,6 +6,8 @@ import { PossibilitiesSection } from "@/components/marketing/PossibilitiesSectio
 import { WorkflowSection } from "@/components/marketing/WorkflowSection";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { IntegrationsSection } from "@/components/marketing/IntegrationsSection";
+import { PublishEverywhere } from "@/components/marketing/PublishEverywhere";
+import { LivePhotographers } from "@/components/marketing/LivePhotographers";
 import { HomePricing } from "@/components/marketing/HomePricing";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
 import { SectionGuard } from "@/components/marketing/SectionGuard";
@@ -61,6 +63,7 @@ function Index() {
             fetchPriority="high"
           />
           <div className="marketing-hero__content">
+            <LivePhotographers />
             <h1 id="home-heading">
               Go where the
               <br />
@@ -92,6 +95,9 @@ function Index() {
         </div>
         </div>
         <MarketingStats />
+        <SectionGuard>
+          <PublishEverywhere />
+        </SectionGuard>
         <SectionGuard>
           <PossibilitiesSection />
         </SectionGuard>

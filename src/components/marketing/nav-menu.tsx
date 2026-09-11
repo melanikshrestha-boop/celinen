@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 
-export type NavMenuId = "features" | "use-cases";
+export type NavMenuId = "features" | "use-cases" | "integrations";
 
 const NavMenuContext = createContext<{
   open: NavMenuId | null;

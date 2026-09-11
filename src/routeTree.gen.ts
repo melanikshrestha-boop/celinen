@@ -29,6 +29,7 @@ import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
 import { Route as GalleriesRouteImport } from './routes/galleries'
 import { Route as HelpRouteImport } from './routes/help'
+import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MailRouteImport } from './routes/mail'
@@ -69,6 +70,8 @@ import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as DocsPermissionsRouteImport } from './routes/docs_.permissions'
 import { Route as DocsSettingsRouteImport } from './routes/docs_.settings'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
+import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
+import { Route as IntegrationsSlugRouteImport } from './routes/integrations.$slug'
 import { Route as PPostIdRouteImport } from './routes/p.$postId'
 import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$ownerId'
 import { Route as ReviewIdRouteImport } from './routes/review.$id'
@@ -186,6 +189,11 @@ const GalleriesRoute = GalleriesRouteImport.update({
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntegrationsRoute = IntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -388,6 +396,16 @@ const GSlugRoute = GSlugRouteImport.update({
   path: '/g/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntegrationsIndexRoute = IntegrationsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => IntegrationsRoute,
+} as any)
+const IntegrationsSlugRoute = IntegrationsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => IntegrationsRoute,
+} as any)
 const PPostIdRoute = PPostIdRouteImport.update({
   id: '/p/$postId',
   path: '/p/$postId',
@@ -503,6 +521,7 @@ export interface FileRoutesByFullPath {
   '/earnings': typeof EarningsRoute
   '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
+  '/integrations': typeof IntegrationsRouteWithChildren
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
@@ -542,6 +561,7 @@ export interface FileRoutesByFullPath {
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
+  '/integrations/$slug': typeof IntegrationsSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
@@ -549,6 +569,7 @@ export interface FileRoutesByFullPath {
   '/settings/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
   '/blog/': typeof BlogIndexRoute
+  '/integrations/': typeof IntegrationsIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
@@ -621,12 +642,14 @@ export interface FileRoutesByTo {
   '/docs/permissions': typeof DocsPermissionsRoute
   '/docs/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
+  '/integrations/$slug': typeof IntegrationsSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
   '/blog': typeof BlogIndexRoute
+  '/integrations': typeof IntegrationsIndexRoute
   '/shoots': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
@@ -662,6 +685,7 @@ export interface FileRoutesById {
   '/earnings': typeof EarningsRoute
   '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
+  '/integrations': typeof IntegrationsRouteWithChildren
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/mail': typeof MailRoute
@@ -701,6 +725,7 @@ export interface FileRoutesById {
   '/docs_/permissions': typeof DocsPermissionsRoute
   '/docs_/settings': typeof DocsSettingsRoute
   '/g/$slug': typeof GSlugRoute
+  '/integrations/$slug': typeof IntegrationsSlugRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
   '/review/$id': typeof ReviewIdRoute
@@ -708,6 +733,7 @@ export interface FileRoutesById {
   '/settings_/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
   '/blog/': typeof BlogIndexRoute
+  '/integrations/': typeof IntegrationsIndexRoute
   '/shoots/': typeof ShootsIndexRoute
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
@@ -744,6 +770,7 @@ export interface FileRouteTypes {
     | '/earnings'
     | '/galleries'
     | '/help'
+    | '/integrations'
     | '/jobs'
     | '/library'
     | '/mail'
@@ -783,6 +810,7 @@ export interface FileRouteTypes {
     | '/docs/permissions'
     | '/docs/settings'
     | '/g/$slug'
+    | '/integrations/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
@@ -790,6 +818,7 @@ export interface FileRouteTypes {
     | '/settings/$section'
     | '/shoots/$id'
     | '/blog/'
+    | '/integrations/'
     | '/shoots/'
     | '/api/public/lightroom'
     | '/api/public/traffic'
@@ -862,12 +891,14 @@ export interface FileRouteTypes {
     | '/docs/permissions'
     | '/docs/settings'
     | '/g/$slug'
+    | '/integrations/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
     | '/blog'
+    | '/integrations'
     | '/shoots'
     | '/api/public/lightroom'
     | '/api/public/traffic'
@@ -902,6 +933,7 @@ export interface FileRouteTypes {
     | '/earnings'
     | '/galleries'
     | '/help'
+    | '/integrations'
     | '/jobs'
     | '/library'
     | '/mail'
@@ -941,6 +973,7 @@ export interface FileRouteTypes {
     | '/docs_/permissions'
     | '/docs_/settings'
     | '/g/$slug'
+    | '/integrations/$slug'
     | '/p/$postId'
     | '/photographer/$ownerId'
     | '/review/$id'
@@ -948,6 +981,7 @@ export interface FileRouteTypes {
     | '/settings_/$section'
     | '/shoots/$id'
     | '/blog/'
+    | '/integrations/'
     | '/shoots/'
     | '/api/public/lightroom'
     | '/api/public/traffic'
@@ -983,6 +1017,7 @@ export interface RootRouteChildren {
   EarningsRoute: typeof EarningsRoute
   GalleriesRoute: typeof GalleriesRoute
   HelpRoute: typeof HelpRoute
+  IntegrationsRoute: typeof IntegrationsRouteWithChildren
   JobsRoute: typeof JobsRoute
   LibraryRoute: typeof LibraryRoute
   MailRoute: typeof MailRoute
@@ -1175,6 +1210,13 @@ declare module '@tanstack/react-router' {
       path: '/help'
       fullPath: '/help'
       preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/integrations': {
+      id: '/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof IntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -1457,6 +1499,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/integrations/': {
+      id: '/integrations/'
+      path: '/'
+      fullPath: '/integrations/'
+      preLoaderRoute: typeof IntegrationsIndexRouteImport
+      parentRoute: typeof IntegrationsRoute
+    }
+    '/integrations/$slug': {
+      id: '/integrations/$slug'
+      path: '/$slug'
+      fullPath: '/integrations/$slug'
+      preLoaderRoute: typeof IntegrationsSlugRouteImport
+      parentRoute: typeof IntegrationsRoute
+    }
     '/p/$postId': {
       id: '/p/$postId'
       path: '/p/$postId'
@@ -1586,6 +1642,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface IntegrationsRouteChildren {
+  IntegrationsSlugRoute: typeof IntegrationsSlugRoute
+  IntegrationsIndexRoute: typeof IntegrationsIndexRoute
+}
+
+const IntegrationsRouteChildren: IntegrationsRouteChildren = {
+  IntegrationsSlugRoute: IntegrationsSlugRoute,
+  IntegrationsIndexRoute: IntegrationsIndexRoute,
+}
+
+const IntegrationsRouteWithChildren = IntegrationsRoute._addFileChildren(
+  IntegrationsRouteChildren,
+)
+
 interface ShootsIdRouteChildren {
   ShootsIdCullRoute: typeof ShootsIdCullRoute
   ShootsIdDevelopRoute: typeof ShootsIdDevelopRoute
@@ -1642,6 +1712,7 @@ const rootRouteChildren: RootRouteChildren = {
   EarningsRoute: EarningsRoute,
   GalleriesRoute: GalleriesRoute,
   HelpRoute: HelpRoute,
+  IntegrationsRoute: IntegrationsRouteWithChildren,
   JobsRoute: JobsRoute,
   LibraryRoute: LibraryRoute,
   MailRoute: MailRoute,

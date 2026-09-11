@@ -25,6 +25,9 @@ export function MarketingFooter() {
               <Link to="/use-cases">Use Cases</Link>
             </li>
             <li>
+              <Link to="/integrations">Integrations</Link>
+            </li>
+            <li>
               <Link to="/pricing">Pricing</Link>
             </li>
             <li>

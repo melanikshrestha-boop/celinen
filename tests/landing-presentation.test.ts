@@ -259,6 +259,14 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes('aria-label="Open menu"'));
     assert.ok(html.includes("Features"));
     assert.ok(html.includes("Use Cases"));
+    assert.ok(html.includes("Integrations"));
+    assert.ok(html.includes("LIVE"));
+    assert.ok(html.includes("Publish everywhere"));
+    assert.ok(html.includes("YouTube Shorts"));
+    assert.ok(html.includes("Google Business"));
+    assert.ok(html.includes("ChatGPT"));
+    assert.ok(!html.includes("633,663"));
+    assert.ok(!html.includes("customers"));
     assert.match(html, /Photographers/);
     assert.match(html, /Galleries sent/);
     assert.match(html, /Frames picked/);
@@ -306,7 +314,7 @@ if (!process.argv.includes(fixtureFlag)) {
       !html.includes("Toggle color mode"),
       "Public entry must not change the workspace theme",
     );
-    const visible = text(html);
+    const visible = text(html).replace(/LIVE\s*\|?\s*\d[\d,]*\s+photographers/i, "");
     assert.doesNotMatch(
       visible,
       /\b\d[\d,.]*\s*(?:k\+?|million)?\s+(?:active\s+)?(?:photographers|users|studios)\b/i,

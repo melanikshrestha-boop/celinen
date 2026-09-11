@@ -13,6 +13,7 @@ import {
 
 import { ArrowRight, Menu } from "lucide-react";
 import { FeaturesMenu } from "@/components/marketing/FeaturesMenu";
+import { IntegrationsMenu } from "@/components/marketing/IntegrationsMenu";
 import { UseCasesMenu } from "@/components/marketing/UseCasesMenu";
 import { NavMenuProvider } from "@/components/marketing/nav-menu";
 
@@ -44,6 +45,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
             <nav className="marketing-nav__links" aria-label="Main navigation">
               <FeaturesMenu />
               <UseCasesMenu />
+              <IntegrationsMenu />
               <Link to="/pricing">Pricing</Link>
               <Link to="/docs">Docs</Link>
             </nav>
@@ -67,6 +69,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
                 {[
                   { to: "/product", label: "Product" },
                   { to: "/use-cases", label: "Use Cases" },
+                  { to: "/integrations", label: "Integrations" },
                   { to: "/pricing", label: "Pricing" },
                   { to: "/docs", label: "Docs" },
                   { to: "/blog", label: "Blog" },
