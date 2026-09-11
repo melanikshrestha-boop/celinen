@@ -16,7 +16,8 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
     "utf8",
   );
   expect(nav).toContain("NavMenuProvider");
-  expect(features).toContain('useNavMenu("features")');
-  expect(useCases).toContain('useNavMenu("use-cases")');
+  expect(features).toContain('useNavMenuHover("features")');
+  expect(useCases).toContain('useNavMenuHover("use-cases")');
+  expect(hook).toContain("openNow");
   expect(hook).toContain("current === id ? null : current");
 });

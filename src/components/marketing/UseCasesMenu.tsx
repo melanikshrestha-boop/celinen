@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UseCaseMark } from "@/components/marketing/UseCaseMark";
-import { useNavMenu } from "@/components/marketing/nav-menu";
+import { useNavMenuHover } from "@/components/marketing/nav-menu";
 import {
   ACC_TEAMS,
   BIG12_TEAMS,
@@ -88,14 +88,20 @@ function CaseRow({
   );
 }
 
+function teamsWouldOverflow(node: HTMLElement | null) {
+  if (!node) return false;
+  return node.getBoundingClientRect().right + 248 > window.innerWidth - 8;
+}
+
 export function UseCasesMenu() {
-  const menu = useNavMenu("use-cases");
+  const menu = useNavMenuHover("use-cases");
   const [openCase, setOpenCase] = useState<string | null>(null);
   const [openConference, setOpenConference] = useState<string | null>(null);
+  const [flipTeams, setFlipTeams] = useState(false);
   return (
     <DropdownMenu
       modal
-      {...menu}
+      open={menu.open}
       onOpenChange={(next) => {
         menu.onOpenChange?.(next);
         if (!next) {
@@ -104,67 +110,90 @@ export function UseCasesMenu() {
         }
       }}
     >
-      <DropdownMenuTrigger className="marketing-nav__link">
+      <DropdownMenuTrigger
+        className="marketing-nav__link"
+        onPointerEnter={menu.openNow}
+        onPointerLeave={menu.closeSoon}
+      >
         Use Cases
         <ChevronDown size={14} aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         sideOffset={10}
-        className="marketing-nav-menu marketing-nav-features marketing-nav-features--long"
+        onPointerEnter={menu.openNow}
+        onPointerLeave={menu.closeSoon}
+        className="marketing-nav-menu marketing-nav-features marketing-nav-use-cases"
       >
         {USE_CASES.map((item) =>
           "conferences" in item && item.conferences ? (
-            <div key={item.id} className="marketing-nav-branch">
+            <div
+              key={item.id}
+              className="marketing-nav-branch"
+              onPointerEnter={() => {
+                setOpenCase(item.id);
+                setOpenConference(null);
+              }}
+            >
               <button
                 type="button"
                 className="marketing-nav-feature marketing-nav-feature--flyout"
                 data-state={openCase === item.id ? "open" : undefined}
                 aria-expanded={openCase === item.id}
-                onClick={() => {
-                  setOpenCase((current) => (current === item.id ? null : item.id));
-                  setOpenConference(null);
-                }}
               >
                 <CaseRow mark={item.mark} title={item.title} copy={item.copy} />
-                <ChevronDown size={14} aria-hidden="true" />
+                <ChevronDown size={14} aria-hidden="true" className="marketing-nav-chevron-down" />
               </button>
               {openCase === item.id
                 ? item.conferences.map((conference) => (
-                    <div key={conference.id} className="marketing-nav-branch marketing-nav-branch--in">
+                    <div
+                      key={conference.id}
+                      className="marketing-nav-conference marketing-nav-branch--in"
+                      onPointerEnter={(event) => {
+                        setFlipTeams(teamsWouldOverflow(event.currentTarget));
+                        setOpenConference(conference.id);
+                      }}
+                    >
                       <button
                         type="button"
                         className="marketing-nav-feature marketing-nav-feature--flyout"
                         data-state={openConference === conference.id ? "open" : undefined}
                         aria-expanded={openConference === conference.id}
-                        onClick={() =>
-                          setOpenConference((current) =>
-                            current === conference.id ? null : conference.id,
-                          )
-                        }
                       >
                         <CaseRow mark={conference.mark} title={conference.title} />
-                        <ChevronDown size={14} aria-hidden="true" />
+                        <ChevronRight size={14} aria-hidden="true" className="marketing-nav-chevron-right" />
                       </button>
-                      {openConference === conference.id && "teams" in conference
-                        ? conference.teams.map((team) => (
+                      {openConference === conference.id && "teams" in conference ? (
+                        <div
+                          className={`marketing-nav-teams${flipTeams ? " is-start" : ""}`}
+                          role="menu"
+                        >
+                          {conference.teams.map((team) => (
                             <DropdownMenuItem key={team.id} asChild>
                               <Link
                                 to="/use-cases"
                                 hash={conference.id}
-                                className="marketing-nav-feature marketing-nav-feature--team marketing-nav-branch--in"
+                                className="marketing-nav-feature marketing-nav-feature--team"
                               >
                                 <CaseRow mark={team.id} title={team.title} />
                               </Link>
                             </DropdownMenuItem>
-                          ))
-                        : null}
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ))
                 : null}
             </div>
           ) : (
-            <DropdownMenuItem key={item.id} asChild>
+            <DropdownMenuItem
+              key={item.id}
+              asChild
+              onPointerEnter={() => {
+                setOpenCase(null);
+                setOpenConference(null);
+              }}
+            >
               <Link to="/use-cases" hash={item.id} className="marketing-nav-feature">
                 <CaseRow mark={item.mark} title={item.title} />
               </Link>

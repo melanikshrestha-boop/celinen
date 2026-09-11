@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useNavMenu } from "@/components/marketing/nav-menu";
+import { useNavMenuHover } from "@/components/marketing/nav-menu";
 
 const FEATURES = [
   {
@@ -60,10 +60,14 @@ const FEATURES = [
 ] as const;
 
 export function FeaturesMenu() {
-  const menu = useNavMenu("features");
+  const menu = useNavMenuHover("features");
   return (
-    <DropdownMenu modal {...menu}>
-      <DropdownMenuTrigger className="marketing-nav__link">
+    <DropdownMenu modal open={menu.open} onOpenChange={menu.onOpenChange}>
+      <DropdownMenuTrigger
+        className="marketing-nav__link"
+        onPointerEnter={menu.openNow}
+        onPointerLeave={menu.closeSoon}
+      >
         Features
         <ChevronDown size={14} aria-hidden="true" />
       </DropdownMenuTrigger>
@@ -71,6 +75,8 @@ export function FeaturesMenu() {
         align="start"
         sideOffset={8}
         collisionPadding={12}
+        onPointerEnter={menu.openNow}
+        onPointerLeave={menu.closeSoon}
         className="marketing-nav-menu marketing-nav-features marketing-nav-features--long"
       >
         {FEATURES.map((feature) => {
