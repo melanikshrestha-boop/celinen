@@ -41,6 +41,12 @@ describe("use cases", () => {
     expect(menu).toContain("ChevronRight");
     expect(menu).toContain("marketing-nav-teams");
     expect(menu).toContain("collisionPadding");
+    const navCss = readFileSync(
+      new URL("../src/components/marketing/sky-entry.css", import.meta.url),
+      "utf8",
+    );
+    expect(navCss).toContain(".marketing-nav-teams");
+    expect(navCss).toContain("scrollbar-color: #9a9a9a #fff");
     expect(menu).toContain("right: 256");
     expect(menu).toContain("marketing-nav-feature--label");
     expect(menu).not.toContain("marketing-nav-chevron-down");
