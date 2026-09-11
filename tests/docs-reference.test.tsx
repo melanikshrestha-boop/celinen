@@ -45,6 +45,12 @@ test("docs styling stays public-scoped", () => {
   });
   expect(css).toContain(".docs-ref__actions a:visited");
   expect(css).toContain("background: #4d6fff");
+  expect(css).toContain("a:last-child:is(:hover, :focus-visible, :active)");
+  const page = readFileSync(
+    new URL("../src/components/marketing/marketing-page.css", import.meta.url),
+    "utf8",
+  );
+  expect(page).not.toContain("header > div > a:last-child:hover");
   expect(css).not.toContain("docs-ref__btn--solid");
   expect(css).not.toContain("background: #0a0a0a");
   expect(css).not.toMatch(/border-(?:top|bottom):\s*1px/);

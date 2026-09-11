@@ -57,13 +57,13 @@
   min-width: 44px;
   border-radius: var(--marketing-radius);
 }
-.marketing-page header > div > a:last-child {
+.marketing-page .marketing-nav-cta {
   background: var(--marketing-accent);
   color: #1c1d1e;
   padding-inline: 16px;
   font-weight: 600;
 }
-.marketing-page header > div > a:last-child:hover {
+.marketing-page .marketing-nav-cta:hover {
   background: #f2efea;
   opacity: 1;
 }
@@ -275,7 +275,7 @@
   .marketing-page header > div {
     gap: 4px;
   }
-  .marketing-page header > div > a:last-child {
+  .marketing-page .marketing-nav-cta {
     padding-inline: 10px;
     font-size: 13px;
   }

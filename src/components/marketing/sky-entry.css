@@ -359,7 +359,7 @@
   padding-inline: 14px;
   font-size: 14px;
 }
-.marketing-page header > div > a:last-child {
+.marketing-page .marketing-nav-cta {
   padding-inline: 18px;
   font-weight: 600;
 }
@@ -1073,7 +1073,7 @@
   }
 }
 @media (max-width: 540px) {
-  .marketing-page header > div > a:last-child {
+  .marketing-page .marketing-nav-cta {
     font-size: 12px;
     padding-inline: 13px;
   }
