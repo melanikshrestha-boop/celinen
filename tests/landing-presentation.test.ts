@@ -85,6 +85,15 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("@media (max-width: 540px)");
     expect(css).toContain(".marketing-vista");
+    expect(css).toMatch(/\.marketing-promises\s*\{[^}]*justify-content:\s*center/);
+    expect(css).toMatch(/\.marketing-promises\s*\{[^}]*margin:\s*0 auto/);
+    const motion = readFileSync(
+      new URL("../src/components/marketing/marketing-motion.css", import.meta.url),
+      "utf8",
+    );
+    expect(motion).toContain("animation: marketing-hero-develop");
+    expect(motion).toContain("animation: marketing-hero-ken");
+    expect(motion).toContain("animation: marketing-hero-rise");
     expect(css).toMatch(/\.marketing-hero\s*\{[^}]*border-radius:\s*28px/);
     expect(css).toMatch(/\.marketing-hero\s*\{[^}]*min\(100% - 40px/);
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
