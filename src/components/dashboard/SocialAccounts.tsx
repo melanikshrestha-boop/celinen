@@ -19,6 +19,7 @@ import {
 import { Link, useNavigate } from "@tanstack/react-router";
 import { BrandMark } from "@/components/marketing/BrandMark";
 import { PRODUCT_NAME } from "@/lib/product";
+import { onHapticPress } from "@/lib/haptic-press";
 import "./social-accounts.css";
 
 const TONES = ["Professional", "Casual", "Warm"] as const;
@@ -60,7 +61,7 @@ export function SocialAccounts() {
   }
 
   return (
-    <div className="social-post">
+    <div className="social-post" onPointerDown={onHapticPress}>
       <div className="social-post__chrome">
         <button
           type="button"

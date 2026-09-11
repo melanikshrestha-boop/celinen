@@ -235,6 +235,26 @@ html:has(.celinen-dash) {
   color: #4d6fff;
   font-weight: 600;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .celinen-dash__link,
+  .celinen-dash__brand,
+  .celinen-dash__close,
+  .celinen-dash__account .account-trigger {
+    transform-origin: center;
+    transition:
+      transform 180ms cubic-bezier(0.34, 1.45, 0.64, 1),
+      background 120ms ease,
+      color 120ms ease;
+  }
+  .celinen-dash__link:active,
+  .celinen-dash__brand:active,
+  .celinen-dash__close:active,
+  .celinen-dash__account .account-trigger:active {
+    transform: scale(0.94);
+    transition-duration: 70ms;
+    transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+}
 .celinen-dash__upgrade {
   color: #4d6fff;
   font-weight: 600;
