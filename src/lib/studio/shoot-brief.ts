@@ -1,4 +1,5 @@
 import type { Shot } from "@/lib/imaging";
+import { buildKeeperManifest } from "@/lib/archive/keeper-manifest";
 
 export type ShootBrief = {
   title: string;
@@ -6,18 +7,23 @@ export type ShootBrief = {
   keepers: number;
   undecided: number;
   missingOriginals: number;
+  ingestBytes: number;
+  keeperBytes: number;
   reviewId: string | null;
   previews: Pick<Shot, "id" | "name" | "previewUrl" | "verdict">[];
 };
 
 /** A bounded view of the real shoot, never a second image cache or a synthetic progress score. */
 export function describeShoot(shots: readonly Shot[], selectedId: string | null): ShootBrief {
+  const storage = buildKeeperManifest(shots);
   const brief: ShootBrief = {
     title: "Your shoot",
     total: shots.length,
     keepers: 0,
     undecided: 0,
     missingOriginals: 0,
+    ingestBytes: storage.ingestBytes,
+    keeperBytes: storage.keeperBytes,
     reviewId: null,
     previews: [],
   };

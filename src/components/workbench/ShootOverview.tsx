@@ -1,4 +1,5 @@
 import { ArrowUpRight, Check, ImageOff } from "lucide-react";
+import { formatStorageBytes } from "@/lib/archive/keeper-manifest";
 import type { ShootBrief } from "@/lib/studio/shoot-brief";
 
 export function ShootOverview({
@@ -28,6 +29,14 @@ export function ShootOverview({
           <p className="workbench-shoot-counts">
             {shoot.total.toLocaleString()} {shoot.total === 1 ? "photo" : "photos"} <span>·</span>{" "}
             {shoot.keepers.toLocaleString()} {shoot.keepers === 1 ? "keeper" : "keepers"}
+            {shoot.ingestBytes > 0 && (
+              <>
+                {" "}
+                <span>·</span> {formatStorageBytes(shoot.ingestBytes)} in
+                <span> · </span>
+                {formatStorageBytes(shoot.keeperBytes)} keepers
+              </>
+            )}
             {shoot.undecided > 0 && (
               <>
                 {" "}
