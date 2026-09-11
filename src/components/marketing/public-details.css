@@ -91,6 +91,14 @@
   font-size: 14px;
   cursor: pointer;
 }
+.marketing-page .marketing-nav__link:focus,
+.marketing-page .marketing-nav__link:focus-visible,
+.marketing-page .marketing-nav__links a:focus,
+.marketing-page .marketing-nav__links a:focus-visible,
+.marketing-page .marketing-nav__links button:focus,
+.marketing-page .marketing-nav__links button:focus-visible {
+  outline: none;
+}
 .marketing-page .marketing-nav__link[data-state="open"] svg {
   transform: rotate(180deg);
 }
