@@ -31,6 +31,7 @@ describe("Private photography specialties", () => {
     });
     expect(profileMetadata(original)).not.toHaveProperty("lenslabs_specialties");
     expect(profileMetadata(original)).not.toHaveProperty("lenslabs_custom_specialty");
+    expect(profileMetadata(original)).not.toHaveProperty("lenslabs_work_role");
   });
   test("five selections and custom text persist; explicit empty values clear", () => {
     const value = {

@@ -1,12 +1,15 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { publicEntry } from "../src/lib/public-entry";
-import { isWorkbenchRoute, safeSignInPath } from "../src/lib/workbench";
+import { isPrivateAppRoute, isWorkbenchRoute, safeSignInPath } from "../src/lib/workbench";
 import { parseAuthSearch } from "../src/lib/auth-flow";
 
 test("signed-in public CTA is Dashboard and opens the dashboard", () => {
   expect(publicEntry("in")).toEqual({ to: "/dashboard", search: {}, label: "Dashboard" });
   expect(isWorkbenchRoute(["__root__", "/dashboard"])).toBe(false);
+  expect(isPrivateAppRoute(["__root__", "/dashboard"], "/dashboard")).toBe(true);
+  expect(isPrivateAppRoute(["__root__", "/"], "/")).toBe(false);
+  expect(isPrivateAppRoute(["__root__", "/auth"], "/auth")).toBe(false);
   expect(parseAuthSearch({}).next).toBe("/dashboard");
   expect(safeSignInPath("/auth")).toBe("/dashboard");
 });
@@ -16,7 +19,8 @@ test("dashboard shell is a chat with real work destinations", () => {
     new URL("../src/components/dashboard/AppDashboard.tsx", import.meta.url),
     "utf8",
   );
-  expect(source).toContain("What should we work on?");
+  expect(source).toContain("dashboardGreetingFor");
+  expect(source).toContain("workDestinationsFor");
   expect(source).toContain("New chat");
   expect(source).toContain("Chat");
   expect(source).toContain("Work");

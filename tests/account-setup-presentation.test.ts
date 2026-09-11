@@ -26,6 +26,8 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
     expect(css).toContain('"OpenAI Sans"');
     expect(css).toContain("background: var(--auth-blue)");
     expect(css).toContain(":focus-visible");
+    expect(css).toContain(".account-setup-role");
+    expect(css).toContain("#4d6fff");
   });
 } else {
   globalThis.fetch = (() => {
@@ -54,23 +56,34 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
   };
   mock.module("@/components/account/AccountProvider", () => ({ useAccount: () => account }));
   mock.module("@/components/workbench/useToolLeaveGuard", () => ({ useToolLeaveGuard() {} }));
-  const { AccountSetup } = await import("../src/components/account/AccountSetup");
+  const { AccountSetup, AccountSetupView } = await import("../src/components/account/AccountSetup");
   const { ProfileForm } = await import("../src/components/account/ProfileForm");
   const html = renderToStaticMarkup(createElement(AccountSetup));
   assert.ok(html.includes('<main class="auth-screen account-setup">'));
   assert.ok(!html.includes("workbench-lock"));
   assert.ok(html.includes('aria-labelledby="account-setup-title"'));
-  assert.ok(html.includes("Make yourself at home."));
+  assert.ok(html.includes("Who are you?"));
+  assert.ok(!html.includes("Make yourself at home."));
   assert.ok(html.includes("example@example.test"));
   assert.ok(html.includes('src="/images/foto-open-sky.webp"'));
   assert.ok(html.includes('alt="" aria-hidden="true"'));
-  assert.ok(html.includes('id="profile-display-name"'));
-  assert.ok(html.includes('value="Sample Photographer"'));
-  assert.ok(html.includes('id="profile-specialties"'));
+  assert.ok(html.includes("College football"));
+  assert.ok(html.includes("Sports"));
+  assert.ok(html.includes("Wedding"));
   assert.ok(html.includes("Portrait"));
-  assert.ok(html.includes("Open workspace →"));
+  assert.ok(html.includes("Editorial"));
+  assert.ok(html.includes("Student"));
+  assert.ok(html.includes("Hobbyist"));
+  assert.ok(html.includes("Other"));
+  assert.ok(html.includes("Continue"));
+  assert.ok(html.includes("disabled"));
+  assert.ok(html.includes('role="radiogroup"'));
+  assert.ok(!html.includes('id="profile-display-name"'));
+  assert.ok(!html.includes("Open workspace →"));
   assert.ok(!html.includes('id="profile-biography"'));
   assert.ok(!html.includes("Save changes"));
+  assert.ok(!html.includes("01 of"));
+  assert.ok(!html.includes("Content creator"));
   const settings = renderToStaticMarkup(createElement(ProfileForm));
   assert.ok(settings.includes('id="profile-biography"'));
   assert.ok(settings.includes("Existing private biography"));
@@ -84,13 +97,50 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
     const node = value as Node;
     return predicate(node) ? node : find(node.props?.children, predicate);
   }
-  const tree = AccountSetup();
-  const profile = find(tree, (node) => node.type === ProfileForm)!;
-  assert.equal(profile.key, account.scope, "account changes retain the profile remount boundary");
+  const onboarded = renderToStaticMarkup(
+    createElement(ProfileForm, { onboarding: true, workRole: "college-football" }),
+  );
+  assert.ok(onboarded.includes('id="profile-display-name"'));
+  assert.ok(onboarded.includes('value="Sample Photographer"'));
+  assert.ok(onboarded.includes("Open workspace →"));
+  assert.ok(!onboarded.includes('id="profile-specialties"'));
+  assert.ok(!onboarded.includes("What kind of photographer are you?"));
+  const other = renderToStaticMarkup(
+    createElement(ProfileForm, { onboarding: true, workRole: "other" }),
+  );
+  assert.ok(other.includes('id="profile-custom-specialty"'));
+  const tree = AccountSetupView({
+    account,
+    workRole: null,
+    step: "who",
+    onPick() {},
+    onContinue() {},
+    onBack() {},
+  });
+  assert.equal(find(tree, (node) => node.type === ProfileForm), undefined);
+  const continueButton = find(
+    tree,
+    (node) => node.type === "button" && node.props?.children === "Continue",
+  )!;
+  assert.equal(continueButton.props!.disabled, true);
+  const named = AccountSetupView({
+    account,
+    workRole: "college-football",
+    step: "profile",
+    onPick() {},
+    onContinue() {},
+    onBack() {},
+  });
+  const profile = find(named, (node) => node.type === ProfileForm)!;
+  assert.equal(profile.key, `${account.scope}:college-football`);
   assert.equal(profile.props!.onboarding, true);
+  assert.equal(profile.props!.workRole, "college-football");
   const alternate = find(
     tree,
-    (node) => node.type === "button" && node.props?.className === "settings-text-action",
+    (node) =>
+      node.type === "button" &&
+      node.props?.className === "settings-text-action" &&
+      node.props?.children === "Use a different account",
   )!;
   (alternate.props!.onClick as () => void)();
   assert.equal(signOutCalls, 1);

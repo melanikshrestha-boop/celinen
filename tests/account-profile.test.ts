@@ -55,6 +55,25 @@ describe("account setup and presentation profile", () => {
       "lenslabs_workspace_name",
       "lenslabs_setup_version",
     ]);
+    expect(
+      profileInputSchema.safeParse({
+        name: "Name",
+        workspaceName: "Studio",
+        workRole: "admin",
+      }).success,
+    ).toBe(false);
+    expect(
+      readAccountProfile(
+        profileMetadata({
+          name: "Name",
+          workspaceName: "Studio",
+          workRole: "college-football",
+        }),
+      ),
+    ).toMatchObject({
+      setupComplete: true,
+      workRole: "college-football",
+    });
   });
   test("account mismatch does not send a network request", async () => {
     let called = false;

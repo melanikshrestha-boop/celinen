@@ -170,6 +170,13 @@ export function isWorkbenchRoute(routeIds: readonly string[]) {
       WORKBENCH_TOOLS.some((t) => t.path === id),
   );
 }
+
+/** Signed-in app surfaces, including Dashboard which is not a workbench chrome route. */
+export function isPrivateAppRoute(routeIds: readonly string[], pathname = "") {
+  if (isWorkbenchRoute(routeIds)) return true;
+  const path = pathname.replace(/\/$/, "") || "/";
+  return routeIds.includes("/dashboard") || path === "/dashboard";
+}
 export function workbenchTab(href: string): WorkbenchTab | null {
   if (!href.startsWith("/") || href.startsWith("//") || unsafeUrlCharacters(href)) return null;
   const url = new URL(href, "https://workspace.invalid");

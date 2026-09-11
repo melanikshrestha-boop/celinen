@@ -35,6 +35,7 @@ import { PRODUCT_NAME } from "@/lib/product";
 import {
   addWorkbenchTab,
   closeWorkbenchTab,
+  isPrivateAppRoute,
   isWorkbenchRoute,
   safeSignInPath,
   studioBindingHref,
@@ -100,9 +101,17 @@ const StudioController = lazy(() =>
 );
 
 export function WorkbenchBoundary({ children }: { children: ReactNode }) {
+  const identity = useAccount();
   const routeIds = useRouterState({
     select: (state) => state.matches.map((match) => match.routeId),
   });
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (
+    identity?.status === "in" &&
+    !identity.setupComplete &&
+    isPrivateAppRoute(routeIds, pathname)
+  )
+    return <AccountSetup key={identity.scope ?? "setup"} />;
   if (!isWorkbenchRoute(routeIds)) return children;
   return <AccountWorkbench>{children}</AccountWorkbench>;
 }

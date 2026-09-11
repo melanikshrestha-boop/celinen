@@ -40,6 +40,7 @@ export const saveAccountProfile = createServerFn({ method: "POST" })
       workspaceName: data.workspaceName,
       ...(data.specialties !== undefined ? { specialties: data.specialties } : {}),
       ...(data.customSpecialty !== undefined ? { customSpecialty: data.customSpecialty } : {}),
+      ...(data.workRole !== undefined ? { workRole: data.workRole } : {}),
       ...(data.biography !== undefined ? { biography: data.biography } : {}),
       ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
     });
