@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { PhotographerBooks, BooksSpark } from "@/lib/photographer-books";
 import type { EarningsRow } from "@/lib/earnings-ledger";
+import { RevenueGoal } from "./RevenueGoal";
 
 const PALETTE = [
   "#438ad1",
@@ -197,6 +198,11 @@ export function FinanceOverview({
   range = "1M",
   spending = false,
   balancesAvailable = true,
+  yearCollectedMinor = 0,
+  goalMinor = null,
+  onGoal,
+  onAsk,
+  askBusy = false,
 }: {
   books: PhotographerBooks | null;
   rows: readonly EarningsRow[];
@@ -207,6 +213,11 @@ export function FinanceOverview({
   range?: "1M" | "YTD" | "ALL";
   spending?: boolean;
   balancesAvailable?: boolean;
+  yearCollectedMinor?: number;
+  goalMinor?: number | null;
+  onGoal?: (minor: number) => void;
+  onAsk?: (amount: string) => void;
+  askBusy?: boolean;
 }) {
   const [selection, setSelection] = useState<Metric>("earnings");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -278,6 +289,18 @@ export function FinanceOverview({
           </div>
         )}
       </div>
+      {!spending && onGoal && (
+        <RevenueGoal
+          year={Number(today.slice(0, 4))}
+          today={today}
+          collectedMinor={yearCollectedMinor}
+          goalMinor={goalMinor}
+          money={money}
+          onGoal={onGoal}
+          onAsk={onAsk}
+          askBusy={askBusy}
+        />
+      )}
       {!books ? (
         <div className="finance-os__card" role="status">
           <h2>Financial data unavailable</h2>

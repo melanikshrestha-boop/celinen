@@ -216,6 +216,79 @@
 .finance-os .finance-os__metric {
   margin-bottom: 16px;
 }
+.finance-os .finance-os__goal-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(180px, 0.7fr);
+  gap: 16px;
+  margin: 0 0 24px;
+}
+.finance-os .finance-os__goal .finance-os__figure span {
+  color: var(--fos-muted);
+  font-weight: 500;
+}
+.finance-os .finance-os__goal-bar {
+  height: 8px;
+  margin: 12px 0 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--fos-hover);
+}
+.finance-os .finance-os__goal-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--fos-neon);
+}
+.finance-os .finance-os__goal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.finance-os .finance-os__goal-chips button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--fos-line);
+  border-radius: 999px;
+  background: var(--fos-card);
+  color: var(--fos-text);
+  font-size: 13px;
+}
+.finance-os .finance-os__goal-chips button[aria-pressed="true"] {
+  border-color: var(--fos-neon);
+  background: var(--fos-selected);
+}
+.finance-os .finance-os__goal-custom {
+  margin: 12px 0 0;
+}
+.finance-os .finance-os__goal-custom input,
+.finance-os .finance-os__pay input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--fos-line);
+  border-radius: 12px;
+  background: var(--fos-card);
+  color: var(--fos-text);
+  font: inherit;
+  font-size: 1rem;
+}
+.finance-os .finance-os__pay form {
+  display: grid;
+  gap: 8px;
+}
+.finance-os .finance-os__pay button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--fos-neon);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+.finance-os .finance-os__pay button:disabled {
+  opacity: 0.45;
+}
 .finance-os .finance-os__pulse {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -656,6 +729,9 @@
   .finance-os .finance-os__nav .finance-os__kicker,
   .finance-os .finance-os__nav .finance-os__cta {
     display: none;
+  }
+  .finance-os .finance-os__goal-row {
+    grid-template-columns: 1fr;
   }
 }
 @container earnings (max-width: 620px) {
