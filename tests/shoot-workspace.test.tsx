@@ -55,6 +55,8 @@ describe("photo-first workspace", () => {
       missingOriginals: 0,
       reviewId: "600",
     });
+    expect(brief.ingestBytes).toBeGreaterThan(brief.keeperBytes);
+    expect(brief.keeperBytes).toBeGreaterThan(0);
     expect(brief.previews).toHaveLength(6);
     expect(brief.previews[0]?.id).toBe("2200");
     expect(new Set(brief.previews.map((s) => s.id)).size).toBe(6);
