@@ -117,9 +117,12 @@ html:has(.celinen-dash) {
   margin: 0;
 }
 .celinen-dash.is-mini .celinen-dash__close {
-  width: 36px;
-  height: 36px;
-  margin-inline: auto;
+  display: none;
+}
+.celinen-dash.is-mini .celinen-dash__brand {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 .celinen-dash.is-mini .celinen-dash__account .account-trigger {
   width: 36px;

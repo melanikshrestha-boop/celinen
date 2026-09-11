@@ -21,13 +21,14 @@ import {
 test("social catalog includes the popular networks from the picker", () => {
   expect(SOCIAL_NETWORKS.map((item) => item.id)).toEqual([
     "instagram",
+    "facebook",
     "x",
     "linkedin",
     "pinterest",
     "bluesky",
     "threads",
     "tiktok",
-    "youtube",
+    "youtube-shorts",
     "google-business",
     "mastodon",
     "discord",

@@ -1,9 +1,12 @@
 .social-post {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  width: 100%;
   min-height: 100%;
-  padding: 48px 24px 28px;
+  padding: 32px 24px 40px;
   background:
     radial-gradient(90% 70% at 50% 0%, #d7ecff 0%, #eef8f3 38%, #ffffff 72%);
 }
