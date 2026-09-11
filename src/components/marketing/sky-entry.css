@@ -388,8 +388,10 @@
   .marketing-nav-cta,
   .marketing-connect__cta,
   .home-pricing__cards a,
-  .marketing-cookies__accept
-) {
+  .marketing-cookies__accept,
+  .docs-ref__actions a,
+  .mcp-page__docs
+):is(:link, :visited, :where(button), :where([type="button"]), :where([role="button"])) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -412,11 +414,14 @@
   .marketing-nav-cta,
   .marketing-connect__cta,
   .home-pricing__cards a,
-  .marketing-cookies__accept
-):hover {
+  .marketing-cookies__accept,
+  .docs-ref__actions a,
+  .mcp-page__docs
+):is(:hover, :focus-visible) {
   background: var(--marketing-neon-hover);
   color: #fff;
   opacity: 1;
+  text-decoration: none;
   box-shadow:
     0 16px 42px #4d6fff8c,
     0 0 28px #8aa4ff73;

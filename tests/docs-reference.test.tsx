@@ -13,6 +13,10 @@ test("docs match the Vugola API-reference chrome without clip-farm endpoints", (
   expect(html).toContain("celinen");
   expect(html).not.toContain("Celinen");
   expect(html).toContain("Get an API key");
+  expect(html).toContain("Install the MCP server");
+  expect(html).toContain('class="marketing-action marketing-action--primary"');
+  expect(html).not.toContain("docs-ref__btn--solid");
+  expect(html).not.toContain("docs-ref__btn--ghost");
   expect(html).toContain("MCP on GitHub");
   expect(html).toContain("Rate limits &amp; plans");
   expect(html).toContain('id="errors"');
@@ -36,4 +40,8 @@ test("docs styling stays public-scoped", () => {
   stylesheet.walkRules((rule) => {
     for (const selector of rule.selectors) expect(selector).toMatch(/^\.marketing-page \.docs-ref/);
   });
+  expect(css).toContain(".docs-ref__actions a:visited");
+  expect(css).toContain("background: #4d6fff");
+  expect(css).not.toContain("docs-ref__btn--solid");
+  expect(css).not.toContain("background: #0a0a0a");
 });

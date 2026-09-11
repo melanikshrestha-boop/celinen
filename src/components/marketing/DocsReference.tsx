@@ -79,10 +79,10 @@ export function DocsReference() {
             official connector is MCP.
           </p>
           <div className="docs-ref__actions">
-            <a className="docs-ref__btn docs-ref__btn--solid" href="/dashboard">
+            <a className="marketing-action marketing-action--primary" href="/dashboard">
               Get an API key
             </a>
-            <a className="docs-ref__btn docs-ref__btn--ghost" href="/mcp">
+            <a className="marketing-action marketing-action--primary" href="/mcp">
               Install the MCP server
             </a>
           </div>

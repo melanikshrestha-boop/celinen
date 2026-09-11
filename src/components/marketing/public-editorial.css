@@ -34,6 +34,18 @@
   text-decoration-thickness: 2px;
 }
 
+.marketing-page .public-editorial a.marketing-action,
+.marketing-page .public-editorial a.marketing-action:link,
+.marketing-page .public-editorial a.marketing-action:visited,
+.marketing-page .public-editorial a.marketing-action:hover,
+.marketing-page .public-editorial a.mcp-page__docs,
+.marketing-page .public-editorial a.mcp-page__docs:link,
+.marketing-page .public-editorial a.mcp-page__docs:visited,
+.marketing-page .public-editorial a.mcp-page__docs:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
 .marketing-page .public-editorial a:focus-visible {
   outline: 2px solid var(--marketing-accent);
   outline-offset: 5px;

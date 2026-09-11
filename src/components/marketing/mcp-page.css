@@ -150,16 +150,25 @@
   margin: 0 0 56px;
 }
 
-.marketing-page .mcp-page__docs {
+.marketing-page .mcp-page__docs,
+.marketing-page .mcp-page__docs:link,
+.marketing-page .mcp-page__docs:visited {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   min-height: 48px;
   margin: 0 0 16px;
-  border: 1px solid #d8d8d8;
+  border: 0;
   border-radius: 999px;
-  color: #111;
+  background: #4d6fff;
+  color: #fff;
+  text-decoration: none;
+}
+
+.marketing-page .mcp-page__docs:hover {
+  background: #6e86ff;
+  color: #fff;
   text-decoration: none;
 }
 
