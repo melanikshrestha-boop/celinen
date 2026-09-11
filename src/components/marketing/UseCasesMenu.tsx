@@ -88,21 +88,10 @@ function CaseRow({
   );
 }
 
-function teamsWouldOverflow(node: HTMLElement | null) {
-  if (!node) return false;
-  return node.getBoundingClientRect().right + 248 > window.innerWidth - 8;
-}
-
-function openConferenceFrom(node: HTMLElement, id: string, setFlip: (next: boolean) => void, setOpen: (id: string) => void) {
-  setFlip(teamsWouldOverflow(node));
-  setOpen(id);
-}
-
 export function UseCasesMenu() {
   const menu = useNavMenuHover("use-cases");
   const trigger = hoverMenuTrigger(menu);
   const [openConference, setOpenConference] = useState<string | null>(null);
-  const [flipTeams, setFlipTeams] = useState(false);
   return (
     <DropdownMenu
       modal
@@ -119,6 +108,7 @@ export function UseCasesMenu() {
       <DropdownMenuContent
         align="start"
         sideOffset={10}
+        collisionPadding={{ top: 12, left: 12, bottom: 12, right: 256 }}
         onPointerEnter={menu.openNow}
         onPointerLeave={menu.closeSoon}
         className="marketing-nav-menu marketing-nav-features marketing-nav-use-cases"
@@ -133,9 +123,7 @@ export function UseCasesMenu() {
                 <div
                   key={conference.id}
                   className="marketing-nav-conference marketing-nav-branch--in"
-                  onPointerEnter={(event) => {
-                    openConferenceFrom(event.currentTarget, conference.id, setFlipTeams, setOpenConference);
-                  }}
+                  onPointerEnter={() => setOpenConference(conference.id)}
                 >
                   <button
                     type="button"
@@ -146,23 +134,14 @@ export function UseCasesMenu() {
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      const row = event.currentTarget.closest(".marketing-nav-conference");
-                      openConferenceFrom(
-                        row instanceof HTMLElement ? row : event.currentTarget,
-                        conference.id,
-                        setFlipTeams,
-                        setOpenConference,
-                      );
+                      setOpenConference(conference.id);
                     }}
                   >
                     <CaseRow mark={conference.mark} title={conference.title} />
                     <ChevronRight size={14} aria-hidden="true" className="marketing-nav-chevron-right" />
                   </button>
                   {openConference === conference.id && "teams" in conference ? (
-                    <div
-                      className={`marketing-nav-teams${flipTeams ? " is-start" : ""}`}
-                      role="menu"
-                    >
+                    <div className="marketing-nav-teams" role="menu">
                       {conference.teams.map((team) => (
                         <DropdownMenuItem key={team.id} asChild>
                           <Link

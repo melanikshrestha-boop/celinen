@@ -77,8 +77,11 @@
 .marketing-nav-branch--in {
   padding-left: 12px;
 }
-.marketing-nav-use-cases {
+.marketing-page div.marketing-nav-use-cases.marketing-nav-features {
   overflow: visible;
+  overflow-x: visible;
+  overflow-y: visible;
+  max-height: none;
 }
 .marketing-nav-conference {
   position: relative;
@@ -94,7 +97,7 @@
   position: absolute;
   top: 0;
   left: 100%;
-  z-index: 6;
+  z-index: 80;
   width: min(240px, calc(100vw - 32px));
   max-height: min(72vh, 560px);
   overflow-x: hidden;
@@ -113,16 +116,6 @@
   bottom: 0;
   left: -8px;
   width: 8px;
-}
-.marketing-nav-teams.is-start {
-  left: auto;
-  right: 100%;
-  margin-left: 0;
-  margin-right: 8px;
-}
-.marketing-nav-teams.is-start::before {
-  left: auto;
-  right: -8px;
 }
 .marketing-nav-feature--flyout[data-state="open"] > .marketing-nav-chevron-right {
   color: #142a36;
