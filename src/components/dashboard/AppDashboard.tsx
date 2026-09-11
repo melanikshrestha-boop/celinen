@@ -3,7 +3,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
   BookOpen,
-  Calendar,
   Home,
   Images,
   Scissors,
@@ -24,7 +23,6 @@ const MAIN = [
   { to: "/shoots", label: "Pick", icon: Scissors },
   { to: "/deliver", label: "Galleries", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
-  { to: "/book", label: "Calendar", icon: Calendar },
   { to: "/earnings", label: "Analytics", icon: BarChart3 },
   { to: "/publish", label: "Social accounts", icon: Share2 },
   { to: "/library", label: "Tools", icon: Wrench },

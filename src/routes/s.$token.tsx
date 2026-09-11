@@ -159,7 +159,7 @@ function ShootSpace() {
         </h1>
         <p className="mt-2 text-sm text-moss">
           This shoot link isn&apos;t valid anymore. Ask your photographer for a fresh one, or{" "}
-          <Link to="/book" className="text-primary underline underline-offset-4">
+          <Link to="/shoots" className="text-primary underline underline-offset-4">
             start a new shoot
           </Link>
           .
