@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
+import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
@@ -363,6 +364,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
             <Sparkles size={20} strokeWidth={1.6} aria-hidden="true" />
             <span>Upgrade</span>
           </Link>
+          <div className="celinen-dash__social">
+            <SocialDock mini={visual === "mini"} />
+          </div>
           <div className="celinen-dash__account">
             <AccountMenu />
           </div>
