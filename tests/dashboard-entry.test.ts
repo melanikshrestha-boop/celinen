@@ -14,32 +14,43 @@ test("signed-in public CTA is Dashboard and opens the dashboard", () => {
   expect(safeSignInPath("/auth")).toBe("/dashboard");
 });
 
-test("dashboard shell is a chat with real work destinations", () => {
+test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   const source = readFileSync(
     new URL("../src/components/dashboard/AppDashboard.tsx", import.meta.url),
     "utf8",
   );
   expect(source).toContain("dashboardGreetingFor");
-  expect(source).toContain("workDestinationsFor");
-  expect(source).toContain("New chat");
-  expect(source).toContain("Chat");
-  expect(source).toContain("Work");
-  expect(source).toContain("destinationPathFor");
-  expect(source).toContain('to: "/shoots"');
+  expect(source).toContain('label: "Home"');
+  expect(source).toContain('label: "Pick"');
+  expect(source).toContain('label: "Galleries"');
+  expect(source).toContain('label: "Develop"');
+  expect(source).toContain('label: "Calendar"');
+  expect(source).toContain('label: "Analytics"');
+  expect(source).toContain('label: "Social accounts"');
+  expect(source).toContain('label: "Tools"');
+  expect(source).toContain('label: "Upgrade"');
+  expect(source).toContain('label: "Guide"');
+  expect(source).toContain('label: "Community"');
+  expect(source).toContain('label: "Settings"');
+  expect(source).toContain('to: "/studio"');
+  expect(source).toContain('to: "/deliver"');
+  expect(source).toContain('to: "/develop"');
   expect(source).toContain('to: "/earnings"');
   expect(source).toContain('to: "/publish"');
   expect(source).toContain('to: "/library"');
   expect(source).toContain("Loading your workspace");
+  expect(source).not.toContain("New chat");
   expect(source).not.toContain("celinen-dash__card");
 });
 
-test("dashboard chrome is a light chat rail and centered composer", () => {
+test("dashboard chrome is the full light rail", () => {
   const css = readFileSync(
     new URL("../src/components/dashboard/dashboard.css", import.meta.url),
     "utf8",
   );
-  expect(css).toContain("background: #f9f9f9");
-  expect(css).toContain(".celinen-dash__composer");
-  expect(css).toContain("border-radius: 28px");
-  expect(css).toContain("background: #4d6fff");
+  expect(css).toContain(".celinen-dash__nav");
+  expect(css).toContain(".celinen-dash__link.is-active");
+  expect(css).toContain("background: #eef2ff");
+  expect(css).toContain("color: #4d6fff");
+  expect(css).not.toContain(".celinen-dash__composer");
 });
