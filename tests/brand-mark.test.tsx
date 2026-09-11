@@ -22,6 +22,11 @@ test("connector marks use official X and Snapchat paths, not fat stand-ins", () 
   const tiktok = renderToStaticMarkup(<BrandMark id="tiktok" />);
   expect(tiktok).toContain("#25F4EE");
   expect(tiktok).toContain("#FE2C55");
+  const instagram = renderToStaticMarkup(<BrandMark id="instagram" />);
+  expect(instagram).toContain("brand-ig-fill");
+  expect(instagram).toContain("#d6249f");
+  expect(instagram).not.toContain("#E4405F");
+  expect(instagram).not.toContain("M7.0301.084");
   const source = readFileSync(new URL("../src/lib/connector-orbit.ts", import.meta.url), "utf8");
   expect(source).toContain("0.12");
 });
