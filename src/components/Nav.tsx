@@ -23,7 +23,6 @@ const LINKS: { to: string; label: string; exact?: boolean }[] = [
   { to: "/studio", label: "Studio" },
   { to: "/desk", label: "Event Desk" },
   { to: "/earnings", label: "Earnings" },
-  { to: "/book", label: "Book a shoot" },
   { to: "/community", label: "Community" },
   { to: "/pricing", label: "Pricing" },
 ];
