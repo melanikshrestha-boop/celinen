@@ -44,6 +44,7 @@ import { BooksDashboard } from "./BooksDashboard";
 import { CustomerReceipt } from "./CustomerReceipt";
 import { FinanceOs, readFinanceDesk, type FinanceDesk } from "./FinanceOs";
 import { FinanceOverview } from "./FinanceOverview";
+import { BooksFilter } from "./BooksFilter";
 import { FinanceEquity, FinanceForecast, FinanceInvest, FinanceTax } from "./FinanceDesks";
 import {
   downloadEarningsFile,
@@ -54,6 +55,7 @@ import {
   type EarningsPeriod,
 } from "./earnings-ui";
 import "./earnings-workspace.css";
+import "./spend-sankey.css";
 
 const FILTERS: { value: EarningsFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -372,19 +374,20 @@ function EarningsContent() {
         <header className="earnings-heading">
           <div className="earnings-actions">
             {account && (
-              <select
-                aria-label="Appearance"
+              <BooksFilter
+                label="Appearance"
                 value={account.preferences.theme}
-                onChange={(event) =>
+                options={[
+                  { value: "light", label: "Light" },
+                  { value: "dark", label: "Dark" },
+                  { value: "system", label: "System" },
+                ]}
+                onChange={(value) =>
                   account.savePreferences({
-                    theme: event.target.value as "light" | "dark" | "system",
+                    theme: value as "light" | "dark" | "system",
                   })
                 }
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="system">System</option>
-              </select>
+              />
             )}
             <button onClick={() => newForm("entry")} disabled={!data.writable}>
               <Plus size={15} />
@@ -402,39 +405,34 @@ function EarningsContent() {
         </header>
         <div className="earnings-toolbar">
           <div className="earnings-actions">
-            <select
-              aria-label="Earnings period"
+            <BooksFilter
+              label="Earnings period"
               value={period}
-              onChange={(event) => setPeriod(event.target.value as EarningsPeriod)}
-            >
-              <option value="month">This month</option>
-              <option value="year">This year</option>
-              <option value="all">All dates</option>
-            </select>
-            <select
-              aria-label="Currency"
+              options={[
+                { value: "month", label: "This month" },
+                { value: "year", label: "This year" },
+                { value: "all", label: "All dates" },
+              ]}
+              onChange={(value) => setPeriod(value as EarningsPeriod)}
+            />
+            <BooksFilter
+              label="Currency"
               value={currency}
-              onChange={(event) => setCurrency(event.target.value)}
-            >
-              {currencies.map((code) => (
-                <option key={code}>{code}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Filter by shoot"
+              options={currencies.map((code) => ({ value: code, label: code }))}
+              onChange={setCurrency}
+            />
+            <BooksFilter
+              label="Filter by shoot"
               value={shootFilter}
-              onChange={(event) => setShootFilter(event.target.value)}
-            >
-              <option value="">All shoots</option>
-              {shootFilter && !shoots.some((shoot) => shoot.id === shootFilter) && (
-                <option value={shootFilter}>{shootName(shootFilter)}</option>
-              )}
-              {shoots.map((shoot) => (
-                <option key={shoot.id} value={shoot.id}>
-                  {shoot.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "All shoots" },
+                ...(shootFilter && !shoots.some((shoot) => shoot.id === shootFilter)
+                  ? [{ value: shootFilter, label: shootName(shootFilter) }]
+                  : []),
+                ...shoots.map((shoot) => ({ value: shoot.id, label: shoot.name })),
+              ]}
+              onChange={setShootFilter}
+            />
           </div>
           <div className="earnings-connection">
             <span>{connection}</span>
