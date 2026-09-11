@@ -40,6 +40,9 @@ import { EarningsCharts } from "./EarningsCharts";
 import { buildPhotographerBooks } from "@/lib/photographer-books";
 import { BooksDashboard } from "./BooksDashboard";
 import { CustomerReceipt } from "./CustomerReceipt";
+import { FinanceOs, readFinanceDesk, type FinanceDesk } from "./FinanceOs";
+import { FinanceOverview } from "./FinanceOverview";
+import { FinanceEquity, FinanceForecast, FinanceInvest, FinanceTax } from "./FinanceDesks";
 import {
   downloadEarningsFile,
   earningsPeriodRange,
@@ -116,6 +119,15 @@ function EarningsContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [desk, setDesk] = useState<FinanceDesk>(() => readFinanceDesk());
+  const openDesk = (next: FinanceDesk) => {
+    setDesk(next);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (next === "earnings") url.searchParams.delete("desk");
+    else url.searchParams.set("desk", next);
+    history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  };
   const opener = useRef<HTMLElement | null>(null);
   const restoreFocus = (event: Event) => {
     event.preventDefault();
@@ -314,7 +326,7 @@ function EarningsContent() {
 
   return (
     <section
-      className="earnings-workspace"
+      className="earnings-workspace finance-os-host"
       aria-labelledby="earnings-title"
       onClickCapture={(event) => {
         if (!formKind && !selectedRow && event.target instanceof Element)
@@ -330,12 +342,8 @@ function EarningsContent() {
           opener.current = event.target;
       }}
     >
+      <FinanceOs desk={desk} onDesk={openDesk} onInvoice={() => newForm("invoice")}>
       <header className="earnings-heading">
-        <div>
-          <h1 id="earnings-title" tabIndex={-1}>
-            Earnings
-          </h1>
-        </div>
         <div className="earnings-actions">
           <button onClick={() => newForm("entry")} disabled={!data.writable}>
             <Plus size={15} />
@@ -423,6 +431,45 @@ function EarningsContent() {
           {notice}
         </p>
       )}
+      {desk === "earnings" ? (
+        <FinanceOverview
+          books={books}
+          rows={ledger.rows}
+          today={today}
+          money={(value) => formatEarningsMoney(value, currency)}
+          onOpen={(id) => {
+            setNotice("");
+            setSelected(id);
+          }}
+          onRange={(next) => {
+            if (next === "YTD") setPeriod("year");
+            else if (next === "ALL") setPeriod("all");
+            else setPeriod("month");
+          }}
+        />
+      ) : desk === "invest" ? (
+        <FinanceInvest books={books} rows={ledger.rows} money={(value) => formatEarningsMoney(value, currency)} />
+      ) : desk === "equity" ? (
+        <FinanceEquity books={books} money={(value) => formatEarningsMoney(value, currency)} />
+      ) : desk === "forecast" ? (
+        <FinanceForecast
+          rows={ledger.rows}
+          today={today}
+          money={(value) => formatEarningsMoney(value, currency)}
+          onOpen={(id) => {
+            setNotice("");
+            setSelected(id);
+          }}
+        />
+      ) : desk === "tax" ? (
+        <FinanceTax books={books} money={(value) => formatEarningsMoney(value, currency)} />
+      ) : (
+        <>
+      <div className="finance-os__title">
+        <h1 id="earnings-title" tabIndex={-1}>
+          Transactions
+        </h1>
+      </div>
       <dl className="earnings-pulse">
         <div>
           <dt>Collected</dt>
@@ -672,6 +719,9 @@ function EarningsContent() {
           <p key={warning}>{warning}</p>
         ))}
       </details>
+        </>
+      )}
+      </FinanceOs>
 
       <Sheet
         open={!!selectedRow && !formKind}
