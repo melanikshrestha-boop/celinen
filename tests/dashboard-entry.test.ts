@@ -41,6 +41,10 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("Loading your workspace");
   expect(source).not.toContain("New chat");
   expect(source).not.toContain("celinen-dash__card");
+  expect(source).toContain("Close sidebar");
+  expect(source).toContain("Open sidebar");
+  expect(source).toContain("celinen-dash__composer");
+  expect(source).toContain("dashboardGreetingFor");
 });
 
 test("dashboard chrome is the full light rail", () => {
@@ -52,5 +56,6 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain(".celinen-dash__link.is-active");
   expect(css).toContain("background: #eef2ff");
   expect(css).toContain("color: #4d6fff");
-  expect(css).not.toContain(".celinen-dash__composer");
+  expect(css).toContain(".celinen-dash__composer");
+  expect(css).toContain(".celinen-dash.is-closed");
 });
