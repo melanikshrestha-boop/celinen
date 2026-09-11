@@ -17,10 +17,16 @@ export const SOCIAL_NETWORKS = [
   { id: "woocommerce", title: "WooCommerce", kind: "Ecommerce" },
 ] as const;
 
+/** Mail sits in the same picker, below Social — never mixed into SOCIAL_NETWORKS. */
+export const MAIL_NETWORKS = [{ id: "gmail", title: "Gmail", kind: "Mail" }] as const;
+
 export type SocialId = (typeof SOCIAL_NETWORKS)[number]["id"];
+export type MailId = (typeof MAIL_NETWORKS)[number]["id"];
 export type SocialLink = { id: SocialId; at: number };
+export type MailLink = { id: MailId; at: number };
 
 const STORE = "celinen.social.links.v1";
+const MAIL_STORE = "celinen.mail.links.v1";
 const SHOWN = 4;
 
 function bytesToB64(bytes: ArrayBuffer | Uint8Array) {
@@ -94,5 +100,57 @@ export async function connectSocial(scope: string, id: SocialId) {
 export async function disconnectSocial(scope: string, id: SocialId) {
   const next = (await readSocialLinks(scope)).filter((row) => row.id !== id);
   await writeSocialLinks(scope, next);
+  return next;
+}
+
+export async function readMailLinks(scope: string): Promise<MailLink[]> {
+  try {
+    const packed = localStorage.getItem(`${MAIL_STORE}:${scope}`);
+    if (!packed) return [];
+    const [ivB64, dataB64] = packed.split(".");
+    if (!ivB64 || !dataB64) return [];
+    const key = await keyFor(scope);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: b64ToBytes(ivB64) },
+      key,
+      b64ToBytes(dataB64),
+    );
+    const parsed = JSON.parse(new TextDecoder().decode(plain)) as MailLink[];
+    const allowed = new Set(MAIL_NETWORKS.map((item) => item.id));
+    return Array.isArray(parsed)
+      ? parsed.filter((row) => row && allowed.has(row.id) && Number.isFinite(row.at))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function writeMailLinks(scope: string, links: MailLink[]) {
+  const key = await keyFor(scope);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(links.slice(0, MAIL_NETWORKS.length))),
+  );
+  localStorage.setItem(`${MAIL_STORE}:${scope}`, `${bytesToB64(iv)}.${bytesToB64(data)}`);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("celinen:mail"));
+}
+
+export function isMailConnected(links: MailLink[], id: MailId) {
+  return links.some((row) => row.id === id);
+}
+
+export async function connectMail(scope: string, id: MailId) {
+  const links = await readMailLinks(scope);
+  if (isMailConnected(links, id)) return links;
+  const next = [{ id, at: Date.now() }, ...links];
+  await writeMailLinks(scope, next);
+  return next;
+}
+
+export async function disconnectMail(scope: string, id: MailId) {
+  const next = (await readMailLinks(scope)).filter((row) => row.id !== id);
+  await writeMailLinks(scope, next);
   return next;
 }

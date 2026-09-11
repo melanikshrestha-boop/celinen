@@ -40,6 +40,11 @@ test("connector marks use official X and Snapchat paths, not fat stand-ins", () 
   expect(gbp).toContain("#FBBC04");
   expect(gbp).toContain("#34A853");
   expect(gbp).not.toContain("M4.4 10.2");
+  const gmail = renderToStaticMarkup(<BrandMark id="gmail" />);
+  expect(gmail).toContain("#4285F4");
+  expect(gmail).toContain("#EA4335");
+  expect(gmail).toContain("#FBBC04");
+  expect(gmail).toContain("#34A853");
   expect(renderToStaticMarkup(<BrandMark id="discord" />)).toContain("#5865F2");
   const mastodon = renderToStaticMarkup(<BrandMark id="mastodon" />);
   expect(mastodon).toContain("M23.268 5.313");

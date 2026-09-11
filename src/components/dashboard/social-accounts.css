@@ -399,6 +399,11 @@
 .social-picker__row:hover {
   background: #f4f6f8;
 }
+.social-picker__rule {
+  height: 1px;
+  margin: 6px 10px;
+  background: #eceff2;
+}
 .social-picker__mark {
   display: grid;
   place-items: center;

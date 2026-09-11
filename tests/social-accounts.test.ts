@@ -10,10 +10,15 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 import { readFileSync } from "node:fs";
 import {
+  MAIL_NETWORKS,
   SOCIAL_NETWORKS,
+  connectMail,
   connectSocial,
+  disconnectMail,
   disconnectSocial,
+  isMailConnected,
   isSocialConnected,
+  readMailLinks,
   readSocialLinks,
   shownSocials,
 } from "../src/lib/social-accounts";
@@ -56,7 +61,14 @@ test("social catalog includes the popular networks from the picker", () => {
     "utf8",
   );
   expect(dock).toContain("social-picker__check");
+  expect(dock).toContain("onDoubleClick");
+  expect(dock).toContain("Double-click to disconnect");
+  expect(dock).toContain("MAIL_NETWORKS");
+  expect(dock).toContain("gmail");
+  expect(MAIL_NETWORKS[0]).toEqual({ id: "gmail", title: "Gmail", kind: "Mail" });
   expect(dock).not.toContain("Connect account");
+  expect(SOCIAL_NETWORKS.map((item) => item.id)).not.toContain("gmail");
+  expect(MAIL_NETWORKS.map((item) => item.id)).toEqual(["gmail"]);
 });
 
 test("connections persist encrypted and shown chips stay short", async () => {
@@ -76,4 +88,19 @@ test("connections persist encrypted and shown chips stay short", async () => {
   expect(shownSocials(rows)).toHaveLength(4);
   const next = await disconnectSocial(scope, "instagram");
   expect(isSocialConnected(next, "instagram")).toBe(false);
+});
+
+test("gmail is a separate encrypted mail link, not a social network", async () => {
+  const scope = "test-mail-scope";
+  localStorage.clear();
+  expect(await readMailLinks(scope)).toEqual([]);
+  const linked = await connectMail(scope, "gmail");
+  expect(isMailConnected(linked, "gmail")).toBe(true);
+  const packed = localStorage.getItem(`celinen.mail.links.v1:${scope}`) ?? "";
+  expect(packed.includes("gmail")).toBe(false);
+  expect(packed.includes(".")).toBe(true);
+  expect(localStorage.getItem(`celinen.social.links.v1:${scope}`)).toBe(null);
+  expect(await readSocialLinks(scope)).toEqual([]);
+  const next = await disconnectMail(scope, "gmail");
+  expect(isMailConnected(next, "gmail")).toBe(false);
 });
