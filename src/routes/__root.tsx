@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { PRODUCT_HEADLINE } from "@/lib/product";
 import { LensProvider } from "@/lib/lensos-store";
 import { WorkbenchBoundary } from "@/components/workbench/Workbench";
 import { AccountProvider, useAccount } from "@/components/account/AccountProvider";
@@ -80,13 +81,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "LensLabs — AI Photo Culling for RAW Shoots" },
+      { title: PRODUCT_HEADLINE },
       {
         name: "description",
         content:
           "LensLabs scores, flags and culls a full RAW shoot in your browser, then develops the keepers.",
       },
-      { property: "og:title", content: "LensLabs — AI Photo Culling for RAW Shoots" },
+      { property: "og:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
         content: "Cull 300 shots in minutes. Local RAW culling, ranking and basic develop tools.",

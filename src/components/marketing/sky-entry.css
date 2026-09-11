@@ -26,6 +26,14 @@
 .marketing-nav-sub {
   width: min(300px, calc(100vw - 32px));
 }
+.marketing-nav-sub__lede {
+  margin: 0;
+  padding: 8px 12px 10px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: var(--marketing-leading, 1.3);
+}
 .marketing-nav-features--long {
   max-height: min(72vh, 640px);
   overflow-y: auto;
@@ -45,7 +53,7 @@
 .marketing-nav-features .marketing-nav-feature {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   gap: 12px;
   width: 100%;
   padding: 10px 10px;
@@ -62,7 +70,7 @@
 .marketing-nav-features .marketing-nav-feature--flyout > svg:last-child {
   width: 14px;
   height: 14px;
-  margin-top: 3px;
+  margin-top: 0;
   color: #9aa3ad;
 }
 .marketing-nav-features .marketing-nav-feature__icon svg,
@@ -83,7 +91,7 @@
   place-items: center;
   width: 28px;
   height: 28px;
-  margin-top: 1px;
+  margin-top: 0;
   background: transparent;
   color: #142a36;
 }

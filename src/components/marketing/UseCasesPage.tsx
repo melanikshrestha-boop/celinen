@@ -26,49 +26,9 @@ const CASES: Record<string, { heading: string; body: string }> = {
     heading: "Sports photography",
     body: "A long card, peak action, duplicates out. The gallery that goes out is the set you would stand behind.",
   },
-  "soccer-team": {
-    heading: "Soccer team",
-    body: "Roster photos, one kit, every player. Tag the jersey. Send the club a gallery tonight.",
-  },
-  soccer: {
-    heading: "Soccer",
-    body: "Match action, long bursts, keepers to the club the same night. Originals stay with you.",
-  },
   wedding: {
     heading: "Wedding photography",
     body: "Moments over near-duplicates. Coverage across the day, not six identical portraits. The couple gets a gallery they can actually send.",
-  },
-  portrait: {
-    heading: "Portrait photography",
-    body: "The frame you would stand behind, not a stack of near-matches. Pick, then send.",
-  },
-  family: {
-    heading: "Family photography",
-    body: "Everyone in, the blinks out. A gallery the family can actually share.",
-  },
-  event: {
-    heading: "Event photography",
-    body: "A long night, thousands of frames. Keepers out before the client asks.",
-  },
-  graduation: {
-    heading: "Graduation photography",
-    body: "One name, one walk, a gallery the family can send the same day.",
-  },
-  fashion: {
-    heading: "Fashion photography",
-    body: "The look stays with the photograph. Pick the set the brand can use tonight.",
-  },
-  commercial: {
-    heading: "Commercial photography",
-    body: "The set the client can actually use. Originals stay with you.",
-  },
-  editorial: {
-    heading: "Editorial photography",
-    body: "A long card, a tight set. The frames you would stand behind go out.",
-  },
-  product: {
-    heading: "Product photography",
-    body: "Angle, light, the keeper. Send the set, keep the originals.",
   },
 };
 
@@ -101,7 +61,6 @@ export function UseCasesPage() {
 
       {USE_CASE_SECTIONS.map((item) => {
         const detail = CASES[item.id];
-        const Icon = "icon" in item ? item.icon : undefined;
         return (
           <section
             key={item.id}
@@ -110,11 +69,7 @@ export function UseCasesPage() {
             data-reveal
           >
             <span className="foto-use-cases__mark" aria-hidden="true">
-              {Icon ? (
-                <Icon size={22} strokeWidth={1.6} />
-              ) : "mark" in item ? (
-                <UseCaseMark id={item.mark} />
-              ) : null}
+              <UseCaseMark id={item.mark} />
             </span>
             <h2>{detail.heading}</h2>
             <p>{detail.body}</p>

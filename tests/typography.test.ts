@@ -29,18 +29,15 @@ function applyFont(uiFont: "system" | "sans" | "serif", codeFont: "mono" | "syst
 }
 
 describe("FOTO shared typography", () => {
-  test("default, display and legacy UI-label utilities share Wonder's Source Serif interface token", () => {
+  test("default UI is OpenAI Sans and display headings are Instrument Serif", () => {
     const css = read("styles.css");
-    expect(css).toContain(
-      '--foto-font-ui: "Source Serif 4", Georgia, "Times New Roman", ui-serif, serif;',
-    );
-    // Compatibility assets remain available, but no UI utility selects them.
+    expect(css).toMatch(/--foto-font-ui:\s*"OpenAI Sans",[\s\S]*?sans-serif;/);
     expect(css).toMatch(/--foto-font-sans:\s*"OpenAI Sans",[\s\S]*?sans-serif;/);
-    for (const utility of ["sans", "display", "mono"])
-      expect(css).toContain(`--font-${utility}: var(--ll-ui-font, var(--foto-font-ui));`);
+    expect(css).toContain('--font-display: "Instrument Serif", "Source Serif 4", Georgia, serif;');
+    expect(css).toContain("--font-sans: var(--ll-ui-font, var(--foto-font-ui));");
+    expect(css).toContain("--font-mono: var(--ll-ui-font, var(--foto-font-ui));");
     expect(css).toContain('--foto-font-mono: "SF Mono", Menlo, Consolas, ui-monospace, monospace;');
     expect(css).toContain("--font-code: var(--ll-code-font, var(--foto-font-mono));");
-    expect(css).not.toMatch(/--font-(?:sans|display|mono):[^;]*foto-font-sans/);
     expect(read("components/develop/develop.css")).toContain("font-family: var(--foto-font-ui);");
   });
 

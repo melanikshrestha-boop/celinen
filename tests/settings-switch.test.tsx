@@ -31,4 +31,6 @@ test("settings switch is a sliding on/off control", () => {
   );
   expect(css).toContain("border-radius: 50%");
   expect(css).toContain("translateX(20px)");
+  expect(css).toContain("background: #4d6fff");
+  expect(css).not.toContain("background: #111");
 });

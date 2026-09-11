@@ -10,7 +10,7 @@ import { MarketingStats } from "@/components/marketing/MarketingStats";
 import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { publicEntry } from "@/lib/public-entry";
-import { PRODUCT_NAME } from "@/lib/product";
+import { PRODUCT_HEADLINE } from "@/lib/product";
 import { ArrowRight, ArrowUpRight, Camera, Check, Heart, Images } from "lucide-react";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
@@ -18,13 +18,14 @@ import "@/components/marketing/sky-entry.css";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: PRODUCT_NAME },
+      { title: PRODUCT_HEADLINE },
       {
         name: "description",
         content:
           "Go where the good light takes you. Review, edit, and send galleries — originals stay yours.",
       },
-      { property: "og:title", content: PRODUCT_NAME },
+      { property: "og:title", content: PRODUCT_HEADLINE },
+      { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
         content:
