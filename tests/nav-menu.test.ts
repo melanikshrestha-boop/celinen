@@ -17,7 +17,11 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
   );
   expect(nav).toContain("NavMenuProvider");
   expect(features).toContain('useNavMenuHover("features")');
+  expect(features).toContain("hoverMenuTrigger");
   expect(useCases).toContain('useNavMenuHover("use-cases")');
+  expect(useCases).toContain("hoverMenuTrigger");
   expect(hook).toContain("openNow");
+  expect(hook).toContain("pointerType === \"mouse\"");
+  expect(hook).toContain("!next && hovering.current");
   expect(hook).toContain("current === id ? null : current");
 });

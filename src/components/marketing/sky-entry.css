@@ -83,27 +83,49 @@
 .marketing-nav-conference {
   position: relative;
 }
+.marketing-nav-feature--label {
+  cursor: default;
+}
+.marketing-nav-feature--label:hover,
+.marketing-nav-feature--label:focus-visible {
+  background: none;
+}
 .marketing-nav-teams {
   position: absolute;
   top: 0;
-  left: calc(100% + 8px);
+  left: 100%;
   z-index: 6;
   width: min(240px, calc(100vw - 32px));
   max-height: min(72vh, 560px);
   overflow-x: hidden;
   overflow-y: auto;
+  margin-left: 8px;
   padding: 8px;
   border: 1px solid #eceff2;
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 12px 40px #142a3614;
 }
+.marketing-nav-teams::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 8px;
+}
 .marketing-nav-teams.is-start {
   left: auto;
-  right: calc(100% + 8px);
+  right: 100%;
+  margin-left: 0;
+  margin-right: 8px;
 }
-.marketing-nav-feature--flyout[data-state="open"] > .marketing-nav-chevron-down {
-  transform: rotate(180deg);
+.marketing-nav-teams.is-start::before {
+  left: auto;
+  right: -8px;
+}
+.marketing-nav-feature--flyout[data-state="open"] > .marketing-nav-chevron-right {
+  color: #142a36;
 }
 .marketing-nav-features .marketing-nav-feature__icon svg,
 .marketing-nav-features .marketing-nav-feature__icon img {

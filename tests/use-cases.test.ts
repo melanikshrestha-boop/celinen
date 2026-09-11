@@ -40,8 +40,11 @@ describe("use cases", () => {
     expect(menu).toContain("onPointerEnter");
     expect(menu).toContain("ChevronRight");
     expect(menu).toContain("marketing-nav-teams");
+    expect(menu).toContain("marketing-nav-feature--label");
+    expect(menu).not.toContain("marketing-nav-chevron-down");
     expect(menu).not.toContain("avoidCollisions={false}");
     expect(menu).toContain("marketing-nav-feature--flyout");
+    expect(menu).not.toContain("openCase");
     expect(USE_CASES.some((item) => item.title.includes("Wedding"))).toBe(true);
   });
 
