@@ -179,8 +179,9 @@ if (!process.argv.includes(fixtureFlag)) {
     const headings = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)];
     assert.equal(headings.length, 1);
     assert.equal(text(headings[0]![1]!), "Go where the good light takes you.");
-    assert.ok(html.includes("A little space for your big ideas"));
-    assert.ok(html.includes("Your shoots, edits, and galleries"));
+    assert.ok(!html.includes("A little space for your big ideas"));
+    assert.ok(!html.includes("Your shoots, edits, and galleries"));
+    assert.ok(!html.includes("A little less admin"));
     assert.ok(html.includes("Made for the person behind the camera"));
     assert.ok(html.includes("Take a look around"));
     assert.ok(!html.includes("Stay for the last light"));

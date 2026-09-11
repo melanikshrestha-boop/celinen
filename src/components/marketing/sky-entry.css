@@ -74,6 +74,12 @@
   margin-top: 0;
   color: #9aa3ad;
 }
+.marketing-nav-branch--in {
+  padding-left: 12px;
+}
+.marketing-nav-feature--flyout[data-state="open"] > svg:last-child {
+  transform: rotate(180deg);
+}
 .marketing-nav-features .marketing-nav-feature__icon svg,
 .marketing-nav-features .marketing-nav-feature__icon img {
   width: 28px !important;

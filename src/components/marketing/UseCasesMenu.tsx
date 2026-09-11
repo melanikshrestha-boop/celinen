@@ -1,13 +1,10 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UseCaseMark } from "@/components/marketing/UseCaseMark";
@@ -93,8 +90,20 @@ function CaseRow({
 
 export function UseCasesMenu() {
   const menu = useNavMenu("use-cases");
+  const [openCase, setOpenCase] = useState<string | null>(null);
+  const [openConference, setOpenConference] = useState<string | null>(null);
   return (
-    <DropdownMenu modal {...menu}>
+    <DropdownMenu
+      modal
+      {...menu}
+      onOpenChange={(next) => {
+        menu.onOpenChange?.(next);
+        if (!next) {
+          setOpenCase(null);
+          setOpenConference(null);
+        }
+      }}
+    >
       <DropdownMenuTrigger className="marketing-nav__link">
         Use Cases
         <ChevronDown size={14} aria-hidden="true" />
@@ -102,66 +111,58 @@ export function UseCasesMenu() {
       <DropdownMenuContent
         align="start"
         sideOffset={10}
-        className="marketing-nav-menu marketing-nav-features"
+        className="marketing-nav-menu marketing-nav-features marketing-nav-features--long"
       >
         {USE_CASES.map((item) =>
           "conferences" in item && item.conferences ? (
-            <DropdownMenuSub key={item.id}>
-              <DropdownMenuSubTrigger className="marketing-nav-feature marketing-nav-feature--flyout">
+            <div key={item.id} className="marketing-nav-branch">
+              <button
+                type="button"
+                className="marketing-nav-feature marketing-nav-feature--flyout"
+                data-state={openCase === item.id ? "open" : undefined}
+                aria-expanded={openCase === item.id}
+                onClick={() => {
+                  setOpenCase((current) => (current === item.id ? null : item.id));
+                  setOpenConference(null);
+                }}
+              >
                 <CaseRow mark={item.mark} title={item.title} copy={item.copy} />
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent
-                  sideOffset={8}
-                  align="start"
-                  className="marketing-nav-menu marketing-nav-features marketing-nav-sub"
-                >
-                  {item.copy ? (
-                    <p className="marketing-nav-sub__lede">{item.copy}</p>
-                  ) : null}
-                  {item.conferences.map((conference) =>
-                    "teams" in conference && conference.teams ? (
-                      <DropdownMenuSub key={conference.id}>
-                        <DropdownMenuSubTrigger className="marketing-nav-feature marketing-nav-feature--flyout">
-                          <CaseRow mark={conference.mark} title={conference.title} />
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuPortal>
-                          <DropdownMenuSubContent
-                            side="right"
-                            sideOffset={8}
-                            align="start"
-                            avoidCollisions={false}
-                            className="marketing-nav-menu marketing-nav-features marketing-nav-sub marketing-nav-sub--teams"
-                          >
-                            {conference.teams.map((team) => (
-                              <DropdownMenuItem key={team.id} asChild>
-                                <Link
-                                  to="/use-cases"
-                                  hash={conference.id}
-                                  className="marketing-nav-feature marketing-nav-feature--team"
-                                >
-                                  <CaseRow mark={team.id} title={team.title} />
-                                </Link>
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuPortal>
-                      </DropdownMenuSub>
-                    ) : (
-                      <DropdownMenuItem key={conference.id} asChild>
-                        <Link
-                          to="/use-cases"
-                          hash={conference.id}
-                          className="marketing-nav-feature"
-                        >
-                          <CaseRow mark={conference.mark} title={conference.title} />
-                        </Link>
-                      </DropdownMenuItem>
-                    ),
-                  )}
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+              {openCase === item.id
+                ? item.conferences.map((conference) => (
+                    <div key={conference.id} className="marketing-nav-branch marketing-nav-branch--in">
+                      <button
+                        type="button"
+                        className="marketing-nav-feature marketing-nav-feature--flyout"
+                        data-state={openConference === conference.id ? "open" : undefined}
+                        aria-expanded={openConference === conference.id}
+                        onClick={() =>
+                          setOpenConference((current) =>
+                            current === conference.id ? null : conference.id,
+                          )
+                        }
+                      >
+                        <CaseRow mark={conference.mark} title={conference.title} />
+                        <ChevronDown size={14} aria-hidden="true" />
+                      </button>
+                      {openConference === conference.id && "teams" in conference
+                        ? conference.teams.map((team) => (
+                            <DropdownMenuItem key={team.id} asChild>
+                              <Link
+                                to="/use-cases"
+                                hash={conference.id}
+                                className="marketing-nav-feature marketing-nav-feature--team marketing-nav-branch--in"
+                              >
+                                <CaseRow mark={team.id} title={team.title} />
+                              </Link>
+                            </DropdownMenuItem>
+                          ))
+                        : null}
+                    </div>
+                  ))
+                : null}
+            </div>
           ) : (
             <DropdownMenuItem key={item.id} asChild>
               <Link to="/use-cases" hash={item.id} className="marketing-nav-feature">

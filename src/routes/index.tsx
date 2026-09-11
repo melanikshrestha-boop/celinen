@@ -12,7 +12,7 @@ import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { publicEntry } from "@/lib/public-entry";
 import { PRODUCT_HEADLINE } from "@/lib/product";
-import { ArrowRight, ArrowUpRight, Camera, Check, Heart, Images } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, Heart, Images } from "lucide-react";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
 
@@ -61,20 +61,11 @@ function Index() {
             fetchPriority="high"
           />
           <div className="marketing-hero__content">
-            <p className="marketing-hero__eyebrow">
-              <Camera size={16} strokeWidth={1.75} aria-hidden="true" />
-              A little space for your big ideas
-            </p>
             <h1 id="home-heading">
               Go where the
               <br />
               good light takes you.
             </h1>
-            <p className="marketing-hero__lead">
-              Your shoots, edits, and galleries. Happily together.
-              <br />
-              A little less admin. A lot more creating.
-            </p>
             <div className="marketing-actions">
               <Link
                 to={entry.to}
