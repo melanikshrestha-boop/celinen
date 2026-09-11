@@ -85,9 +85,8 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("@media (max-width: 540px)");
     expect(css).toContain(".marketing-vista");
-    expect(css).not.toMatch(/\.marketing-hero\s*\{[^}]*border-radius:\s*20px/);
-    expect(css).not.toContain("1360px");
-    expect(css).not.toMatch(/\.marketing-hero\s*\{[^}]*min\(100% - 40px/);
+    expect(css).toMatch(/\.marketing-hero\s*\{[^}]*border-radius:\s*28px/);
+    expect(css).toMatch(/\.marketing-hero\s*\{[^}]*min\(100% - 40px/);
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(css).not.toMatch(/\.workbench|\.develop-|\.auth-|--foto-font-ui|auth-lens/);
     const source = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
@@ -165,8 +164,18 @@ if (!process.argv.includes(fixtureFlag)) {
     const headings = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)];
     assert.equal(headings.length, 1);
     assert.equal(text(headings[0]![1]!), "Go where the good light takes you.");
-    assert.match(html, /It learns from your photos and your edits/);
-    assert.match(html, /not used to train a shared model/);
+    assert.ok(html.includes("A little space for your big ideas"));
+    assert.ok(html.includes("Your shoots, edits, and galleries"));
+    assert.ok(html.includes("Made for the person behind the camera"));
+    assert.ok(html.includes("Take a look around"));
+    assert.ok(!html.includes("Stay for the last light"));
+    assert.ok(!html.includes("Keep the ones"));
+    assert.ok(!html.includes("It learns from your photos and your edits"));
+    assert.ok(!html.includes("marketing-learn"));
+    const heroAt = html.indexOf('class="marketing-hero"');
+    const statsAt = html.indexOf("marketing-stats");
+    assert.ok(heroAt > 0 && statsAt > heroAt, "Stats follow the hero");
+    assert.ok(!html.includes("marketing-vista__dissolve"));
     assert.ok(html.includes('aria-labelledby="home-heading"'));
     const hero = html.match(/<img\b[^>]*class="marketing-hero__image"[^>]*>/)![0];
     for (const expected of [
@@ -181,36 +190,52 @@ if (!process.argv.includes(fixtureFlag)) {
       assert.ok(image[0].includes('alt=""'), "Illustrative scenery must remain decorative");
       assert.ok(image[0].includes('src="/images/foto-open-sky.webp"'));
     }
-    const label = current === "in" ? "Open workspace" : "Get started";
-    const entries = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].filter((match) =>
-      text(match[2]!).startsWith(label),
-    );
-    assert.equal(
-      entries.length,
-      4,
-      "Header, hero, savings, and closing CTA must share entry policy",
-    );
-    for (const entry of entries) {
+    const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
+    const startsWith = (label: string) =>
+      links.filter((match) => text(match[2]!).startsWith(label));
+    if (current === "in") {
+      assert.equal(startsWith("Dashboard").length, 4);
+    } else {
+      assert.equal(startsWith("Get started").length, 3, "Hero, savings, and closing stay Get started");
+      assert.equal(startsWith("Sign In").length, 1, "Nav CTA is Sign In");
+    }
+    for (const entry of current === "in"
+      ? startsWith("Dashboard")
+      : [...startsWith("Get started"), ...startsWith("Sign In")]) {
       const href = entry[1]!.match(/href="([^"]+)"/)![1]!.replaceAll("&amp;", "&");
       const url = new URL(href, "https://foto.test");
-      assert.equal(url.pathname, current === "in" ? "/workspace" : "/auth");
+      assert.equal(url.pathname, current === "in" ? "/dashboard" : "/auth");
       if (current === "in") assert.equal(url.search, "");
       else {
-        assert.equal(url.searchParams.get("mode"), "signup");
-        assert.equal(url.searchParams.get("next"), "/workspace");
+        assert.equal(url.searchParams.get("next"), "/dashboard");
+        const signingIn = text(entry[2]!).startsWith("Sign In");
+        assert.equal(url.searchParams.get("mode"), signingIn ? "signin" : "signup");
+        if (signingIn) assert.ok(url.searchParams.get("google"));
       }
     }
     assert.ok(!html.includes('id="features"'));
     assert.ok(html.includes("id=\"pricing\""));
     assert.ok(html.includes("USD 20"));
     assert.ok(html.includes("USD 30"));
+    assert.ok(html.includes("$20"));
+    assert.ok(html.includes("$30"));
     assert.ok(html.includes("Hobby"));
     assert.ok(html.includes("Creator"));
     assert.ok(html.includes("Enterprise"));
     assert.ok(html.includes("Most Popular"));
     assert.ok(!html.includes("Agency"));
     assert.ok(!html.includes("Sideline"));
-    assert.ok(html.includes("photo credits"));
+    assert.ok(html.includes("credits/month"));
+    assert.ok(html.includes("credits per month"));
+    assert.ok(html.includes("REST API"));
+    assert.ok(html.includes(">MCP<"));
+    assert.ok(!html.includes(">More<"));
+    assert.ok(html.includes('aria-label="Open menu"'));
+    assert.ok(html.includes("Features"));
+    assert.ok(html.includes("Use Cases"));
+    assert.match(html, /Photographers/);
+    assert.match(html, /Galleries sent/);
+    assert.match(html, /Frames picked/);
     assert.ok(!html.includes("$16"));
     assert.ok(html.includes('id="connectors"'));
     assert.match(html, /Connectors/);
@@ -222,6 +247,10 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(connectors).toContain("data-reveal");
     expect(connectors).toContain("instagram");
     expect(connectors).toContain("adobe");
+    expect(connectors).toContain("lightroom");
+    expect(connectors).toContain("photoshop");
+    expect(connectors).toContain("Lightroom Classic");
+    expect(connectors).toContain("stripe");
     expect(connectors).toContain("tiktok");
     expect(connectors).toContain("youtube");
     assert.match(html, />Accept</);

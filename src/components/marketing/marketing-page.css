@@ -22,7 +22,7 @@
   color-scheme: dark;
   font-family: var(--font-sans);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: var(--marketing-leading, 1.3);
 }
 .marketing-page h1,
 .marketing-page h2,
@@ -120,7 +120,7 @@
   max-width: 48ch;
   margin-top: 24px;
   font-size: 18px;
-  line-height: 1.6;
+  line-height: var(--marketing-leading, 1.3);
   color: var(--marketing-muted);
 }
 .marketing-actions {

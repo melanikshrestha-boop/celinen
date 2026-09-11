@@ -6,6 +6,7 @@ import {
   publicDateLabel,
   type FotoArticle,
 } from "@/lib/public-content";
+import { BlogComments } from "@/components/marketing/BlogComments";
 import "@/components/marketing/public-editorial.css";
 
 export const Route = createFileRoute("/blog/$slug")({
@@ -46,11 +47,19 @@ export function BlogArticle({ article }: { article: FotoArticle }) {
             {section.paragraphs.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
+            {section.items ? (
+              <ul>
+                {section.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
           </section>
         ))}
         <Link to="/product">
           Explore FOTO <span aria-hidden="true">↗</span>
         </Link>
+        <BlogComments slug={article.slug} />
       </article>
     </PublicPage>
   );

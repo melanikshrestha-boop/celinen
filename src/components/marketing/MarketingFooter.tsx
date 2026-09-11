@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
-import { FotoWordmark } from "@/components/marketing/FotoWordmark";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/product";
+import { PUBLIC_SOCIALS } from "@/lib/public-socials";
 import "./public-details.css";
 
 function openCookiePrefs() {
@@ -8,6 +9,7 @@ function openCookiePrefs() {
 }
 
 export function MarketingFooter() {
+  const year = new Date().getFullYear();
   return (
     <footer className="marketing-footer marketing-footer--directory">
       <nav className="marketing-footer__directory" aria-label="Footer">
@@ -18,6 +20,9 @@ export function MarketingFooter() {
               <Link to="/" hash="workflow">
                 Features
               </Link>
+            </li>
+            <li>
+              <Link to="/use-cases">Use Cases</Link>
             </li>
             <li>
               <Link to="/pricing">Pricing</Link>
@@ -40,9 +45,7 @@ export function MarketingFooter() {
               <Link to="/terms">Terms</Link>
             </li>
             <li>
-              <Link to="/privacy" hash="cookies">
-                Cookie Policy
-              </Link>
+              <Link to="/cookie-policy">Cookie Policy</Link>
             </li>
             <li>
               <button type="button" className="marketing-footer__text-btn" onClick={openCookiePrefs}>
@@ -57,26 +60,44 @@ export function MarketingFooter() {
             <li>
               <Link to="/community">Community</Link>
             </li>
+            {PUBLIC_SOCIALS.map((social) => (
+              <li key={social.href}>
+                <a href={social.href} target="_blank" rel="noopener noreferrer">
+                  {social.label}
+                </a>
+              </li>
+            ))}
           </ul>
         </div>
         <div className="marketing-footer__column">
           <h2>Connect</h2>
           <ul>
             <li>
+              <Link to="/docs">Get an API key</Link>
+            </li>
+            <li>
+              <Link to="/mcp">MCP server</Link>
+            </li>
+            <li>
               <a href="mailto:hello@lenslab.dev">Contact</a>
             </li>
             <li>
-              <Link to="/auth" search={{ mode: "signin" }}>
+              <Link to="/auth" search={{ mode: "signin", google: true }}>
                 Sign in
               </Link>
             </li>
           </ul>
         </div>
       </nav>
-      <div className="marketing-footer__branding">
-        <p className="marketing-footer__copy">© {new Date().getFullYear()} FOTO</p>
-        <FotoWordmark className="marketing-footer__mark" />
+      <div className="marketing-footer__legal">
+        <p>
+          © {year} {PRODUCT_NAME}. All rights reserved.
+        </p>
+        <p>{PRODUCT_TAGLINE}</p>
       </div>
+      <p className="marketing-footer__giant" aria-hidden="true">
+        {PRODUCT_NAME}
+      </p>
       <CookieConsent />
     </footer>
   );

@@ -1,4 +1,9 @@
 /** Progressive enhancement only. Server HTML and unsupported browsers remain readable. */
+function revealEdge(top: number | undefined, viewportHeight: number): "up" | "down" {
+  if (typeof top !== "number") return "down";
+  return top < viewportHeight * 0.35 ? "up" : "down";
+}
+
 export function observeMarketingReveals(root: HTMLElement): () => void {
   const view = root.ownerDocument.defaultView;
   if (
@@ -12,7 +17,11 @@ export function observeMarketingReveals(root: HTMLElement): () => void {
   let observer: IntersectionObserver | undefined;
   let disposed = false;
   let generation = 0;
-  const restore = () => targets.forEach((target) => target.removeAttribute("data-reveal-state"));
+  const restore = () =>
+    targets.forEach((target) => {
+      target.removeAttribute("data-reveal-state");
+      target.removeAttribute("data-reveal-from");
+    });
   const showFocused = (event: Event) => {
     const focused = event.target as Node | null;
     for (const target of targets)
@@ -43,17 +52,21 @@ export function observeMarketingReveals(root: HTMLElement): () => void {
           if (disposed || current !== generation || preference.matches) return;
           for (const entry of entries) {
             const target = entry.target as HTMLElement;
+            const focused = target.contains(root.ownerDocument.activeElement);
+            target.dataset["revealFrom"] = revealEdge(
+              entry.boundingClientRect?.top,
+              view.innerHeight,
+            );
             target.dataset["revealState"] =
-              entry.isIntersecting || target.contains(root.ownerDocument.activeElement)
-                ? "visible"
-                : "outside";
+              entry.isIntersecting || focused ? "visible" : "outside";
           }
         },
-        { threshold: 0, rootMargin: "-24px 0px -24px 0px" },
+        { threshold: 0, rootMargin: "0px 0px -8% 0px" },
       );
       for (const target of targets) {
         const rect = target.getBoundingClientRect();
         // Do not hide already-visible content while hydration catches up.
+        target.dataset["revealFrom"] = revealEdge(rect.top, view.innerHeight);
         target.dataset["revealState"] =
           rect.bottom > 0 && rect.top < view.innerHeight ? "visible" : "outside";
         observer.observe(target);

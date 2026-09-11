@@ -1,0 +1,68 @@
+/* Client portal is public-facing: white paper + blue, not workspace rust. */
+.client-portal {
+  --ink: #142a36;
+  --moss: #516570;
+  --paper: #fff;
+  --paper2: #fff;
+  --card: #fff;
+  --muted: #eaf5fc;
+  --border: #d8e6ed;
+  --input: #9bafb9;
+  --rust: #006eaa;
+  min-height: 100vh;
+  background: #f4f8fb;
+  color: #142a36;
+  color-scheme: light;
+}
+
+.client-portal .bg-card,
+.client-portal .bg-background {
+  background: #fff;
+}
+
+.client-portal .border-border,
+.client-portal .border-input {
+  border-color: #d8e6ed;
+}
+
+.client-portal .text-ink {
+  color: #142a36;
+}
+
+.client-portal .text-moss {
+  color: #516570;
+}
+
+.client-portal .bg-muted {
+  background: #eaf5fc;
+}
+
+.client-portal__cta {
+  background: #006eaa;
+  color: #fff;
+}
+
+.client-portal__accent {
+  color: #006eaa;
+}
+
+.client-portal__file::file-selector-button {
+  margin-right: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #006eaa;
+  color: #fff;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.client-portal .bg-rust {
+  background: #006eaa;
+  color: #fff;
+}
+
+.client-portal .text-rust {
+  color: #006eaa;
+}

@@ -233,6 +233,8 @@ export function createCullShootView(repository: ShootRepository) {
           ? (current.manifest.filter as StudioFilter)
           : "all",
         updatedAt: Date.now(),
+        roster: legacy?.roster ?? [],
+        eventPeople: legacy?.eventPeople ?? [],
         unanalyzedIds,
         nativeTreatmentIds,
       };

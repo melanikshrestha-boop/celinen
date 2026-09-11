@@ -154,9 +154,10 @@ describe("public, accessible estimate presentation", () => {
     }
     expect(html.match(/aria-invalid="false"/g)).toHaveLength(5);
     expect(html).toContain('aria-live="polite"');
-    expect(html).toContain('class="marketing-value__calculator" open=""');
+    expect(html).toContain('class="marketing-value__calculator"');
     expect(html).toContain("Reset example");
-    expect(html).toContain("See the calculation");
+    expect(html).toContain("h ×");
+    expect(html).not.toContain("See the calculation");
   });
 
   test("savings inputs and totals are not boxed into capsules", () => {
@@ -169,16 +170,18 @@ describe("public, accessible estimate presentation", () => {
       "utf8",
     );
     expect(value).toMatch(
-      /\.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/,
+      /\.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*border-radius:\s*0;/,
     );
+    expect(value).not.toMatch(/border-bottom:\s*1px/);
     expect(value).toMatch(
       /\.marketing-value__metric \{[^}]*border-radius:\s*0;[^}]*background:\s*transparent;/,
     );
     expect(value).not.toContain("color-scheme: dark");
     expect(sky).toMatch(
-      /\.marketing-page \.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/,
+      /\.marketing-page \.marketing-value__field input \{[^}]*background:\s*transparent;[^}]*border:\s*0;[^}]*border-radius:\s*0;/,
     );
     expect(sky).not.toMatch(/\.marketing-value__field input \{[^}]*border-radius:\s*13px/);
+    expect(sky).not.toMatch(/border-bottom:\s*1px solid #a3b4bd/);
     expect(sky).not.toContain("#e5f2ff");
     expect(sky).not.toContain("#e9f5dd");
   });

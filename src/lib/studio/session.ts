@@ -1,4 +1,5 @@
 import type { Shot } from "@/lib/imaging";
+import { isEventPeople, isRoster, type EventPerson, type RosterPerson } from "./people";
 import { studioDatabaseKey } from "./shoot-directory";
 
 const VERSION = 2;
@@ -31,6 +32,8 @@ type StoredSession = {
   revision?: number;
   writerId?: string;
   recoverySource?: string;
+  roster?: RosterPerson[];
+  eventPeople?: EventPerson[];
 };
 
 type LegacyStoredSession = Omit<StoredSession, "shotIds"> & { shots: StoredShot[] };
@@ -40,6 +43,8 @@ export type HydratedStudioSession = {
   selectedId: string | null;
   filter: StudioFilter;
   updatedAt: number;
+  roster: RosterPerson[];
+  eventPeople: EventPerson[];
 };
 
 type SessionState = {
@@ -47,6 +52,8 @@ type SessionState = {
   lastSavedPreviews: Map<string, Blob | null>;
   saveQueue: Promise<void>;
   knownRevision: number;
+  roster: RosterPerson[];
+  eventPeople: EventPerson[];
 };
 // Fast Refresh preserves the live Studio component. Its writer must survive too:
 // resetting the expected revision to zero creates a false cross-tab conflict.
@@ -64,11 +71,31 @@ function sessionState(scope: string, shootId?: string): SessionState {
       lastSavedPreviews: new Map(),
       saveQueue: Promise.resolve(),
       knownRevision: 0,
+      roster: [],
+      eventPeople: [],
     };
     sessions.set(key, state);
   }
   state.lastSavedPreviews ??= new Map();
+  state.roster ??= [];
+  state.eventPeople ??= [];
   return state;
+}
+
+export function setStudioRoster(
+  roster: readonly RosterPerson[],
+  scope = "device-local",
+  shootId?: string,
+): void {
+  sessionState(scope, shootId).roster = [...roster];
+}
+
+export function setStudioEventPeople(
+  people: readonly EventPerson[],
+  scope = "device-local",
+  shootId?: string,
+): void {
+  sessionState(scope, shootId).eventPeople = [...people];
 }
 
 export function sameStudioView(
@@ -179,6 +206,7 @@ function signatureOf(record: StoredShot): string {
     record.verdict,
     record.edits,
     record.faces,
+    record.subjects,
     record.develop,
     record.error,
     record.previewBlob?.size ?? 0,
@@ -315,12 +343,20 @@ async function hydrateStudioSession(
       ? stored.selectedId
       : (records[0]?.id ?? null);
     const filter = STUDIO_FILTERS.has(stored.filter) ? stored.filter : "all";
+    const roster = isRoster(stored.roster) ? stored.roster : [];
+    const eventPeople = isEventPeople(stored.eventPeople) ? stored.eventPeople : [];
+    if (state) {
+      state.roster = roster;
+      state.eventPeople = eventPeople;
+    }
 
     return {
       shots,
       selectedId,
       filter,
       updatedAt: stored.updatedAt,
+      roster,
+      eventPeople,
     };
   } finally {
     database.close();
@@ -370,6 +406,8 @@ async function persistStudioSession(
         selectedId,
         filter,
       ) &&
+      JSON.stringify(current?.roster ?? []) === JSON.stringify(state.roster ?? []) &&
+      JSON.stringify(current?.eventPeople ?? []) === JSON.stringify(state.eventPeople ?? []) &&
       storedIds.size === records.length &&
       records.every(
         (record) =>
@@ -382,6 +420,8 @@ async function persistStudioSession(
       return;
     }
     const revision = nextStudioRevision(currentRevision, state.knownRevision);
+    const roster = state.roster ?? [];
+    const eventPeople = state.eventPeople ?? [];
     const session: StoredSession = {
       ...(current?.recoverySource ? { recoverySource: current.recoverySource } : {}),
       id: ACTIVE_SESSION,
@@ -391,6 +431,8 @@ async function persistStudioSession(
       updatedAt: Date.now(),
       revision,
       writerId: WRITER_ID,
+      roster,
+      eventPeople,
     };
     sessionStore.put(session);
 
@@ -493,12 +535,16 @@ async function writeStudioClearTombstone(
       updatedAt: Date.now(),
       revision,
       writerId: WRITER_ID,
+      roster: [],
+      eventPeople: [],
     } satisfies StoredSession);
     transaction.objectStore(SHOT_STORE).clear();
     await transactionDone(transaction);
     state.knownRevision = revision;
     state.lastSavedSignatures.clear();
     state.lastSavedPreviews.clear();
+    state.roster = [];
+    state.eventPeople = [];
   } finally {
     database.close();
   }
@@ -597,6 +643,11 @@ export async function copyPreviousShoot(sourceScope: string, owner: string, shoo
         updatedAt: Date.now(),
         revision: 1,
         writerId: WRITER_ID,
+        roster: "roster" in snapshot && isRoster(snapshot.roster) ? snapshot.roster : [],
+        eventPeople:
+          "eventPeople" in snapshot && isEventPeople(snapshot.eventPeople)
+            ? snapshot.eventPeople
+            : [],
       } satisfies StoredSession);
       for (const row of records) shots.add(row);
       await done;

@@ -14,7 +14,10 @@ const RINGS: { id: string; label: string; href: string }[][] = [
     { id: "pinterest", label: "Pinterest", href: "/docs" },
   ],
   [
+    { id: "stripe", label: "Stripe", href: "/earnings" },
     { id: "adobe", label: "Adobe", href: "/adobe" },
+    { id: "lightroom", label: "Lightroom Classic", href: "/adobe" },
+    { id: "photoshop", label: "Photoshop", href: "/adobe" },
     { id: "threads", label: "Threads", href: "/docs" },
     { id: "whatsapp", label: "WhatsApp", href: "/docs" },
     { id: "snapchat", label: "Snapchat", href: "/docs" },

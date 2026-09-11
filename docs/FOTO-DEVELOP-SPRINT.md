@@ -1107,3 +1107,71 @@ No customer originals, accounts, financial records, environment files, public
 design, native rendering math, or export proof were changed in this checkpoint.
 A push is not publication: verify the connected branch, explicitly publish, and
 read back the live assets before reporting this checkpoint deployed.
+
+## 2026-09-10 local dialog-navigation repair; concurrent-work release hold
+
+The latest published baseline is `b63e550` (public motion/navigation/pricing and
+resource-page polish). Its whimsical public design supersedes the older public
+typography directions above. Do not restore old public styling from this log.
+
+### Reproduced and repaired locally
+
+Automatic crop and reference matching aborted their workers when the dialog
+unmounted, but released the parent processing lock only while the dialog was
+still mounted. Same-shoot photo navigation preserves DevelopEditor and unmounts
+its dialogs while hydration runs. The parent could therefore stay busy and keep
+the newly loaded photo's controls unavailable.
+
+The two dialogs now release their own processing lock during cleanup. Controller
+identity prevents an old worker's catch/finally from touching a replacement
+operation; synchronous admission guards prevent double-starts before React
+rerenders. Cancellation is checked between each asynchronous processing stage.
+No recipe, crop proposal, original bytes, persistence schema or native pixel math
+was changed. Crop/reference application still requires the explicit Apply action.
+
+Owned files in this checkpoint: `AutoCropDialog.tsx`, `ReferencePresetDialog.tsx`,
+`tests/develop-dialog-lifecycle.test.ts`, and this appended note. Other modified
+and untracked files belong to concurrent work and must not be staged with this fix.
+
+### Evidence and limits
+
+- Initial source-derived lifecycle gate: 8 pass / 8 fail. Expanded red gate:
+  8 pass / 10 fail. After the fix, all 22 final lifecycle tests pass, including
+  cleanup, late uncancelable reads, replacement operations, effect reactivation,
+  duplicate starts, failure and cancellation between stages.
+- Lifecycle plus existing warm-navigation/reference-application checks:
+  **28 pass, 185 assertions**. Scoped ESLint, Prettier and diff checks pass.
+- Existing isolated import/save/navigation gate: **124 pass, 6,438 assertions**.
+- Full regression on the working-copy snapshot: **2,068 pass, 21 skip, one existing
+  RAW-WB TODO, one failure; 370,511 assertions**. The same marketing workflow
+  presentation failure was present before the dialog patch. This is not a green
+  release gate. Source continued changing during the audit, so revalidate the
+  final integrated checkout before publication.
+- These dialog tests execute actual component bodies/handlers with instance-local
+  fake hooks and processing promises. They do not establish a new full-browser,
+  native-pixel or RAW-throughput benchmark. Real navigation during a running
+  crop/reference operation remains a browser verification step.
+
+### Concurrent work requiring coordination
+
+New marketing/settings/checkout/personal-style changes appeared after the Grok
+handoff and continued growing during the audit. No active teammate owns them in
+this thread. The user was asked whether Grok is still editing or wants takeover.
+Do not overwrite, stage, publish or silently discard those changes.
+
+At audit time, TypeScript reported three missing `override` modifiers in
+`SectionGuard.tsx` and an exact-optional `customerEmail` error in `signup.tsx`.
+The new personal-style module also failed three disposable in-memory isolation
+probes: one browser-wide sample key, another account's opt-out suppressing samples,
+and clearing the shared log instead of only the current account. This is a
+same-browser isolation defect; no actual customer loss or remote leak was tested.
+Recheck these findings against any subsequent Grok edits before changing them.
+
+Logs: `/private/tmp/foto-dialog-lifecycle-red.log`,
+`/private/tmp/foto-dialog-lifecycle-full-regression.log`, and
+`/private/tmp/foto-heartbeat-20260910-typecheck.log`. Independent account-isolation
+probe: `/private/tmp/foto-personal-style-isolation-audit.test.ts`; handoff audit:
+`/private/tmp/foto-heartbeat-20260910-audit.md`.
+
+The dialog repair is local and uncommitted. No push, Lovable publication, backend
+migration or customer-library operation was performed by this checkpoint.

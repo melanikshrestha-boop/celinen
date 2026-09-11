@@ -17,7 +17,7 @@
   color: #3b4a53;
   box-shadow: 0 12px 40px #142a3626;
   font-size: 15px;
-  line-height: 1.45;
+  line-height: var(--marketing-leading, 1.3);
 }
 .marketing-cookies p {
   margin: 0;
@@ -46,8 +46,7 @@
 }
 .marketing-cookies__accept {
   border: 0;
-  background: #006eaa;
-  color: #fff;
+  font-weight: 600;
 }
 @media (max-width: 640px) {
   .marketing-cookies {

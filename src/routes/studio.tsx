@@ -36,6 +36,7 @@ import { DEFAULT_PREFERENCES } from "@/lib/account-preferences";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { importLanes } from "@/lib/settings-transfer";
 import { Filmstrip } from "@/components/studio/Filmstrip";
+import { PeoplePanel } from "@/components/studio/PeoplePanel";
 import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
 import { describeShoot } from "@/lib/studio/shoot-brief";
@@ -57,6 +58,7 @@ import { PRODUCT_NAME } from "@/lib/product";
 import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
+import { smartCullPass } from "@/lib/studio/smart-cull";
 import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
 import { createOriginalKeeperZip } from "@/lib/studio/keeper-package";
 import { importedReviewVerdict } from "@/lib/studio/review-metadata";
@@ -77,9 +79,21 @@ import {
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
+import { observationsFromPreviewUrl } from "@/lib/studio/face-descriptor";
+import { decideGallery, proposeGallery } from "@/lib/studio/gallery-select";
+import { INSIGHTFACE_WEIGHTS_NOTE, requestPeopleClusters } from "@/lib/studio/insightface";
+import {
+  shotsOfCluster,
+  shotsOfPerson,
+  type EventPerson,
+  type RosterPerson,
+} from "@/lib/studio/people";
 import {
   canPersistStudioSession,
   readStudioSessionSnapshot,
+  saveStudioSession,
+  setStudioEventPeople,
+  setStudioRoster,
   stableShotId,
   type StudioFilter,
   type StudioHydrationState,
@@ -311,6 +325,7 @@ export function Studio({
         filter: scope,
       });
       await canonicalView.save(frames, selected, scope);
+      await saveStudioSession(frames, selected, scope, storageScope, shootId);
       if (!projectSession && frames.length)
         await rememberShoot(
           storageScope,
@@ -325,6 +340,11 @@ export function Studio({
   const [shots, setShots] = useState<Shot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [roster, setRoster] = useState<RosterPerson[]>([]);
+  const [eventPeople, setEventPeople] = useState<EventPerson[]>([]);
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
+  const [clusterFilter, setClusterFilter] = useState<string | null>(null);
+  const [peopleGrouping, setPeopleGrouping] = useState(false);
   const [reviewIssue, setReviewIssue] = useState<ReviewIssue | null>(null);
   const [sessionStatus, setSessionStatus] = useState<StudioHydrationState>("loading");
   const [deliveryReference, setDeliveryReference] = useState<DeliveryReferenceValue | null>(null);
@@ -661,6 +681,57 @@ export function Studio({
     [showProposal],
   );
 
+  const groupFaces = useCallback(async () => {
+    if (peopleGrouping) return;
+    setPeopleGrouping(true);
+    try {
+      const observations = [];
+      for (const shot of latestShotsRef.current) {
+        if (!shot.previewUrl || shot.error) continue;
+        observations.push(...(await observationsFromPreviewUrl(shot.previewUrl, shot.id)));
+      }
+      if (!observations.length) {
+        setSyncNote(
+          "No faces to group. Use a browser with FaceDetector, or tag jersey/bib yourself. No identities were assigned.",
+        );
+        return;
+      }
+      const review = await requestPeopleClusters(observations);
+      const people: EventPerson[] = review.clusters.map((cluster) => ({
+        id: cluster.id,
+        label: "",
+        role: "unlabeled",
+        confirmed: false,
+        frameIds: cluster.frameIds,
+        observationIds: cluster.observationIds,
+        source: cluster.source,
+        minSimilarity: cluster.minSimilarity,
+      }));
+      setEventPeople(people);
+      setStudioEventPeople(people, storageScope, shootId);
+      setSyncNote(
+        `${people.length} event-local ${people.length === 1 ? "person" : "people"} grouped. Name them yourself. FOTO does not infer family roles.`,
+      );
+    } catch (error) {
+      setSyncNote(
+        error instanceof Error
+          ? error.message
+          : "People matching failed. No identities were assigned.",
+      );
+    } finally {
+      setPeopleGrouping(false);
+    }
+  }, [peopleGrouping, storageScope, shootId]);
+
+  const proposeJobGallery = useCallback(() => {
+    const plan = proposeGallery(latestShotsRef.current, { people: eventPeople });
+    return stageCull(
+      (shot) => decideGallery(shot, plan),
+      "Gallery proposal",
+      plan.limitations.join(" "),
+    );
+  }, [eventPeople, stageCull]);
+
   useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
   useEffect(() => {
@@ -707,6 +778,12 @@ export function Studio({
         updateShots(() => session.shots);
         selectShot(session.selectedId ?? session.shots[0]?.id ?? null);
         selectFilter(session.filter);
+        setRoster(session.roster ?? []);
+        setStudioRoster(session.roster ?? [], storageScope, shootId);
+        setEventPeople(session.eventPeople ?? []);
+        setStudioEventPeople(session.eventPeople ?? [], storageScope, shootId);
+        setPersonFilter(null);
+        setClusterFilter(null);
         hydrationRecoveryRef.current = false;
         selectSessionStatus("ready");
         setSyncNote(
@@ -731,7 +808,16 @@ export function Studio({
     return () => {
       alive = false;
     };
-  }, [loadStoredSession, runtimeKey, selectFilter, selectSessionStatus, selectShot, updateShots]);
+  }, [
+    loadStoredSession,
+    runtimeKey,
+    selectFilter,
+    selectSessionStatus,
+    selectShot,
+    updateShots,
+    storageScope,
+    shootId,
+  ]);
 
   useEffect(
     () =>
@@ -864,7 +950,7 @@ export function Studio({
         void saveStoredSession(shots, selectedId, filter).catch(pauseSaving);
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [filter, selectedId, sessionStatus, shots, saveStoredSession, pauseSaving]);
+  }, [filter, selectedId, sessionStatus, shots, roster, eventPeople, saveStoredSession, pauseSaving]);
 
   useEffect(() => {
     if (!canPersistStudioSession(sessionStatus)) return;
@@ -1117,20 +1203,25 @@ export function Studio({
 
   /* ---------------- derived ---------------- */
   const visible = useMemo(() => {
-    if (reviewIssue) return filterReviewIssue(shots, reviewIssue);
+    const cluster = clusterFilter
+      ? eventPeople.find((person) => person.id === clusterFilter)
+      : undefined;
+    const byCluster = cluster ? shotsOfCluster(shots, cluster) : shots;
+    const scoped = personFilter ? shotsOfPerson(byCluster, personFilter) : byCluster;
+    if (reviewIssue) return filterReviewIssue(scoped, reviewIssue);
     switch (filter) {
       case "keepers":
-        return shots.filter((s) => s.verdict === "keep");
+        return scoped.filter((s) => s.verdict === "keep");
       case "rejected":
-        return shots.filter((s) => s.verdict === "reject");
+        return scoped.filter((s) => s.verdict === "reject");
       case "flagged":
-        return shots.filter((s) => s.flags.length > 0);
+        return scoped.filter((s) => s.flags.length > 0);
       case "todo":
-        return shots.filter((s) => s.verdict === "undecided");
+        return scoped.filter((s) => s.verdict === "undecided");
       default:
-        return shots;
+        return scoped;
     }
-  }, [shots, filter, reviewIssue]);
+  }, [shots, filter, reviewIssue, personFilter, clusterFilter, eventPeople]);
 
   const selected = shots.find((s) => s.id === selectedId) ?? null;
   const counts = useMemo(
@@ -1391,7 +1482,9 @@ export function Studio({
           const min = num("min_score") ?? 45;
           const keepAt = num("keep_score") ?? 70;
           return stageCull(
-            (s) => firstPassVerdict(s, { rejectBelow: min, keepAt }),
+            (s) =>
+              smartCullPass(currentShots(), [], { rejectBelow: min, keepAt }).get(s.id) ??
+              firstPassVerdict(s, { rejectBelow: min, keepAt }),
             "Suggested selections",
             "Suggestions for undecided photos only. Your existing decisions are protected.",
           );
@@ -2283,6 +2376,43 @@ export function Studio({
                       onClick={() => selectReviewIssue("duplicates")}
                     />
                   </div>
+                  <PeoplePanel
+                    roster={roster}
+                    eventPeople={eventPeople}
+                    shots={shots}
+                    selected={selected}
+                    personFilter={personFilter}
+                    clusterFilter={clusterFilter}
+                    grouping={peopleGrouping}
+                    packNote={INSIGHTFACE_WEIGHTS_NOTE}
+                    onRoster={(next) => {
+                      setRoster(next);
+                      setStudioRoster(next, storageScope, shootId);
+                    }}
+                    onTag={(shotId, subjects) =>
+                      updateShots((current) =>
+                        current.map((shot) => (shot.id === shotId ? { ...shot, subjects } : shot)),
+                      )
+                    }
+                    onFilter={setPersonFilter}
+                    onClusterFilter={setClusterFilter}
+                    onEventPeople={(next) => {
+                      setEventPeople(next);
+                      setStudioEventPeople(next, storageScope, shootId);
+                    }}
+                    onGroupFaces={() => void groupFaces()}
+                    onProposeGallery={() => {
+                      try {
+                        setSyncNote(proposeJobGallery());
+                      } catch (error) {
+                        setSyncNote(
+                          error instanceof Error
+                            ? error.message
+                            : "Gallery proposal failed. Your picks are unchanged.",
+                        );
+                      }
+                    }}
+                  />
                 </div>
 
                 {/* loupe */}

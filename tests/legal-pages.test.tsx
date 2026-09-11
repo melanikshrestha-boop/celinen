@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement, type ReactNode } from "react";
 
@@ -24,6 +25,7 @@ mock.module("@/components/marketing/MarketingFooter", () => ({
 }));
 
 const { PrivacyPage, TermsPage } = await import("../src/components/marketing/LegalPage");
+const { CookiePolicyPage } = await import("../src/components/marketing/CookiePolicy");
 
 test("privacy policy covers photographers in Europe without clip-farm copy", () => {
   const html = renderToStaticMarkup(<PrivacyPage />);
@@ -47,5 +49,38 @@ test("terms keep published photo-credit amounts and photographer ownership", () 
   expect(html).toContain("/privacy");
   expect(html).not.toContain("viral clip");
   expect(html).not.toContain("Vugola");
+  expect(html).not.toContain("South Dakota");
+});
+
+test("legal docs are single-spaced OpenAI Sans, including title and code", () => {
+  const css = readFileSync(
+    new URL("../src/components/marketing/public-details.css", import.meta.url),
+    "utf8",
+  );
+  const legal = css.slice(css.indexOf("/* Legal pages"));
+  expect(legal).toContain(".marketing-page .legal-doc {");
+  expect(legal).toContain("line-height: 1.3");
+  expect(legal).toContain("font-family: var(--font-sans)");
+  expect(legal).toContain(".marketing-page .legal-doc code {");
+  expect(legal).toContain("font-family: inherit");
+  expect(legal).not.toContain("line-height: 1.7");
+  expect(css).toContain(
+    ".marketing-page .marketing-public-page:has(.legal-doc) .marketing-public-page__intro h1",
+  );
+});
+
+test("cookie policy is a named Celinen page effective September 10", () => {
+  const html = renderToStaticMarkup(<CookiePolicyPage />);
+  expect(html).toContain("Cookie Policy");
+  expect(html).toContain("September 10, 2026");
+  expect(html).toContain("celinen");
+  expect(html).not.toContain("Celinen");
+  expect(html).toContain("consent cookie");
+  expect(html).toContain("hello@lenslab.dev");
+  expect(html).toContain("/privacy");
+  expect(html).not.toContain("foto_consent");
+  expect(html).not.toContain("FOTO");
+  expect(html).not.toContain("Vugola");
+  expect(html).not.toContain("Vugola LLC");
   expect(html).not.toContain("South Dakota");
 });

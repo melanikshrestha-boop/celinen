@@ -99,11 +99,12 @@ The [local workflow backtest](../docs/NATIVE-WORKFLOW-BACKTEST.md) records the r
 
 Build the native executables, start the existing web app with `npm run dev`, and open the loopback Studio URL printed by Vite. Keep the normal Studio folder-drop workflow. No interface migration, Python conversion, or native desktop installation is required.
 
-The [Vite development transport](../src/server/native-studio-plugin.ts) exposes four local routes:
+The [Vite development transport](../src/server/native-studio-plugin.ts) exposes local routes:
 
 - `GET /__native/status`: reports engine availability and the local session token.
 - `POST /__native/analyze`: processes one uploaded source through a C++ worker.
 - `POST /__native/bursts`: groups validated analysis receipts in C++ for photographer review.
+- `POST /__native/people`: clusters event-local 512-d face embeddings in C++ (InsightFace matching math). Never names people. Does not download buffalo weights. See [InsightFace](INSIGHTFACE.md).
 - `POST /__native/social-frame`: creates a bounded social JPEG from an uploaded edited copy in C++; availability is reported as `socialReady` by the status route.
 
 The serve-only transport validates the exact loopback Host/port and request marker; processing POSTs also require the matching Origin and session token. It does not expose arbitrary filesystem paths or a public production API. Four persistent C++ workers handle sources up to **128 MiB each**, returning an upright preview up to **1,280px** and measurements made at **256px**. Temporary input files are separate from the photographer's originals.

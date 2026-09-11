@@ -853,7 +853,7 @@ function WorkspaceSidebar({
         >
           <SheetHeader className="sr-only">
             <SheetTitle>foto navigation</SheetTitle>
-            <SheetDescription>Home, Tonight, Shoots, Library, Deliver and Earnings.</SheetDescription>
+            <SheetDescription>Tonight, Shoots, Library, Deliver and Earnings.</SheetDescription>
           </SheetHeader>
           {children}
         </SheetContent>

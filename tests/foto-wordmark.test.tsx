@@ -19,7 +19,7 @@ test("foto wordmark is a lens lockup, not typed display type", () => {
   expect(html).not.toContain(">foto<");
 });
 
-test("marketing footer branding is white with blue mark", () => {
+test("marketing footer branding is white with a fading giant wordmark", () => {
   const css = readFileSync(
     new URL("../src/components/marketing/public-details.css", import.meta.url),
     "utf8",
@@ -29,6 +29,21 @@ test("marketing footer branding is white with blue mark", () => {
   )?.[0];
   expect(footer).toContain("background: #fff");
   expect(footer).not.toContain("#0a0a0a");
-  expect(css).toContain(".marketing-footer__mark");
-  expect(css).toContain("color: #007eb8");
+  expect(css).toContain(".marketing-footer__giant");
+  expect(css).toContain("background-clip: text");
+  expect(css).toContain("grid-template-columns: repeat(4, minmax(0, 1fr))");
+  expect(css).toContain("max-height: 0.86em");
+  expect(css).not.toContain("max-height: 0.52em");
+  expect(css).not.toContain(".marketing-footer__intro");
+});
+
+test("marketing footer has four equal columns and no leftover brand block", () => {
+  const src = readFileSync(
+    new URL("../src/components/marketing/MarketingFooter.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(src).not.toContain("marketing-footer__intro");
+  expect(src).not.toContain("marketing-footer__name");
+  expect(src).not.toContain("marketing-footer__pitch");
+  expect(src.match(/marketing-footer__column/g)?.length).toBe(4);
 });

@@ -34,6 +34,7 @@ function ClientGallery() {
   const [favs, setFavs] = useState<Set<string>>(new Set());
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [onlyPicks, setOnlyPicks] = useState(false);
+  const [whoQuery, setWhoQuery] = useState("");
   const [zipping, setZipping] = useState(false);
 
   /** Signed, per-visitor credential for this gallery — favourites can't be written without it. */
@@ -123,7 +124,12 @@ function ClientGallery() {
     URL.revokeObjectURL(url);
   };
 
-  const shown = onlyPicks ? photos.filter((p) => favs.has(p.id)) : photos;
+  const shown = (onlyPicks ? photos.filter((p) => favs.has(p.id)) : photos).filter((p) => {
+    const q = whoQuery.trim().toLowerCase();
+    if (!q) return true;
+    const hay = `${p.filename} ${"who" in p && typeof p.who === "string" ? p.who : ""}`.toLowerCase();
+    return hay.includes(q) || hay.includes(q.replace(/^#/, ""));
+  });
 
   if (state === "loading")
     return <p className="p-10 text-center font-mono text-[13px] text-moss">Opening gallery…</p>;
@@ -177,7 +183,16 @@ function ClientGallery() {
             {photos.length} frames · {favs.size} favourited
           </p>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 font-mono text-[12px] text-moss">
+            Find my photos
+            <input
+              value={whoQuery}
+              onChange={(event) => setWhoQuery(event.target.value)}
+              placeholder="Name or #23"
+              className="rounded-lg border border-input bg-card px-3 py-1.5 text-[13px] text-ink outline-none"
+            />
+          </label>
           <button
             onClick={() => setOnlyPicks((v) => !v)}
             className="rounded-lg border border-input px-3 py-1.5 font-mono text-[12px]"

@@ -6,6 +6,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { publicEntry } from "@/lib/public-entry";
 import { BUSINESS, PRO_STEPS, TEAM_STEPS } from "@/lib/published-plans";
 import { PlanCardGrid, plansForAudience } from "@/components/marketing/HomePricing";
+import { SettingsSwitch } from "@/components/marketing/SettingsSwitch";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
@@ -68,6 +69,10 @@ const FAQ: [string, string][] = [
   [
     "Where can I check billing and refund terms?",
     "Review the terms and final amount shown at checkout. For a plan change, cancellation, or refund question, contact hello@lenslab.dev before proceeding.",
+  ],
+  [
+    "Can I post to all my socials at once?",
+    "Connect Instagram, TikTok, YouTube, X, and the rest in Connectors. One send can go to every connected app — feed, Stories, and the specific highlights you pick. Each app has to be connected and allowed first.",
   ],
 ];
 
@@ -204,13 +209,11 @@ function PricingPage() {
       <main id="pricing-content" tabIndex={-1} className="pricing-content">
         {/* hero */}
         <div className="pricing-intro text-center" data-reveal>
-          <p className="pricing-eyebrow">A little more room to create</p>
-          <h1 className="mx-auto font-display text-[clamp(2.2rem,5.4vw,3.6rem)] font-bold leading-[1.03] tracking-[-0.04em]">
-            Find your next horizon.
+          <h1>
+            Pricing that <em>scales with you</em>
           </h1>
-          <p className="mx-auto mt-4 max-w-[560px] text-[15px] text-moss">
-            Explore the workspace. Compare plans for your next shoot, a busy season, or a whole
-            team.
+          <p>
+            Choose a monthly or annual plan. Access starts after payment. Cancel anytime.
           </p>
 
           {/* audience tabs — follow the cursor; click still works for keyboard/touch */}
@@ -253,21 +256,11 @@ function PricingPage() {
               >
                 Monthly
               </button>
-              <button
-                role="switch"
-                aria-checked={yearly}
-                aria-label="Toggle annual billing"
-                onClick={() => setCycle(yearly ? "monthly" : "yearly")}
-                className={`relative h-6 w-11 rounded-full border border-input transition-colors ${
-                  yearly ? "bg-ink" : "bg-muted"
-                }`}
-              >
-                <span
-                  className={`absolute top-[3px] h-4 w-4 rounded-full bg-paper2 transition-all ${
-                    yearly ? "left-[25px]" : "left-[3px]"
-                  }`}
-                />
-              </button>
+              <SettingsSwitch
+                checked={yearly}
+                onCheckedChange={(on) => setCycle(on ? "yearly" : "monthly")}
+                label="Yearly billing"
+              />
               <button
                 onClick={() => setCycle("yearly")}
                 className={yearly ? "text-ink" : "text-moss hover:text-ink"}
@@ -287,7 +280,7 @@ function PricingPage() {
           {audience !== "enterprise" && (
             <p className="pricing-free">
               <Link to={freeEntry.to} search={freeEntry.search}>
-                {account?.status === "in" ? "Open workspace" : "Create free account"}
+                {account?.status === "in" ? "Dashboard" : "Create free account"}
               </Link>
             </p>
           )}
@@ -406,7 +399,7 @@ function PricingPage() {
                   search={freeEntry.search}
                   className={`${ctaBase} border border-input text-ink`}
                 >
-                  {account?.status === "in" ? "Open workspace" : "Create free account"}
+                  {account?.status === "in" ? "Dashboard" : "Create free account"}
                 </Link>
               </div>
 

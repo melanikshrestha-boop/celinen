@@ -1,23 +1,48 @@
 .marketing-page .marketing-nav {
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: space-between;
+  gap: 0;
   width: 100%;
   max-width: none;
   margin-inline: auto;
+  position: relative;
 }
 .marketing-page .marketing-nav__brand {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  height: 40px;
+  min-height: 40px;
   flex-shrink: 0;
   text-decoration: none;
+  text-transform: none;
+}
+.marketing-page .marketing-nav__brand span {
+  text-transform: none;
 }
 .marketing-page .marketing-nav__links {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: auto;
+  justify-content: center;
+  gap: 0;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  height: 40px;
+}
+.marketing-page header .marketing-nav__links a,
+.marketing-page header .marketing-nav__links .marketing-nav__link,
+.marketing-page header .marketing-nav__links button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-height: 40px;
+  min-width: 0;
+  padding-inline: 8px;
 }
 .marketing-page .marketing-nav__links a {
   color: #516570;
@@ -33,6 +58,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  height: 40px;
   flex-shrink: 0;
   gap: 10px;
   margin-left: auto;
@@ -42,33 +68,44 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 8px 14px;
-  min-height: 36px;
-  background: #142a36;
-  color: #fff;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 18px;
   white-space: nowrap;
-  text-decoration: none;
-  transition: opacity 160ms ease;
+  font-size: 14px;
 }
-.marketing-page .marketing-nav-cta:hover {
-  background: #142a36;
-  color: #fff;
-  opacity: 0.86;
+.marketing-page .marketing-nav__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 40px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: #142a36;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.marketing-page .marketing-nav__link[data-state="open"] svg {
+  transform: rotate(180deg);
 }
 .marketing-page .marketing-nav__more {
   display: none;
   align-items: center;
-  min-height: 36px;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
   padding: 0;
   border: 0;
   background: none;
-  color: #516570;
+  color: #142a36;
   font: inherit;
-  font-size: 14px;
-  line-height: 1.2;
+  line-height: 1;
   box-shadow: none;
 }
 .marketing-page .marketing-nav__more span {
@@ -79,7 +116,7 @@
   background: none;
   color: #142a36;
 }
-@media (max-width: 1023px) {
+@media (max-width: 720px) {
   .marketing-page .marketing-nav__more {
     display: inline-flex;
   }
@@ -89,36 +126,53 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 48px 32px 36px;
+  padding: 64px 40px 0;
+  overflow: hidden;
   background: #fff;
   color: #516570;
-  font-size: 14px;
+  font-size: 15px;
   border-radius: 0;
 }
-.marketing-footer--directory .marketing-footer__copy {
+.marketing-footer__legal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  width: min(100%, 1120px);
+  margin: 48px auto 0;
+  padding: 22px 0 8px;
+  border-top: 1px solid #eceff2;
+  color: #9aa3ad;
+  font-size: 14px;
+}
+.marketing-footer__legal p {
   margin: 0;
-  color: #6a8490;
-  font-size: 13px;
 }
-.marketing-footer__branding {
-  position: relative;
-  margin-top: 48px;
-  padding: 32px 0 8px;
-  border-top: 1px solid #e4eef4;
-}
-.marketing-footer__mark {
-  display: block;
-  width: min(100%, 380px);
-  height: auto;
-  margin: 16px 0 0;
-  overflow: visible;
-  color: #007eb8;
+.marketing-footer__giant {
+  margin: 8px -40px 0;
+  overflow: hidden;
+  max-height: 0.86em;
+  color: transparent;
+  font-family: var(--font-display);
+  font-size: clamp(96px, 22vw, 280px);
+  font-weight: 400;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+  text-align: left;
+  pointer-events: none;
+  user-select: none;
+  background: linear-gradient(180deg, #9db4ff 0%, #c5d4fb 42%, #e8edfd 72%, #ffffff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 .marketing-footer--directory nav.marketing-footer__directory {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px 28px;
+  column-gap: 48px;
+  row-gap: 28px;
   width: min(100%, 1120px);
+  margin: 0 auto;
 }
 .marketing-footer--directory .marketing-footer__column h2 {
   font-family: var(--font-sans);
@@ -138,8 +192,10 @@
   background: none;
   color: #516570;
   font: inherit;
-  line-height: 1.7;
+  line-height: var(--marketing-leading, 1.3);
   text-align: left;
+  white-space: nowrap;
+  padding-block: 4px;
   cursor: pointer;
 }
 .marketing-footer--directory .marketing-footer__text-btn:hover {
@@ -152,11 +208,12 @@
 }
 .marketing-footer--directory .marketing-footer__directory a {
   display: block;
-  line-height: 1.7;
+  line-height: var(--marketing-leading, 1.3);
   min-height: 0;
-  padding-block: 2px;
+  padding-block: 4px;
   color: #516570;
   text-decoration: none;
+  white-space: nowrap;
 }
 .marketing-footer--directory .marketing-footer__directory a:visited {
   color: #516570;
@@ -216,53 +273,91 @@
 .marketing-public-page .marketing-guide-copy {
   max-width: 70ch;
   font-size: 17px;
-  line-height: 1.75;
+  line-height: var(--marketing-leading, 1.3);
 }
 .marketing-guide-copy p + p {
-  margin-top: 20px;
+  margin-top: 8px;
 }
-.legal-doc {
-  max-width: 72ch;
-  font-size: 17px;
-  line-height: 1.7;
+/* Legal pages: one sans, single-spaced. Beat .marketing-page h1/h2 serif. */
+.marketing-public-page:has(.legal-doc) .marketing-public-page__intro {
+  margin-bottom: 16px;
+}
+.marketing-page .marketing-public-page:has(.legal-doc) .marketing-public-page__intro h1 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  font-size: clamp(1.75rem, 3.2vw, 2.25rem);
+  line-height: 1.15;
+  margin: 0 0 8px;
+}
+.marketing-page .legal-doc {
+  max-width: 68ch;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.3;
   color: #142a36;
 }
-.legal-doc__updated {
+.marketing-page .legal-doc :is(p, ul, ol, li, h2, h3, h4, code, strong, em, a, td, th) {
+  font-family: var(--font-sans);
+  line-height: 1.3;
+}
+.marketing-page .legal-doc p,
+.marketing-page .legal-doc ul,
+.marketing-page .legal-doc ol {
+  margin: 0 0 0.5em;
+}
+.marketing-page .legal-doc__updated {
+  margin: 0 0 0.5em;
   color: #516570;
   font-size: 14px;
+  line-height: 1.3;
 }
-.legal-doc h2 {
-  margin: 36px 0 12px;
-  font-size: 1.35rem;
+.marketing-page .legal-doc h2 {
+  margin: 1.15em 0 0.3em;
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
-.legal-doc p + p,
-.legal-doc p + ul,
-.legal-doc ul + p {
-  margin-top: 14px;
+.marketing-page .legal-doc h3 {
+  margin: 0.85em 0 0.25em;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
-.legal-doc ul {
-  padding-left: 1.2em;
+.marketing-page .legal-doc ul {
+  padding-left: 1.15em;
 }
-.legal-doc li + li {
-  margin-top: 6px;
+.marketing-page .legal-doc li + li {
+  margin-top: 0.15em;
 }
-.legal-doc__table-wrap {
+.marketing-page .legal-doc code {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+}
+.marketing-page .legal-doc__table-wrap {
   overflow-x: auto;
-  margin: 16px 0 8px;
+  margin: 8px 0 10px;
 }
-.legal-doc table {
+.marketing-page .legal-doc table {
   width: 100%;
   border-collapse: collapse;
   font-size: 15px;
+  line-height: 1.3;
 }
-.legal-doc th,
-.legal-doc td {
+.marketing-page .legal-doc th,
+.marketing-page .legal-doc td {
   text-align: left;
   vertical-align: top;
-  padding: 10px 12px;
+  padding: 6px 10px 6px 0;
   border-bottom: 1px solid #e4eef4;
+  font-family: var(--font-sans);
 }
-.legal-doc th {
+.marketing-page .legal-doc th {
   font-weight: 600;
 }
 .marketing-public-page .marketing-guide-links {
@@ -278,12 +373,13 @@
   color: #006eaa;
   text-underline-offset: 4px;
 }
-@media (max-width: 1023px) {
+@media (max-width: 720px) {
   .marketing-page .marketing-nav__links {
     display: none;
   }
   .marketing-footer--directory nav.marketing-footer__directory {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
   }
 }
 @media (max-width: 640px) {

@@ -11,6 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { ArrowRight, Menu } from "lucide-react";
+import { FeaturesMenu } from "@/components/marketing/FeaturesMenu";
+import { UseCasesMenu } from "@/components/marketing/UseCasesMenu";
+import { NavMenuProvider } from "@/components/marketing/nav-menu";
+
 import { Footer as SiteFooter } from "@/components/lensos/Footer";
 
 const LINKS: { to: string; label: string; exact?: boolean }[] = [
@@ -27,34 +32,45 @@ export function Nav({ landing = false }: { landing?: boolean }) {
   const account = useAccount();
   const entry = publicEntry(account?.status);
 
-  if (landing)
+  if (landing) {
+    const signedIn = account?.status === "in";
     return (
       <div className="marketing-nav-shell">
         <header className="marketing-nav">
-          <Link to="/" className="marketing-nav__brand" aria-label="foto home">
+          <Link to="/" className="marketing-nav__brand" aria-label="celinen home">
             <LogoMark />
             <span>{PRODUCT_NAME}</span>
           </Link>
-          <nav className="marketing-nav__links" aria-label="Main navigation">
-            <Link to="/product">Product</Link>
-            <Link to="/pricing">Pricing</Link>
-            <Link to="/blog">Blog</Link>
-            <Link to="/docs">Docs</Link>
-          </nav>
+          <NavMenuProvider>
+            <nav className="marketing-nav__links" aria-label="Main navigation">
+              <FeaturesMenu />
+              <UseCasesMenu />
+              <Link to="/pricing">Pricing</Link>
+              <Link to="/docs">Docs</Link>
+            </nav>
+          </NavMenuProvider>
           <div className="marketing-nav__actions">
-            <Link to={entry.to} search={entry.search} className="marketing-nav-cta">
-              {entry.label}
+            <Link
+              to={signedIn ? entry.to : "/auth"}
+              search={
+                signedIn ? entry.search : { next: "/dashboard", mode: "signin", google: true }
+              }
+              className="marketing-nav-cta"
+            >
+              {signedIn ? entry.label : "Sign In"}
+              <ArrowRight size={16} aria-hidden="true" />
             </Link>
             <DropdownMenu>
               <DropdownMenuTrigger aria-label="Open menu" className="marketing-nav__more">
-                More
+                <Menu size={20} aria-hidden="true" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={10} className="w-56 marketing-nav-menu">
                 {[
                   { to: "/product", label: "Product" },
+                  { to: "/use-cases", label: "Use Cases" },
                   { to: "/pricing", label: "Pricing" },
+                  { to: "/docs", label: "Docs" },
                   { to: "/blog", label: "Blog" },
-                  { to: "/docs", label: "Documentation" },
                   { to: "/changelog", label: "What’s new" },
                   { to: "/security", label: "Security" },
                 ].map((link) => (
@@ -68,6 +84,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
         </header>
       </div>
     );
+  }
 
   return (
     <div className="sticky top-4 z-50 px-4">

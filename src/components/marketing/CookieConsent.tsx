@@ -64,10 +64,8 @@ export function CookieConsent() {
   return (
     <div className="marketing-cookies" role="dialog" aria-label="Cookies">
       <p>
-        We use cookies for analytics to understand how FOTO is used. See the{" "}
-        <Link to="/privacy" hash="cookies">
-          Cookie Policy
-        </Link>
+        We use cookies for analytics to understand how celinen is used. See the{" "}
+        <Link to="/cookie-policy">Cookie Policy</Link>
         .
       </p>
       <div className="marketing-cookies__actions">

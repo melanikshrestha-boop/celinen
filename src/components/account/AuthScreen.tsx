@@ -12,7 +12,7 @@ import "./auth-screen.css";
 type Props = AuthSearch & { onAuthenticated: () => void };
 
 /** Real account entry; the appearance is independent of the workspace theme. */
-export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
+export function AuthScreen({ next, mode, source, google, onAuthenticated }: Props) {
   const signup = mode !== "signin";
   const fromGallery = source === "client-gallery";
   const [email, setEmail] = useState("");
@@ -27,6 +27,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
   const emailInput = useRef<HTMLInputElement>(null);
   const requestPending = useRef(false);
   const mounted = useRef(false);
+  const googleStarted = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -58,7 +59,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
     if (mounted.current) setError(message);
   }
 
-  function google() {
+  function googleSignIn() {
     void run("google", async () => {
       if (isLocalAuthOrigin(window.location.origin)) {
         setLocalGoogle(true);
@@ -68,7 +69,12 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
         return;
       }
       const result = await signInWithOAuth("google", {
-        redirect_uri: authReturnUrl(window.location.origin, next, fromGallery),
+        redirect_uri: authReturnUrl(
+          window.location.origin,
+          next,
+          fromGallery,
+          signup ? "signup" : "signin",
+        ),
       });
       if (result.status === "error")
         return providerError(
@@ -77,6 +83,13 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
       if (result.status === "authenticated" && mounted.current) onAuthenticated();
     });
   }
+
+  useEffect(() => {
+    if (!ready || !google || googleStarted.current) return;
+    if (typeof window !== "undefined" && isLocalAuthOrigin(window.location.origin)) return;
+    googleStarted.current = true;
+    googleSignIn();
+  }, [ready, google]);
 
   function magicLink() {
     // Validate only email, not the password or optional sign-up fields.
@@ -200,7 +213,7 @@ export function AuthScreen({ next, mode, source, onAuthenticated }: Props) {
         <button
           className="auth-google"
           type="button"
-          onClick={google}
+          onClick={googleSignIn}
           disabled={!ready || busy !== null}
         >
           <GoogleGlyph />

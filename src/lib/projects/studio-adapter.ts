@@ -177,6 +177,8 @@ export async function hydrateProject(
       selectedId: project.selectedId,
       filter: project.filter,
       updatedAt: Date.parse(project.updatedAt),
+      roster: [],
+      eventPeople: [],
     };
   } catch (error) {
     for (const url of urls) URL.revokeObjectURL(url);

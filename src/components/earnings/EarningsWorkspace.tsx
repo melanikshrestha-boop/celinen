@@ -37,6 +37,8 @@ import { decimalToMinorUnits, minorUnitsDecimal, parseFinanceAmount } from "@/li
 import { useEarningsData, earningsChanged } from "./useEarningsData";
 import { buildEarningsCharts } from "@/lib/earnings-charts";
 import { EarningsCharts } from "./EarningsCharts";
+import { buildPhotographerBooks } from "@/lib/photographer-books";
+import { BooksDashboard } from "./BooksDashboard";
 import { CustomerReceipt } from "./CustomerReceipt";
 import {
   downloadEarningsFile,
@@ -254,6 +256,19 @@ function EarningsContent() {
       return null;
     }
   }, [unavailable, ledger.rows, ledger.complete, dateRange, period, today, currency, shootFilter]);
+  const books = useMemo(() => {
+    if (unavailable) return null;
+    try {
+      return buildPhotographerBooks(ledger.rows, {
+        period: dateRange,
+        today,
+        currency,
+        ...(shootFilter ? { shootId: shootFilter } : {}),
+      });
+    } catch {
+      return null;
+    }
+  }, [unavailable, ledger.rows, dateRange, today, currency, shootFilter]);
   const money = (value: number | undefined) =>
     unavailable ? "—" : formatEarningsMoney(value ?? 0, currency);
   const balancesAvailable =
@@ -439,6 +454,7 @@ function EarningsContent() {
           <small>Recorded cash in less expenses</small>
         </div>
       </dl>
+      {books ? <BooksDashboard books={books} stripeLabel={connection} /> : null}
       <EarningsCharts
         model={charts}
         loading={data.loading}

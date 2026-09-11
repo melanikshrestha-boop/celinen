@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import {
   authorizeNativeRequest,
   burstProtocol,
+  peopleProtocol,
   MAX_NATIVE_FILE_BYTES,
   NativeBridgeError,
   NativeFrameCache,
@@ -141,6 +142,21 @@ describe("native burst framing", () => {
     expect(Buffer.from(columns[7]!, "hex").toString()).toBe("Match α");
     expect(columns[8]).toBe("undecided");
     expect(burstProtocol({ frames: [] })).toBe("LENSBURST1 0\n");
+  });
+  test("people protocol never names anyone and requires 512-d embeddings", () => {
+    const embedding = Array.from({ length: 512 }, (_, i) => (i === 0 ? 1 : 0));
+    const output = peopleProtocol({
+      faces: [{ id: "obs-a", frameId: "frame-a", source: "local-descriptor", detScore: 0.5, embedding }],
+    });
+    expect(output).toStartWith("LENSPPL1 1\n");
+    expect(output).toContain("local-descriptor");
+    expect(output).not.toContain("Jane");
+    expect(() => peopleProtocol({ faces: [{ id: "obs-a", frameId: "frame-a", source: "buffalo", detScore: 0.5, embedding }] })).toThrow();
+    expect(() =>
+      peopleProtocol({
+        faces: [{ id: "obs-a", frameId: "frame-a", source: "insightface", detScore: 0.5, embedding: [1, 0] }],
+      }),
+    ).toThrow();
   });
   test("keeps timestamps, camera identity and decisions in separate fields", () => {
     const output = burstProtocol({

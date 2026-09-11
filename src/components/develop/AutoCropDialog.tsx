@@ -23,12 +23,15 @@ export function AutoCropDialog({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null),
-    alive = useRef(true);
+    alive = useRef(true),
+    releaseProcessing = useRef<(() => void) | null>(null);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
       abort.current?.abort();
+      // Warm photo navigation keeps the parent editor, not this dialog.
+      releaseProcessing.current?.();
     };
   }, []);
   useEffect(() => {
@@ -41,9 +44,16 @@ export function AutoCropDialog({
     return () => URL.revokeObjectURL(next);
   }, [preview]);
   async function analyze() {
-    if (busy) return;
+    if (busy || abort.current || !alive.current) return;
     const controller = new AbortController();
     abort.current = controller;
+    const release = () => {
+      if (abort.current !== controller) return;
+      abort.current = null;
+      releaseProcessing.current = null;
+      processing(false);
+    };
+    releaseProcessing.current = release;
     setBusy(true);
     processing(true);
     setResult(null);
@@ -51,22 +61,24 @@ export function AutoCropDialog({
     setError("");
     try {
       const source = await getNeutral(controller.signal);
+      controller.signal.throwIfAborted();
       const proposal = await suggestAutoCrop(
         source,
         { aspect: aspect === "original" ? null : Number(aspect) },
         controller.signal,
       );
+      controller.signal.throwIfAborted();
       const rendered = await renderDevelop(
         source,
         { ...current, crop: proposal.crop },
         { edge: 1000, quality: 0.95, signal: controller.signal },
       );
-      if (alive.current && !controller.signal.aborted) {
+      if (alive.current && abort.current === controller && !controller.signal.aborted) {
         setResult(proposal);
         setPreview(rendered);
       }
     } catch (cause) {
-      if (alive.current)
+      if (alive.current && abort.current === controller)
         setError(
           controller.signal.aborted
             ? "Cancelled. Your crop is unchanged."
@@ -75,10 +87,11 @@ export function AutoCropDialog({
               : "Crop analysis failed.",
         );
     } finally {
-      abort.current = null;
-      if (alive.current) {
-        setBusy(false);
-        processing(false);
+      // Cleanup may have released this lease and a replacement may already own
+      // the parent lock. A late worker must not release that newer operation.
+      if (abort.current === controller) {
+        release();
+        if (alive.current) setBusy(false);
       }
     }
   }

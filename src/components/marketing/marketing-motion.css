@@ -16,39 +16,62 @@
     opacity: 1;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .marketing-page .marketing-nav,
-  .marketing-page .marketing-hero {
-    animation: marketing-appear 500ms ease-out both;
+@keyframes marketing-hero-develop {
+  from {
+    opacity: 0;
+    filter: blur(16px);
+    transform: translateY(28px) scale(1.04);
   }
-  .marketing-page .marketing-hero__content > *,
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes marketing-hero-rise {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .marketing-page .marketing-nav {
+    animation: marketing-appear 700ms ease-out both;
+  }
   .marketing-page .marketing-enter {
     animation: marketing-arrive 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
-  .marketing-page .marketing-hero__content > :nth-child(2) {
-    animation-delay: 60ms;
-  }
-  .marketing-page .marketing-hero__content > :nth-child(3) {
-    animation-delay: 120ms;
-  }
-  .marketing-page .marketing-hero__content > :nth-child(4) {
-    animation-delay: 180ms;
-  }
-  .marketing-page .marketing-hero__content > :nth-child(5) {
-    animation-delay: 240ms;
-  }
+
   .marketing-page [data-reveal-state] {
     transition:
-      opacity 480ms ease-out,
-      transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1);
+      opacity 720ms ease,
+      transform 720ms cubic-bezier(0.16, 0.8, 0.22, 1);
   }
   .marketing-page [data-reveal-state="outside"] {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(32px);
+  }
+  .marketing-page [data-reveal-state="outside"][data-reveal-from="up"] {
+    transform: translateY(-32px);
+  }
+  .marketing-page [data-reveal-state="outside"][data-reveal-from="down"] {
+    transform: translateY(32px);
   }
   .marketing-page [data-reveal-state="visible"] {
     opacity: 1;
     transform: none;
+  }
+  .marketing-page .home-pricing__cards article[data-reveal-state="visible"]:hover {
+    transition:
+      transform 280ms ease,
+      box-shadow 280ms ease,
+      opacity 720ms ease;
   }
   .marketing-page .marketing-action {
     transition:
@@ -78,8 +101,14 @@
 @media (prefers-reduced-motion: reduce) {
   .marketing-page [data-reveal-state],
   .marketing-page .marketing-enter,
+  .marketing-page .marketing-hero h1,
+  .marketing-page .marketing-hero__lead,
+  .marketing-page .marketing-hero .marketing-actions,
+  .marketing-page .marketing-hero__note,
+  .marketing-page .marketing-stats strong,
   .marketing-page .marketing-hero__content > * {
     opacity: 1 !important;
+    filter: none !important;
     transform: none !important;
     animation: none !important;
     transition: none !important;

@@ -23,6 +23,19 @@ export function ProductPage() {
           </p>
         </section>
         <div className="public-editorial__features">
+          <section id="smart-cull" data-reveal>
+            <span className="public-editorial__label">Smart Cull</span>
+            <h2>See the keepers before you burn the night.</h2>
+            <p>
+              FOTO reads focus, blinks, exposure, and near-duplicates, then ranks each burst so
+              the sharp open-eyed frame is the suggestion — not a silent delete. Existing picks
+              never get overwritten.
+            </p>
+            <p>
+              You confirm. Originals stay untouched. This is a photographer cull, not a client
+              favorite.
+            </p>
+          </section>
           <section data-reveal>
             <span className="public-editorial__label">Bring it in</span>
             <h2>Start with your originals.</h2>
@@ -40,7 +53,7 @@ export function ProductPage() {
               selection and edit history attached to the photograph as you work.
             </p>
           </section>
-          <section data-reveal>
+          <section id="develop" data-reveal>
             <span className="public-editorial__label">Make it yours</span>
             <h2>Shape tone, color, and feeling.</h2>
             <p>
@@ -52,17 +65,22 @@ export function ProductPage() {
               website alone; support also depends on the source format and device.
             </p>
           </section>
-          <section data-reveal>
-            <span className="public-editorial__label">Keep the context</span>
-            <h2>The people belong with the shoot.</h2>
+          <section id="galleries" data-reveal>
+            <span className="public-editorial__label">Galleries</span>
+            <h2>Send the set the same night.</h2>
             <p>
-              Keep contacts and shoot details near your work. Gallery, social, and Earnings surfaces
-              help organize the next steps without making a sent link or an invoice look like a
-              confirmed payment.
+              A gallery is a copy of the keepers you chose. Clients open a private link, favourite
+              frames, and download when you allow it. Originals stay with you.
             </p>
             <p>
-              Publishing, messaging, and payments need their respective connected services. Check
-              the connection and delivery status before relying on them.
+              Publishing needs a connected account. Who-is-in-this-photo starts as roster plus
+              jersey or bib tags in Studio — not an invented face identity. A print lab is not
+              part of this path. See the full galleries note for what the client actually gets.
+            </p>
+            <p>
+              <Link to="/galleries">
+                FOTO Galleries <span aria-hidden="true">↗</span>
+              </Link>
             </p>
           </section>
         </div>
