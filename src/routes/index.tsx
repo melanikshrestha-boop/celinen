@@ -12,7 +12,7 @@ import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { publicEntry } from "@/lib/public-entry";
 import { PRODUCT_HEADLINE } from "@/lib/product";
-import { ArrowRight, ArrowUpRight, Check, Heart, Images } from "lucide-react";
+import { ArrowRight, Check, Heart, Images } from "lucide-react";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
 
@@ -74,10 +74,6 @@ function Index() {
               >
                 {entry.label}
                 <span aria-hidden="true">→</span>
-              </Link>
-              <Link to="/product" className="marketing-action marketing-action--glass">
-                Take a look around
-                <ArrowUpRight size={16} aria-hidden="true" />
               </Link>
             </div>
             <p className="marketing-hero__note">Made for the person behind the camera.</p>

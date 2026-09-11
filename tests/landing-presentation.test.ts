@@ -183,7 +183,8 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("Your shoots, edits, and galleries"));
     assert.ok(!html.includes("A little less admin"));
     assert.ok(html.includes("Made for the person behind the camera"));
-    assert.ok(html.includes("Take a look around"));
+    assert.ok(!html.includes("Take a look around"));
+    assert.ok(!html.includes("marketing-action--glass"));
     assert.ok(!html.includes("Stay for the last light"));
     assert.ok(!html.includes("Keep the ones"));
     assert.ok(!html.includes("It learns from your photos and your edits"));
