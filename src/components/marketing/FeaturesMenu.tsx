@@ -46,9 +46,10 @@ const FEATURES = [
     copy: "Jersey, bib, roster — every frame of one athlete.",
   },
   {
-    to: "/earnings",
+    to: "/",
+    hash: "analytics",
     icon: Receipt,
-    title: "Stripe books",
+    title: "Analytics",
     copy: "Collected, expenses, and invoices in one place.",
   },
   {

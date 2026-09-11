@@ -442,6 +442,13 @@
   background: var(--fos-card);
   box-shadow: none;
 }
+.finance-os .finance-os__sankey {
+  margin: 0 0 16px;
+  padding: 22px 24px;
+  border-radius: 24px;
+  background:
+    radial-gradient(90% 80% at 50% 0%, #f3ead8 0%, var(--fos-card) 70%);
+}
 .finance-os .finance-os__card h2,
 .finance-os .finance-os__card h3 {
   margin: 0 0 8px;

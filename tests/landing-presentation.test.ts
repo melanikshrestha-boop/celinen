@@ -105,6 +105,7 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(css).not.toMatch(/\.workbench|\.develop-|\.auth-|--foto-font-ui|auth-lens/);
     const source = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
+    expect(source).toContain("AnalyticsSection");
     expect(source.indexOf('import "@/components/marketing/sky-entry.css"')).toBeGreaterThan(
       source.indexOf('import "@/components/marketing/marketing-page.css"'),
     );

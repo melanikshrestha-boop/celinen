@@ -4,6 +4,8 @@ import type { BooksDay, BooksMonth } from "@/lib/finance-graphs";
 import { activityHeat, compactChartAmount } from "@/lib/finance-graphs";
 import type { EarningsRow } from "@/lib/earnings-ledger";
 import { RevenueGoal } from "./RevenueGoal";
+import { SpendSankey } from "./SpendSankey";
+import "./spend-sankey.css";
 
 const PALETTE = [
   "#438ad1",
@@ -431,6 +433,15 @@ export function FinanceOverview({
               </small>
             </div>
           </dl>
+          <article className="finance-os__card finance-os__sankey">
+            <h2>Allocation</h2>
+            <SpendSankey
+              sourceLabel={spending ? "Spent" : "Collected"}
+              sourceMinor={spending ? books.expensesMinor : books.collectedMinor}
+              slices={slices}
+              money={money}
+            />
+          </article>
           <div className="finance-os__boards">
             <article className="finance-os__board">
               <h2>{spending ? "Spent this month" : "Collected this month"}</h2>

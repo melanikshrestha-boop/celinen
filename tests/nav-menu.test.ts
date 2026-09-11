@@ -18,6 +18,8 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
   expect(nav).toContain("NavMenuProvider");
   expect(features).toContain('useNavMenuHover("features")');
   expect(features).toContain("hoverMenuTrigger");
+  expect(features).toContain('title: "Analytics"');
+  expect(features).toContain('hash: "analytics"');
   const integrations = readFileSync(
     new URL("../src/components/marketing/IntegrationsMenu.tsx", import.meta.url),
     "utf8",

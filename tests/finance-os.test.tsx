@@ -57,6 +57,27 @@ const books: PhotographerBooks = {
   ],
 };
 
+test("analytics filters are Origin pills, not native Mac selects", () => {
+  const workspace = readFileSync(
+    new URL("../src/components/earnings/EarningsWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(workspace).toContain("BooksFilter");
+  expect(workspace).toContain("This month");
+  expect(workspace).not.toMatch(/<select[\s\S]*This month/);
+  expect(workspace).not.toMatch(/<select[\s\S]*All shoots/);
+  const landing = readFileSync(
+    new URL("../src/components/marketing/AnalyticsSection.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(landing).toContain("Track the books");
+  expect(landing).toContain("SpendSankey");
+  expect(landing).toContain("USD 4,280");
+  expect(landing).not.toContain("Apollo Bagels");
+  expect(landing).not.toContain("Starbucks");
+  expect(landing).not.toContain("$5,070");
+});
+
 test("finance desk reads the books query and lists Origin-style tracks", () => {
   expect(readFinanceDesk("")).toBe("earnings");
   expect(readFinanceDesk("?desk=invest")).toBe("invest");
@@ -92,6 +113,8 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
   expect(html).toContain("USD 2500.00");
   expect(html).toContain("Jordan");
   expect(html).toContain("Category breakdown");
+  expect(html).toContain("Allocation");
+  expect(html).toContain("Weddings");
   expect(html).toContain("Upcoming");
   expect(html).toContain("Collected this month");
   expect(html).toContain("Monthly collected");
