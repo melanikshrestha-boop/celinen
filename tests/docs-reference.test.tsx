@@ -44,4 +44,7 @@ test("docs styling stays public-scoped", () => {
   expect(css).toContain("background: #4d6fff");
   expect(css).not.toContain("docs-ref__btn--solid");
   expect(css).not.toContain("background: #0a0a0a");
+  expect(css).not.toMatch(/border-(?:top|bottom):\s*1px/);
+  expect(css).toContain("font-size: 13.5px");
+  expect(css).toContain("box-shadow: none");
 });

@@ -252,6 +252,14 @@
 .marketing-plan-invitation > a {
   flex-shrink: 0;
 }
+.marketing-page:has(.docs-ref) .marketing-footer__giant {
+  display: none;
+}
+.marketing-page:has(.docs-ref) .marketing-footer__legal {
+  border-top: 0;
+  margin-top: 16px;
+  padding-top: 0;
+}
 .marketing-public-page {
   max-width: 1120px;
   margin-inline: auto;
