@@ -256,6 +256,14 @@ export function FinanceOverview({
               </dd>
             </div>
             <div>
+              <dt>Expenses</dt>
+              <dd>{money(books.expensesMinor)}</dd>
+            </div>
+            <div>
+              <dt>Net</dt>
+              <dd data-tone={books.netMinor < 0 ? "down" : "up"}>{money(books.netMinor)}</dd>
+            </div>
+            <div>
               <dt>Paid jobs</dt>
               <dd>{books.paidThisPeriod}</dd>
             </div>
@@ -264,8 +272,12 @@ export function FinanceOverview({
               <dd>{books.openInvoices}</dd>
             </div>
             <div>
-              <dt>Gallery sales</dt>
-              <dd>{money(books.gallerySalesMinor)}</dd>
+              <dt>Avg job</dt>
+              <dd>
+                {books.paidThisPeriod > 0
+                  ? money(Math.round(books.collectedMinor / books.paidThisPeriod))
+                  : "—"}
+              </dd>
             </div>
           </dl>
           {!spending && onGoal && (
