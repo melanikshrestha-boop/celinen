@@ -74,6 +74,12 @@ test("analytics filters are Origin pills, not native Mac selects", () => {
     "utf8",
   );
   expect(overview).toContain("SpendSankey");
+  const sankey = readFileSync(
+    new URL("../src/components/earnings/SpendSankey.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(sankey).toContain("spend-sankey__bar");
+  expect(sankey).not.toContain("<rect");
 });
 
 test("finance desk reads the books query and lists Origin-style tracks", () => {
@@ -110,13 +116,17 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
   expect(html).toContain("Earned this period");
   expect(html).toContain("USD 2500.00");
   expect(html).toContain("Jordan");
-  expect(html).toContain("Category breakdown");
   expect(html).toContain("Allocation");
   expect(html).toContain("Weddings");
   expect(html).toContain("Upcoming");
   expect(html).toContain("Collected this month");
   expect(html).toContain("Monthly collected");
-  expect(html).toContain("finance-os__monthcal");
+  expect(html).toContain("Paid jobs");
+  expect(html).toContain("Open invoices");
+  expect(html).toContain("Gallery sales");
+  expect(html).not.toContain("finance-os__monthcal");
+  expect(html).not.toContain("Category breakdown");
+  expect(html).toContain("spend-sankey__bar");
   expect(html).toContain("finance-os__bars");
   expect(html).not.toContain("Apollo Bagels");
   expect(html).not.toContain("$5,070");

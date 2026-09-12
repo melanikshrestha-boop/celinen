@@ -371,52 +371,6 @@
 .finance-os .finance-os__board .finance-os__metric {
   margin: 0 0 8px;
 }
-.finance-os .finance-os__monthcal {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
-}
-.finance-os .finance-os__monthcal-day {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-height: 42px;
-  padding: 5px 6px;
-  border-radius: 9px;
-  background: var(--fos-cal);
-  color: var(--fos-muted);
-  font-size: 11px;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.finance-os .finance-os__monthcal-day small {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--fos-text);
-}
-.finance-os .finance-os__monthcal-day[data-heat="0"] small {
-  color: var(--fos-muted);
-  font-weight: 500;
-}
-.finance-os .finance-os__monthcal-day[data-heat="1"] {
-  background: var(--fos-cal-1);
-  color: var(--fos-text);
-}
-.finance-os .finance-os__monthcal-day[data-heat="2"] {
-  background: var(--fos-cal-2);
-  color: var(--fos-text);
-}
-.finance-os .finance-os__monthcal-day[data-heat="3"] {
-  background: var(--fos-cal-3);
-  color: #fff;
-}
-.finance-os .finance-os__monthcal-day[data-heat="3"] small {
-  color: #fff;
-}
-.finance-os .finance-os__monthcal-day[data-today="true"] {
-  box-shadow: inset 0 0 0 1px var(--fos-text);
-}
 .finance-os .finance-os__bars {
   display: block;
   width: 100%;
@@ -444,10 +398,6 @@
 }
 .finance-os .finance-os__sankey {
   margin: 0 0 16px;
-  padding: 22px 24px;
-  border-radius: 24px;
-  background:
-    radial-gradient(90% 80% at 50% 0%, #f3ead8 0%, var(--fos-card) 70%);
 }
 .finance-os .finance-os__card h2,
 .finance-os .finance-os__card h3 {
@@ -487,6 +437,10 @@
   min-height: 150px;
   max-height: 260px;
   overflow: visible;
+}
+.finance-os .finance-os__board .finance-os__plot {
+  min-height: 88px;
+  max-height: 140px;
 }
 .finance-os .finance-os__plot path.line {
   fill: none;
