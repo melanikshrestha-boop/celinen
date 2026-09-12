@@ -115,21 +115,21 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
       onOpen: () => {},
     }),
   );
-  expect(html).toContain("Earned this period");
+  expect(html).toContain("finance-os__hero-figure");
   expect(html).toContain("USD 2500.00");
   expect(html).toContain("Jordan");
   expect(html).toContain("Allocation");
   expect(html).toContain("Weddings");
   expect(html).toContain("Upcoming");
-  expect(html).toContain("Collected this month");
-  expect(html).toContain("Monthly collected");
   expect(html).toContain("Paid jobs");
   expect(html).toContain("Open invoices");
   expect(html).toContain("Gallery sales");
+  expect(html).toContain("finance-os__stage");
   expect(html).not.toContain("finance-os__monthcal");
+  expect(html).not.toContain("Collected this month");
   expect(html).not.toContain("Category breakdown");
   expect(html).toContain("spend-sankey__bar");
-  expect(html).toContain("finance-os__bars");
+  expect(html).not.toContain("finance-os__bars");
   expect(html).not.toContain("Apollo Bagels");
   expect(html).not.toContain("$5,070");
   expect(html).not.toContain("Origin");
@@ -194,9 +194,9 @@ test("invest and equity stay honest about photographer books", () => {
 test("finance os is light by default and only dark under html.dark", () => {
   const css = readFileSync(new URL("../src/components/earnings/finance-os.css", import.meta.url), "utf8");
   expect(css).toContain("--fos-neon: #4d6fff");
-  expect(css).toContain("--fos-bg: #ffffff");
+  expect(css).toContain("--fos-bg: #f4f3f0");
   expect(css).toContain("color-scheme: light");
-  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
+  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #0c0c0c/);
   expect(css).toMatch(/:root\.dark[\s\S]*color-scheme: dark/);
   expect(css).toContain(".finance-os__cta");
   expect(css).toMatch(/\.finance-os \.finance-os__board\s*\{[^}]*border: 0/);
