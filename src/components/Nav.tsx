@@ -45,6 +45,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
             <nav className="marketing-nav__links" aria-label="Main navigation">
               <FeaturesMenu />
               <UseCasesMenu />
+              <Link to="/galleries">Galleries</Link>
               <IntegrationsMenu />
               <Link to="/pricing">Pricing</Link>
               <Link to="/docs">Docs</Link>
@@ -69,6 +70,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
                 {[
                   { to: "/product", label: "Product" },
                   { to: "/use-cases", label: "Use Cases" },
+                  { to: "/galleries", label: "Galleries" },
                   { to: "/integrations", label: "Integrations" },
                   { to: "/compare", label: "Compare" },
                   { to: "/affiliates", label: "Affiliates" },
