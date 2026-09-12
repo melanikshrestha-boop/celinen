@@ -524,32 +524,6 @@ html.dark .celinen-dash__cal {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-@media (max-width: 760px) {
-  .celinen-dash:not(.is-mini) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .celinen-dash.is-mini {
-    grid-template-columns: var(--rail, 60px) minmax(0, 1fr);
-  }
-  .celinen-dash:not(.is-mini) .celinen-dash__resize {
-    display: none;
-  }
-  .celinen-dash__rail {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .celinen-dash.is-mini .celinen-dash__rail,
-  .celinen-dash.is-mini .celinen-dash__nav,
-  .celinen-dash.is-mini .celinen-dash__foot {
-    flex-direction: column;
-    flex-wrap: nowrap;
-  }
-  .celinen-dash__nav,
-  .celinen-dash__foot {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .celinen-dash__spinner {
     animation: none;
