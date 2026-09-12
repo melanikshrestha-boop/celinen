@@ -84,6 +84,9 @@ describe("settings usage tally and compact profile buttons", () => {
       resolve(import.meta.dir, "../src/components/account/ProfileForm.tsx"),
       "utf8",
     );
-    expect(profile).toContain("saveAvatar");
+    expect(profile).toContain('type="submit"');
+    expect(profile).toContain("Save changes");
+    expect(workspace).toContain("navigate({ href: destination })");
+    expect(workspace).toContain('"/dashboard"');
   });
 });

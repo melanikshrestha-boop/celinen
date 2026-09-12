@@ -1,24 +1,36 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { accountInitials } from "@/lib/account-preferences";
-import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { decodeAvatarSource, encodeAvatarCrop } from "@/lib/avatar-image";
 import { AVATAR_LOCAL_LIMIT } from "@/lib/account-avatar";
 
-export function AvatarEditor({
-  value,
-  name,
-  onChange,
-  disabled,
-  kind = "avatar",
-  maxBytes = AVATAR_LOCAL_LIMIT,
-}: {
-  value: string;
-  name: string;
-  onChange: (value: string) => void;
-  disabled: boolean;
-  kind?: "avatar" | "companion";
-  maxBytes?: number;
-}) {
+export type AvatarEditorHandle = {
+  applyPending: () => string | null;
+  discardPending: () => void;
+};
+
+export const AvatarEditor = forwardRef<
+  AvatarEditorHandle,
+  {
+    value: string;
+    name: string;
+    onChange: (value: string) => void;
+    disabled: boolean;
+    kind?: "avatar" | "companion";
+    maxBytes?: number;
+    onPendingChange?: (pending: boolean) => void;
+  }
+>(function AvatarEditor(
+  {
+    value,
+    name,
+    onChange,
+    disabled,
+    kind = "avatar",
+    maxBytes = AVATAR_LOCAL_LIMIT,
+    onPendingChange,
+  },
+  ref,
+) {
   const [source, setSource] = useState<ImageBitmap | null>(null);
   const [zoom, setZoom] = useState(1);
   const [x, setX] = useState(50);
@@ -31,7 +43,39 @@ export function AvatarEditor({
   const picker = useRef<HTMLInputElement>(null);
   const applied = useRef(false);
   const cropSize = kind === "avatar" ? 512 : 128;
-  useToolLeaveGuard(source || loading ? `Your ${kind} crop has not been applied.` : null);
+  const clearSource = () => {
+    bitmap.current?.close();
+    bitmap.current = null;
+    setSource(null);
+  };
+  const applyCanvas = () => {
+    if (!canvas.current) return null;
+    const next = encodeAvatarCrop(canvas.current, maxBytes);
+    onChange(next);
+    return next;
+  };
+  useImperativeHandle(
+    ref,
+    () => ({
+      applyPending: () => {
+        if (!source) return null;
+        try {
+          const next = applyCanvas();
+          clearSource();
+          return next;
+        } catch {
+          return null;
+        }
+      },
+      discardPending: () => {
+        clearSource();
+      },
+    }),
+    [source],
+  );
+  useEffect(() => {
+    onPendingChange?.(Boolean(source) || loading);
+  }, [source, loading, onPendingChange]);
   useEffect(
     () => () => {
       generation.current++;
@@ -67,11 +111,6 @@ export function AvatarEditor({
       }
     }
   }, [source, zoom, x, y, cropSize, maxBytes, onChange]);
-  const clearSource = () => {
-    bitmap.current?.close();
-    bitmap.current = null;
-    setSource(null);
-  };
   return (
     <div className="settings-avatar-editor">
       <div className="settings-inline-actions">
@@ -176,8 +215,7 @@ export function AvatarEditor({
               disabled={disabled || loading}
               onClick={() => {
                 try {
-                  if (!canvas.current) return;
-                  onChange(encodeAvatarCrop(canvas.current, maxBytes));
+                  applyCanvas();
                   setError("");
                   clearSource();
                 } catch (failure) {
@@ -203,4 +241,4 @@ export function AvatarEditor({
       {error && <p role="alert">{error}</p>}
     </div>
   );
-}
+});
