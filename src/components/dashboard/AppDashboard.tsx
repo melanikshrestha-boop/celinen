@@ -392,7 +392,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                 aria-label="Minimize sidebar"
                 onClick={() => setRail("mini")}
               >
-                <PanelLeft size={18} />
+                <PanelLeft size={18} strokeWidth={1.5} />
               </button>
             </>
           )}
@@ -421,7 +421,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                 }}
               >
                 <span className="celinen-dash__ico" aria-hidden="true">
-                  <item.icon size={20} strokeWidth={2} />
+                  <item.icon size={20} strokeWidth={1.5} />
                 </span>
                 <span>{item.label}</span>
               </Link>
@@ -435,7 +435,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
             className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
           >
             <span className="celinen-dash__ico" aria-hidden="true">
-              <Sparkles size={20} strokeWidth={2} />
+              <Sparkles size={20} strokeWidth={1.5} />
             </span>
             <span>Upgrade</span>
           </Link>
@@ -466,6 +466,24 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
       <main
         className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? "" : " is-chat"}`}
       >
+        {account && account.status === "in" ? (
+          <div className="celinen-dash__theme" role="group" aria-label="Appearance">
+            <button
+              type="button"
+              aria-pressed={account.preferences.theme === "light"}
+              onClick={() => account.savePreferences({ theme: "light" })}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              aria-pressed={account.preferences.theme === "dark"}
+              onClick={() => account.savePreferences({ theme: "dark" })}
+            >
+              Dark
+            </button>
+          </div>
+        ) : null}
         {loading ? (
           <div className="celinen-dash__loading">
             <span className="celinen-dash__spinner" aria-hidden="true" />

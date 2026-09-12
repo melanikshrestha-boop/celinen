@@ -34,8 +34,10 @@ html:has(.celinen-dash) {
   flex-direction: column;
   gap: 4px;
   padding: 16px 12px 18px;
-  background: #fff;
-  border-right: 1px solid #eef0f3;
+  background: rgba(242, 242, 245, 0.72);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: saturate(1.6) blur(24px);
+  -webkit-backdrop-filter: saturate(1.6) blur(24px);
 }
 .celinen-dash__resize {
   position: absolute;
@@ -113,7 +115,7 @@ html:has(.celinen-dash) {
   margin-inline: auto;
   gap: 0;
   border-radius: 50%;
-  color: #141820;
+  color: #5c6370;
   line-height: 0;
 }
 .celinen-dash.is-mini .celinen-dash__link.is-active {
@@ -126,6 +128,7 @@ html:has(.celinen-dash) {
   width: 20px;
   height: 20px;
   margin: 0;
+  stroke-width: 1.5;
 }
 .celinen-dash.is-mini .celinen-dash__close {
   display: none;
@@ -523,4 +526,90 @@ html:has(.celinen-dash) {
   .celinen-dash__spinner {
     animation: none;
   }
+}
+.celinen-dash__theme {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  padding: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(1.6) blur(16px);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px);
+}
+.celinen-dash__theme button {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b7280;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.celinen-dash__theme button[aria-pressed="true"] {
+  background: #fff;
+  color: #142a36;
+  box-shadow: 0 1px 2px rgba(20, 42, 54, 0.1);
+}
+html.dark:has(.celinen-dash) {
+  --paper: #000;
+  --paper2: #000;
+  --ink: #ededed;
+  --moss: #a5a5ad;
+  --border: #1a1a1a;
+  color-scheme: dark;
+}
+html.dark .celinen-dash {
+  background: #000;
+  color: #ededed;
+  color-scheme: dark;
+}
+html.dark .celinen-dash__rail {
+  background: rgba(42, 42, 46, 0.58);
+  border-right-color: rgba(255, 255, 255, 0.08);
+}
+html.dark .celinen-dash__body,
+html.dark .celinen-dash-tool,
+html.dark .celinen-embedded-studio {
+  background: #000;
+  color: #ededed;
+}
+html.dark .celinen-dash__brand,
+html.dark .celinen-dash__brand svg,
+html.dark .celinen-dash__link {
+  color: #c8c8ce;
+}
+html.dark .celinen-dash.is-mini .celinen-dash__link {
+  color: #c8c8ce;
+}
+html.dark .celinen-dash__link:hover,
+html.dark .celinen-dash__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ededed;
+}
+html.dark .celinen-dash__link.is-active,
+html.dark .celinen-dash__upgrade,
+html.dark .celinen-dash__upgrade:hover {
+  background: rgba(77, 111, 255, 0.16);
+  color: #8aa0ff;
+}
+html.dark .celinen-dash.is-mini .celinen-dash__link.is-active {
+  color: #8aa0ff;
+}
+html.dark .celinen-dash__theme {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(32, 32, 36, 0.72);
+}
+html.dark .celinen-dash__theme button {
+  color: #a5a5ad;
+}
+html.dark .celinen-dash__theme button[aria-pressed="true"] {
+  background: #000;
+  color: #f3f3f3;
+  box-shadow: none;
 }

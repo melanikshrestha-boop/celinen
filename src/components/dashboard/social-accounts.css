@@ -15,7 +15,7 @@
   position: absolute;
   top: 16px;
   left: 16px;
-  right: 16px;
+  right: 168px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -522,4 +522,38 @@
     transition-duration: 70ms;
     transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
   }
+}
+html.dark .social-post {
+  background: #000;
+}
+html.dark .social-post__hero h1,
+html.dark .celinen-dash .social-post__hero h1 {
+  color: #ededed;
+}
+html.dark .social-post__hero p,
+html.dark .social-post__hint {
+  color: #8b919a;
+}
+html.dark .social-post__composer,
+html.dark .social-post__result,
+html.dark .social-post__inside,
+html.dark .social-post__card,
+html.dark .social-post__suggest button,
+html.dark .social-picker {
+  background: #111;
+  border-color: #2a2a2a;
+  color: #ededed;
+  box-shadow: none;
+}
+html.dark .social-post__chip,
+html.dark .social-post__publish button {
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+  color: #c8c8ce;
+}
+html.dark .social-dock__chip,
+html.dark .social-dock__plus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #ededed;
 }
