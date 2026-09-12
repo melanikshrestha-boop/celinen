@@ -32,11 +32,18 @@ html.dark .celinen-dash__cal {
   gap: 8px;
   flex: 0 0 auto;
 }
-.celinen-ios-cal__bar h1 {
+.celinen-ios-cal__title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.celinen-ios-cal .celinen-ios-cal__bar h1 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 28px;
   white-space: nowrap;
 }
 .celinen-ios-cal__bar button {
@@ -49,9 +56,13 @@ html.dark .celinen-dash__cal {
   font: inherit;
   cursor: pointer;
 }
-.celinen-ios-cal__bar button[aria-label="Previous"],
-.celinen-ios-cal__bar button[aria-label="Next"] {
+.celinen-ios-cal__title button[aria-label="Previous"],
+.celinen-ios-cal__title button[aria-label="Next"] {
+  display: grid;
+  place-items: center;
+  width: 28px;
   min-width: 28px;
+  height: 28px;
   color: var(--ios-red);
 }
 .celinen-ios-cal__views {

@@ -86,4 +86,6 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(css).toContain("celinen-ios-cal__shell");
   expect(css).not.toContain("margin: 0 auto");
   expect(css).toContain("color-scheme: light");
+  expect(css).toContain('font-family: var(--celinen-sans');
+  expect(css).toContain("celinen-ios-cal__title");
 });
