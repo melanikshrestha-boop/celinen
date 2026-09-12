@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { displayNameSchema } from "./account-preferences";
+import { AVATAR_LOCAL_LIMIT } from "./account-avatar";
 import { isPhotographySpecialty, MAX_SPECIALTIES } from "./photography-specialties";
 import {
   PHOTOGRAPHER_WORK_ROLES,
@@ -32,7 +33,7 @@ export const profileInputSchema = z
     biography: z.string().trim().max(500).optional(),
     avatar: z
       .string()
-      .max(AVATAR_METADATA_LIMIT)
+      .max(AVATAR_LOCAL_LIMIT)
       .refine(
         (value) =>
           value === "" || /^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(value),
@@ -82,6 +83,13 @@ export function profileMetadata(input: ProfileInput) {
       : {}),
     ...(value.workRole !== undefined ? { lenslabs_work_role: value.workRole } : {}),
     ...(value.biography !== undefined ? { lenslabs_biography: value.biography } : {}),
-    ...(value.avatar !== undefined ? { lenslabs_avatar: value.avatar } : {}),
+    ...(value.avatar !== undefined
+      ? {
+          lenslabs_avatar:
+            value.avatar === "" || value.avatar.length <= AVATAR_METADATA_LIMIT
+              ? value.avatar
+              : "",
+        }
+      : {}),
   };
 }

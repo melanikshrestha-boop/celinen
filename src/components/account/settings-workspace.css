@@ -251,22 +251,31 @@
   color: var(--settings-text);
 }
 .settings-shell .settings-button {
-  min-height: 48px;
-  padding: 12px 28px;
-  border: 0;
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 600;
-  background: var(--settings-accent, #4d6fff);
-  color: #fff;
-  box-shadow:
-    0 12px 36px #4d6fff73,
-    0 0 24px #4d6fff59;
+  min-height: 22px;
+  height: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--settings-border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  background: transparent;
+  color: var(--settings-text);
+  box-shadow: none;
+}
+.settings-shell .settings-button.primary {
+  background: var(--settings-text);
+  color: var(--settings-bg);
+  border-color: var(--settings-text);
 }
 .settings-shell .settings-button:hover {
-  background: #6e86ff;
-  color: #fff;
+  background: var(--settings-hover);
+  color: var(--settings-text);
   filter: none;
+}
+.settings-shell .settings-button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--settings-text) 88%, #fff);
+  color: var(--settings-bg);
 }
 .settings-shell .settings-button:disabled {
   opacity: 0.45;
@@ -430,8 +439,8 @@
   font-size: 13px;
 }
 .profile-specialty-footer .settings-button {
-  min-height: 32px;
-  padding: 4px 10px;
+  min-height: 22px;
+  padding: 2px 8px;
 }
 .settings-profile-form .profile-specialty-hint {
   margin: 6px 0 20px;
@@ -549,7 +558,11 @@
 .settings-inline-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+.settings-avatar-editor .settings-button {
+  align-self: center;
 }
 .settings-capture img {
   max-width: 100%;
@@ -798,9 +811,11 @@ html[data-pointer-cursors="true"]
   .settings-shell .settings-control {
     max-width: 100%;
   }
-  .settings-shell .settings-control [role="combobox"],
+  .settings-shell .settings-control [role="combobox"] {
+    min-height: 32px;
+  }
   .settings-shell .settings-button {
-    min-height: 40px;
+    min-height: 22px;
   }
   .settings-search input {
     font-size: 16px;

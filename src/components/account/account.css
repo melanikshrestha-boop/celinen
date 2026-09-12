@@ -321,13 +321,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 8px 13px;
-  min-height: 44px;
-  border-radius: 8px;
+  gap: 4px;
+  padding: 2px 8px;
+  min-height: 22px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--ink);
-  font-size: 14px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .settings-button:hover {
@@ -458,8 +458,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin: 20px 0 8px;
+  gap: 8px;
+  margin: 16px 0 8px;
 }
 .settings-form-actions [role="status"] {
   display: flex;

@@ -28,6 +28,7 @@ import {
   isSettingsPath,
 } from "../src/lib/settings-catalog";
 import { SETTINGS_CONTROLS, searchSettingControls } from "../src/lib/settings-inventory";
+import { AVATAR_LOCAL_LIMIT } from "../src/lib/account-avatar";
 import {
   AVATAR_METADATA_LIMIT,
   profileInputSchema,
@@ -166,7 +167,7 @@ describe("Settings refinement: real routes and safe preferences", () => {
     const preview = previewSettingsImport(current, {
       ...DEFAULT_PREFERENCES,
       desktopNotifications: true,
-      theme: "light",
+      theme: "dark",
     });
     expect(preview.preferences.cloudAssistant).toBe(false);
     expect(preview.preferences.desktopNotifications).toBe(false);
@@ -178,13 +179,13 @@ describe("Settings refinement: real routes and safe preferences", () => {
   });
   test("concurrent edits merge unrelated fields and reject conflicting stale changes", () => {
     const base = DEFAULT_PREFERENCES;
-    const latest = { ...base, theme: "light" as const };
+    const latest = { ...base, theme: "dark" as const };
     expect(mergePreferencePatch(base, latest, { sendKey: "modifier-enter" })).toMatchObject({
-      theme: "light",
+      theme: "dark",
       sendKey: "modifier-enter",
     });
     expect(() => mergePreferencePatch(base, latest, { theme: "system" })).toThrow("another tab");
-    expect(mergePreferencePatch(base, latest, { theme: "light" })).toEqual(latest);
+    expect(mergePreferencePatch(base, latest, { theme: "dark" })).toEqual(latest);
     expect(() =>
       mergePreferencePatch(base, base, { appearance: { ...DEFAULT_APPEARANCE, uiSize: 99 } }),
     ).toThrow();
@@ -234,9 +235,21 @@ describe("Settings refinement: real routes and safe preferences", () => {
     expect(
       profileInputSchema.safeParse({
         ...profile,
-        avatar: jpegPrefix + "A".repeat(AVATAR_METADATA_LIMIT - jpegPrefix.length + 1),
+        avatar: jpegPrefix + "A".repeat(AVATAR_LOCAL_LIMIT - jpegPrefix.length),
+      }).success,
+    ).toBe(true);
+    expect(
+      profileInputSchema.safeParse({
+        ...profile,
+        avatar: jpegPrefix + "A".repeat(AVATAR_LOCAL_LIMIT - jpegPrefix.length + 1),
       }).success,
     ).toBe(false);
+    expect(
+      profileMetadata({
+        ...profile,
+        avatar: jpegPrefix + "A".repeat(AVATAR_LOCAL_LIMIT - jpegPrefix.length),
+      }).lenslabs_avatar,
+    ).toBe("");
     for (const patch of [
       { biography: "a".repeat(501) },
       { avatar: "https://example.com/tracker.png" },
