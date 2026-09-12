@@ -27,10 +27,10 @@ test("earnings stays paper in light mode and only goes black under html.dark", (
   const base = css.match(
     /\.finance-os-host\.earnings-workspace,\s*\.finance-os\s*\{([^}]+)\}/,
   )?.[1];
-  expect(base).toContain("--fos-bg: #ffffff");
+  expect(base).toContain("--fos-bg: #f4f3f0");
   expect(base).toContain("color-scheme: light");
   expect(base).toContain("--fos-accent: #4d6fff");
-  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
+  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #0c0c0c/);
 });
 
 test("workspace home and settings use neon pills instead of teal chrome", () => {
