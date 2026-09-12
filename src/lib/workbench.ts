@@ -164,6 +164,7 @@ export const DASHBOARD_APP_PATHS = [
   "/studio",
   "/deliver",
   "/develop",
+  "/poses",
   "/earnings",
   "/publish",
   "/library",

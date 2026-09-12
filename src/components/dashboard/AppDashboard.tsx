@@ -50,6 +50,7 @@ const MAIN = [
   { to: "/deliver", label: "Galleries", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
   { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
+  { to: "/poses", label: "Poses", icon: LayoutTemplate },
   { to: "/earnings", label: "Analytics", icon: ChartNoAxesColumn },
   { to: "/publish", label: "Social accounts", icon: Share2 },
   { to: "/library", label: "Tools", icon: Wrench },
