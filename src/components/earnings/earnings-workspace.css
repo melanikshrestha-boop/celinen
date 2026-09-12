@@ -73,8 +73,8 @@
 .earnings-button {
   font: inherit;
   color: inherit;
-  border-radius: 8px;
-  border: 1px solid transparent;
+  border-radius: 0;
+  border: 0;
   background: transparent;
   min-height: 36px;
   padding: 7px 11px;
@@ -93,7 +93,7 @@
 .earnings-workspace button:hover,
 .earnings-sheet button:hover,
 .earnings-button:hover {
-  background: var(--earn-hover);
+  background: transparent;
 }
 .earnings-workspace button:disabled,
 .earnings-sheet button:disabled {
@@ -102,14 +102,14 @@
 }
 .earnings-workspace .earnings-primary,
 .earnings-sheet .earnings-primary {
-  background: var(--earn-text);
-  color: var(--earn-bg);
-  font-weight: 550;
-  padding-inline: 15px;
+  background: transparent;
+  color: var(--earn-text);
+  font-weight: 600;
+  padding-inline: 0;
 }
 .earnings-workspace .earnings-primary:hover,
 .earnings-sheet .earnings-primary:hover {
-  opacity: 0.86;
+  opacity: 1;
 }
 .earnings-workspace :focus-visible,
 .earnings-sheet :focus-visible {

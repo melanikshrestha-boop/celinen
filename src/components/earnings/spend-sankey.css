@@ -4,9 +4,9 @@
 }
 .spend-sankey__bar {
   display: flex;
-  height: 10px;
+  height: 4px;
   overflow: hidden;
-  border-radius: 99px;
+  border-radius: 0;
   background: var(--fos-line, #eceff2);
   gap: 2px;
 }
@@ -55,16 +55,16 @@
 .books-filter__btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 12px 0 16px;
-  border: 1px solid var(--fos-line, #eceff2);
-  border-radius: 999px;
-  background: var(--fos-card, #fff);
+  gap: 6px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--fos-text, #171717);
   font: inherit;
   font-size: 14px;
-  box-shadow: 0 1px 2px #142a360d;
+  box-shadow: none;
   cursor: pointer;
 }
 .books-filter__btn svg {
@@ -72,22 +72,22 @@
 }
 .books-filter__menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   left: 0;
   z-index: 24;
   display: grid;
   min-width: max(100%, 168px);
-  padding: 6px;
-  border: 1px solid var(--fos-line, #eceff2);
-  border-radius: 14px;
-  background: var(--fos-card, #fff);
-  box-shadow: 0 16px 40px #142a361f;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--fos-bg, #fff);
+  box-shadow: none;
 }
 .books-filter__menu button {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -97,5 +97,6 @@
 }
 .books-filter__menu button[aria-selected="true"],
 .books-filter__menu button:hover {
-  background: #f4f6f8;
+  background: transparent;
+  font-weight: 600;
 }

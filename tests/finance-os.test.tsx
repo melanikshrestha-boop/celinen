@@ -199,4 +199,8 @@ test("finance os is light by default and only dark under html.dark", () => {
   expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
   expect(css).toMatch(/:root\.dark[\s\S]*color-scheme: dark/);
   expect(css).toContain(".finance-os__cta");
+  expect(css).toMatch(/\.finance-os \.finance-os__board\s*\{[^}]*border: 0/);
+  expect(css).toMatch(/\.finance-os \.finance-os__card\s*\{[^}]*border: 0/);
+  const os = readFileSync(new URL("../src/components/earnings/FinanceOs.tsx", import.meta.url), "utf8");
+  expect(os).not.toContain("finance-os__mark");
 });

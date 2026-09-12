@@ -63,7 +63,6 @@ export function FinanceOs({
   return (
     <div className="finance-os">
       <nav className="finance-os__nav" aria-label="Photographer books">
-        <p className="finance-os__mark">celinen</p>
         <p className="finance-os__kicker">Track</p>
         {TRACK.map((item) => {
           const Icon = ICONS[item.id];
