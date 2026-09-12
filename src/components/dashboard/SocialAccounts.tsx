@@ -177,6 +177,11 @@ export function SocialAccounts() {
             <BrandMark id="chatgpt" />
             ChatGPT
           </Link>
+          <span aria-hidden="true">|</span>
+          <Link to="/mcp">
+            <BrandMark id="grok" />
+            Grok
+          </Link>
         </p>
       </div>
       <div className="social-post__stage">

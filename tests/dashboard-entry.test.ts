@@ -72,6 +72,9 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toMatch(/>\s*Dark\s*</);
   expect(source).toContain("social-post");
   expect(source).toContain("Generate inside");
+  expect(source).toContain('BrandMark id="claude"');
+  expect(source).toContain('BrandMark id="chatgpt"');
+  expect(source).toContain('BrandMark id="grok"');
   expect(source).toContain("Browse templates");
   expect(source).toContain("dashboardGreetingFor");
   expect(source).toContain("DashboardContext.Provider");

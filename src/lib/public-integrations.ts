@@ -149,6 +149,7 @@ export const INTEGRATION_MENU = [
 export const ASSISTANT_MARKS = [
   { id: "claude", title: "Claude" },
   { id: "chatgpt", title: "ChatGPT" },
+  { id: "grok", title: "Grok" },
   { id: "cursor", title: "Cursor" },
   { id: "copilot", title: "Copilot" },
   { id: "gemini", title: "Gemini" },

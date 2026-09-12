@@ -56,6 +56,13 @@ test("connector marks use official X and Snapchat paths, not fat stand-ins", () 
   expect(renderToStaticMarkup(<BrandMark id="kick" />)).toContain("#53FC18");
   expect(renderToStaticMarkup(<BrandMark id="twitch" />)).toContain("#9146FF");
   expect(renderToStaticMarkup(<BrandMark id="chatgpt" />)).toContain("M22.282 9.821");
+  const grok = renderToStaticMarkup(<BrandMark id="grok" />);
+  expect(grok).toContain("M9.27 15.29");
+  expect(grok).not.toContain("M12 2.2");
+  const claude = renderToStaticMarkup(<BrandMark id="claude" />);
+  expect(claude).toContain("m4.7144 15.9555");
+  expect(claude).not.toContain("M12 2.1");
+  expect(renderToStaticMarkup(<BrandMark id="cursor" />)).toContain("M11.503.131");
   expect(renderToStaticMarkup(<BrandMark id="gemini" />)).toContain("#8E75B2");
   expect(renderToStaticMarkup(<BrandMark id="n8n" />)).toContain("#EA4B71");
   const source = readFileSync(new URL("../src/lib/connector-orbit.ts", import.meta.url), "utf8");
