@@ -66,16 +66,14 @@ test("analytics filters are Origin pills, not native Mac selects", () => {
   expect(workspace).toContain("This month");
   expect(workspace).not.toMatch(/<select[\s\S]*This month/);
   expect(workspace).not.toMatch(/<select[\s\S]*All shoots/);
-  const landing = readFileSync(
-    new URL("../src/components/marketing/AnalyticsSection.tsx", import.meta.url),
+  const landing = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
+  expect(landing).not.toContain("AnalyticsSection");
+  expect(landing).not.toContain("USD 4,280");
+  const overview = readFileSync(
+    new URL("../src/components/earnings/FinanceOverview.tsx", import.meta.url),
     "utf8",
   );
-  expect(landing).toContain("Track the books");
-  expect(landing).toContain("SpendSankey");
-  expect(landing).toContain("USD 4,280");
-  expect(landing).not.toContain("Apollo Bagels");
-  expect(landing).not.toContain("Starbucks");
-  expect(landing).not.toContain("$5,070");
+  expect(overview).toContain("SpendSankey");
 });
 
 test("finance desk reads the books query and lists Origin-style tracks", () => {

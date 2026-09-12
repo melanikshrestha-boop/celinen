@@ -105,7 +105,10 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(css).not.toMatch(/\.workbench|\.develop-|\.auth-|--foto-font-ui|auth-lens/);
     const source = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
-    expect(source).toContain("AnalyticsSection");
+    expect(source).not.toContain("AnalyticsSection");
+    expect(source).not.toContain("USD 4,280");
+    expect(source).not.toContain("foto-analytics");
+    expect(source).not.toContain("Track the books");
     expect(source.indexOf('import "@/components/marketing/sky-entry.css"')).toBeGreaterThan(
       source.indexOf('import "@/components/marketing/marketing-page.css"'),
     );
@@ -181,6 +184,10 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.equal(headings.length, 1);
     assert.equal(text(headings[0]![1]!), "Go where the good light takes you.");
     assert.ok(!html.includes("A little space for your big ideas"));
+    assert.ok(!html.includes("USD 4,280"));
+    assert.ok(!html.includes("foto-analytics"));
+    assert.ok(!html.includes("Track the books"));
+    assert.ok(!html.includes("Friday night gallery"));
     assert.ok(!html.includes("Your shoots, edits, and galleries"));
     assert.ok(!html.includes("A little less admin"));
     assert.ok(html.includes("Made for the person behind the camera"));

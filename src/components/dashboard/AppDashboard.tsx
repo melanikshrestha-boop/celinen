@@ -623,7 +623,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     </button>
                     <Link to="/studio" className="social-post__card">
                       <span className="social-post__card-mark is-studio" aria-hidden="true">
-                        <LayoutTemplate size={18} />
+                        <Aperture size={18} />
                       </span>
                       <span>
                         <strong>Want to design it yourself?</strong>
