@@ -43,6 +43,17 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("AccountMenu");
   expect(source).toContain("SocialDock");
   expect(source).toContain("Aperture");
+  expect(source).not.toContain("LayoutTemplate");
+  const lucide = source.match(/import \{([\s\S]*?)\} from "lucide-react"/);
+  expect(lucide).toBeTruthy();
+  const imported = new Set((lucide?.[1].match(/\b[A-Z][A-Za-z0-9]*/g) ?? []) as string[]);
+  for (const match of source.matchAll(/<([A-Z][A-Za-z0-9]*)\s+size=/g)) {
+    const name = match[1]!;
+    if (name === "LogoMark" || name === "BrandMark" || name === "Icon") continue;
+    expect(imported.has(name), `${name} is used in AppDashboard JSX but not imported from lucide-react`).toBe(
+      true,
+    );
+  }
   expect(source).toContain('to: "/deliver"');
   expect(source).toContain('to: "/develop"');
   expect(source).not.toContain('to: "/poses"');
@@ -118,4 +129,14 @@ test("develop rail mounts the Lightroom editor as the full page", () => {
   expect(source).toContain("DevelopPage");
   expect(source).toContain("explicitWorkspaceBinding");
   expect(source).not.toContain("LegacyWorkbenchRedirect");
+});
+
+test("root error recovery reloads instead of soft-resetting a dead module", () => {
+  const source = readFileSync(new URL("../src/routes/__root.tsx", import.meta.url), "utf8");
+  expect(source).toContain("This page didn’t load");
+  expect(source).toContain("window.location.reload()");
+  expect(source).toContain("celinen.reload-once");
+  expect(source).toContain("ReferenceError");
+  expect(source).not.toContain("router.invalidate()");
+  expect(source).not.toContain("useRouter");
 });
