@@ -300,6 +300,17 @@ html:has(.celinen-dash) {
   padding: 0;
   overflow: auto;
 }
+.celinen-dash__body:has(.foto-develop) {
+  overflow: hidden;
+}
+.celinen-dash .foto-develop {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
+.celinen-dash .develop-topbar {
+  padding-right: 80px;
+}
 .celinen-dash-tool,
 .celinen-embedded-studio {
   flex: 1;
@@ -542,13 +553,15 @@ html:has(.celinen-dash) {
 }
 .celinen-dash__theme button {
   min-height: 28px;
-  padding: 0 12px;
+  min-width: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: #6b7280;
   font: inherit;
-  font-size: 13px;
   cursor: pointer;
 }
 .celinen-dash__theme button[aria-pressed="true"] {
