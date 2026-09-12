@@ -20,6 +20,15 @@ import {
   type SocialId,
   type SocialLink,
 } from "@/lib/social-accounts";
+import {
+  hasPasteSecret,
+  isPasteSocial,
+  parsePasteSecret,
+  readPasteSecrets,
+  savePasteSecret,
+  type PasteSecret,
+  type PasteSocialId,
+} from "@/lib/social-paste";
 import "./social-accounts.css";
 
 export function SocialDock({ mini = false }: { mini?: boolean }) {
@@ -28,6 +37,10 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
   const [links, setLinks] = useState<SocialLink[]>([]);
   const [mail, setMail] = useState<MailLink[]>([]);
   const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<PasteSocialId | null>(null);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState("");
+  const [secrets, setSecrets] = useState<Partial<Record<PasteSocialId, PasteSecret>>>({});
   const wrap = useRef<HTMLDivElement>(null);
   const justOn = useRef<string | null>(null);
 
@@ -37,6 +50,9 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
     const loadSocial = () => {
       void readSocialLinks(scope).then((rows) => {
         if (alive) setLinks(rows);
+      });
+      void readPasteSecrets(scope).then((rows) => {
+        if (alive) setSecrets(rows);
       });
     };
     const loadMail = () => {
@@ -72,9 +88,32 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
   }
 
   async function connect(id: SocialId) {
-    if (!scope || isSocialConnected(links, id)) return;
+    if (!scope) return;
+    if (isPasteSocial(id) && !hasPasteSecret(secrets, id)) {
+      setForm(id);
+      setFields({});
+      setFormError("");
+      return;
+    }
+    if (isSocialConnected(links, id)) return;
     markJustOn(id);
     setLinks(await connectSocial(scope, id));
+  }
+
+  async function connectPaste(id: PasteSocialId) {
+    if (!scope) return;
+    try {
+      const secret = parsePasteSecret(id, fields);
+      await savePasteSecret(scope, secret);
+      markJustOn(id);
+      setLinks(await connectSocial(scope, id));
+      setSecrets(await readPasteSecrets(scope));
+      setForm(null);
+      setFields({});
+      setFormError("");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Could not connect.");
+    }
   }
 
   async function dropSocial(id: SocialId) {
@@ -154,31 +193,107 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
           ) : null}
           {SOCIAL_NETWORKS.map((network) => {
             const on = isSocialConnected(links, network.id);
+            const live = hasPasteSecret(secrets, network.id);
             return (
-              <button
-                key={network.id}
-                type="button"
-                className="social-picker__row"
-                role="menuitem"
-                title={on ? "Double-click to disconnect" : undefined}
-                onClick={() => void connect(network.id)}
-                onDoubleClick={() => void dropSocial(network.id)}
-              >
-                <span className="social-picker__mark">
-                  <BrandMark id={network.id} />
-                </span>
-                <span>
-                  <strong>{network.title}</strong>
-                  <small>{network.kind}</small>
-                </span>
-                {on ? (
-                  <Check size={18} strokeWidth={2.4} className="social-picker__check" />
-                ) : (
-                  <span className="social-picker__go" aria-hidden="true">
-                    →
+              <div key={network.id}>
+                <button
+                  type="button"
+                  className="social-picker__row"
+                  role="menuitem"
+                  title={on ? "Double-click to disconnect" : undefined}
+                  onClick={() => void connect(network.id)}
+                  onDoubleClick={() => void dropSocial(network.id)}
+                >
+                  <span className="social-picker__mark">
+                    <BrandMark id={network.id} />
                   </span>
-                )}
-              </button>
+                  <span>
+                    <strong>{network.title}</strong>
+                    <small>{live ? "Live" : network.kind}</small>
+                  </span>
+                  {on ? (
+                    <Check size={18} strokeWidth={2.4} className="social-picker__check" />
+                  ) : (
+                    <span className="social-picker__go" aria-hidden="true">
+                      →
+                    </span>
+                  )}
+                </button>
+                {form === network.id ? (
+                  <form
+                    className="social-picker__form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void connectPaste(network.id);
+                    }}
+                  >
+                    {network.id === "bluesky" ? (
+                      <>
+                        <input
+                          aria-label="Handle"
+                          autoComplete="username"
+                          placeholder="Handle"
+                          value={fields.handle ?? ""}
+                          onChange={(event) =>
+                            setFields((current) => ({ ...current, handle: event.target.value }))
+                          }
+                        />
+                        <input
+                          aria-label="App password"
+                          type="password"
+                          autoComplete="current-password"
+                          placeholder="App password"
+                          value={fields.appPassword ?? ""}
+                          onChange={(event) =>
+                            setFields((current) => ({
+                              ...current,
+                              appPassword: event.target.value,
+                            }))
+                          }
+                        />
+                      </>
+                    ) : null}
+                    {network.id === "mastodon" ? (
+                      <>
+                        <input
+                          aria-label="Instance"
+                          placeholder="Instance"
+                          value={fields.instance ?? ""}
+                          onChange={(event) =>
+                            setFields((current) => ({ ...current, instance: event.target.value }))
+                          }
+                        />
+                        <input
+                          aria-label="Token"
+                          type="password"
+                          placeholder="Token"
+                          value={fields.token ?? ""}
+                          onChange={(event) =>
+                            setFields((current) => ({ ...current, token: event.target.value }))
+                          }
+                        />
+                      </>
+                    ) : null}
+                    {network.id === "discord" ? (
+                      <input
+                        aria-label="Webhook"
+                        placeholder="Webhook"
+                        value={fields.webhook ?? ""}
+                        onChange={(event) =>
+                          setFields((current) => ({ ...current, webhook: event.target.value }))
+                        }
+                      />
+                    ) : null}
+                    <div className="social-picker__form-actions">
+                      <button type="submit">Connect</button>
+                      <button type="button" onClick={() => setForm(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                    {formError ? <p role="alert">{formError}</p> : null}
+                  </form>
+                ) : null}
+              </div>
             );
           })}
           <div className="social-picker__rule" aria-hidden="true" />

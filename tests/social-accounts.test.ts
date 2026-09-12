@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 const memory = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
   value: {
     getItem: (key: string) => memory.get(key) ?? null,
     setItem: (key: string, value: string) => memory.set(key, value),
@@ -72,6 +73,8 @@ test("social catalog includes the popular networks from the picker", () => {
   expect(dock).toContain("Double-click to disconnect");
   expect(dock).toContain("MAIL_NETWORKS");
   expect(dock).toContain("gmail");
+  expect(dock).toContain("App password");
+  expect(dock).toContain("Webhook");
   expect(MAIL_NETWORKS[0]).toEqual({ id: "gmail", title: "Gmail", kind: "Mail" });
   expect(dock).not.toContain("Connect account");
   expect(SOCIAL_NETWORKS.map((item) => item.id)).not.toContain("gmail");
@@ -96,7 +99,9 @@ test("connections persist encrypted and shown chips stay short", async () => {
   const next = await disconnectSocial(scope, "instagram");
   expect(isSocialConnected(next, "instagram")).toBe(false);
   const all = await connectAllSocials(scope);
-  expect(all).toHaveLength(SOCIAL_NETWORKS.length);
+  expect(all.some((row) => row.id === "instagram")).toBe(true);
+  expect(all.some((row) => row.id === "bluesky")).toBe(false);
+  expect(all).toHaveLength(SOCIAL_NETWORKS.length - 3);
 });
 
 test("gmail is a separate encrypted mail link, not a social network", async () => {
