@@ -88,7 +88,7 @@ function Area({
           </text>
         ))}
       </svg>
-      {compact ? null : (
+      {compact || !points.length ? null : (
       <details className="finance-os__chart-data">
         <summary>Chart Data · {points.length} dates</summary>
         <div className="finance-os__table-scroll">
