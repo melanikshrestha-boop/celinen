@@ -3,7 +3,6 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
-  useRouter,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -28,11 +27,23 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error }: { error: Error; reset: () => void }) {
   console.error(error);
-  const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+  }, [error]);
+  // Soft reset() keeps a dead HMR module on screen. A missing-identifier crash
+  // (the dashboard LayoutTemplate miss) only recovers on a full reload.
+  useEffect(() => {
+    if (!(error instanceof ReferenceError) && !/ is not defined$/.test(error.message)) return;
+    const key = `celinen.reload-once:${error.message}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      return;
+    }
+    window.location.reload();
   }, [error]);
 
   return (
@@ -42,10 +53,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <button
           type="button"
           className="celinen-btn"
-          onClick={() => {
-            router.invalidate();
-            reset();
-          }}
+          onClick={() => window.location.reload()}
         >
           Try again
         </button>
