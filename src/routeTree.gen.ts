@@ -45,6 +45,7 @@ import { Route as PhotographersRouteImport } from './routes/photographers'
 import { Route as PickRouteImport } from './routes/pick'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
+import { Route as PosesRouteImport } from './routes/poses'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProductRouteImport } from './routes/product'
@@ -274,6 +275,11 @@ const PortalRoute = PortalRouteImport.update({
 const PortfolioRoute = PortfolioRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PosesRoute = PosesRouteImport.update({
+  id: '/poses',
+  path: '/poses',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -567,6 +573,7 @@ export interface FileRoutesByFullPath {
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
+  '/poses': typeof PosesRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/product': typeof ProductRoute
@@ -653,6 +660,7 @@ export interface FileRoutesByTo {
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
+  '/poses': typeof PosesRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/product': typeof ProductRoute
@@ -740,6 +748,7 @@ export interface FileRoutesById {
   '/pick': typeof PickRoute
   '/portal': typeof PortalRoute
   '/portfolio': typeof PortfolioRoute
+  '/poses': typeof PosesRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/product': typeof ProductRoute
@@ -830,6 +839,7 @@ export interface FileRouteTypes {
     | '/pick'
     | '/portal'
     | '/portfolio'
+    | '/poses'
     | '/pricing'
     | '/privacy'
     | '/product'
@@ -916,6 +926,7 @@ export interface FileRouteTypes {
     | '/pick'
     | '/portal'
     | '/portfolio'
+    | '/poses'
     | '/pricing'
     | '/privacy'
     | '/product'
@@ -1002,6 +1013,7 @@ export interface FileRouteTypes {
     | '/pick'
     | '/portal'
     | '/portfolio'
+    | '/poses'
     | '/pricing'
     | '/privacy'
     | '/product'
@@ -1091,6 +1103,7 @@ export interface RootRouteChildren {
   PickRoute: typeof PickRoute
   PortalRoute: typeof PortalRoute
   PortfolioRoute: typeof PortfolioRoute
+  PosesRoute: typeof PosesRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ProductRoute: typeof ProductRoute
@@ -1383,6 +1396,13 @@ declare module '@tanstack/react-router' {
       path: '/portfolio'
       fullPath: '/portfolio'
       preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/poses': {
+      id: '/poses'
+      path: '/poses'
+      fullPath: '/poses'
+      preLoaderRoute: typeof PosesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -1837,6 +1857,7 @@ const rootRouteChildren: RootRouteChildren = {
   PickRoute: PickRoute,
   PortalRoute: PortalRoute,
   PortfolioRoute: PortfolioRoute,
+  PosesRoute: PosesRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ProductRoute: ProductRoute,

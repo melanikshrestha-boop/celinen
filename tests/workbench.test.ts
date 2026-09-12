@@ -57,6 +57,7 @@ describe("chat-first workspace boundaries", () => {
     "/studio",
     "/deliver",
     "/develop",
+    "/poses",
     "/earnings",
     "/publish",
     "/library",
