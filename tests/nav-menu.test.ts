@@ -16,6 +16,8 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
     "utf8",
   );
   expect(nav).toContain("NavMenuProvider");
+  expect(nav).toContain('to="/galleries"');
+  expect(nav).toContain(">Galleries<");
   expect(features).toContain('useNavMenuHover("features")');
   expect(features).toContain("hoverMenuTrigger");
   expect(features).toContain('title: "Analytics"');
@@ -27,6 +29,8 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
   expect(integrations).toContain('useNavMenuHover("integrations")');
   expect(integrations).toContain("View all integrations");
   expect(integrations).toContain("menuIntegrations");
+  expect(integrations).toContain("{item.title}");
+  expect(integrations).not.toContain("{item.copy}");
   expect(useCases).toContain('useNavMenuHover("use-cases")');
   expect(useCases).toContain("hoverMenuTrigger");
   expect(hook).toContain("openNow");
@@ -34,6 +38,13 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
   expect(hook).toContain("!next && hovering.current");
   expect(hook).toContain("current === id ? null : current");
   expect(hook).toContain('"integrations"');
+  const sky = readFileSync(
+    new URL("../src/components/marketing/sky-entry.css", import.meta.url),
+    "utf8",
+  );
+  expect(sky).toContain("gap: 6px 10px");
+  expect(sky).toContain("min-height: 44px");
+  expect(sky).not.toContain("gap: 2px");
   const details = readFileSync(
     new URL("../src/components/marketing/public-details.css", import.meta.url),
     "utf8",

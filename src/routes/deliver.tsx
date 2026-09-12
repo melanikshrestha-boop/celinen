@@ -1,4 +1,4 @@
-import { createFileRoute, useLocation } from "@tanstack/react-router";
+import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { OutboundWorkspace } from "./outbound";
 import { ShootLink } from "@/components/shoots/ShootsHub";
 import { APPLICATION_ORIGIN } from "@/lib/application-origin";
@@ -19,6 +19,7 @@ import {
 import { listClients } from "@/lib/finance.functions";
 import { listInboxBookings, attachGalleryToBooking } from "@/lib/client-portal.functions";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
+import { indexGalleryHearts, type GalleryIndexResult } from "@/lib/gallery-index";
 import {
   addLocalDeliveryPhotos,
   buildLocalDeliveryManifest,
@@ -69,7 +70,7 @@ type GalleryRow = {
   favorite_count: number;
 };
 
-type Photo = { id: string; filename: string; url: string | null };
+type Photo = { id: string; filename: string; url: string | null; folder?: "proofs" | "edited" };
 
 type GalleryDetailResponse = {
   error?: string;
@@ -734,16 +735,20 @@ function LocalDeliver() {
 }
 
 function CloudDeliver() {
+  const navigate = useNavigate();
   const [galleries, setGalleries] = useState<GalleryRow[]>([]);
   const [clients, setClients] = useState<{ id: string; name: string; org: string | null }[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [favorites, setFavorites] = useState<{ photo_id: string; viewer: string }[]>([]);
+  const [index, setIndex] = useState<GalleryIndexResult | null>(null);
+  const [view, setView] = useState<"all" | "hearts">("all");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({ title: "", client_id: "", passcode: "", message: "" });
   const fileRef = useRef<HTMLInputElement>(null);
+  const editedRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [inbox, setInbox] = useState<Awaited<ReturnType<typeof listInboxBookings>>>([]);
   useToolLeaveGuard(
@@ -807,7 +812,7 @@ function CloudDeliver() {
     await refresh();
   };
 
-  const upload = async (files: FileList | File[]) => {
+  const upload = async (files: FileList | File[], folder: "proofs" | "edited" = "proofs") => {
     if (!open) return;
     const list = [...files].filter((f) => f.type.startsWith("image/"));
     if (!list.length) return;
@@ -816,7 +821,7 @@ function CloudDeliver() {
     if (!uid) return setError("Sign in first.");
 
     setProgress({ done: 0, total: list.length });
-    const uploaded: { storage_path: string; filename: string }[] = [];
+    const uploaded: { storage_path: string; filename: string; folder: "proofs" | "edited" }[] = [];
     let done = 0;
     const lanes = 4;
     const queue = [...list];
@@ -828,7 +833,7 @@ function CloudDeliver() {
           const { error: upErr } = await supabase.storage
             .from("deliveries")
             .upload(path, file, { cacheControl: "3600", upsert: false });
-          if (!upErr) uploaded.push({ storage_path: path, filename: file.name });
+          if (!upErr) uploaded.push({ storage_path: path, filename: file.name, folder });
           done += 1;
           setProgress({ done, total: list.length });
         }
@@ -860,7 +865,18 @@ function CloudDeliver() {
     await refresh();
   };
 
-  const favSet = new Set(favorites.map((f) => f.photo_id));
+  const proofs = photos.filter((photo) => photo.folder !== "edited");
+  const edited = photos.filter((photo) => photo.folder === "edited");
+  const favSet = new Set(index?.favorites ?? favorites.map((f) => f.photo_id));
+  const shown = (view === "hearts" ? proofs.filter((photo) => favSet.has(photo.id)) : proofs);
+
+  useEffect(() => {
+    void indexGalleryHearts({
+      photos: proofs.map((photo) => ({ id: photo.id, name: photo.filename })),
+      hearts: favorites.map((row) => row.photo_id),
+      edited: edited.map((photo) => photo.filename),
+    }).then(setIndex);
+  }, [photos, favorites]);
 
   return (
     <Shell hideEventHeader>
@@ -1077,16 +1093,27 @@ function CloudDeliver() {
                 <p className="mt-1 text-[13px] text-moss">
                   JPEG or PNG exports. They upload straight to the client link.
                 </p>
-                <Btn className="mt-3" variant="primary" onClick={() => fileRef.current?.click()}>
-                  Choose files
-                </Btn>
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <Btn variant="primary" onClick={() => fileRef.current?.click()}>
+                    Proofs
+                  </Btn>
+                  <Btn onClick={() => editedRef.current?.click()}>Edited</Btn>
+                </div>
                 <input
                   ref={fileRef}
                   type="file"
                   multiple
                   accept="image/*"
                   hidden
-                  onChange={(e) => e.target.files && void upload(e.target.files)}
+                  onChange={(e) => e.target.files && void upload(e.target.files, "proofs")}
+                />
+                <input
+                  ref={editedRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => e.target.files && void upload(e.target.files, "edited")}
                 />
                 {progress && (
                   <p className="mt-3 font-mono text-[12px] text-moss">
@@ -1097,19 +1124,49 @@ function CloudDeliver() {
             </Card>
 
             <Card className="p-0">
-              <div className="flex items-center gap-2 border-b border-border p-4">
+              <div className="flex flex-wrap items-center gap-2 border-b border-border p-4">
                 <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-moss">
                   Delivered frames
                 </p>
+                <button
+                  type="button"
+                  className={`rounded-full px-2 py-0.5 font-mono text-[11px] ${view === "all" ? "bg-ink text-paper2" : "text-moss"}`}
+                  onClick={() => setView("all")}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-2 py-0.5 font-mono text-[11px] ${view === "hearts" ? "bg-ink text-paper2" : "text-moss"}`}
+                  onClick={() => setView("hearts")}
+                >
+                  Hearts
+                </button>
+                {favSet.size > 0 && (
+                  <Btn
+                    className="px-3 py-1 text-[12px]"
+                    onClick={() => {
+                      const names = proofs.filter((photo) => favSet.has(photo.id)).map((photo) => photo.filename);
+                      try {
+                        sessionStorage.setItem("celinen.gallery.hearts", JSON.stringify(names));
+                      } catch {
+                        /* private mode */
+                      }
+                      void navigate({ to: "/develop" });
+                    }}
+                  >
+                    Develop hearts
+                  </Btn>
+                )}
                 <p className="ml-auto font-mono text-[11px] text-moss">
-                  {photos.length} frames · {favorites.length} client picks
+                  {proofs.length} proofs · {favSet.size} hearts · {index?.missing.length ?? 0} to edit
                 </p>
               </div>
-              {photos.length === 0 ? (
+              {shown.length === 0 ? (
                 <p className="p-6 text-sm text-moss">Nothing delivered yet.</p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {photos.map((p) => (
+                  {shown.map((p) => (
                     <figure
                       key={p.id}
                       className="relative overflow-hidden rounded-xl border border-border"

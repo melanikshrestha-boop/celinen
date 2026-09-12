@@ -29,23 +29,32 @@
   overflow-y: auto;
 }
 .marketing-nav-integrations {
-  width: min(720px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   max-height: min(78dvh, var(--radix-dropdown-menu-content-available-height, 720px));
-  padding: 8px 8px 0;
+  padding: 12px 12px 0;
   overflow-x: hidden;
   overflow-y: auto;
 }
 .marketing-nav-integrations__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2px;
+  gap: 6px 10px;
+  padding-bottom: 8px;
 }
 .marketing-nav-integrations .marketing-nav-feature {
-  align-items: start;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  gap: 12px;
 }
 .marketing-nav-integrations .marketing-nav-features__all {
   position: sticky;
   bottom: 0;
+  z-index: 1;
+  width: calc(100% + 24px);
+  margin: 4px -12px 0;
+  padding: 14px 20px 16px;
+  border-top: 1px solid #eceff2;
   background: #fff;
 }
 .marketing-nav-sub {
@@ -262,10 +271,16 @@
     font-size: 13px;
   }
   .marketing-nav-integrations {
-    width: min(100vw - 24px, 420px);
+    width: min(100vw - 24px, 360px);
+    padding: 10px 10px 0;
   }
   .marketing-nav-integrations__grid {
     grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .marketing-nav-integrations .marketing-nav-features__all {
+    width: calc(100% + 20px);
+    margin: 4px -10px 0;
   }
   .marketing-nav-sub {
     width: min(240px, calc(100vw - 24px));

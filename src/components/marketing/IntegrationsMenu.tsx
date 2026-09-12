@@ -34,10 +34,7 @@ export function IntegrationsMenu() {
                 <span className="marketing-nav-feature__icon" aria-hidden="true">
                   <BrandMark id={item.id} />
                 </span>
-                <span>
-                  <strong>{item.title}</strong>
-                  <span>{item.copy}</span>
-                </span>
+                <strong>{item.title}</strong>
               </Link>
             </DropdownMenuItem>
           ))}

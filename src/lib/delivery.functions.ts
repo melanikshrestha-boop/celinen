@@ -227,7 +227,13 @@ export const addGalleryPhotos = createServerFn({ method: "POST" })
   .inputValidator(
     (d: {
       gallery_id: string;
-      files: { storage_path: string; filename: string; width?: number; height?: number }[];
+      files: {
+        storage_path: string;
+        filename: string;
+        width?: number;
+        height?: number;
+        folder?: "proofs" | "edited";
+      }[];
     }) => d,
   )
   .handler(async ({ data, context }) => {
@@ -280,6 +286,7 @@ export const addGalleryPhotos = createServerFn({ method: "POST" })
       width: f.width ?? null,
       height: f.height ?? null,
       sort_order: (count ?? 0) + i,
+      folder: f.folder === "edited" ? "edited" : "proofs",
     }));
     const { error } = await context.supabase.from("gallery_photos").insert(rows);
     if (error) return { error: error.message };
