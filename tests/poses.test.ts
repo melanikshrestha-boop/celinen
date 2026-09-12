@@ -68,13 +68,12 @@ test("per-shoot pose links persist boards and a Pinterest URL", () => {
 });
 
 test("poses desk is a dashboard tool with no OAuth claim", () => {
-  const page = readFileSync(new URL("../src/components/dashboard/Poses.tsx", import.meta.url), "utf8");
   const route = readFileSync(new URL("../src/routes/poses.tsx", import.meta.url), "utf8");
   const workbench = readFileSync(new URL("../src/lib/workbench.ts", import.meta.url), "utf8");
+  const cal = readFileSync(new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url), "utf8");
   expect(route).toContain('createFileRoute("/poses")');
+  expect(route).toContain('view: "calendar"');
   expect(workbench).toContain('"/poses"');
-  expect(page).toContain("pinterest.com/you/board");
-  expect(page).toContain('BrandMark id="pinterest"');
-  expect(page).not.toContain("OAuth");
-  expect(page).not.toContain("connected");
+  expect(cal).toContain('placeholder="Pose"');
+  expect(cal).not.toContain("OAuth");
 });

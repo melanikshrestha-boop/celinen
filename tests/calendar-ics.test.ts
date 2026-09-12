@@ -62,14 +62,17 @@ test("month grid is six iOS weeks and today matching is local", () => {
   expect(hits).toHaveLength(1);
 });
 
-test("dashboard calendar is the iOS light surface with Google and Calendar connect", () => {
+test("dashboard calendar is centered with location and no Google connectors", () => {
   const dash = readFileSync(new URL("../src/components/dashboard/AppDashboard.tsx", import.meta.url), "utf8");
   const cal = readFileSync(new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../src/components/dashboard/ios-calendar.css", import.meta.url), "utf8");
   expect(dash).toContain("IosCalendar");
-  expect(cal).toContain("Google Calendar");
-  expect(cal).toContain("Add to Calendar");
+  expect(cal).not.toContain("Google Calendar");
+  expect(cal).not.toContain("Add to Calendar");
+  expect(cal).toContain('placeholder="Location"');
+  expect(cal).toContain('placeholder="Pose"');
+  expect(cal).toContain("CALENDAR_COLORS");
   expect(cal).not.toContain("OAuth");
+  expect(css).toContain("margin: 0 auto");
   expect(css).toContain("color-scheme: light");
-  expect(css).toContain("#ff3b30");
 });

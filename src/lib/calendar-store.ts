@@ -1,9 +1,10 @@
-import type { CalendarEvent } from "./calendar-ics";
+import { isCalendarColor, sortCalendarEvents, type CalendarEvent } from "./calendar-ics";
 
 export type CalendarState = {
   feedUrl: string;
   feedEvents: CalendarEvent[];
   localEvents: CalendarEvent[];
+  accent: string;
 };
 
 function key(scope: string) {
@@ -11,7 +12,7 @@ function key(scope: string) {
 }
 
 export function emptyCalendarState(): CalendarState {
-  return { feedUrl: "", feedEvents: [], localEvents: [] };
+  return { feedUrl: "", feedEvents: [], localEvents: [], accent: "#ff3b30" };
 }
 
 function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent | null {
@@ -19,6 +20,10 @@ function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent
   const row = value as Record<string, unknown>;
   if (typeof row.id !== "string" || typeof row.title !== "string") return null;
   if (!Number.isFinite(row.start) || !Number.isFinite(row.end)) return null;
+  const location = typeof row.location === "string" ? row.location.slice(0, 200) : "";
+  const notes = typeof row.notes === "string" ? row.notes.slice(0, 2000) : "";
+  const pose = typeof row.pose === "string" ? row.pose.slice(0, 80) : "";
+  const color = typeof row.color === "string" && isCalendarColor(row.color) ? row.color : undefined;
   return {
     id: row.id.slice(0, 200),
     title: row.title.slice(0, 200),
@@ -26,6 +31,10 @@ function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent
     end: Number(row.end),
     allDay: row.allDay === true,
     source,
+    ...(location ? { location } : {}),
+    ...(notes ? { notes } : {}),
+    ...(pose ? { pose } : {}),
+    ...(color ? { color } : {}),
   };
 }
 
@@ -43,7 +52,13 @@ export function readCalendarState(scope: string): CalendarState {
     const localEvents = Array.isArray(row.localEvents)
       ? row.localEvents.map((item) => asEvent(item, "local")).filter((item): item is CalendarEvent => Boolean(item))
       : [];
-    return { feedUrl, feedEvents: feedEvents.slice(0, 500), localEvents: localEvents.slice(0, 200) };
+    const accent = typeof row.accent === "string" && isCalendarColor(row.accent) ? row.accent : "#ff3b30";
+    return {
+      feedUrl,
+      feedEvents: sortCalendarEvents(feedEvents).slice(0, 500),
+      localEvents: sortCalendarEvents(localEvents).slice(0, 200),
+      accent,
+    };
   } catch {
     return emptyCalendarState();
   }
@@ -54,14 +69,13 @@ export function writeCalendarState(scope: string, state: CalendarState) {
     key(scope),
     JSON.stringify({
       feedUrl: state.feedUrl.slice(0, 2000),
-      feedEvents: state.feedEvents.slice(0, 500),
-      localEvents: state.localEvents.slice(0, 200),
+      feedEvents: sortCalendarEvents(state.feedEvents).slice(0, 500),
+      localEvents: sortCalendarEvents(state.localEvents).slice(0, 200),
+      accent: isCalendarColor(state.accent) ? state.accent : "#ff3b30",
     }),
   );
 }
 
 export function allCalendarEvents(state: CalendarState): CalendarEvent[] {
-  return [...state.feedEvents, ...state.localEvents].sort(
-    (a, b) => a.start - b.start || a.title.localeCompare(b.title),
-  );
+  return sortCalendarEvents([...state.feedEvents, ...state.localEvents]);
 }
