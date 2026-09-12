@@ -232,7 +232,7 @@ export function SettingsWorkspace({
     });
   };
   const backToApp = () => {
-    let destination = "/workspace";
+    let destination = workbench ? "/workspace" : "/dashboard";
     try {
       const saved = sessionStorage.getItem(`lenslabs.settings-return:${account.scope}`);
       if (
@@ -251,9 +251,10 @@ export function SettingsWorkspace({
           destination = saved;
       }
     } catch {
-      /* Fall back to this shoot's workspace. */
+      /* Fall back to the photographer home. */
     }
-    void workbench?.openTool(destination);
+    if (workbench) void workbench.openTool(destination);
+    else void navigate({ href: destination });
   };
   const action = (label: string, href: string) => (
     <button className="settings-button" onClick={() => void workbench?.openTool(href)}>

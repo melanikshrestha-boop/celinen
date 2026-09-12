@@ -17,7 +17,7 @@ const pages = {
   settings: {
     title: "Settings guide",
     paragraphs: [
-      "Preferences save after each valid change, separately for each account on this browser. Profile fields require Save changes. Search finds controls without changing their values.",
+      "Preferences save after each valid change, separately for each account on this browser. Profile fields require Save changes, then Back to app. Search finds controls without changing their values.",
       "Theme and settings imports accept bounded LensLabs JSON, show a confirmation, and never execute code. Imported preferences cannot enable cloud sharing or desktop notifications. Changing the theme does not modify photographs.",
       "Profile identity is private workspace metadata. A local development persona is not an authenticated account. The Account page and connection screens distinguish local state from verified provider identity.",
     ],

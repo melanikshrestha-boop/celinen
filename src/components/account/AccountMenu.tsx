@@ -37,7 +37,18 @@ export function AccountMenu() {
   const openSection = async (hash: string) => {
     const path = settingsPath(settingsSection(hash));
     if (workbench) await workbench.openTool(path);
-    else void navigate({ href: path });
+    else {
+      try {
+        if (account.scope)
+          sessionStorage.setItem(
+            `lenslabs.settings-return:${account.scope}`,
+            window.location.pathname + window.location.search,
+          );
+      } catch {
+        /* Back still falls through to /dashboard. */
+      }
+      void navigate({ href: path });
+    }
   };
   if (!account) return null;
   return (

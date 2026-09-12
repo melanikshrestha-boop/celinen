@@ -7,7 +7,7 @@ import {
   type PhotographerWorkRole,
 } from "@/lib/photographer-work-roles";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
-import { AvatarEditor } from "./AvatarEditor";
+import { AvatarEditor, type AvatarEditorHandle } from "./AvatarEditor";
 import { PhotographySpecialtyPicker } from "./PhotographySpecialtyPicker";
 
 /** Drafts survive tabbing between fields; a failed save never clears typed information. */
@@ -31,7 +31,9 @@ export function ProfileForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
   const pending = useRef(false);
+  const editor = useRef<AvatarEditorHandle>(null);
   const currentProfile = JSON.stringify({
     name: account.name,
     workspaceName: account.workspaceName,
@@ -42,6 +44,7 @@ export function ProfileForm({
   });
   const baseline = useRef(currentProfile);
   const changed =
+    cropOpen ||
     JSON.stringify({
       name: name.trim(),
       workspaceName: workspaceName.trim(),
@@ -91,11 +94,14 @@ export function ProfileForm({
           );
           return;
         }
+        const cropped = editor.current?.applyPending();
+        const nextAvatar = cropped ?? avatar;
+        if (cropped) setAvatar(cropped);
         const result = profileInputSchema.safeParse({
           name,
           workspaceName,
           biography,
-          avatar,
+          avatar: nextAvatar,
           specialties,
           customSpecialty,
           ...(workRole ? { workRole } : {}),
@@ -138,22 +144,14 @@ export function ProfileForm({
     >
       {!onboarding && (
         <AvatarEditor
+          ref={editor}
           value={avatar}
           name={name}
           disabled={saving}
+          onPendingChange={setCropOpen}
           onChange={(value) => {
             setAvatar(value);
             setSaved(false);
-            void account
-              .saveAvatar(value)
-              .then(() => {
-                const previous = JSON.parse(baseline.current) as { avatar: string };
-                baseline.current = JSON.stringify({ ...previous, avatar: value });
-                setSaved(true);
-              })
-              .catch((reason: unknown) =>
-                setError(reason instanceof Error ? reason.message : "Could not save the photo."),
-              );
           }}
         />
       )}
@@ -247,6 +245,7 @@ export function ProfileForm({
             type="button"
             disabled={saving}
             onClick={() => {
+              editor.current?.discardPending();
               baseline.current = currentProfile;
               setName(account.name);
               setWorkspaceName(account.workspaceName);
