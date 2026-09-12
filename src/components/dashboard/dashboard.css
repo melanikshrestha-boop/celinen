@@ -121,7 +121,8 @@ html:has(.celinen-dash) {
   line-height: 0;
 }
 .celinen-dash.is-mini .celinen-dash__link.is-active {
-  color: #2f4fd6;
+  color: #142a36;
+  background: #f0f0f0;
 }
 .celinen-dash.is-mini .celinen-dash__ico,
 .celinen-dash.is-mini .celinen-dash__link svg {
@@ -257,8 +258,8 @@ html:has(.celinen-dash) {
   color: #142a36;
 }
 .celinen-dash__link.is-active {
-  background: #eef2ff;
-  color: #4d6fff;
+  background: #f0f0f0;
+  color: #142a36;
   font-weight: 600;
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -282,12 +283,12 @@ html:has(.celinen-dash) {
   }
 }
 .celinen-dash__upgrade {
-  color: #4d6fff;
+  color: #142a36;
   font-weight: 600;
 }
 .celinen-dash__upgrade:hover {
-  background: #eef2ff;
-  color: #4d6fff;
+  background: #f4f6f8;
+  color: #142a36;
 }
 .celinen-dash__body {
   position: relative;
@@ -303,6 +304,9 @@ html:has(.celinen-dash) {
   padding: 0;
   overflow: auto;
   min-height: 0;
+}
+.celinen-dash__body.is-tool:not(:has(.foto-develop)) {
+  padding-right: 92px;
 }
 .celinen-dash__body:has(.foto-develop) {
   overflow: hidden;
@@ -618,14 +622,21 @@ html.dark .celinen-dash__close:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #ededed;
 }
-html.dark .celinen-dash__link.is-active,
-html.dark .celinen-dash__upgrade,
+html.dark .celinen-dash__link.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ededed;
+}
+html.dark .celinen-dash__upgrade {
+  background: transparent;
+  color: #ededed;
+}
 html.dark .celinen-dash__upgrade:hover {
-  background: rgba(77, 111, 255, 0.16);
-  color: #8aa0ff;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ededed;
 }
 html.dark .celinen-dash.is-mini .celinen-dash__link.is-active {
-  color: #8aa0ff;
+  color: #ededed;
+  background: rgba(255, 255, 255, 0.08);
 }
 html.dark .celinen-dash__theme {
   border-color: rgba(255, 255, 255, 0.1);
