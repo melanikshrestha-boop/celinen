@@ -232,3 +232,17 @@ export function eventsInWeek(events: CalendarEvent[], day: Date) {
   const end = start + 7 * 86400000;
   return events.filter((event) => event.start < end && event.end > start);
 }
+
+export function weekDays(day: Date) {
+  const start = weekStart(day);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
+export function addCalendarDays(day: Date, count: number) {
+  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + count);
+  return next;
+}
