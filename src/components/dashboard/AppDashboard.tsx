@@ -8,7 +8,6 @@ import {
   Flag,
   House,
   Images,
-  LayoutTemplate,
   Megaphone,
   Mic,
   Moon,
@@ -46,11 +45,9 @@ const HOME_SUGGEST = [
 
 const MAIN = [
   { to: "/dashboard", label: "Home", icon: House, end: true },
-  { to: "/studio", label: "Pick", icon: Aperture },
   { to: "/deliver", label: "Galleries", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
   { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
-  { to: "/poses", label: "Poses", icon: LayoutTemplate },
   { to: "/earnings", label: "Analytics", icon: ChartNoAxesColumn },
   { to: "/publish", label: "Social accounts", icon: Share2 },
   { to: "/library", label: "Tools", icon: Wrench },
@@ -117,7 +114,7 @@ function replyFor(text: string) {
   if (path === "/deliver") return { text: "Opening Galleries.", href: "/deliver" };
   if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
   if (path === "/adobe") return { text: "Opening Develop.", href: "/develop" };
-  if (path === "/studio") return { text: "Opening Pick.", href: "/studio" };
+  if (path === "/studio") return { text: "Opening Pick in chat.", href: "/studio" };
   if (path === "/video") return { text: "Opening video.", href: "/video" };
   if (path === "/bookings") return { text: "Opening Calendar.", href: "/dashboard" };
   return { text: "Say send a gallery, check earnings, or open Pick to keep frames.", href: null };
@@ -433,7 +430,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         onDoubleClick={() => setRail(visual === "mini" ? "open" : "mini")}
       />
       <main
-        className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? "" : " is-chat"}`}
+        className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? " is-cal" : " is-chat"}`}
       >
         {account && account.status === "in" ? (
           <div className="celinen-dash__theme" role="group" aria-label="Appearance">

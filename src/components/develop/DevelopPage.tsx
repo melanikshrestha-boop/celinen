@@ -17,7 +17,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { useWorkbench } from "@/components/workbench/context";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import type { DeliveryFocus } from "@/lib/delivery/studio-handoff";
 import { DeliveryVersionBoundary } from "./DeliveryVersionBoundary";
 import { createShootRepository } from "@/lib/develop/shoot-repository";
@@ -171,6 +171,7 @@ export function DevelopPage(props: DevelopPageProps) {
 
 function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPageProps) {
   const workbench = useWorkbench();
+  const navigate = useNavigate();
   const href = useLocation({ select: (location) => location.href });
   const pointerBoundary = useDevelopPointer();
   const repository = useMemo(
@@ -1653,7 +1654,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           </span>
         </div>
         <div className="develop-top-actions">
-          <button onClick={() => workbench?.showStudio()}>Cull</button>
+          <button
+            onClick={() => {
+              if (workbench) void workbench.showStudio();
+              else void navigate({ to: "/dashboard" });
+            }}
+          >
+            Cull
+          </button>
           {library.photos.length > 0 && (
             <div className="develop-segment">
               <button aria-pressed={mode === "library"} onClick={() => setMode("library")}>

@@ -7,7 +7,29 @@ export type CalendarEvent = {
   end: number;
   allDay: boolean;
   source: "google" | "local" | "feed";
+  location?: string;
+  notes?: string;
+  pose?: string;
+  color?: string;
 };
+
+export const CALENDAR_COLORS = [
+  "#ff3b30",
+  "#007aff",
+  "#34c759",
+  "#ffcc00",
+  "#af52de",
+  "#ff9500",
+  "#1c1c1e",
+] as const;
+
+export function isCalendarColor(value: string): value is (typeof CALENDAR_COLORS)[number] {
+  return (CALENDAR_COLORS as readonly string[]).includes(value);
+}
+
+export function sortCalendarEvents(events: CalendarEvent[]) {
+  return [...events].sort((a, b) => a.start - b.start || a.title.localeCompare(b.title));
+}
 
 const FEED_HOSTS = new Set([
   "calendar.google.com",

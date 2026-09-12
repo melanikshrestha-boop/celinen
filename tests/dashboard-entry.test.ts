@@ -29,11 +29,11 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   );
   expect(source).toContain("dashboardGreetingFor");
   expect(source).toContain('label: "Home"');
-  expect(source).toContain('label: "Pick"');
+  expect(source).not.toContain('label: "Pick"');
   expect(source).toContain('label: "Galleries"');
   expect(source).toContain('label: "Develop"');
   expect(source).toContain('label: "Calendar"');
-  expect(source).toContain('label: "Poses"');
+  expect(source).not.toContain('label: "Poses"');
   expect(source).toContain('label: "Analytics"');
   expect(source).toContain('label: "Social accounts"');
   expect(source).toContain('label: "Tools"');
@@ -43,10 +43,9 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("AccountMenu");
   expect(source).toContain("SocialDock");
   expect(source).toContain("Aperture");
-  expect(source).toContain('to: "/studio"');
   expect(source).toContain('to: "/deliver"');
   expect(source).toContain('to: "/develop"');
-  expect(source).toContain('to: "/poses"');
+  expect(source).not.toContain('to: "/poses"');
   expect(source).toContain('to: "/earnings"');
   expect(source).toContain('to: "/publish"');
   expect(source).toContain('to: "/library"');

@@ -11,7 +11,9 @@ html:has(.celinen-dash) {
   position: relative;
   display: grid;
   grid-template-columns: var(--rail) minmax(0, 1fr);
+  height: 100svh;
   min-height: 100svh;
+  overflow: hidden;
   background: #fff;
   color: #20242b;
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
@@ -296,20 +298,25 @@ html:has(.celinen-dash) {
   background: #fff;
 }
 .celinen-dash__body.is-tool,
-.celinen-dash__body.is-chat {
+.celinen-dash__body.is-chat,
+.celinen-dash__body.is-cal {
   padding: 0;
   overflow: auto;
+  min-height: 0;
 }
 .celinen-dash__body:has(.foto-develop) {
   overflow: hidden;
 }
+.celinen-dash__body:has(.foto-develop) .celinen-dash__theme {
+  display: none;
+}
+.celinen-dash .develop-brand {
+  display: none;
+}
 .celinen-dash .foto-develop {
   flex: 1;
-  height: 100%;
+  height: 100% !important;
   min-height: 0;
-}
-.celinen-dash .develop-topbar {
-  padding-right: 80px;
 }
 .celinen-dash-tool,
 .celinen-embedded-studio {
