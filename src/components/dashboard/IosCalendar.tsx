@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { parseShootNote } from "@/lib/calendar-assist";
 import {
   CALENDAR_COLORS,
+  eventsInWeek,
   eventsOnDay,
-  isCalendarColor,
   monthGrid,
+  parseCalendarHex,
   sameDay,
-  type CalendarEvent,
 } from "@/lib/calendar-ics";
 import {
   allCalendarEvents,
@@ -20,20 +21,9 @@ import "./ios-calendar.css";
 
 const WEEK = ["S", "M", "T", "W", "T", "F", "S"] as const;
 
-function timeLabel(event: CalendarEvent) {
+function timeLabel(event: { allDay: boolean; start: number }) {
   if (event.allDay) return "all-day";
   return new Date(event.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-function stampFor(day: Date, clock: string, allDay: boolean) {
-  const next = new Date(day);
-  if (allDay) {
-    next.setHours(0, 0, 0, 0);
-    return next.getTime();
-  }
-  const [hours, minutes] = clock.split(":").map(Number);
-  next.setHours(Number.isFinite(hours) ? hours : 10, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-  return next.getTime();
 }
 
 export function IosCalendar() {
@@ -43,59 +33,65 @@ export function IosCalendar() {
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState(today);
   const [state, setState] = useState<CalendarState>(emptyCalendarState);
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [pose, setPose] = useState("");
-  const [notes, setNotes] = useState("");
-  const [startTime, setStartTime] = useState("10:00");
-  const [endTime, setEndTime] = useState("11:00");
-  const [allDay, setAllDay] = useState(false);
-  const [eventColor, setEventColor] = useState(state.accent);
+  const [askOpen, setAskOpen] = useState(false);
+  const [ask, setAsk] = useState("");
+  const [hexOpen, setHexOpen] = useState(false);
+  const [hexDraft, setHexDraft] = useState("");
+  const askRef = useRef<HTMLInputElement>(null);
+  const hexRef = useRef<HTMLFormElement>(null);
   const cells = monthGrid(cursor.getFullYear(), cursor.getMonth());
   const events = allCalendarEvents(state);
   const dayEvents = eventsOnDay(events, selected);
+  const weekCount = eventsInWeek(events, today).length;
 
   useEffect(() => {
     if (!scope) return;
-    const next = readCalendarState(scope);
-    setState(next);
-    setEventColor(next.accent);
+    setState(readCalendarState(scope));
   }, [scope]);
+
+  useEffect(() => {
+    if (askOpen) askRef.current?.focus();
+  }, [askOpen]);
+
+  useEffect(() => {
+    if (!hexOpen) return;
+    const close = (event: MouseEvent) => {
+      if (hexRef.current && !hexRef.current.contains(event.target as Node)) setHexOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [hexOpen]);
 
   function persist(next: CalendarState) {
     setState(next);
     if (scope) writeCalendarState(scope, next);
   }
 
-  function addEvent() {
-    if (!title.trim()) return;
-    const start = stampFor(selected, startTime, allDay);
-    const end = allDay ? start + 86400000 - 1 : stampFor(selected, endTime, false);
-    const event: CalendarEvent = {
-      id: `local-${start}-${Math.random().toString(36).slice(2, 8)}`,
-      title: title.trim().slice(0, 200),
-      start,
-      end: end >= start ? end : start + 3600000,
-      allDay,
-      source: "local",
-      color: isCalendarColor(eventColor) ? eventColor : state.accent,
-      ...(location.trim() ? { location: location.trim().slice(0, 200) } : {}),
-      ...(pose.trim() ? { pose: pose.trim().slice(0, 80) } : {}),
-      ...(notes.trim() ? { notes: notes.trim().slice(0, 2000) } : {}),
-    };
+  function jumpToday() {
+    const now = new Date();
+    setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelected(now);
+  }
+
+  function applyHex(value: string) {
+    const hex = parseCalendarHex(value);
+    if (!hex) return false;
+    persist({ ...state, accent: hex });
+    setHexOpen(false);
+    return true;
+  }
+
+  function submitAsk() {
+    const event = parseShootNote(ask, { now: new Date(), selected, accent: state.accent });
+    if (!event) return;
     persist({ ...state, localEvents: [...state.localEvents, event] });
-    setTitle("");
-    setLocation("");
-    setPose("");
-    setNotes("");
+    setAsk("");
+    setAskOpen(false);
+    setSelected(new Date(event.start));
+    setCursor(new Date(new Date(event.start).getFullYear(), new Date(event.start).getMonth(), 1));
   }
 
   const monthLabel = cursor.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const agendaLabel = selected.toLocaleString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
 
   return (
     <section
@@ -103,170 +99,142 @@ export function IosCalendar() {
       aria-label="Calendar"
       style={{ ["--ios-red" as string]: state.accent }}
     >
-      <div className="celinen-ios-cal__stage">
-        <div className="celinen-ios-cal__bar">
-          <button
-            type="button"
-            aria-label="Previous month"
-            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-          >
-            <ChevronLeft size={20} strokeWidth={1.75} />
-          </button>
-          <h1>{monthLabel}</h1>
-          <button
-            type="button"
-            aria-label="Next month"
-            onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-          >
-            <ChevronRight size={20} strokeWidth={1.75} />
-          </button>
-        </div>
+      <div className="celinen-ios-cal__bar">
         <button
           type="button"
-          className="celinen-ios-cal__today"
-          onClick={() => {
-            const now = new Date();
-            setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
-            setSelected(now);
+          aria-label="Previous month"
+          onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
+        >
+          <ChevronLeft size={20} strokeWidth={1.75} />
+        </button>
+        <h1>{monthLabel}</h1>
+        <button
+          type="button"
+          aria-label="Next month"
+          onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
+        >
+          <ChevronRight size={20} strokeWidth={1.75} />
+        </button>
+        <p className="celinen-ios-cal__week-count">
+          {weekCount} this week
+        </p>
+        <button
+          type="button"
+          className="celinen-ios-cal__today-dot"
+          aria-label="Today"
+          title="Today"
+          style={{ background: state.accent }}
+          onClick={jumpToday}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setHexDraft(state.accent);
+            setHexOpen(true);
+          }}
+        />
+        <button
+          type="button"
+          className="celinen-ios-cal__plus"
+          aria-label="Add"
+          onClick={() => setAskOpen(true)}
+        >
+          +
+        </button>
+      </div>
+      {hexOpen ? (
+        <form
+          ref={hexRef}
+          className="celinen-ios-cal__hex"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyHex(hexDraft);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setHexOpen(false);
           }}
         >
-          Today
-        </button>
-        <div className="celinen-ios-cal__swatches" role="group" aria-label="Dot color">
-          {CALENDAR_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              aria-label={color}
-              aria-pressed={state.accent === color}
-              style={{ background: color }}
-              onClick={() => persist({ ...state, accent: color })}
-            />
-          ))}
-        </div>
-        <div className="celinen-ios-cal__week">
-          {WEEK.map((day, index) => (
-            <span key={`${day}-${index}`}>{day}</span>
-          ))}
-        </div>
-        <div className="celinen-ios-cal__grid">
-          {cells.map((cell) => {
-            const onDay = eventsOnDay(events, cell.date);
-            const todayOn = sameDay(cell.date, today);
-            const selectedOn = sameDay(cell.date, selected);
-            return (
+          <input
+            value={hexDraft}
+            onChange={(event) => setHexDraft(event.target.value)}
+            aria-label="Hex"
+            autoFocus
+          />
+          <div className="celinen-ios-cal__hex-list" role="list">
+            {CALENDAR_COLORS.map((color) => (
               <button
-                key={cell.date.toISOString()}
+                key={color}
                 type="button"
-                className={`celinen-ios-cal__day${cell.inMonth ? "" : " is-out"}${todayOn ? " is-today" : ""}${selectedOn ? " is-selected" : ""}`}
-                aria-current={todayOn ? "date" : undefined}
-                aria-pressed={selectedOn}
-                onClick={() => {
-                  setSelected(cell.date);
-                  if (!cell.inMonth)
-                    setCursor(new Date(cell.date.getFullYear(), cell.date.getMonth(), 1));
-                }}
-              >
-                <span className="celinen-ios-cal__num">{cell.date.getDate()}</span>
-                <span className="celinen-ios-cal__dots">
-                  {onDay.slice(0, 3).map((event) => (
-                    <i
-                      key={event.id}
-                      style={{ background: event.color || state.accent }}
-                    />
-                  ))}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="celinen-ios-cal__agenda">
-          <h2>{agendaLabel}</h2>
-          {dayEvents.map((event) => (
-            <article key={event.id} className="celinen-ios-cal__event">
-              <i style={{ background: event.color || state.accent }} />
-              <time dateTime={new Date(event.start).toISOString()}>{timeLabel(event)}</time>
-              <div>
-                <strong>{event.title}</strong>
-                {event.location ? <span>{event.location}</span> : null}
-                {event.pose ? <span>{event.pose}</span> : null}
-                {event.notes ? <span>{event.notes}</span> : null}
-              </div>
-            </article>
-          ))}
-          <form
-            className="celinen-ios-cal__add"
-            onSubmit={(event) => {
-              event.preventDefault();
-              addEvent();
-            }}
-          >
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              aria-label="Title"
-              placeholder="Title"
-              required
-            />
-            <input
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              aria-label="Location"
-              placeholder="Location"
-            />
-            <input
-              value={pose}
-              onChange={(event) => setPose(event.target.value)}
-              aria-label="Pose"
-              placeholder="Pose"
-            />
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              aria-label="Notes"
-              placeholder="Notes"
-              rows={2}
-            />
-            <label className="celinen-ios-cal__allday">
-              <input
-                type="checkbox"
-                checked={allDay}
-                onChange={(event) => setAllDay(event.target.checked)}
+                aria-label={color}
+                style={{ background: color }}
+                onClick={() => applyHex(color)}
               />
-              All day
-            </label>
-            {allDay ? null : (
-              <div className="celinen-ios-cal__times">
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(event) => setStartTime(event.target.value)}
-                  aria-label="Start"
-                />
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(event) => setEndTime(event.target.value)}
-                  aria-label="End"
-                />
-              </div>
-            )}
-            <div className="celinen-ios-cal__swatches" role="group" aria-label="Event color">
-              {CALENDAR_COLORS.map((color) => (
-                <button
-                  key={`event-${color}`}
-                  type="button"
-                  aria-label={color}
-                  aria-pressed={eventColor === color}
-                  style={{ background: color }}
-                  onClick={() => setEventColor(color)}
-                />
-              ))}
-            </div>
-            <button type="submit">Add</button>
-          </form>
-        </div>
+            ))}
+          </div>
+        </form>
+      ) : null}
+      <div className="celinen-ios-cal__week">
+        {WEEK.map((day, index) => (
+          <span key={`${day}-${index}`}>{day}</span>
+        ))}
       </div>
+      <div className="celinen-ios-cal__grid">
+        {cells.map((cell) => {
+          const onDay = eventsOnDay(events, cell.date);
+          const todayOn = sameDay(cell.date, today);
+          const selectedOn = sameDay(cell.date, selected);
+          return (
+            <button
+              key={cell.date.toISOString()}
+              type="button"
+              className={`celinen-ios-cal__day${cell.inMonth ? "" : " is-out"}${todayOn ? " is-today" : ""}${selectedOn ? " is-selected" : ""}`}
+              aria-current={todayOn ? "date" : undefined}
+              aria-pressed={selectedOn}
+              onClick={() => {
+                setSelected(cell.date);
+                if (!cell.inMonth)
+                  setCursor(new Date(cell.date.getFullYear(), cell.date.getMonth(), 1));
+              }}
+            >
+              <span className="celinen-ios-cal__num">{cell.date.getDate()}</span>
+              <span className="celinen-ios-cal__hits">
+                {onDay.slice(0, 3).map((event) => (
+                  <em key={event.id}>{event.title}</em>
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {dayEvents.length ? (
+        <ul className="celinen-ios-cal__agenda">
+          {dayEvents.map((event) => (
+            <li key={event.id}>
+              <time dateTime={new Date(event.start).toISOString()}>{timeLabel(event)}</time>
+              <strong>{event.title}</strong>
+              {event.location ? <span>{event.location}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {askOpen ? (
+        <form
+          className="celinen-ios-cal__ask"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitAsk();
+          }}
+        >
+          <input
+            ref={askRef}
+            value={ask}
+            onChange={(event) => setAsk(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setAskOpen(false);
+            }}
+            aria-label="Ask"
+          />
+        </form>
+      ) : null}
     </section>
   );
 }

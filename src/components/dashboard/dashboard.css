@@ -305,7 +305,8 @@ html:has(.celinen-dash) {
   overflow: auto;
   min-height: 0;
 }
-.celinen-dash__body.is-tool:not(:has(.foto-develop)) {
+.celinen-dash__body.is-tool:not(:has(.foto-develop)),
+.celinen-dash__body.is-cal {
   padding-right: 92px;
 }
 .celinen-dash__body:has(.foto-develop) {
@@ -482,8 +483,8 @@ html:has(.celinen-dash) {
   color-scheme: light;
 }
 html.dark .celinen-dash__cal {
-  background: #fff;
-  color: #000;
+  background: #000;
+  color: #ededed;
 }
 .celinen-dash__cal h1 {
   margin: 0 0 18px;

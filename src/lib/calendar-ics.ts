@@ -23,8 +23,14 @@ export const CALENDAR_COLORS = [
   "#1c1c1e",
 ] as const;
 
-export function isCalendarColor(value: string): value is (typeof CALENDAR_COLORS)[number] {
-  return (CALENDAR_COLORS as readonly string[]).includes(value);
+export function parseCalendarHex(value: string): string | null {
+  const body = value.trim().replace(/^#/, "");
+  if (!/^[0-9a-fA-F]{6}$/.test(body)) return null;
+  return `#${body.toLowerCase()}`;
+}
+
+export function isCalendarColor(value: string): boolean {
+  return parseCalendarHex(value) !== null;
 }
 
 export function sortCalendarEvents(events: CalendarEvent[]) {
@@ -212,5 +218,17 @@ export function sameDay(a: Date, b: Date) {
 export function eventsOnDay(events: CalendarEvent[], day: Date) {
   const start = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
   const end = start + 86400000;
+  return events.filter((event) => event.start < end && event.end > start);
+}
+
+export function weekStart(day: Date) {
+  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate() - day.getDay());
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+export function eventsInWeek(events: CalendarEvent[], day: Date) {
+  const start = weekStart(day).getTime();
+  const end = start + 7 * 86400000;
   return events.filter((event) => event.start < end && event.end > start);
 }
