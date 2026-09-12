@@ -12,6 +12,7 @@ describe("workspace command routing", () => {
   test("media review commands still reach their benches", () => {
     expect(destinationPathFor("review these video clips")).toBe("/video");
     expect(destinationPathFor("cull the strongest RAW photos")).toBe("/studio");
+    expect(destinationPathFor("post this to instagram")).toBe("/publish");
   });
 
   test("contracts and session bookings open the bookings desk", () => {

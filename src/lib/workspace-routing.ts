@@ -5,7 +5,8 @@ export type WorkspaceDestination =
   | "/clients"
   | "/earnings"
   | "/adobe"
-  | "/bookings";
+  | "/bookings"
+  | "/publish";
 
 export function destinationPathFor(text: string): WorkspaceDestination {
   const value = text.toLowerCase();
@@ -27,6 +28,12 @@ export function destinationPathFor(text: string): WorkspaceDestination {
     return "/earnings";
   }
   if (/\b(lightroom|photoshop|adobe|xmp|sidecar|bridge)\b/.test(value)) return "/adobe";
+  if (
+    /\b(post|caption|hashtag|instagram|tiktok|threads|linkedin|bluesky)\b/.test(value) &&
+    !/\b(deliver|delivery|gallery|proof|send|share|package)\b/.test(value)
+  ) {
+    return "/publish";
+  }
   if (/\b(deliver|delivery|gallery|proof|send|share|package)\b/.test(value)) return "/deliver";
   if (/\b(client|clients|contact|customer|booking)\b/.test(value)) return "/clients";
   if (/\b(video|footage|clip|clips|reel|timeline|b-roll|film)\b/.test(value)) return "/video";

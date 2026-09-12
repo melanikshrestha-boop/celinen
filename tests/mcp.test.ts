@@ -34,6 +34,16 @@ test("foto MCP connector initializes and lists photography tools", async () => {
   ).json();
   expect(plans.result.content[0].text).toContain("USD 20");
   expect(plans.result.content[0].text).not.toMatch(/viral|YouTube Automation/i);
+  expect(FOTO_MCP_TOOLS.map((tool) => tool.name)).toContain("celinen_draft_post");
+  const drafted = await (
+    await rpc("tools/call", { name: "celinen_draft_post", arguments: { idea: "Gallery tonight" } })
+  ).json();
+  expect(drafted.result.content[0].text).toContain("Gallery tonight");
+  expect(drafted.result.content[0].text).toContain("Nothing was published");
+  const desk = await (
+    await rpc("tools/call", { name: "celinen_open", arguments: { desk: "social" } })
+  ).json();
+  expect(desk.result.content[0].text).toContain("/publish");
 });
 
 test("mcp page is a Vugola-style connector with Grok and Julius", () => {

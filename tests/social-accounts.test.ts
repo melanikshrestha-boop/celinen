@@ -52,6 +52,9 @@ test("social catalog includes the popular networks from the picker", () => {
   expect(page).toContain("Create a campaign");
   expect(page).toContain("Browse templates");
   expect(page).toContain("onHapticPress");
+  expect(page).toContain("makePost");
+  expect(page).toContain("Copy caption");
+  expect(page).toContain("Nothing is sent until you do");
   expect(page).not.toContain("Good work deserves to be seen");
   expect(page).not.toContain("Ocoya");
   expect(page).not.toContain("Planner");
