@@ -153,7 +153,9 @@ describe("finance dashboard preserves complete money and unknown states", () => 
     );
     for (const line of books.expenseLines)
       expect(html).toContain(`aria-label="${line.label}: ${money(line.amountMinor)}"`);
-    expect(html).toContain(`aria-label="Category total ${money(books.expensesMinor)}"`);
+    expect(html).toContain(
+      `aria-label="Spent ${money(books.expensesMinor)} split across ${books.expenseLines.length} categories"`,
+    );
     expect(JSON.stringify({ rows, books })).toBe(before);
   });
 
@@ -315,7 +317,8 @@ describe("finance dashboard preserves complete money and unknown states", () => 
     );
     expect(html).toContain("Verified projected upcoming client");
     expect(html).toContain("$600.00");
-    expect(html).toContain("$175.00 overdue");
+    expect(html).toContain("Overdue");
+    expect(html).toContain("$175.00");
     expect(html).toContain("Due 2026-09-18");
     expect(html).not.toContain("No open invoices");
     expect(books.outstandingMinor).toBe(77500);

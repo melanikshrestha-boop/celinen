@@ -2,9 +2,18 @@
   display: grid;
   gap: 16px;
 }
-.spend-sankey svg {
-  width: 100%;
-  height: auto;
+.spend-sankey__bar {
+  display: flex;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--fos-line, #eceff2);
+  gap: 2px;
+}
+.spend-sankey__bar span {
+  display: block;
+  min-width: 2px;
+  height: 100%;
 }
 .spend-sankey__empty {
   margin: 0;
@@ -20,18 +29,25 @@
 }
 .spend-sankey__legend li {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-columns: 8px minmax(0, 1fr) 3.5ch auto;
   align-items: center;
   gap: 10px;
   font-size: 13px;
 }
 .spend-sankey__legend i {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 99px;
+}
+.spend-sankey__legend em {
+  color: var(--fos-muted, #6b6b6b);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .spend-sankey__legend strong {
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 .books-filter {
   position: relative;

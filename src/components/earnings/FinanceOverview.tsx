@@ -1,32 +1,33 @@
 import { useId, useState } from "react";
 import type { PhotographerBooks, BooksSpark } from "@/lib/photographer-books";
 import type { BooksDay, BooksMonth } from "@/lib/finance-graphs";
-import { activityHeat, compactChartAmount } from "@/lib/finance-graphs";
 import type { EarningsRow } from "@/lib/earnings-ledger";
 import { RevenueGoal } from "./RevenueGoal";
 import { SpendSankey } from "./SpendSankey";
 import "./spend-sankey.css";
 
-const PALETTE = [
-  "#438ad1",
-  "#36a994",
-  "#9674d7",
-  "#d36ba6",
-  "#da874e",
-  "#b69532",
-  "#cc6464",
-  "#7d8da3",
-];
 type Metric = "earnings" | "expenses" | "net";
+
+function asSpark(days: BooksDay[]): BooksSpark[] {
+  return days.map((day) => ({
+    date: day.date,
+    collectedMinor: day.collectedMinor,
+    expensesMinor: day.expensesMinor,
+    netMinor: day.netMinor,
+    galleryMinor: 0,
+  }));
+}
 
 function Area({
   points,
   metric,
   money,
+  compact = false,
 }: {
   points: BooksSpark[];
   metric: Metric;
   money: (minor: number) => string;
+  compact?: boolean;
 }) {
   const id = useId().replace(/:/g, "");
   const values = points.map((p) =>
@@ -46,7 +47,7 @@ function Area({
         className="finance-os__plot"
         viewBox="0 0 640 210"
         role="img"
-        aria-label={`${metric === "net" ? "Net cash flow" : metric === "expenses" ? "Expenses" : "Collected"} by date. Exact amounts in chart data below.`}
+        aria-label={`${metric === "net" ? "Net cash flow" : metric === "expenses" ? "Expenses" : "Collected"} by date${compact ? "" : ". Exact amounts in chart data below."}`}
       >
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
@@ -67,7 +68,8 @@ function Area({
           fill={`url(#${id})`}
         />
         <path className="line" d={line} />
-        {values.length <= 14 &&
+        {!compact &&
+          values.length <= 14 &&
           values.map((value, i) => (
             <circle key={i} cx={x(i)} cy={y(value)} r="3" fill="var(--fos-series)">
               <title>{`${points[i]?.date}: ${money(value)}`}</title>
@@ -84,6 +86,7 @@ function Area({
           </text>
         ))}
       </svg>
+      {compact ? null : (
       <details className="finance-os__chart-data">
         <summary>Chart Data · {points.length} dates</summary>
         <div className="finance-os__table-scroll">
@@ -106,79 +109,8 @@ function Area({
           </table>
         </div>
       </details>
+      )}
     </>
-  );
-}
-
-function Donut({
-  slices,
-  money,
-}: {
-  slices: { label: string; amountMinor: number }[];
-  money: (minor: number) => string;
-}) {
-  const total = slices.reduce((sum, slice) => sum + Math.max(0, slice.amountMinor), 0);
-  const circumference = 2 * Math.PI * 46;
-  let offset = 0;
-  return (
-    <div className="finance-os__donut">
-      <svg viewBox="0 0 140 140" role="img" aria-label={`Category total ${money(total)}`}>
-        <circle cx="70" cy="70" r="46" fill="none" stroke="var(--fos-line)" strokeWidth="10" />
-        {total > 0 &&
-          slices.map((slice, i) => {
-            const amount = Math.max(0, slice.amountMinor),
-              dash = (amount / total) * circumference,
-              rotation = (offset / total) * 360 - 90;
-            offset += amount;
-            return (
-              <circle
-                key={slice.label}
-                cx="70"
-                cy="70"
-                r="46"
-                fill="none"
-                stroke={PALETTE[i % PALETTE.length]}
-                strokeWidth="10"
-                strokeDasharray={`${dash} ${circumference - dash}`}
-                transform={`rotate(${rotation} 70 70)`}
-              >
-                <title>{`${slice.label}: ${money(amount)}`}</title>
-              </circle>
-            );
-          })}
-        <text x="70" y="70" textAnchor="middle" className="finance-os__donut-total">
-          {money(total)}
-        </text>
-        <text x="70" y="85" textAnchor="middle" fontSize="8">
-          Recorded total
-        </text>
-      </svg>
-      <ul
-        className="finance-os__legend"
-        tabIndex={slices.length > 5 ? 0 : undefined}
-        aria-label={`All ${slices.length} categories${slices.length > 5 ? ". Scroll to see every category." : ""}`}
-      >
-        {slices.length ? (
-          slices.map((slice, i) => (
-            <li key={slice.label} aria-label={`${slice.label}: ${money(slice.amountMinor)}`}>
-              <i style={{ background: PALETTE[i % PALETTE.length] }} />
-              <span>
-                {slice.label}
-                <small>
-                  {Math.round((Math.max(0, slice.amountMinor) / Math.max(1, total)) * 100)}% of
-                  total
-                </small>
-              </span>
-              <strong>{money(slice.amountMinor)}</strong>
-            </li>
-          ))
-        ) : (
-          <li>
-            <span>No categories recorded</span>
-          </li>
-        )}
-      </ul>
-    </div>
   );
 }
 
@@ -186,44 +118,6 @@ function monthStamp(month: string) {
   return new Date(`${month}-01T12:00:00Z`)
     .toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
     .toUpperCase();
-}
-
-function MonthCalendar({
-  days,
-  today,
-  spending,
-  currency,
-  money,
-}: {
-  days: BooksDay[];
-  today: string;
-  spending: boolean;
-  currency: string;
-  money: (minor: number) => string;
-}) {
-  const amounts = days.map((day) => (spending ? day.expensesMinor : day.collectedMinor));
-  const peak = Math.max(0, ...amounts);
-  return (
-    <div className="finance-os__monthcal" role="grid" aria-label={spending ? "Spend by day" : "Collected by day"}>
-      {days.map((day, i) => {
-        const amount = amounts[i] ?? 0;
-        const heat = activityHeat(amount, peak);
-        return (
-          <div
-            key={day.date}
-            role="gridcell"
-            className="finance-os__monthcal-day"
-            data-today={day.date === today || undefined}
-            data-heat={heat}
-            title={`${day.date}: ${money(amount)}`}
-          >
-            <span>{Number(day.date.slice(8, 10))}</span>
-            <small>{compactChartAmount(amount, currency)}</small>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 function MonthBars({
@@ -330,9 +224,6 @@ export function FinanceOverview({
   const change = amount !== undefined && prior != null ? amount - prior : null;
   const favorable = change !== null && (metric === "expenses" ? change < 0 : change > 0);
   const slices = metric === "expenses" ? (books?.expenseLines ?? []) : (books?.incomeLines ?? []);
-  const categoryTotal = slices.reduce((sum, slice) => sum + Math.max(0, slice.amountMinor), 0);
-  const categoryAdjustments =
-    (metric === "expenses" ? books?.expensesMinor : books?.collectedMinor) ?? 0;
   const upcoming =
     books && balancesAvailable
       ? rows
@@ -411,26 +302,36 @@ export function FinanceOverview({
             <div>
               <dt>Collected</dt>
               <dd>{money(books.collectedMinor)}</dd>
-              <small>After refunds</small>
-            </div>
-            <div>
-              <dt>Expenses</dt>
-              <dd>{money(books.expensesMinor)}</dd>
-              <small>Recorded cash out</small>
-            </div>
-            <div>
-              <dt>Net Cash Flow</dt>
-              <dd data-tone={books.netMinor < 0 ? "down" : "up"}>{money(books.netMinor)}</dd>
-              <small>Before tax · not equity</small>
             </div>
             <div>
               <dt>Outstanding</dt>
               <dd>{balancesAvailable ? money(books.outstandingMinor) : "—"}</dd>
-              <small>
-                {balancesAvailable
-                  ? `${money(books.overdueMinor)} overdue`
-                  : "Verified balances unavailable"}
-              </small>
+            </div>
+            <div>
+              <dt>Overdue</dt>
+              <dd data-tone={books.overdueMinor > 0 ? "down" : undefined}>
+                {balancesAvailable ? money(books.overdueMinor) : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>Expenses</dt>
+              <dd>{money(books.expensesMinor)}</dd>
+            </div>
+            <div>
+              <dt>Net</dt>
+              <dd data-tone={books.netMinor < 0 ? "down" : "up"}>{money(books.netMinor)}</dd>
+            </div>
+            <div>
+              <dt>Paid jobs</dt>
+              <dd>{books.paidThisPeriod}</dd>
+            </div>
+            <div>
+              <dt>Open invoices</dt>
+              <dd>{books.openInvoices}</dd>
+            </div>
+            <div>
+              <dt>Gallery sales</dt>
+              <dd>{money(books.gallerySalesMinor)}</dd>
             </div>
           </dl>
           <article className="finance-os__card finance-os__sankey">
@@ -446,12 +347,11 @@ export function FinanceOverview({
             <article className="finance-os__board">
               <h2>{spending ? "Spent this month" : "Collected this month"}</h2>
               <p className="finance-os__figure">{money(monthTotal)}</p>
-              <MonthCalendar
-                days={books.monthDays}
-                today={today}
-                spending={spending}
-                currency={books.currency}
+              <Area
+                points={asSpark(books.monthDays)}
+                metric={spending ? "expenses" : "earnings"}
                 money={money}
+                compact
               />
             </article>
             <article className="finance-os__board">
@@ -500,26 +400,6 @@ export function FinanceOverview({
                   : `${change > 0 ? "+" : change < 0 ? "−" : ""}${money(Math.abs(change))} vs prior period`}
               </p>
               <Area points={books.spark} metric={metric} money={money} />
-            </article>
-          </div>
-          <div className="finance-os__grid">
-            <article className="finance-os__card">
-              <h2>Category breakdown</h2>
-              <Donut slices={slices} money={money} />
-              {slices.length > 5 && (
-                <p className="finance-os__category-note">
-                  {slices.length} categories · Scroll the list for all amounts
-                </p>
-              )}
-              {categoryAdjustments !== categoryTotal && (
-                <p className="finance-os__category-note">
-                  {metric === "expenses"
-                    ? "Expense credits and corrections"
-                    : "Refunds and receipt adjustments"}
-                  : {money(categoryAdjustments - categoryTotal)}. Included in the period total, not
-                  positive pie slices.
-                </p>
-              )}
             </article>
           </div>
           <div className="finance-os__lower">
