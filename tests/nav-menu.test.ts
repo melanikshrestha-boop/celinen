@@ -16,8 +16,8 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
     "utf8",
   );
   expect(nav).toContain("NavMenuProvider");
-  expect(nav).toContain('to="/galleries"');
-  expect(nav).toContain(">Galleries<");
+  expect(nav).not.toContain('to="/galleries"');
+  expect(nav).not.toContain(">Galleries<");
   expect(features).toContain('useNavMenuHover("features")');
   expect(features).toContain("hoverMenuTrigger");
   expect(features).toContain('title: "Analytics"');
