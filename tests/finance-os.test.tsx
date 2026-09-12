@@ -64,6 +64,8 @@ test("analytics filters are Origin pills, not native Mac selects", () => {
   );
   expect(workspace).toContain("BooksFilter");
   expect(workspace).toContain("This month");
+  expect(workspace).not.toContain('label="Appearance"');
+  expect(workspace).not.toContain('value: "system"');
   expect(workspace).not.toMatch(/<select[\s\S]*This month/);
   expect(workspace).not.toMatch(/<select[\s\S]*All shoots/);
   const landing = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");

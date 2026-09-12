@@ -373,22 +373,6 @@ function EarningsContent() {
       >
         <header className="earnings-heading">
           <div className="earnings-actions">
-            {account && (
-              <BooksFilter
-                label="Appearance"
-                value={account.preferences.theme}
-                options={[
-                  { value: "light", label: "Light" },
-                  { value: "dark", label: "Dark" },
-                  { value: "system", label: "System" },
-                ]}
-                onChange={(value) =>
-                  account.savePreferences({
-                    theme: value as "light" | "dark" | "system",
-                  })
-                }
-              />
-            )}
             <button onClick={() => newForm("entry")} disabled={!data.writable}>
               <Plus size={15} />
               Add Entry

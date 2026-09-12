@@ -102,8 +102,11 @@ test("dashboard chrome is the full light rail", () => {
   );
   expect(css).toContain(".celinen-dash__nav");
   expect(css).toContain(".celinen-dash__link.is-active");
-  expect(css).toContain("background: #eef2ff");
-  expect(css).toContain("color: #4d6fff");
+  expect(css).toMatch(/\.celinen-dash__link\.is-active\s*\{[^}]*background: #f0f0f0/);
+  expect(css).toMatch(/\.celinen-dash__link\.is-active\s*\{[^}]*color: #142a36/);
+  expect(css).not.toMatch(/\.celinen-dash__link\.is-active\s*\{[^}]*#4d6fff/);
+  expect(css).not.toMatch(/html\.dark \.celinen-dash__link\.is-active[^}]*#8aa0ff/);
+  expect(css).toContain("padding-right: 92px");
   expect(css).toContain(".celinen-dash__composer");
   expect(css).toContain(".celinen-dash__body.is-chat");
   expect(css).toContain(".social-post .celinen-dash__composer");

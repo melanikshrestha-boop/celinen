@@ -9,7 +9,7 @@
   --fos-muted: #6b6b6b;
   --fos-dim: #6b6b6b;
   --fos-hover: #f4f5f7;
-  --fos-selected: #eef2ff;
+  --fos-selected: #f0f0f2;
   --fos-neon: #4d6fff;
   --fos-accent: #4d6fff;
   --fos-link: #3454d5;
@@ -118,8 +118,8 @@
   white-space: nowrap;
 }
 .finance-os .finance-os__nav button[aria-current="page"] {
-  background: #eef2ff;
-  color: var(--fos-neon);
+  background: var(--fos-selected);
+  color: var(--fos-text);
   font-weight: 600;
 }
 :root.dark .finance-os .finance-os__nav button[aria-current="page"] {
