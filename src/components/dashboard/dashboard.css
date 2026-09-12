@@ -463,10 +463,16 @@ html:has(.celinen-dash) {
   }
 }
 .celinen-dash__cal {
-  width: min(100%, 920px);
-  align-self: start;
-  justify-self: stretch;
-  padding: 12px 8px 32px;
+  width: 100%;
+  flex: 1;
+  min-height: 100%;
+  align-self: stretch;
+  background: #fff;
+  color-scheme: light;
+}
+html.dark .celinen-dash__cal {
+  background: #fff;
+  color: #000;
 }
 .celinen-dash__cal h1 {
   margin: 0 0 18px;
