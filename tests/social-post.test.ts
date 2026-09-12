@@ -12,10 +12,10 @@ test("drafts a caption without claiming a live post", () => {
   expect(clipCaption("a".repeat(400), "x").length).toBeLessThanOrEqual(280);
 });
 
-test("instagram has no fake publish URL", () => {
+test("instagram opens the app with the caption copied", () => {
   const action = composeAction("instagram", "Gallery tonight.");
-  expect(action.href).toBe(null);
-  expect(action.hint).toContain("paste");
+  expect(action.href).toContain("instagram.com");
+  expect(action.copy).toBe(true);
 });
 
 test("post intent goes to Social, send gallery still goes to Galleries", () => {

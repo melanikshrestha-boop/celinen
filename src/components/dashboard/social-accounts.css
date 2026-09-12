@@ -268,6 +268,21 @@
   gap: 8px;
   margin-top: 12px;
 }
+.social-post__all {
+  background: #4d6fff !important;
+  border-color: #4d6fff !important;
+  color: #fff !important;
+}
+.social-post__more {
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: #4d6fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
 .social-post__publish button,
 .social-post__connect {
   display: inline-flex;
@@ -455,6 +470,19 @@
   color: inherit;
   font: inherit;
   text-align: left;
+  cursor: pointer;
+}
+.social-picker__all {
+  width: 100%;
+  min-height: 40px;
+  margin-bottom: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #2f4fd6;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
 }
 .social-picker__row:hover {

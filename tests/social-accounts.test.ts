@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import {
   MAIL_NETWORKS,
   SOCIAL_NETWORKS,
+  connectAllSocials,
   connectMail,
   connectSocial,
   disconnectMail,
@@ -54,7 +55,8 @@ test("social catalog includes the popular networks from the picker", () => {
   expect(page).toContain("onHapticPress");
   expect(page).toContain("makePost");
   expect(page).toContain("Copy caption");
-  expect(page).toContain("Nothing is sent until you do");
+  expect(page).toContain("Post to all");
+  expect(page).toContain("Connect all socials");
   expect(page).not.toContain("Good work deserves to be seen");
   expect(page).not.toContain("Ocoya");
   expect(page).not.toContain("Planner");
@@ -64,6 +66,7 @@ test("social catalog includes the popular networks from the picker", () => {
     "utf8",
   );
   expect(dock).toContain("social-picker__check");
+  expect(dock).toContain("Connect all");
   expect(dock).toContain("onDoubleClick");
   expect(dock).toContain("Double-click to disconnect");
   expect(dock).toContain("MAIL_NETWORKS");
@@ -91,6 +94,8 @@ test("connections persist encrypted and shown chips stay short", async () => {
   expect(shownSocials(rows)).toHaveLength(4);
   const next = await disconnectSocial(scope, "instagram");
   expect(isSocialConnected(next, "instagram")).toBe(false);
+  const all = await connectAllSocials(scope);
+  expect(all).toHaveLength(SOCIAL_NETWORKS.length);
 });
 
 test("gmail is a separate encrypted mail link, not a social network", async () => {

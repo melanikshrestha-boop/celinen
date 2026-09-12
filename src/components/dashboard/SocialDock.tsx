@@ -5,6 +5,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import {
   MAIL_NETWORKS,
   SOCIAL_NETWORKS,
+  connectAllSocials,
   connectMail,
   connectSocial,
   disconnectMail,
@@ -81,6 +82,11 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
     setLinks(await disconnectSocial(scope, id));
   }
 
+  async function connectEverySocial() {
+    if (!scope) return;
+    setLinks(await connectAllSocials(scope));
+  }
+
   async function connectInbox(id: MailId) {
     if (!scope || isMailConnected(mail, id)) return;
     markJustOn(id);
@@ -137,6 +143,15 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
       </button>
       {open ? (
         <div className="social-picker" role="menu" aria-label="Social accounts">
+          {SOCIAL_NETWORKS.length !== links.length ? (
+            <button
+              type="button"
+              className="social-picker__all"
+              onClick={() => void connectEverySocial()}
+            >
+              Connect all
+            </button>
+          ) : null}
           {SOCIAL_NETWORKS.map((network) => {
             const on = isSocialConnected(links, network.id);
             return (
