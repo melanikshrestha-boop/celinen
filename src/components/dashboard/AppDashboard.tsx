@@ -11,12 +11,14 @@ import {
   LayoutTemplate,
   Megaphone,
   Mic,
+  Moon,
   PanelLeft,
   Paperclip,
   Plus,
   Share2,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -470,17 +472,19 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
           <div className="celinen-dash__theme" role="group" aria-label="Appearance">
             <button
               type="button"
+              aria-label="Light"
               aria-pressed={account.preferences.theme === "light"}
               onClick={() => account.savePreferences({ theme: "light" })}
             >
-              Light
+              <Sun size={14} strokeWidth={1.5} aria-hidden="true" />
             </button>
             <button
               type="button"
+              aria-label="Dark"
               aria-pressed={account.preferences.theme === "dark"}
               onClick={() => account.savePreferences({ theme: "dark" })}
             >
-              Dark
+              <Moon size={14} strokeWidth={1.5} aria-hidden="true" />
             </button>
           </div>
         ) : null}

@@ -64,6 +64,12 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("celinen-dash__theme");
   expect(source).toContain('theme: "dark"');
   expect(source).toContain("strokeWidth={1.5}");
+  expect(source).toContain("<Sun");
+  expect(source).toContain("<Moon");
+  expect(source).toContain('aria-label="Light"');
+  expect(source).toContain('aria-label="Dark"');
+  expect(source).not.toMatch(/>\s*Light\s*</);
+  expect(source).not.toMatch(/>\s*Dark\s*</);
   expect(source).toContain("social-post");
   expect(source).toContain("Generate inside");
   expect(source).toContain("Browse templates");
@@ -99,4 +105,13 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).not.toContain(".celinen-dash.is-closed");
   expect(css).toContain(".celinen-dash__resize");
   expect(css).toContain("cursor: col-resize");
+  expect(css).toContain(".celinen-dash .foto-develop");
+  expect(css).toContain(".celinen-dash__body:has(.foto-develop)");
+});
+
+test("develop rail mounts the Lightroom editor as the full page", () => {
+  const source = readFileSync(new URL("../src/routes/develop.tsx", import.meta.url), "utf8");
+  expect(source).toContain("DevelopPage");
+  expect(source).toContain("explicitWorkspaceBinding");
+  expect(source).not.toContain("LegacyWorkbenchRedirect");
 });
