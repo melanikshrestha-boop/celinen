@@ -64,9 +64,8 @@
   container: earnings / inline-size;
 }
 .finance-os {
-  display: grid;
-  grid-template-columns: 172px minmax(0, 1fr);
-  align-items: start;
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
   font-size: 14px;
 }
@@ -75,58 +74,73 @@
 .finance-os *::after {
   box-sizing: border-box;
 }
-.finance-os .finance-os__nav {
+.finance-os .finance-os__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 20px;
   position: sticky;
   top: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  padding: 24px 12px;
-  min-width: 0;
-  background: var(--fos-side);
-  border: 0;
-  border-radius: 0;
+  z-index: 3;
+  padding: 10px 24px 0;
+  background: var(--fos-bg);
 }
-.finance-os p.finance-os__kicker {
-  margin: 16px 12px 4px;
-  color: var(--fos-dim);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+.finance-os .finance-os__page-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.finance-os .finance-os__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 1.1rem;
+  padding: 0;
+  min-width: 0;
+  background: transparent;
+  border: 0;
 }
 .finance-os .finance-os__nav button {
-  display: flex;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-  min-height: 36px;
-  padding: 8px 10px;
+  width: auto;
+  min-height: 32px;
+  padding: 6px 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   background: transparent;
   color: var(--fos-muted);
   font: inherit;
+  font-weight: 400;
   text-align: left;
   white-space: nowrap;
 }
 .finance-os .finance-os__nav button[aria-current="page"] {
-  background: var(--fos-selected);
+  background: transparent;
   color: var(--fos-text);
-  font-weight: 500;
+  font-weight: 600;
 }
 :root.dark .finance-os .finance-os__nav button[aria-current="page"] {
-  background: var(--fos-selected);
+  background: transparent;
   color: var(--fos-text);
 }
 .finance-os .finance-os__nav button:hover {
   background: transparent;
   color: var(--fos-text);
 }
-.finance-os .finance-os__nav .finance-os__cta {
-  justify-content: flex-start;
-  margin-top: 28px;
+.finance-os .finance-os__trailing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  margin-left: auto;
+}
+.finance-os .finance-os__cta {
   background: transparent;
   color: var(--fos-text);
   border-radius: 0;
@@ -134,13 +148,13 @@
 }
 .finance-os .finance-os__main {
   min-width: 0;
-  padding: 24px;
+  padding: 8px 24px 24px;
 }
 .finance-os .earnings-heading {
   justify-content: flex-end;
 }
 .finance-os .earnings-toolbar {
-  margin: 16px 0 24px;
+  margin: 4px 0 16px;
   gap: 12px;
 }
 .finance-os .earnings-actions {
@@ -716,7 +730,7 @@
   color: var(--fos-text);
 }
 .finance-os .earnings-primary:hover,
-.finance-os .finance-os__nav .finance-os__cta:hover {
+.finance-os .finance-os__cta:hover {
   background: transparent;
   color: var(--fos-text);
 }
@@ -801,11 +815,10 @@
   margin-top: 8px;
 }
 @container earnings (max-width: 1020px) {
-  .finance-os {
-    grid-template-columns: 150px minmax(0, 1fr);
-  }
+  .finance-os .finance-os__bar,
   .finance-os .finance-os__main {
-    padding: 20px;
+    padding-left: 20px;
+    padding-right: 20px;
   }
   .finance-os .finance-os__grid,
   .finance-os .finance-os__lower {
@@ -819,26 +832,13 @@
   }
 }
 @container earnings (max-width: 800px) {
-  .finance-os {
-    grid-template-columns: 1fr;
-  }
   .finance-os .finance-os__nav {
-    position: static;
-    flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding: 8px 12px;
-    gap: 4px;
   }
   .finance-os .finance-os__nav button {
     flex: 0 0 auto;
-    width: auto;
     min-height: 44px;
-  }
-  .finance-os .finance-os__nav .finance-os__mark,
-  .finance-os .finance-os__nav .finance-os__kicker,
-  .finance-os .finance-os__nav .finance-os__cta {
-    display: none;
   }
   .finance-os .finance-os__goal-row {
     grid-template-columns: 1fr;
@@ -857,8 +857,10 @@
   .finance-os .finance-os__resource-grid {
     grid-template-columns: 1fr;
   }
+  .finance-os .finance-os__bar,
   .finance-os .finance-os__main {
-    padding: 16px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
   .finance-os .finance-os__grid,
   .finance-os .finance-os__lower {

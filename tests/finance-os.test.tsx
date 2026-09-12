@@ -88,7 +88,7 @@ test("analytics filters are Origin pills, not native Mac selects", () => {
   expect(sankey).not.toContain("<rect");
 });
 
-test("finance desk reads the books query and lists Origin-style tracks", () => {
+test("finance desks are a top text row, not a second sidebar", () => {
   expect(readFinanceDesk("")).toBe("earnings");
   expect(readFinanceDesk("?desk=invest")).toBe("invest");
   expect(readFinanceDesk("?desk=nope")).toBe("earnings");
@@ -96,17 +96,22 @@ test("finance desk reads the books query and lists Origin-style tracks", () => {
     createElement(FinanceOs, {
       desk: "earnings",
       onDesk: () => {},
-      onInvoice: () => {},
       children: "body",
     }),
   );
+  expect(html).toContain("finance-os__bar");
   expect(html).toContain("Earnings");
   expect(html).toContain("Transactions");
   expect(html).toContain("Invest");
   expect(html).toContain("Forecast");
   expect(html).toContain("Equity");
   expect(html).toContain("Tax");
-  expect(html).toContain("New invoice");
+  expect(html).not.toContain("Track");
+  expect(html).not.toContain("Services");
+  const os = readFileSync(new URL("../src/components/earnings/FinanceOs.tsx", import.meta.url), "utf8");
+  expect(os).not.toContain("lucide-react");
+  expect(os).not.toContain("finance-os__kicker");
+  expect(os).not.toContain("finance-os__mark");
 });
 
 test("overview paints ledger totals, not Origin demo merchants", () => {
@@ -210,8 +215,8 @@ test("finance os is light by default and only dark under html.dark", () => {
   expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
   expect(css).toMatch(/:root\.dark[\s\S]*color-scheme: dark/);
   expect(css).toContain(".finance-os__cta");
+  expect(css).toContain("finance-os__bar");
+  expect(css).not.toContain("172px");
   expect(css).toMatch(/\.finance-os \.finance-os__board\s*\{[^}]*border: 0/);
   expect(css).toMatch(/\.finance-os \.finance-os__card\s*\{[^}]*border: 0/);
-  const os = readFileSync(new URL("../src/components/earnings/FinanceOs.tsx", import.meta.url), "utf8");
-  expect(os).not.toContain("finance-os__mark");
 });

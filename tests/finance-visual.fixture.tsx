@@ -190,11 +190,7 @@ export function VisualFixture() {
           className="earnings-workspace finance-os-host"
           aria-label="Isolated finance component preview"
         >
-          <FinanceOs
-            desk={desk}
-            onDesk={setDesk}
-            onInvoice={() => setNotice("QA invoice action invoked. No invoice was created.")}
-          >
+          <FinanceOs desk={desk} onDesk={setDesk}>
             {desk === "earnings" || desk === "spending" ? (
               <FinanceOverview
                 books={books}
