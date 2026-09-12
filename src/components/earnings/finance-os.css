@@ -1,15 +1,15 @@
-/* One theme boundary for the complete books workspace, including its local nav. */
+/* Canvas matches .celinen-dash (#fff / #000). Never a second color (Origin cream, lifted stage). */
 .finance-os-host.earnings-workspace,
 .finance-os {
-  --fos-bg: #f4f3f0;
-  --fos-side: #f4f3f0;
+  --fos-bg: #ffffff;
+  --fos-side: #ffffff;
   --fos-card: #ffffff;
-  --fos-line: #e4e2dc;
-  --fos-text: #111111;
-  --fos-muted: #8a8a86;
-  --fos-dim: #8a8a86;
-  --fos-hover: #eceae6;
-  --fos-selected: #eceae6;
+  --fos-line: #eceff2;
+  --fos-text: #171717;
+  --fos-muted: #6b6b6b;
+  --fos-dim: #6b6b6b;
+  --fos-hover: #f4f4f4;
+  --fos-selected: #f0f0f0;
   --fos-neon: #4d6fff;
   --fos-accent: #4d6fff;
   --fos-link: #3454d5;
@@ -37,10 +37,10 @@
 }
 :root.dark .finance-os-host.earnings-workspace,
 :root.dark .finance-os {
-  --fos-bg: #0c0c0c;
-  --fos-side: #0c0c0c;
-  --fos-card: #141414;
-  --fos-line: #2a2a2a;
+  --fos-bg: #000000;
+  --fos-side: #000000;
+  --fos-card: #000000;
+  --fos-line: #303030;
   --fos-text: #ededed;
   --fos-muted: #a5a5ad;
   --fos-dim: #a0a0a8;
@@ -205,10 +205,10 @@
 }
 .finance-os .finance-os__stage {
   margin: 0 0 28px;
-  padding: 20px 24px 12px;
+  padding: 0;
   border: 0;
-  border-radius: 16px;
-  background: var(--fos-card);
+  border-radius: 0;
+  background: transparent;
 }
 .finance-os .finance-os__hero-figure {
   margin: 8px 0 4px;
@@ -348,7 +348,7 @@
 }
 .finance-os .finance-os__pulse {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 16px;
   margin: 0 0 36px;
 }

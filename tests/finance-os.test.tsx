@@ -68,6 +68,10 @@ test("analytics filters are Origin pills, not native Mac selects", () => {
   expect(workspace).not.toContain('value: "system"');
   expect(workspace).not.toMatch(/<select[\s\S]*This month/);
   expect(workspace).not.toMatch(/<select[\s\S]*All shoots/);
+  expect(workspace).toContain("Contract labor");
+  expect(workspace).toContain("Car & mileage");
+  expect(workspace).toContain("Albums & prints");
+  expect(workspace).toContain("Insurance");
   const landing = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
   expect(landing).not.toContain("AnalyticsSection");
   expect(landing).not.toContain("USD 4,280");
@@ -121,9 +125,14 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
   expect(html).toContain("Allocation");
   expect(html).toContain("Weddings");
   expect(html).toContain("Upcoming");
+  expect(html).toContain("Outstanding");
+  expect(html).toContain("Overdue");
   expect(html).toContain("Paid jobs");
   expect(html).toContain("Open invoices");
-  expect(html).toContain("Gallery sales");
+  expect(html).toContain("Avg job");
+  expect(html).toContain("USD 1250.00");
+  expect(html).toContain("Expenses");
+  expect(html).toContain("Net");
   expect(html).toContain("finance-os__stage");
   expect(html).not.toContain("finance-os__monthcal");
   expect(html).not.toContain("Collected this month");
@@ -194,9 +203,11 @@ test("invest and equity stay honest about photographer books", () => {
 test("finance os is light by default and only dark under html.dark", () => {
   const css = readFileSync(new URL("../src/components/earnings/finance-os.css", import.meta.url), "utf8");
   expect(css).toContain("--fos-neon: #4d6fff");
-  expect(css).toContain("--fos-bg: #f4f3f0");
+  expect(css).toContain("--fos-bg: #ffffff");
+  expect(css).not.toContain("#f4f3f0");
+  expect(css).not.toContain("#0c0c0c");
   expect(css).toContain("color-scheme: light");
-  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #0c0c0c/);
+  expect(css).toMatch(/:root\.dark[\s\S]*--fos-bg: #000000/);
   expect(css).toMatch(/:root\.dark[\s\S]*color-scheme: dark/);
   expect(css).toContain(".finance-os__cta");
   expect(css).toMatch(/\.finance-os \.finance-os__board\s*\{[^}]*border: 0/);

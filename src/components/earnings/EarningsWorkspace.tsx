@@ -69,6 +69,7 @@ const CATEGORIES = [
   "Equipment",
   "Car & mileage",
   "Contract labor",
+  "Albums & prints",
   "Software & subscriptions",
   "Travel",
   "Insurance",
