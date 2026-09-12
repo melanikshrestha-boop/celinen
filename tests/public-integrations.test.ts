@@ -37,6 +37,7 @@ test("public integrations match the add-channel sheet down to copy", () => {
   expect(ASSISTANT_MARKS.map((item) => item.id)).toEqual([
     "claude",
     "chatgpt",
+    "grok",
     "cursor",
     "copilot",
     "gemini",

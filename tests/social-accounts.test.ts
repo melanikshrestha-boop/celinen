@@ -50,6 +50,7 @@ test("social catalog includes the popular networks from the picker", () => {
   expect(page).toContain("Professional");
   expect(page).toContain("Medium");
   expect(page).toContain("Generate inside");
+  expect(page).toContain('BrandMark id="grok"');
   expect(page).toContain("Create a campaign");
   expect(page).toContain("Browse templates");
   expect(page).toContain("onHapticPress");
