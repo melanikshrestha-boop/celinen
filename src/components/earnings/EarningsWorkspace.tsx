@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, ArrowUpRight, FileText, Plus, RefreshCw, Search } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, FileText, RefreshCw, Search } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useWorkbench } from "@/components/workbench/context";
 import { Shell } from "@/components/lensos/Shell";
@@ -369,25 +369,21 @@ function EarningsContent() {
       <FinanceOs
         desk={desk}
         onDesk={openDesk}
-        onInvoice={() => newForm("invoice")}
-        invoiceDisabled={!data.writable}
-      >
-        <header className="earnings-heading">
+        trailing={
           <div className="earnings-actions">
             <button onClick={() => newForm("entry")} disabled={!data.writable}>
-              <Plus size={15} />
-              Add Entry
+              Add
             </button>
             <button
-              className="earnings-primary"
+              className="earnings-primary finance-os__cta"
               onClick={() => newForm("invoice")}
               disabled={!data.writable}
             >
-              <Plus size={15} />
-              New Invoice
+              Invoice
             </button>
           </div>
-        </header>
+        }
+      >
         <div className="earnings-toolbar">
           <div className="earnings-actions">
             <BooksFilter
@@ -564,44 +560,26 @@ function EarningsContent() {
           <FinanceTax books={books} money={(value) => formatEarningsMoney(value, currency)} />
         ) : (
           <>
-            <div className="finance-os__title">
-              <h1 id="earnings-title" tabIndex={-1}>
-                Transactions
-              </h1>
-            </div>
             <dl className="earnings-pulse">
               <div>
                 <dt>Collected</dt>
                 <dd>{money(metric?.collectedMinor)}</dd>
-                <small>After refunds · selected period</small>
               </div>
               <div>
                 <dt>Outstanding</dt>
                 <dd>{balancesAvailable ? money(metric?.outstandingMinor) : "—"}</dd>
-                <small>
-                  {balancesAvailable
-                    ? "Issued invoices · as of today"
-                    : "No verified invoice balances"}
-                </small>
               </div>
               <div>
                 <dt>Overdue</dt>
                 <dd>{balancesAvailable ? money(metric?.overdueMinor) : "—"}</dd>
-                <small>
-                  {balancesAvailable ? "Past due · as of today" : "No verified invoice balances"}
-                </small>
               </div>
               <div>
-                <dt>Gallery Sales</dt>
+                <dt>Gallery</dt>
                 <dd>{galleryAvailable ? money(metric?.gallerySalesMinor) : "—"}</dd>
-                <small>
-                  {galleryAvailable ? "Verified gallery payments" : "Checkout not connected"}
-                </small>
               </div>
               <div>
-                <dt>Net Cash Flow</dt>
+                <dt>Net</dt>
                 <dd>{money(metric?.netMinor)}</dd>
-                <small>Recorded cash in less expenses</small>
               </div>
             </dl>
             {books ? <BooksDashboard books={books} stripeLabel={connection} /> : null}

@@ -39,11 +39,6 @@ export function FinanceInvest({
   const gearMinor = gear.reduce((sum, row) => sum + row.amountMinor, 0);
   return (
     <div className="finance-os__stack">
-      <div className="finance-os__title">
-        <h1 id="earnings-title" tabIndex={-1}>
-          Invest
-        </h1>
-      </div>
       <RetirementPathways />
       <article className="finance-os__card">
         <h2>Recorded equipment spending</h2>
@@ -102,11 +97,6 @@ export function FinanceEquity({
 }) {
   return (
     <div className="finance-os__stack">
-      <div className="finance-os__title">
-        <h1 id="earnings-title" tabIndex={-1}>
-          Equity
-        </h1>
-      </div>
       <article className="finance-os__card">
         <h2>Equity snapshot</h2>
         <p className="finance-os__figure">Unavailable</p>
@@ -194,11 +184,6 @@ export function FinanceForecast({
   const due = upcoming.reduce((sum, row) => sum + row.outstandingMinor, 0);
   return (
     <div className="finance-os__stack">
-      <div className="finance-os__title">
-        <h1 id="earnings-title" tabIndex={-1}>
-          Forecast
-        </h1>
-      </div>
       <article className="finance-os__card">
         <h2>Scheduled invoice balances</h2>
         <p className="finance-os__figure">{available ? money(due) : "—"}</p>
@@ -270,11 +255,6 @@ export function FinanceTax({
 }) {
   return (
     <div className="finance-os__stack">
-      <div className="finance-os__title">
-        <h1 id="earnings-title" tabIndex={-1}>
-          Tax
-        </h1>
-      </div>
       <FinanceTaxHub />
       <article className="finance-os__card">
         <h2>Recorded expense split</h2>

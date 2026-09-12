@@ -184,11 +184,6 @@ export function FinanceOverview({
       : [];
   return (
     <>
-      <div className="finance-os__title">
-        <h1 id="earnings-title" tabIndex={-1}>
-          {spending ? "Spending" : "Earnings"}
-        </h1>
-      </div>
       {!books ? (
         <div className="finance-os__card" role="status">
           <h2>Financial data unavailable</h2>
