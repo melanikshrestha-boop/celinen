@@ -520,6 +520,46 @@
   color: #9aa3ad;
   font-size: 16px;
 }
+.social-picker__form {
+  display: grid;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+.social-picker__form input {
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #eceff2;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+.social-picker__form-actions {
+  display: flex;
+  gap: 6px;
+}
+.social-picker__form-actions button {
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid #eceff2;
+  border-radius: 4px;
+  background: #fff;
+  color: #142a36;
+  font-size: 12px;
+  cursor: pointer;
+}
+.social-picker__form-actions button[type="submit"] {
+  background: #142a36;
+  border-color: #142a36;
+  color: #fff;
+}
+.social-picker__form [role="alert"] {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+}
 .celinen-dash__social {
   position: relative;
   padding: 8px 10px 4px;
@@ -567,11 +607,18 @@ html.dark .social-post__result,
 html.dark .social-post__inside,
 html.dark .social-post__card,
 html.dark .social-post__suggest button,
-html.dark .social-picker {
+html.dark .social-picker,
+html.dark .social-picker__form input,
+html.dark .social-picker__form-actions button {
   background: #111;
   border-color: #2a2a2a;
   color: #ededed;
   box-shadow: none;
+}
+html.dark .social-picker__form-actions button[type="submit"] {
+  background: #ededed;
+  border-color: #ededed;
+  color: #111;
 }
 html.dark .social-post__chip,
 html.dark .social-post__publish button {

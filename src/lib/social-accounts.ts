@@ -1,4 +1,4 @@
-/** Local social connections. AES-GCM at rest. No passwords. No fake live posts. */
+/** Local social connections. AES-GCM at rest. Paste secrets live in social-paste.ts. No fake Meta OAuth. */
 
 /** Picker order matches the add-channel sheet: IG → Facebook → X → LinkedIn → Pinterest → Bluesky → Threads → TikTok → YouTube Shorts → Google Business → Mastodon → Discord → WooCommerce. */
 export const SOCIAL_NETWORKS = [
@@ -100,8 +100,15 @@ export async function connectSocial(scope: string, id: SocialId) {
 export async function connectAllSocials(scope: string) {
   const links = await readSocialLinks(scope);
   const have = new Set(links.map((row) => row.id));
+  const { PASTE_SOCIAL_IDS, readPasteSecrets, hasPasteSecret } = await import("./social-paste");
+  const secrets = await readPasteSecrets(scope);
   const stamp = Date.now();
-  const added = SOCIAL_NETWORKS.filter((network) => !have.has(network.id)).map((network, index) => ({
+  const added = SOCIAL_NETWORKS.filter((network) => {
+    if (have.has(network.id)) return false;
+    if ((PASTE_SOCIAL_IDS as readonly string[]).includes(network.id))
+      return hasPasteSecret(secrets, network.id);
+    return true;
+  }).map((network, index) => ({
     id: network.id,
     at: stamp - index,
   }));
@@ -114,6 +121,8 @@ export async function connectAllSocials(scope: string) {
 export async function disconnectSocial(scope: string, id: SocialId) {
   const next = (await readSocialLinks(scope)).filter((row) => row.id !== id);
   await writeSocialLinks(scope, next);
+  const { isPasteSocial, deletePasteSecret } = await import("./social-paste");
+  if (isPasteSocial(id)) await deletePasteSecret(scope, id);
   return next;
 }
 

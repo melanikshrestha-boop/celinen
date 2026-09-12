@@ -29,6 +29,13 @@ import {
   type SocialLink,
 } from "@/lib/social-accounts";
 import {
+  hasPasteSecret,
+  readPasteSecrets,
+  type PasteSecret,
+  type PasteSocialId,
+} from "@/lib/social-paste";
+import { publishPastePost } from "@/lib/social-paste-client";
+import {
   buildSocialPost,
   fireCompose,
   readSocialDraft,
@@ -59,6 +66,7 @@ export function SocialAccounts() {
   const [copied, setCopied] = useState("");
   const [status, setStatus] = useState("");
   const [links, setLinks] = useState<SocialLink[]>([]);
+  const [secrets, setSecrets] = useState<Partial<Record<PasteSocialId, PasteSecret>>>({});
 
   useEffect(() => {
     const incoming = readSocialDraft();
@@ -78,6 +86,9 @@ export function SocialAccounts() {
     const load = () => {
       void readSocialLinks(scope).then((rows) => {
         if (alive) setLinks(rows);
+      });
+      void readPasteSecrets(scope).then((rows) => {
+        if (alive) setSecrets(rows);
       });
     };
     load();
@@ -116,14 +127,27 @@ export function SocialAccounts() {
 
   async function postTo(ids: SocialId[]) {
     if (!post || !ids.length) return;
-    const actions = await fireCompose(ids, post.caption);
-    const names = actions.map((item) => item.title).join(", ");
+    const live = ids.filter((id) => hasPasteSecret(secrets, id));
+    const rest = ids.filter((id) => !hasPasteSecret(secrets, id));
+    const notes: string[] = [];
+    for (const id of live) {
+      const result = await publishPastePost(account?.scope ?? "", id, post.caption);
+      notes.push(
+        result.ok
+          ? `Posted to ${SOCIAL_NETWORKS.find((item) => item.id === id)?.title}.`
+          : result.error,
+      );
+    }
+    if (rest.length) {
+      const actions = await fireCompose(rest, post.caption);
+      notes.push(
+        rest.length > 1
+          ? `Opened ${actions.map((item) => item.title).join(", ")}. Caption copied.`
+          : actions[0]!.hint,
+      );
+    }
     setCopied(ids.length > 1 ? "all" : ids[0]!);
-    setStatus(
-      ids.length > 1
-        ? `Crossposting to ${names}. Caption is copied — paste where a window asks, then post.`
-        : actions[0]!.hint,
-    );
+    setStatus(notes.join(" "));
   }
 
   async function connectEvery() {
