@@ -129,6 +129,39 @@ Analysis analyze(const Image& image) {
   return analysis;
 }
 
+LightRecipe suggest_light(const Analysis& analysis) {
+  if (!std::isfinite(analysis.brightness) || !std::isfinite(analysis.clipped_highlights) ||
+      !std::isfinite(analysis.clipped_shadows) || analysis.brightness < 0 ||
+      analysis.brightness > 255 || analysis.clipped_highlights < 0 ||
+      analysis.clipped_highlights > 100 || analysis.clipped_shadows < 0 ||
+      analysis.clipped_shadows > 100) {
+    throw std::invalid_argument("Light suggestion requires a finite analysis.");
+  }
+  LightRecipe recipe;
+  if (analysis.clipped_highlights > 1 || analysis.brightness > 170) {
+    recipe.highlights = -std::clamp(
+        analysis.clipped_highlights * 3.5 + std::max(0.0, analysis.brightness - 165) * 0.55, 8.0,
+        80.0);
+    recipe.whites = -std::clamp(
+        analysis.clipped_highlights * 2.0 + std::max(0.0, analysis.brightness - 180) * 0.35, 0.0,
+        55.0);
+    if (analysis.brightness > 210)
+      recipe.exposure_ev = -std::clamp((analysis.brightness - 210) / 50.0, 0.0, 0.8);
+  }
+  if (analysis.clipped_shadows > 4 || analysis.brightness < 90) {
+    recipe.shadows = std::clamp(
+        analysis.clipped_shadows * 1.8 + std::max(0.0, 90.0 - analysis.brightness) * 0.4, 6.0, 70.0);
+    if (analysis.brightness < 55)
+      recipe.exposure_ev = std::clamp((55.0 - analysis.brightness) / 55.0, 0.15, 1.2);
+  }
+  recipe.highlights = std::round(recipe.highlights);
+  recipe.shadows = std::round(recipe.shadows);
+  recipe.whites = std::round(recipe.whites);
+  recipe.blacks = std::round(recipe.blacks);
+  recipe.exposure_ev = std::round(recipe.exposure_ev * 100.0) / 100.0;
+  return recipe;
+}
+
 Image render(const Image& image, const Edits& edits) {
   const auto pixels = validate_image(image);
   validate_edit(edits.exposure_ev, 5, "Exposure EV");

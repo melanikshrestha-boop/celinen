@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   ArrowDownToLine,
   Check,
@@ -73,7 +82,11 @@ import { DevelopViewer } from "./DevelopViewer";
 import { DevelopHistogram } from "./DevelopHistogram";
 import { DevelopFilmstrip } from "./DevelopFilmstrip";
 import { DevelopLibraryGrid } from "./DevelopLibraryGrid";
-import { suggestDevelopTone, type DevelopHistogramData } from "@/lib/develop/histogram";
+import {
+  suggestDevelopLight,
+  suggestDevelopTone,
+  type DevelopHistogramData,
+} from "@/lib/develop/histogram";
 import { analyzeDevelopBlob } from "@/lib/develop/pixel-analysis";
 import {
   createDevelopPixelSampleChannel,
@@ -247,6 +260,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const [selected, setSelected] = useState<string | null>(null),
     selectedRef = useRef<string | null>(null);
   const [selectedSet, setSelectedSet] = useState<Set<string>>(new Set());
+  const [leftW, setLeftW] = useState(220);
+  const [rightW, setRightW] = useState(300);
+  const [filmH, setFilmH] = useState(108);
   const [draft, setDraft] = useState(defaultDevelopSettings),
     draftRef = useRef(draft);
   draftRef.current = draft;
@@ -1049,17 +1065,50 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     neutralOwner.current?.id === selected &&
     neutralOwner.current?.source === previewSource &&
     neutralOwner.current?.renderKey === renderKey;
-  function autoTone() {
+  function autoTone(spread = false) {
     if (!sourceStatsReady || !sourceHistogram) return;
-    const suggestion = suggestDevelopTone(sourceHistogram);
+    const suggestion = suggestDevelopLight(sourceHistogram);
     if (!suggestion.applicable) {
       setNotice(suggestion.reason);
       return;
     }
-    change({ ...draft, exposure: suggestion.exposure }, "Auto exposure · source luminance");
-    setNotice(
-      `Auto exposure ${suggestion.exposure > 0 ? "+" : ""}${suggestion.exposure} EV · ${suggestion.reason}. Review the preview; undo is available.`,
-    );
+    const patch = {
+      exposure: suggestion.exposure,
+      highlights: suggestion.highlights,
+      shadows: suggestion.shadows,
+      whites: suggestion.whites,
+      blacks: suggestion.blacks,
+    };
+    change({ ...draft, ...patch }, "Light");
+    if (spread) {
+      const targets = visible
+        .map((photo) => docs.current[photo.id])
+        .filter((document): document is DevelopDocument => Boolean(document) && document.photoId !== selected);
+      if (targets.length)
+        void persistBatch(
+          targets.map((target) =>
+            pushHistory(target, { ...currentRecipe(target), ...patch }, "Light"),
+          ),
+          true,
+        );
+    }
+  }
+  function startSplit(edge: "left" | "right" | "film", event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const origin = edge === "film" ? event.clientY : event.clientX;
+    const start = edge === "left" ? leftW : edge === "right" ? rightW : filmH;
+    const move = (next: PointerEvent) => {
+      const delta = edge === "film" ? origin - next.clientY : next.clientX - origin;
+      if (edge === "left") setLeftW(Math.min(420, Math.max(160, start + delta)));
+      else if (edge === "right") setRightW(Math.min(480, Math.max(220, start - delta)));
+      else setFilmH(Math.min(280, Math.max(72, start + delta)));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
   function applyBuiltin(preset: (typeof builtinPresets)[number]) {
     if (preset.name === "Original") {
@@ -1782,6 +1831,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       <div
         className={`develop-workspace${!source ? " is-without-photo" : ""}`}
         inert={Boolean(busy || dialog)}
+        style={
+          {
+            "--dv-left": `${leftW}px`,
+            "--dv-right": `${rightW}px`,
+          } as CSSProperties
+        }
       >
         {source && (
           <aside className="develop-left">
@@ -1962,6 +2017,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             </div>
           </aside>
         )}
+        {source ? (
+          <button
+            type="button"
+            className="develop-split"
+            aria-label="Resize left panel"
+            onPointerDown={(event) => startSplit("left", event)}
+          />
+        ) : null}
         <main className="develop-center">
           {availablePhotos.length > 0 &&
           !(mode === "library" ? visible.length : filmstripPhotos.length) ? (
@@ -2251,6 +2314,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             </>
           )}
         </main>
+        {source ? (
+          <button
+            type="button"
+            className="develop-split"
+            aria-label="Resize right panel"
+            onPointerDown={(event) => startSplit("right", event)}
+          />
+        ) : null}
         {source && (
           <aside className="develop-right">
             <div className="develop-histogram-wrap">
@@ -2259,10 +2330,16 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 <button
                   type="button"
                   disabled={!sourceStatsReady || !!saveError || !!busy}
-                  title="Suggest exposure from original preview luminance, protecting highlight headroom. A normal-key starting point, not an artistic decision."
-                  onClick={autoTone}
+                  onClick={() => autoTone(false)}
                 >
-                  Auto exposure
+                  Light
+                </button>
+                <button
+                  type="button"
+                  disabled={!sourceStatsReady || !!saveError || !!busy || visible.length < 2}
+                  onClick={() => autoTone(true)}
+                >
+                  All
                 </button>
               </div>
               <DevelopHistogram
@@ -2353,7 +2430,17 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         )}
       </div>
       {availablePhotos.length > 0 && (
-        <footer className="develop-filmstrip" inert={Boolean(busy || dialog)}>
+        <footer
+          className="develop-filmstrip"
+          inert={Boolean(busy || dialog)}
+          style={{ height: filmH }}
+        >
+          <button
+            type="button"
+            className="develop-split develop-split--film"
+            aria-label="Resize filmstrip"
+            onPointerDown={(event) => startSplit("film", event)}
+          />
           <div className="develop-filmstrip-bar">
             <div>
               <button

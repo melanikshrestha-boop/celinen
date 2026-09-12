@@ -127,6 +127,62 @@ export function adjustHistogramTone(
 }
 
 export type AdaptiveTone = { exposure: number; applicable: boolean; reason: string };
+export type AdaptiveLight = {
+  applicable: boolean;
+  reason: string;
+  exposure: number;
+  highlights: number;
+  shadows: number;
+  whites: number;
+  blacks: number;
+};
+
+function snap(value: number, step: number) {
+  return Math.round(value / step) * step;
+}
+
+/**
+ * Bright natural light (noon park, blown sky): pull highlights first, then lift
+ * faces. Matches native `suggest_light`. Does not refuse clipped daylight.
+ */
+export function suggestDevelopLight(stats: DevelopHistogramData): AdaptiveLight {
+  if (!stats.pixels)
+    return {
+      applicable: false,
+      reason: "No source pixels",
+      exposure: 0,
+      highlights: 0,
+      shadows: 0,
+      whites: 0,
+      blacks: 0,
+    };
+  const brightness = histogramPercentile(stats.encodedLuminance, 0.5) * 255;
+  const clippedHighlights = (100 * stats.highlights) / stats.pixels;
+  const clippedShadows = (100 * stats.shadows) / stats.pixels;
+  let exposure = 0,
+    highlights = 0,
+    shadows = 0,
+    whites = 0;
+  if (clippedHighlights > 1 || brightness > 170) {
+    highlights = -clamp(clippedHighlights * 3.5 + Math.max(0, brightness - 165) * 0.55, 8, 80);
+    whites = -clamp(clippedHighlights * 2 + Math.max(0, brightness - 180) * 0.35, 0, 55);
+    if (brightness > 210) exposure = -clamp((brightness - 210) / 50, 0, 0.8);
+  }
+  if (clippedShadows > 4 || brightness < 90) {
+    shadows = clamp(clippedShadows * 1.8 + Math.max(0, 90 - brightness) * 0.4, 6, 70);
+    if (brightness < 55) exposure = clamp((55 - brightness) / 55, 0.15, 1.2);
+  }
+  return {
+    applicable: true,
+    reason: "Natural light",
+    exposure: snap(exposure, 0.01),
+    highlights: snap(highlights, 1),
+    shadows: snap(shadows, 1),
+    whites: snap(whites, 1),
+    blacks: 0,
+  };
+}
+
 /** Conservative starting point. Never guesses the artistic intent of a low/high-key photograph. */
 export function suggestDevelopTone(stats: DevelopHistogramData): AdaptiveTone {
   if (!stats.pixels)

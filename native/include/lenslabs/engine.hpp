@@ -44,6 +44,17 @@ struct Edits {
   double saturation = 0;
 };
 
+// Bright natural light (Central Park noon): pull highlights first, then lift
+// faces. Not an artistic look. Zero when the frame is already a normal key.
+struct LightRecipe {
+  double exposure_ev = 0;
+  double highlights = 0;
+  double shadows = 0;
+  double whites = 0;
+  double blacks = 0;
+};
+LightRecipe suggest_light(const Analysis& analysis);
+
 // Pure C++ kernels. These are mechanical signals, not trained AI judgments.
 Analysis analyze(const Image& image);
 Image render(const Image& image, const Edits& edits);
