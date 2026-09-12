@@ -47,27 +47,31 @@ function tagsFor(idea: string) {
   return ["#photography", "#onassignment"];
 }
 
+function lead(idea: string) {
+  return idea
+    .replace(/^Campaign across connected accounts:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.]+$/, "");
+}
+
 function bodyFor(idea: string, tone: PostTone, length: PostLength) {
-  const clean = idea.replace(/\s+/g, " ").trim();
+  const clean = lead(idea);
   const professional = [
     `${clean}.`,
-    "The keepers are in. Originals stay with me; the gallery is the copy you can send.",
-    "Pick, then send — same night.",
+    "Originals stay with me; the gallery is the copy you can send.",
+    "Same night.",
   ];
-  const casual = [
-    `${clean}.`,
-    "These are the frames I kept.",
-    "Gallery’s up when you’re ready.",
-  ];
+  const casual = [`${clean}.`, "These are the frames I kept.", "Gallery’s up when you’re ready."];
   const warm = [
     `${clean}.`,
     "I kept the ones that still feel like being there.",
     "The set is ready whenever you want it.",
   ];
   const lines = tone === "Casual" ? casual : tone === "Warm" ? warm : professional;
-  if (length === "Short") return lines.slice(0, 1).join(" ");
+  if (length === "Short") return lines[0]!;
   if (length === "Long") return lines.join(" ");
-  return lines.slice(0, 2).join(" ");
+  return `${lines[0]} ${lines[1]}`;
 }
 
 export function clipCaption(text: string, id: SocialId) {
@@ -142,13 +146,83 @@ export function composeAction(id: SocialId, caption: string): ComposeAction {
       copy: true,
       hint: "Caption copied. Paste into Facebook, then post.",
     };
+  if (id === "instagram")
+    return {
+      id,
+      title: network.title,
+      href: "https://www.instagram.com/",
+      copy: true,
+      hint: "Caption copied. Paste in Instagram, then post.",
+    };
+  if (id === "google-business")
+    return {
+      id,
+      title: network.title,
+      href: "https://business.google.com/posts",
+      copy: true,
+      hint: "Caption copied. Paste into Google Business posts, then publish.",
+    };
+  if (id === "tiktok")
+    return {
+      id,
+      title: network.title,
+      href: "https://www.tiktok.com/tiktokstudio/upload",
+      copy: true,
+      hint: "Caption copied. Paste in TikTok, then post.",
+    };
+  if (id === "youtube-shorts")
+    return {
+      id,
+      title: network.title,
+      href: "https://studio.youtube.com/",
+      copy: true,
+      hint: "Caption copied. Paste in YouTube Studio, then post.",
+    };
+  if (id === "mastodon")
+    return {
+      id,
+      title: network.title,
+      href: `https://mastodon.social/share?text=${encoded}`,
+      copy: true,
+      hint: "Opens Mastodon share. Review, then post.",
+    };
+  if (id === "discord")
+    return {
+      id,
+      title: network.title,
+      href: "https://discord.com/app",
+      copy: true,
+      hint: "Caption copied. Paste in Discord, then send.",
+    };
+  if (id === "woocommerce")
+    return {
+      id,
+      title: network.title,
+      href: null,
+      copy: true,
+      hint: "Caption copied. Paste in WooCommerce, then publish.",
+    };
   return {
     id,
     title: network.title,
     href: null,
     copy: true,
-    hint: `No public compose URL for ${network.title}. Caption copied — paste in the app, then post.`,
+    hint: `Caption copied. Paste in ${network.title}, then post.`,
   };
+}
+
+export async function fireCompose(ids: SocialId[], caption: string) {
+  const text = caption.trim();
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    /* some browsers block clipboard without a focused document */
+  }
+  const actions = ids.map((id) => composeAction(id, text));
+  for (const action of actions) {
+    if (action.href) window.open(action.href, "_blank", "noopener,noreferrer");
+  }
+  return actions;
 }
 
 export function isPostIntent(text: string) {

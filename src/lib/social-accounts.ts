@@ -97,6 +97,20 @@ export async function connectSocial(scope: string, id: SocialId) {
   return next;
 }
 
+export async function connectAllSocials(scope: string) {
+  const links = await readSocialLinks(scope);
+  const have = new Set(links.map((row) => row.id));
+  const stamp = Date.now();
+  const added = SOCIAL_NETWORKS.filter((network) => !have.has(network.id)).map((network, index) => ({
+    id: network.id,
+    at: stamp - index,
+  }));
+  if (!added.length) return links;
+  const next = [...added, ...links];
+  await writeSocialLinks(scope, next);
+  return next;
+}
+
 export async function disconnectSocial(scope: string, id: SocialId) {
   const next = (await readSocialLinks(scope)).filter((row) => row.id !== id);
   await writeSocialLinks(scope, next);

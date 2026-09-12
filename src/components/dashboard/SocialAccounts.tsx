@@ -23,13 +23,14 @@ import { onHapticPress } from "@/lib/haptic-press";
 import { useAccount } from "@/components/account/AccountProvider";
 import {
   SOCIAL_NETWORKS,
+  connectAllSocials,
   readSocialLinks,
-  shownSocials,
+  type SocialId,
   type SocialLink,
 } from "@/lib/social-accounts";
 import {
   buildSocialPost,
-  composeAction,
+  fireCompose,
   readSocialDraft,
   type SocialPost,
 } from "@/lib/social-post";
@@ -56,6 +57,7 @@ export function SocialAccounts() {
   const [wantTags, setWantTags] = useState(true);
   const [post, setPost] = useState<SocialPost | null>(null);
   const [copied, setCopied] = useState("");
+  const [status, setStatus] = useState("");
   const [links, setLinks] = useState<SocialLink[]>([]);
 
   useEffect(() => {
@@ -98,18 +100,40 @@ export function SocialAccounts() {
       }),
     );
     setCopied("");
+    setStatus("");
   }
 
   async function copyCaption(text: string, id = "caption") {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(id);
+      setStatus("Caption copied.");
     } catch {
-      setCopied("");
+      box.current?.select();
+      setStatus("Select the caption and copy it.");
     }
   }
 
-  const targets = shownSocials(links);
+  async function postTo(ids: SocialId[]) {
+    if (!post || !ids.length) return;
+    const actions = await fireCompose(ids, post.caption);
+    const names = actions.map((item) => item.title).join(", ");
+    setCopied(ids.length > 1 ? "all" : ids[0]!);
+    setStatus(
+      ids.length > 1
+        ? `Crossposting to ${names}. Caption is copied — paste where a window asks, then post.`
+        : actions[0]!.hint,
+    );
+  }
+
+  async function connectEvery() {
+    const scope = account?.scope;
+    if (!scope) return;
+    setLinks(await connectAllSocials(scope));
+    setStatus("All socials associated. Draft, then Post to all.");
+  }
+
+  const targets = links;
 
   function listen() {
     const Ctor = (
@@ -289,36 +313,41 @@ export function SocialAccounts() {
               />
             </label>
             <div className="social-post__publish">
+              {targets.length > 1 ? (
+                <button
+                  type="button"
+                  className="social-post__all"
+                  onClick={() => void postTo(targets.map((row) => row.id))}
+                >
+                  {copied === "all" ? "Opened all" : "Post to all"}
+                </button>
+              ) : null}
               <button type="button" onClick={() => void copyCaption(post.caption)}>
                 {copied === "caption" ? "Copied" : "Copy caption"}
               </button>
               {targets.length ? (
-                targets.map((row) => {
-                  const action = composeAction(row.id, post.caption);
-                  return (
-                    <button
-                      key={row.id}
-                      type="button"
-                      onClick={() => {
-                        void copyCaption(post.caption, row.id);
-                        if (action.href) window.open(action.href, "_blank", "noopener,noreferrer");
-                      }}
-                      title={action.hint}
-                    >
-                      <BrandMark id={row.id} />
-                      {SOCIAL_NETWORKS.find((item) => item.id === row.id)?.title}
-                    </button>
-                  );
-                })
+                targets.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => void postTo([row.id])}
+                  >
+                    <BrandMark id={row.id} />
+                    {SOCIAL_NETWORKS.find((item) => item.id === row.id)?.title}
+                  </button>
+                ))
               ) : (
-                <Link to="/dashboard" className="social-post__connect">
-                  Connect an account in the rail, then post from here
-                </Link>
+                <button type="button" className="social-post__connect" onClick={() => void connectEvery()}>
+                  Connect all socials
+                </button>
               )}
             </div>
-            <p className="social-post__hint">
-              Review the caption, then post from a connected account. Nothing is sent until you do.
-            </p>
+            {targets.length && targets.length < SOCIAL_NETWORKS.length ? (
+              <button type="button" className="social-post__more" onClick={() => void connectEvery()}>
+                Connect all socials
+              </button>
+            ) : null}
+            {status ? <p className="social-post__hint">{status}</p> : null}
           </div>
         ) : null}
         <div className="social-post__suggest">
@@ -337,13 +366,11 @@ export function SocialAccounts() {
           <button
             type="button"
             className="social-post__card"
-            onClick={() =>
-              setDraft((value) =>
-                value
-                  ? `Campaign across connected accounts:\n${value}`
-                  : "Campaign across connected accounts: gallery tonight, then the sideline set.",
-              )
-            }
+            onClick={() => {
+              const idea = draft.trim() || "Gallery tonight, then the sideline set.";
+              setDraft(idea);
+              makePost(idea);
+            }}
           >
             <span className="social-post__card-mark is-campaign" aria-hidden="true">
               <Megaphone size={18} />
