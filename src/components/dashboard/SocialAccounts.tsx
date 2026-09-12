@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowUp,
@@ -20,6 +20,19 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { BrandMark } from "@/components/marketing/BrandMark";
 import { PRODUCT_NAME } from "@/lib/product";
 import { onHapticPress } from "@/lib/haptic-press";
+import { useAccount } from "@/components/account/AccountProvider";
+import {
+  SOCIAL_NETWORKS,
+  readSocialLinks,
+  shownSocials,
+  type SocialLink,
+} from "@/lib/social-accounts";
+import {
+  buildSocialPost,
+  composeAction,
+  readSocialDraft,
+  type SocialPost,
+} from "@/lib/social-post";
 import "./social-accounts.css";
 
 const TONES = ["Professional", "Casual", "Warm"] as const;
@@ -33,12 +46,70 @@ const SUGGEST = [
 
 export function SocialAccounts() {
   const navigate = useNavigate();
+  const account = useAccount();
   const box = useRef<HTMLTextAreaElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState("");
   const [tone, setTone] = useState<(typeof TONES)[number]>("Professional");
   const [length, setLength] = useState<(typeof LENGTHS)[number]>("Medium");
   const [open, setOpen] = useState<"tone" | "length" | null>(null);
+  const [wantTags, setWantTags] = useState(true);
+  const [post, setPost] = useState<SocialPost | null>(null);
+  const [copied, setCopied] = useState("");
+  const [links, setLinks] = useState<SocialLink[]>([]);
+
+  useEffect(() => {
+    const incoming = readSocialDraft();
+    if (incoming) {
+      setDraft(incoming.idea);
+      setTone(incoming.tone);
+      setLength(incoming.length);
+      setWantTags(incoming.hashtags.length > 0);
+      setPost(incoming);
+    }
+  }, []);
+
+  useEffect(() => {
+    const scope = account?.scope;
+    if (!scope) return;
+    let alive = true;
+    const load = () => {
+      void readSocialLinks(scope).then((rows) => {
+        if (alive) setLinks(rows);
+      });
+    };
+    load();
+    window.addEventListener("celinen:socials", load);
+    return () => {
+      alive = false;
+      window.removeEventListener("celinen:socials", load);
+    };
+  }, [account?.scope]);
+
+  function makePost(idea = draft) {
+    const text = idea.trim();
+    if (!text) return;
+    setPost(
+      buildSocialPost({
+        idea: text,
+        tone,
+        length,
+        hashtags: wantTags,
+      }),
+    );
+    setCopied("");
+  }
+
+  async function copyCaption(text: string, id = "caption") {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(id);
+    } catch {
+      setCopied("");
+    }
+  }
+
+  const targets = shownSocials(links);
 
   function listen() {
     const Ctor = (
@@ -98,6 +169,7 @@ export function SocialAccounts() {
           className="social-post__composer"
           onSubmit={(event) => {
             event.preventDefault();
+            makePost();
           }}
         >
           <textarea
@@ -108,7 +180,12 @@ export function SocialAccounts() {
             onChange={(event) => setDraft(event.target.value)}
           />
           <div className="social-post__bar">
-            <button type="button" className="social-post__chip">
+            <button
+              type="button"
+              className="social-post__chip"
+              aria-pressed={wantTags}
+              onClick={() => setWantTags((value) => !value)}
+            >
               <Hash size={16} />
               Hashtags
             </button>
@@ -201,6 +278,49 @@ export function SocialAccounts() {
             }}
           />
         </form>
+        {post ? (
+          <div className="social-post__result">
+            <label>
+              Caption
+              <textarea
+                rows={8}
+                value={post.caption}
+                onChange={(event) => setPost({ ...post, caption: event.target.value })}
+              />
+            </label>
+            <div className="social-post__publish">
+              <button type="button" onClick={() => void copyCaption(post.caption)}>
+                {copied === "caption" ? "Copied" : "Copy caption"}
+              </button>
+              {targets.length ? (
+                targets.map((row) => {
+                  const action = composeAction(row.id, post.caption);
+                  return (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => {
+                        void copyCaption(post.caption, row.id);
+                        if (action.href) window.open(action.href, "_blank", "noopener,noreferrer");
+                      }}
+                      title={action.hint}
+                    >
+                      <BrandMark id={row.id} />
+                      {SOCIAL_NETWORKS.find((item) => item.id === row.id)?.title}
+                    </button>
+                  );
+                })
+              ) : (
+                <Link to="/dashboard" className="social-post__connect">
+                  Connect an account in the rail, then post from here
+                </Link>
+              )}
+            </div>
+            <p className="social-post__hint">
+              Review the caption, then post from a connected account. Nothing is sent until you do.
+            </p>
+          </div>
+        ) : null}
         <div className="social-post__suggest">
           <span>Suggestions</span>
           {SUGGEST.map((item) => {

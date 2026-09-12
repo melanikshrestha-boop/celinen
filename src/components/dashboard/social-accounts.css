@@ -158,7 +158,8 @@
   cursor: pointer;
 }
 .social-post__chip:hover,
-.social-post__chip[aria-expanded="true"] {
+.social-post__chip[aria-expanded="true"],
+.social-post__chip[aria-pressed="true"] {
   background: #eef3f8;
 }
 .social-post__menu {
@@ -232,6 +233,66 @@
 }
 .social-post__send:disabled {
   cursor: default;
+}
+.social-post__result {
+  width: 100%;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #e6edf3;
+  border-radius: 22px;
+  background: #fff;
+}
+.social-post__result label {
+  display: grid;
+  gap: 8px;
+  color: #5b6570;
+  font-size: 13px;
+  font-weight: 600;
+}
+.social-post__result textarea {
+  width: 100%;
+  min-height: 140px;
+  border: 0;
+  resize: vertical;
+  background: transparent;
+  color: #142a36;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  outline: none;
+}
+.social-post__publish {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.social-post__publish button,
+.social-post__connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e6edf3;
+  border-radius: 12px;
+  background: #f7f9fb;
+  color: #142a36;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.social-post__publish svg {
+  width: 16px;
+  height: 16px;
+}
+.social-post__hint {
+  margin: 10px 0 0;
+  color: #8b919a;
+  font-size: 13px;
 }
 .social-post__suggest {
   display: flex;

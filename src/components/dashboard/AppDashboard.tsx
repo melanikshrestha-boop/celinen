@@ -29,6 +29,7 @@ import { onHapticPress } from "@/lib/haptic-press";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
 import { destinationPathFor } from "@/lib/workspace-routing";
+import { buildSocialPost, isPostIntent, writeSocialDraft } from "@/lib/social-post";
 import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
 import { DashboardContext } from "./context";
 import "./dashboard.css";
@@ -100,7 +101,15 @@ function titleFrom(text: string) {
   return line.slice(0, 42) || "Chat";
 }
 function replyFor(text: string) {
+  if (isPostIntent(text)) {
+    writeSocialDraft(buildSocialPost({ idea: text }));
+    return { text: "Drafted the caption. Review it on Social, then post from a connected account.", href: "/publish" };
+  }
   const path = destinationPathFor(text);
+  if (path === "/publish") {
+    writeSocialDraft(buildSocialPost({ idea: text }));
+    return { text: "Opening Social accounts with that idea.", href: "/publish" };
+  }
   if (path === "/earnings") return { text: "Opening Analytics.", href: "/earnings" };
   if (path === "/deliver") return { text: "Opening Galleries.", href: "/deliver" };
   if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
@@ -330,6 +339,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
       const href = reply.href;
       window.setTimeout(() => {
         if (href === "/dashboard") void navigate({ to: "/dashboard", search: { view: "calendar" } });
+        else if (href === "/publish") void navigate({ to: "/publish" });
         else void navigate({ to: href as "/studio" });
       }, 280);
     }
