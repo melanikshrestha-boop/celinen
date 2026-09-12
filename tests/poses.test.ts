@@ -74,6 +74,6 @@ test("poses desk is a dashboard tool with no OAuth claim", () => {
   expect(route).toContain('createFileRoute("/poses")');
   expect(route).toContain('view: "calendar"');
   expect(workbench).toContain('"/poses"');
-  expect(cal).toContain('placeholder="Pose"');
+  expect(cal).not.toContain('placeholder="Pose"');
   expect(cal).not.toContain("OAuth");
 });
