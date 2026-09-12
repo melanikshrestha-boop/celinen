@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUp,
@@ -32,8 +32,8 @@ import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
 import { destinationPathFor } from "@/lib/workspace-routing";
 import { buildSocialPost, isPostIntent, writeSocialDraft } from "@/lib/social-post";
-import { listRecentShoots, shootHref, type RecentShoot } from "@/lib/studio/shoot-directory";
 import { DashboardContext } from "./context";
+import { IosCalendar } from "./IosCalendar";
 import "./dashboard.css";
 import "./social-accounts.css";
 
@@ -123,14 +123,6 @@ function replyFor(text: string) {
   return { text: "Say send a gallery, check earnings, or open Pick to keep frames.", href: null };
 }
 
-function monthCells(year: number, month: number) {
-  const first = new Date(year, month, 1).getDay();
-  const days = new Date(year, month + 1, 0).getDate();
-  return Array.from({ length: first + days }, (_, index) =>
-    index < first ? null : index - first + 1,
-  );
-}
-
 export function AppDashboard({ children }: { children?: ReactNode }) {
   const account = useAccount();
   const navigate = useNavigate();
@@ -139,7 +131,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const calendarOpen =
     new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("view") ===
     "calendar";
-  const [shoots, setShoots] = useState<RecentShoot[]>([]);
   type RailMode = "open" | "mini";
   const [rail, setRailMode] = useState<RailMode>(() => {
     try {
@@ -251,21 +242,10 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     if (!scope) return;
-    let alive = true;
     const rows = readThreads(scope);
     setThreads(rows);
     // Home lands on the Ocoya generate pane, not the last ChatGPT-style thread.
     setActiveId(null);
-    void listRecentShoots(scope)
-      .then((rows) => {
-        if (alive) setShoots(rows);
-      })
-      .catch(() => {
-        if (alive) setShoots([]);
-      });
-    return () => {
-      alive = false;
-    };
   }, [scope]);
 
   const active = threads.find((thread) => thread.id === activeId) ?? null;
@@ -347,20 +327,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
       }, 280);
     }
   }
-
-  const now = useMemo(() => new Date(), []);
-  const cells = monthCells(now.getFullYear(), now.getMonth());
-  const byDay = useMemo(() => {
-    const map = new Map<number, RecentShoot[]>();
-    for (const shoot of shoots) {
-      const at = new Date(shoot.updatedAt);
-      if (at.getMonth() !== now.getMonth() || at.getFullYear() !== now.getFullYear()) continue;
-      const list = map.get(at.getDate()) ?? [];
-      list.push(shoot);
-      map.set(at.getDate(), list);
-    }
-    return map;
-  }, [shoots, now]);
 
   const shown = shownWidth();
   const visual = liveWidth == null ? rail : widthToMode(liveWidth);
@@ -497,29 +463,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         ) : children ? (
           children
         ) : calendarOpen ? (
-          <section className="celinen-dash__cal" aria-label="Calendar">
-            <h1>{now.toLocaleString("en-US", { month: "long", year: "numeric" })}</h1>
-            <div className="celinen-dash__cal-week">
-              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-                <span key={day}>{day}</span>
-              ))}
-            </div>
-            <div className="celinen-dash__cal-grid">
-              {cells.map((day, index) => {
-                const rows = day ? byDay.get(day) : undefined;
-                return (
-                  <div key={index} className={day ? "celinen-dash__cal-day" : undefined}>
-                    {day ? <span>{day}</span> : null}
-                    {rows?.map((shoot) => (
-                      <a key={shoot.id} href={shootHref(shoot.id)}>
-                        {shoot.title}
-                      </a>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+          <IosCalendar />
         ) : (
           <div
             className={`social-post${active?.messages.length ? " has-thread" : ""}`}
