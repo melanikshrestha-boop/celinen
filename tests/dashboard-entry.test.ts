@@ -120,6 +120,8 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain("html.dark .celinen-dash");
   expect(css).toContain("background: #000");
   expect(css).toContain("grid-template-columns: var(--rail) minmax(0, 1fr)");
+  expect(css).not.toContain("flex-wrap: wrap");
+  expect(css).not.toMatch(/\.celinen-dash__rail[^{]*\{[^}]*flex-direction:\s*row/);
   expect(css).not.toContain(".celinen-dash.is-closed");
   expect(css).toContain(".celinen-dash__resize");
   expect(css).toContain("cursor: col-resize");
