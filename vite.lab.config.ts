@@ -6,6 +6,8 @@ import { nativeReferencePlugin } from "./src/server/native-reference";
 import { nativeCropPlugin } from "./src/server/native-crop";
 import { nativeObjectRemovePlugin } from "./src/server/native-object-remove";
 import { nativeReceiptPlugin } from "./src/server/native-receipt";
+import { nativeGalleryPlugin } from "./src/server/native-gallery";
+import { nativeSettingsPlugin } from "./src/server/native-settings";
 
 // Deliberately separate from vite.config.ts: production never gets a local identity.
 export default defineConfig({
@@ -18,6 +20,8 @@ export default defineConfig({
       nativeCropPlugin(),
       nativeObjectRemovePlugin(),
       nativeReceiptPlugin(),
+      nativeGalleryPlugin(),
+      nativeSettingsPlugin(),
     ],
   },
   tanstackStart: { server: { entry: "server" } },

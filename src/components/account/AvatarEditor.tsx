@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { accountInitials } from "@/lib/account-preferences";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { decodeAvatarSource, encodeAvatarCrop } from "@/lib/avatar-image";
-import { AVATAR_METADATA_LIMIT } from "@/lib/account-profile";
+import { AVATAR_LOCAL_LIMIT } from "@/lib/account-avatar";
 
 export function AvatarEditor({
   value,
@@ -10,7 +10,7 @@ export function AvatarEditor({
   onChange,
   disabled,
   kind = "avatar",
-  maxBytes = AVATAR_METADATA_LIMIT,
+  maxBytes = AVATAR_LOCAL_LIMIT,
 }: {
   value: string;
   name: string;
@@ -29,6 +29,7 @@ export function AvatarEditor({
   const bitmap = useRef<ImageBitmap | null>(null);
   const generation = useRef(0);
   const picker = useRef<HTMLInputElement>(null);
+  const applied = useRef(false);
   const cropSize = kind === "avatar" ? 512 : 128;
   useToolLeaveGuard(source || loading ? `Your ${kind} crop has not been applied.` : null);
   useEffect(
@@ -56,7 +57,16 @@ export function AvatarEditor({
       cropSize,
       cropSize,
     );
-  }, [source, zoom, x, y, cropSize]);
+    if (!applied.current) {
+      applied.current = true;
+      try {
+        onChange(encodeAvatarCrop(canvas.current, maxBytes));
+        setError("");
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Could not prepare the crop.");
+      }
+    }
+  }, [source, zoom, x, y, cropSize, maxBytes, onChange]);
   const clearSource = () => {
     bitmap.current?.close();
     bitmap.current = null;
@@ -110,6 +120,7 @@ export function AvatarEditor({
                 return;
               }
               clearSource();
+              applied.current = false;
               bitmap.current = next;
               setSource(next);
               setZoom(1);

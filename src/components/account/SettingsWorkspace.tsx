@@ -65,6 +65,13 @@ import {
   importLanes,
 } from "@/lib/settings-transfer";
 import { nativeEngineStatus, NATIVE_REQUEST_POLICY } from "@/lib/studio/native-client";
+import {
+  decodeSettingsUsage,
+  encodeSettingsUsage,
+  formatUsageBytes,
+  tallySettingsUsageLocal,
+  type SettingsUsageResult,
+} from "@/lib/settings-usage";
 import { findSpeechVoice } from "@/lib/speech-voice";
 import { notifyResponseReady } from "@/lib/workspace-notifications";
 import { AppearanceSettings } from "./AppearanceSettings";
@@ -401,9 +408,7 @@ export function SettingsWorkspace({
                 title="Default terminal location"
                 note="No shell or terminal sessions run in this browser workspace."
               >
-                <button className="settings-button" disabled>
-                  Bottom / Right
-                </button>
+                <span className="settings-capability">Not connected</span>
               </Row>
               <Row
                 title="Prevent sleep while running"
@@ -459,9 +464,7 @@ export function SettingsWorkspace({
                 title="Follow-up messages"
                 note="Mid-task steering and a queued follow-up dispatcher are not implemented. Send again after the current response settles."
               >
-                <button className="settings-button" disabled>
-                  After completion
-                </button>
+                <span className="settings-capability">After completion</span>
               </Row>
             </Group>
             <NotificationSettings prefs={prefs} save={save} />
@@ -532,6 +535,7 @@ export function SettingsWorkspace({
       case "usage":
         return (
           <>
+            <UsageTally />
             <Group title="Plan">
               <Row
                 title="Account billing"
@@ -657,9 +661,7 @@ export function SettingsWorkspace({
               title="Sources and retention"
               note="No activity sources are enabled and no activity summaries are stored. There is nothing to pause, export or delete."
             >
-              <button className="settings-button" disabled>
-                Manage sources
-              </button>
+              <span className="settings-capability">None</span>
             </Row>
           </Group>
         );
@@ -690,16 +692,14 @@ export function SettingsWorkspace({
               title="Plugin runtime"
               note="No installable plugin execution layer is connected to this browser application. Provider connections are managed separately."
             >
-              <button className="settings-button" disabled>
-                Install plugin
-              </button>
+              <span className="settings-capability">Not connected</span>
             </Row>
             <Row
               title="Discover"
-              note="No verified plugin registry is configured. LensLabs does not invent publishers, versions or installation status."
+              note="Open Connections for Gmail, search, Adobe and portfolio links. No plugin store."
             >
-              <button className="settings-button" disabled>
-                Browse plugins
+              <button className="settings-button" onClick={() => pick("connections")}>
+                Connections
               </button>
             </Row>
           </Group>
@@ -744,17 +744,13 @@ export function SettingsWorkspace({
               title="Event-triggered hooks"
               note="No controlled hook dispatcher is installed. Settings files cannot register commands, enable publishing or send webhooks. Manual delivery and publishing remain separate reviewed actions."
             >
-              <button className="settings-button" disabled>
-                Create hook
-              </button>
+              <span className="settings-capability">Not connected</span>
             </Row>
             <Row
               title="Execution and logs"
               note="No shell execution environment, hook history or external side effects are configured."
             >
-              <button className="settings-button" disabled>
-                Dry run
-              </button>
+              <span className="settings-capability">Not connected</span>
             </Row>
           </Group>
         );
@@ -765,17 +761,13 @@ export function SettingsWorkspace({
               title="Git repository"
               note="No authorized Git execution environment is connected to LensLabs. A photo’s edit history is not a Git repository. This page cannot inspect branches, stage, commit, merge or push."
             >
-              <button className="settings-button" disabled>
-                Connect repository
-              </button>
+              <span className="settings-capability">Not connected</span>
             </Row>
             <Row
               title="Inline or detached review"
               note="Git diff review modes require a repository runtime and are not implemented here."
             >
-              <button className="settings-button" disabled>
-                Inline / Detached
-              </button>
+              <span className="settings-capability">Not connected</span>
             </Row>
           </Group>
         );
@@ -788,9 +780,7 @@ export function SettingsWorkspace({
               title="Git worktrees"
               note="A worktree is a separate checkout attached to one Git repository, not a duplicated photo project. Creating, inspecting or removing one requires an authorized Git runtime; none is connected."
             >
-              <button className="settings-button" disabled>
-                Create worktree
-              </button>
+              <span className="settings-capability">Not connected</span>
             </Row>
             <Row
               title="Active tasks and uncommitted changes"
@@ -939,6 +929,61 @@ export function SettingsWorkspace({
   );
 }
 
+function UsageTally() {
+  const [engine, setEngine] = useState("Checking…");
+  const [tally, setTally] = useState<SettingsUsageResult | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const photos: { bytes: number; kept: boolean }[] = [];
+    void (async () => {
+      try {
+        const status = await fetch("/__settings/usage/status", { cache: "no-store" });
+        const body = status.ok ? ((await status.json()) as { ready?: boolean }) : null;
+        const packet = encodeSettingsUsage(photos);
+        if (body?.ready) {
+          const response = await fetch("/__settings/usage", {
+            method: "POST",
+            body: packet,
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error("Settings tally failed.");
+          const result = decodeSettingsUsage(new Uint8Array(await response.arrayBuffer()));
+          if (alive) {
+            setEngine("C++ engine");
+            setTally(result);
+          }
+          return;
+        }
+        if (alive) {
+          setEngine("Browser tally");
+          setTally(tallySettingsUsageLocal(photos));
+        }
+      } catch {
+        if (alive) {
+          setEngine("Browser tally");
+          setTally(tallySettingsUsageLocal(photos));
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <Group title="This browser">
+      <Row title="Usage engine">
+        <span className="settings-capability">{engine}</span>
+      </Row>
+      <Row title="Photos tallied">
+        <span className="settings-capability">
+          {tally
+            ? `${tally.photos} · ${tally.kept} kept · ${formatUsageBytes(tally.totalBytes)}`
+            : "…"}
+        </span>
+      </Row>
+    </Group>
+  );
+}
 function WakeStatus() {
   const [status, setStatus] = useState("Not requested");
   useEffect(() => {

@@ -25,7 +25,7 @@ export function PetSettings({
   );
   return (
     <>
-      <Group title="Your companion">
+      <Group title="We'll design more">
         <Row
           title="Show pet"
           note="An optional in-app companion. It does not report task progress or operate outside LensLabs."

@@ -13,6 +13,7 @@ import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { verifiedSessionReceiver } from "@/lib/account-access";
 import { profileInputSchema, readAccountProfile, type ProfileInput } from "@/lib/account-profile";
+import { avatarStorageKey, readLocalAvatar, writeLocalAvatar } from "@/lib/account-avatar";
 import type { PhotographerWorkRole } from "@/lib/photographer-work-roles";
 import { applyAppearance } from "@/lib/appearance";
 import {
@@ -42,6 +43,7 @@ type Account = {
   preferences: AccountPreferences;
   saveName: (name: string) => Promise<void>;
   saveProfile: (profile: ProfileInput) => Promise<void>;
+  saveAvatar: (avatar: string) => Promise<void>;
   savePreferences: (patch: Partial<AccountPreferences>) => void;
   signOut: () => Promise<boolean>;
   registerLeaveGuard: (guard: () => Promise<boolean>) => () => void;
@@ -57,6 +59,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<AccountPreferences>(DEFAULT_PREFERENCES);
+  const [localAvatar, setLocalAvatar] = useState<string | undefined>(undefined);
   const guards = useRef(new Set<() => Promise<boolean>>());
   const signingOut = useRef(false);
   const identityEpoch = useRef(0);
@@ -162,6 +165,19 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", changed);
   }, [scope]);
   useEffect(() => {
+    if (!scope) {
+      setLocalAvatar(undefined);
+      return;
+    }
+    const read = () => setLocalAvatar(readLocalAvatar(scope));
+    read();
+    const changed = (event: StorageEvent) => {
+      if (event.key === null || event.key === avatarStorageKey(scope)) read();
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [scope]);
+  useEffect(() => {
     if (!scope) return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
@@ -262,11 +278,23 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         );
       confirmedProfile.current = { owner: scope, metadata };
       profileEpoch.current++;
+      if (profile.avatar !== undefined) {
+        writeLocalAvatar(scope, profile.avatar);
+        setLocalAvatar(profile.avatar);
+      }
       setUser((current) =>
         current?.id === scope
           ? { ...current, user_metadata: { ...current.user_metadata, ...metadata } }
           : current,
       );
+    },
+    [scope],
+  );
+  const saveAvatar = useCallback(
+    async (avatar: string) => {
+      if (!scope) throw new Error("Sign in first.");
+      writeLocalAvatar(scope, avatar);
+      setLocalAvatar(avatar);
     },
     [scope],
   );
@@ -278,10 +306,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       local: false,
       name: accountName(user?.user_metadata, user?.email),
       ...readAccountProfile(user?.user_metadata),
+      avatar:
+        localAvatar !== undefined
+          ? localAvatar || undefined
+          : readAccountProfile(user?.user_metadata).avatar,
       error,
       preferences,
       saveName,
       saveProfile,
+      saveAvatar,
       savePreferences,
       signOut,
       registerLeaveGuard,
@@ -292,8 +325,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       user,
       error,
       preferences,
+      localAvatar,
       saveName,
       saveProfile,
+      saveAvatar,
       savePreferences,
       signOut,
       registerLeaveGuard,

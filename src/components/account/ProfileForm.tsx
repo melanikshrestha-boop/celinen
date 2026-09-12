@@ -144,6 +144,16 @@ export function ProfileForm({
           onChange={(value) => {
             setAvatar(value);
             setSaved(false);
+            void account
+              .saveAvatar(value)
+              .then(() => {
+                const previous = JSON.parse(baseline.current) as { avatar: string };
+                baseline.current = JSON.stringify({ ...previous, avatar: value });
+                setSaved(true);
+              })
+              .catch((reason: unknown) =>
+                setError(reason instanceof Error ? reason.message : "Could not save the photo."),
+              );
           }}
         />
       )}

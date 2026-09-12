@@ -13,7 +13,7 @@ PIPELINE = $(BUILD_DIR)/pipeline.o
 WORKER = $(BUILD_DIR)/worker.o
 
 .PHONY: all test sanitize
-all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-people $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop $(BUILD_DIR)/lenslabs-reference $(BUILD_DIR)/lenslabs-crop-suggest $(BUILD_DIR)/lenslabs-object-remove $(BUILD_DIR)/lenslabs-receipt $(BUILD_DIR)/lenslabs-gallery
+all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-people $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop $(BUILD_DIR)/lenslabs-reference $(BUILD_DIR)/lenslabs-crop-suggest $(BUILD_DIR)/lenslabs-object-remove $(BUILD_DIR)/lenslabs-receipt $(BUILD_DIR)/lenslabs-gallery $(BUILD_DIR)/lenslabs-settings
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -102,10 +102,18 @@ $(BUILD_DIR)/lenslabs-gallery: $(BUILD_DIR)/gallery_main.o $(BUILD_DIR)/gallery.
 $(BUILD_DIR)/gallery-tests: tests/gallery_tests.cpp $(BUILD_DIR)/gallery.o include/lenslabs/gallery.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/gallery.o -o $@
 
+$(BUILD_DIR)/settings.o $(BUILD_DIR)/settings_main.o: include/lenslabs/settings.hpp
+
+$(BUILD_DIR)/lenslabs-settings: $(BUILD_DIR)/settings_main.o $(BUILD_DIR)/settings.o
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(BUILD_DIR)/settings-tests: tests/settings_tests.cpp $(BUILD_DIR)/settings.o include/lenslabs/settings.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/settings.o -o $@
+
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
@@ -118,6 +126,7 @@ test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-t
 	$(BUILD_DIR)/crop-suggest-tests
 	$(BUILD_DIR)/receipt-tests
 	$(BUILD_DIR)/gallery-tests
+	$(BUILD_DIR)/settings-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test

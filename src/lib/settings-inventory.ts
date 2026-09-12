@@ -123,7 +123,7 @@ const controls: Control[] = [
     "pets",
     "action",
     ["Reset companion position", "Companion image"],
-    "Reset the corner or explicitly save a cropped local JPEG image",
+    "Reset the corner or explicitly save a cropped local JPEG image. We'll design more.",
   ),
   ...rows(
     "general",
@@ -327,8 +327,8 @@ const controls: Control[] = [
   ...rows(
     "usage",
     "status",
-    ["Account billing", "Browser storage"],
-    "Actual browser storage estimate, not a cloud billing balance",
+    ["Account billing", "Browser storage", "Usage engine", "Photos tallied"],
+    "C++ SETT/SRES tally plus actual browser storage estimate, not a cloud billing balance",
   ),
   ...rows(
     "analytics",
@@ -377,8 +377,14 @@ const controls: Control[] = [
   ...rows(
     "plugins",
     "unavailable",
-    ["Plugin runtime", "Discover"],
+    ["Plugin runtime"],
     "No installable plugin executor or verified registry",
+  ),
+  ...rows(
+    "plugins",
+    "action",
+    ["Discover"],
+    "Opens Connections for real provider screens; no plugin store",
   ),
   ...rows(
     "browser",

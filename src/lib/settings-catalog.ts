@@ -45,7 +45,12 @@ export const SETTINGS_SECTIONS = [
     terms:
       "custom instructions personality friendly concise assistant learn photos edits style training",
   },
-  { id: "pets", label: "Pets", group: "Personal", terms: "show hide cat dog companion" },
+  {
+    id: "pets",
+    label: "Pets",
+    group: "Personal",
+    terms: "show hide cat dog companion we'll design more",
+  },
   {
     id: "shortcuts",
     label: "Keyboard shortcuts",

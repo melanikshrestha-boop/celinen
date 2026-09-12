@@ -7,6 +7,7 @@ import {
   readPreferences,
 } from "../lib/account-preferences";
 import { profileInputSchema, type ProfileInput } from "../lib/account-profile";
+import { avatarStorageKey, readLocalAvatar, writeLocalAvatar } from "../lib/account-avatar";
 import { applyAppearance } from "../lib/appearance";
 import type { useAccount as realUseAccount } from "../components/account/AccountProvider";
 
@@ -47,10 +48,15 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         const parsed = profileInputSchema.safeParse(
           JSON.parse(localStorage.getItem(profileKey) ?? "null"),
         );
-        setProfile(
+        const parsedProfile =
           parsed.success && parsed.data.name !== "Development workspace"
             ? parsed.data
-            : initialProfile,
+            : initialProfile;
+        const overlay = readLocalAvatar(scope);
+        setProfile(
+          overlay !== undefined
+            ? { ...parsedProfile, avatar: overlay || undefined }
+            : parsedProfile,
         );
         setPreferences(readPreferences(localStorage.getItem(preferenceKey(scope))));
         setError(null);
@@ -61,7 +67,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     read();
     setReady(true);
     const changed = (event: StorageEvent) => {
-      if (!event.key || [profileKey, preferenceKey(scope)].includes(event.key)) read();
+      if (!event.key || [profileKey, preferenceKey(scope), avatarStorageKey(scope)].includes(event.key))
+        read();
     };
     window.addEventListener("storage", changed);
     return () => window.removeEventListener("storage", changed);
@@ -92,9 +99,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     saveProfile: async (value) => {
       const next = profileInputSchema.parse(value);
       localStorage.setItem(profileKey, JSON.stringify(next));
+      if (next.avatar !== undefined) writeLocalAvatar(scope, next.avatar);
       setProfile(next);
       sessionStorage.removeItem(labOnboardKey);
       setOnboard(false);
+    },
+    saveAvatar: async (avatar) => {
+      const next = profileInputSchema.parse({ ...profile, avatar });
+      localStorage.setItem(profileKey, JSON.stringify(next));
+      writeLocalAvatar(scope, avatar);
+      setProfile(next);
     },
     savePreferences: (patch) => {
       const next = mergePreferencePatch(
