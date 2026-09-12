@@ -202,13 +202,15 @@ export function IosCalendar() {
       style={{ ["--ios-red" as string]: state.accent }}
     >
       <div className="celinen-ios-cal__bar">
-        <button type="button" aria-label="Previous" onClick={() => step(-1)}>
-          <ChevronLeft size={18} strokeWidth={1.75} />
-        </button>
-        <h1>{title}</h1>
-        <button type="button" aria-label="Next" onClick={() => step(1)}>
-          <ChevronRight size={18} strokeWidth={1.75} />
-        </button>
+        <div className="celinen-ios-cal__title">
+          <button type="button" aria-label="Previous" onClick={() => step(-1)}>
+            <ChevronLeft size={18} strokeWidth={1.75} />
+          </button>
+          <h1>{title}</h1>
+          <button type="button" aria-label="Next" onClick={() => step(1)}>
+            <ChevronRight size={18} strokeWidth={1.75} />
+          </button>
+        </div>
         <div className="celinen-ios-cal__views" role="tablist" aria-label="View">
           {VIEWS.map((item) => (
             <button

@@ -487,10 +487,10 @@ html.dark .celinen-dash__cal {
   color: #ededed;
 }
 .celinen-dash__cal h1 {
-  margin: 0 0 18px;
+  margin: 0;
   font-size: 22px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 .celinen-dash__cal-week,
 .celinen-dash__cal-grid {
