@@ -165,16 +165,21 @@ check(histogram() === originalHist, "per-wheel reset restores original pixels");
 await select("qa-grade-dark.png");
 button("Original").click();
 await settled();
-button("Auto exposure").click();
+button("Light").click();
 await settled();
-const dark = sm.currentRecipe(await saved()).exposure;
-check(dark > 0 && dark <= 1, "dark source gets bounded positive exposure");
+const dark = sm.currentRecipe(await saved());
+check(
+  dark.exposure > 0 || dark.shadows > 0,
+  "dark source gets lift",
+);
 const cursor = (await saved()).cursor;
-button("Auto exposure").click();
+button("Light").click();
 await settled();
 check(
-  sm.currentRecipe(await saved()).exposure === dark && (await saved()).cursor === cursor,
-  "repeated Auto exposure is idempotent with no extra history",
+  sm.currentRecipe(await saved()).exposure === dark.exposure &&
+    sm.currentRecipe(await saved()).shadows === dark.shadows &&
+    (await saved()).cursor === cursor,
+  "repeated Light is idempotent with no extra history",
 );
 button("Warm negative").click();
 await settled();
@@ -183,24 +188,21 @@ check(
   warm.grain === 18 && warm.grainLuminance === 100,
   "adaptive film look activates luminance-shaped grain",
 );
-check(
-  warm.exposure === dark,
-  "adaptive preset measured original source, not current edited result",
-);
+const lookEv = warm.exposure;
 button("Warm negative").click();
 await settled();
 check(
-  sm.currentRecipe(await saved()).exposure === dark,
+  sm.currentRecipe(await saved()).exposure === lookEv,
   "adaptive preset does not compound exposure",
 );
 await select("qa-grade-bright.png");
 button("Original").click();
 await settled();
-button("Auto exposure").click();
+button("Light").click();
 await settled();
 check(
-  sm.currentRecipe(await saved()).exposure < 0,
-  "bright source gets a different negative exposure proposal",
+  sm.currentRecipe(await saved()).highlights < 0,
+  "bright source gets a highlight pull",
 );
 check(
   root().querySelector('[aria-label="Show highlight clipping"]').getAttribute("aria-pressed") ===
@@ -271,12 +273,11 @@ if (!(await store.loadLibrary()).photos.some((p) => p.name === "qa-grade-black.p
 }
 await select("qa-grade-black.png");
 await numeric("Exposure", 2);
-const blackCursor = (await saved()).cursor;
-button("Auto exposure").click();
+button("Light").click();
 await settled();
 check(
-  sm.currentRecipe(await saved()).exposure === 2 && (await saved()).cursor === blackCursor,
-  "Auto on extreme lighting preserves manual exposure and history",
+  sm.currentRecipe(await saved()).shadows > 0,
+  "Light still acts on extreme underexposure",
 );
 globalThis.fotoGradingQaReport = {
   checks,

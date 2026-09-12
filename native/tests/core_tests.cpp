@@ -171,6 +171,23 @@ int main() {
     CHECK(black.hash == white.hash);  // Same hash does not establish duplicate content.
   });
 
+  test("daylight suggestion pulls blown highlights and lifts underexposed faces", [] {
+    const auto white = lenslabs::suggest_light(lenslabs::analyze(uniform(8, 8, {255, 255, 255, 255})));
+    CHECK(white.highlights == -80);
+    CHECK(white.whites == -55);
+    CHECK(near(white.exposure_ev, -0.8));
+    CHECK(white.shadows == 0);
+    const auto black = lenslabs::suggest_light(lenslabs::analyze(uniform(8, 8, {0, 0, 0, 255})));
+    CHECK(black.shadows == 70);
+    CHECK(near(black.exposure_ev, 1.0));
+    CHECK(black.highlights == 0);
+    const auto gray = lenslabs::suggest_light(lenslabs::analyze(uniform(8, 8)));
+    CHECK(gray.highlights == 0 && gray.shadows == 0 && gray.exposure_ev == 0 && gray.whites == 0);
+    const auto noon = lenslabs::suggest_light(lenslabs::analyze(uniform(8, 8, {220, 220, 220, 255})));
+    CHECK(noon.highlights < 0);
+    CHECK(noon.highlights >= -80);
+  });
+
   test("strict clipping boundaries and rounded weighted color histogram", [] {
     auto image = uniform(4, 4);
     const std::array<std::uint8_t, 4> levels{0, 5, 250, 251};

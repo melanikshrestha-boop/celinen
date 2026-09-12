@@ -8,6 +8,7 @@ import {
   toneZoneAt,
   adjustHistogramTone,
   suggestDevelopTone,
+  suggestDevelopLight,
 } from "../src/lib/develop/histogram";
 
 const image = (...colors: number[][]) =>
@@ -140,5 +141,29 @@ describe("Explicit adaptive exposure", () => {
           srgbToLinear(histogramPercentile(h.maximum, 0.995)) * Math.pow(2, a.exposure),
         ).toBeLessThanOrEqual(0.9800001);
     }
+  });
+});
+
+describe("Daylight Light recipe", () => {
+  it("pulls highlights on bright frames instead of refusing", () => {
+    const bright = suggestDevelopLight(analyzeDevelopPixels(image([230, 230, 230])));
+    expect(bright.applicable).toBe(true);
+    expect(bright.highlights).toBeLessThan(0);
+    expect(bright.whites).toBeLessThanOrEqual(0);
+    const blown = suggestDevelopLight(analyzeDevelopPixels(image([255, 255, 255])));
+    expect(blown.applicable).toBe(true);
+    expect(blown.highlights).toBe(-80);
+    expect(blown.exposure).toBeLessThan(0);
+  });
+  it("lifts underexposed frames", () => {
+    const dark = suggestDevelopLight(analyzeDevelopPixels(image([20, 20, 20])));
+    expect(dark.shadows).toBeGreaterThan(0);
+    expect(dark.exposure).toBeGreaterThan(0);
+  });
+  it("leaves a normal-key gray alone", () => {
+    const gray = suggestDevelopLight(analyzeDevelopPixels(image([128, 128, 128])));
+    expect(gray.highlights).toBe(0);
+    expect(gray.shadows).toBe(0);
+    expect(gray.exposure).toBe(0);
   });
 });
