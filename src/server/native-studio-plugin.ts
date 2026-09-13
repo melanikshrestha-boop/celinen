@@ -216,6 +216,58 @@ async function readBounded(req: IncomingMessage, limit: number, signal: AbortSig
 }
 
 /** Validate and frame transport data only; all grouping/ranking is native C++. */
+export function shortlistProtocol(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new NativeBridgeError(400, "Invalid shortlist request.");
+  const request = value as Record<string, unknown>;
+  const target = request["targetCount"],
+    frames = request["frames"];
+  if (
+    typeof target !== "number" ||
+    !Number.isInteger(target) ||
+    target < 1 ||
+    target > 100000 ||
+    !Array.isArray(frames) ||
+    frames.length > 100000
+  )
+    throw new NativeBridgeError(
+      400,
+      "Shortlist needs a target from 1 to 100000 and at most 100000 frames.",
+    );
+  const masks = frames.map((value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new NativeBridgeError(400, "Invalid shortlist frame.");
+    const frame = value as Record<string, unknown>;
+    for (const key of ["analysisAvailable", "sourceAvailable", "manualReview"])
+      if (typeof frame[key] !== "boolean")
+        throw new NativeBridgeError(400, "Shortlist eligibility must be explicit.");
+    const flags = frame["flags"];
+    if (
+      !Array.isArray(flags) ||
+      flags.length > 64 ||
+      flags.some((flag) => typeof flag !== "string" || flag.length > 80)
+    )
+      throw new NativeBridgeError(400, "Invalid shortlist flags.");
+    if (
+      frame["error"] !== undefined &&
+      (typeof frame["error"] !== "string" || frame["error"].length > 4096)
+    )
+      throw new NativeBridgeError(400, "Invalid shortlist error.");
+    // Unknown flags remain uncertain; only underexposure alone is exempt.
+    const review = flags.some((flag: string) => flag !== "underexposed");
+    return (
+      (frame["analysisAvailable"] ? 1 : 0) |
+      (frame["sourceAvailable"] ? 2 : 0) |
+      (frame["error"] ? 4 : 0) |
+      (frame["manualReview"] ? 8 : 0) |
+      (review ? 16 : 0) |
+      (flags.includes("underexposed") ? 32 : 0)
+    );
+  });
+  const rows = burstProtocol({ frames, sceneNavigation: true });
+  return `LENSSHORTLIST1 ${target} ${frames.length}\n${masks.map((mask) => `${mask}\n`).join("")}${rows}`;
+}
+
 export function burstProtocol(value: unknown): string {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new NativeBridgeError(400, "Invalid burst request.");
@@ -453,6 +505,7 @@ export function nativeStudioPlugin(): Plugin {
     configureServer(server) {
       const binary = resolve(server.config.root, "native/build/lenslabs-native");
       const burstBinary = resolve(server.config.root, "native/build/lenslabs-bursts");
+      const shortlistBinary = resolve(server.config.root, "native/build/lenslabs-shortlist");
       const peopleBinary = resolve(server.config.root, "native/build/lenslabs-people");
       const socialBinary = resolve(server.config.root, "native/build/lenslabs-social");
       const token = randomBytes(32).toString("hex");
@@ -579,7 +632,7 @@ export function nativeStudioPlugin(): Plugin {
             }
             return;
           }
-          if (route === "/__native/bursts") {
+          if (route === "/__native/bursts" || route === "/__native/shortlist") {
             if (req.headers["content-type"] !== "application/json")
               throw new NativeBridgeError(415, "JSON receipts required.");
             if (burstBusy)
@@ -596,7 +649,11 @@ export function nativeStudioPlugin(): Plugin {
               } catch {
                 throw new NativeBridgeError(400, "Invalid JSON receipts.");
               }
-              const output = await runBursts(burstBinary, burstProtocol(parsed), signal);
+              const output = await runBursts(
+                route === "/__native/shortlist" ? shortlistBinary : burstBinary,
+                route === "/__native/shortlist" ? shortlistProtocol(parsed) : burstProtocol(parsed),
+                signal,
+              );
               if (signal.aborted) throw abortError();
               res.writeHead(200, {
                 "Content-Type": "application/json",

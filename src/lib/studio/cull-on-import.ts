@@ -37,6 +37,57 @@ export function isImportAnalyzed(shot: Pick<Shot, "error" | "hash" | "score">): 
   );
 }
 
+/** An asynchronous receipt belongs to this exact original and canonical owner only. */
+export function sameImportAnalysisSource(before: Shot, current: Shot | undefined): boolean {
+  return Boolean(
+    current &&
+    before.id === current.id &&
+    before.file === current.file &&
+    current.file?.size &&
+    current.sourceAvailable !== false &&
+    (before.sourceDigest ?? null) === (current.sourceDigest ?? null) &&
+    before.develop?.canonical?.namespace === current.develop?.canonical?.namespace &&
+    before.develop?.canonical?.photoId === current.develop?.canonical?.photoId,
+  );
+}
+
+/** Only newly admitted IDs may acquire automatic verdicts, never a restored catalog. */
+export function admitImportCull(
+  pending: Map<string, Shot>,
+  frames: readonly Shot[],
+  newIds: readonly string[],
+): void {
+  const ids = new Set(newIds);
+  for (const frame of frames) {
+    if (
+      ids.has(frame.id) &&
+      !pending.has(frame.id) &&
+      frame.verdict === "undecided" &&
+      sameImportAnalysisSource(frame, frame)
+    )
+      pending.set(frame.id, frame);
+  }
+}
+
+/** Consume ready admissions once; stale sources and newer K/X decisions cannot re-enter. */
+export function takeImportCullIds(
+  pending: Map<string, Shot>,
+  frames: readonly Shot[],
+): Set<string> {
+  const current = new Map(frames.map((frame) => [frame.id, frame]));
+  const ids = new Set<string>();
+  for (const [id, admitted] of pending) {
+    const frame = current.get(id);
+    if (!sameImportAnalysisSource(admitted, frame) || frame?.verdict !== "undecided") {
+      pending.delete(id);
+    } else if (isImportAnalyzed(frame)) {
+      ids.add(id);
+      pending.delete(id);
+    }
+  }
+  return ids;
+}
+
 /** Map a local analysis receipt onto a shot. Never changes keep/reject or the File handle. */
 export function attachImportAnalysis(shot: Shot, result: ImportAnalysisReceipt): Shot {
   const { score, flags } = scoreOf(result.analysis);

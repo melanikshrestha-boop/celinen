@@ -1,7 +1,8 @@
 /* Guarded async browser-eval helper; no UI clicks or photo mutations.
  * Set fotoSceneProofPhase to "observe", "capture", "arm", "verify", or "restore".
  * Observe first, then Refresh set preview in the UI to capture new blob URLs.
- * Capture twice after selecting Prepared JPEG 0 then 1 through the actual UI.
+ * Capture each Prepared JPEG through the actual UI. Defaults to two seeded keepers;
+ * fotoSceneProofMode="shortlist-deadline" checks one photo from the approved shortlist.
  * Arm, click the real Download button, then verify. Interception calls the original
  * anchor click and restores itself after capturing one ZIP (or after 60 seconds).
  */
@@ -12,8 +13,16 @@ const shoot = url.searchParams.get("shoot") ?? location.pathname.match(/\/shoots
 const seed = JSON.parse(sessionStorage.getItem(`foto:qa:scene-seed:${shoot}`) || "null");
 if (!seed || seed.shoot !== shoot || !/^[0-9a-f-]{36}$/.test(shoot ?? ""))
   throw new Error("A saved fresh scene-QA seed is required.");
-const expectedIds = seed.entries.filter((item) => item.keeper).map((item) => item.id);
-if (expectedIds.length !== 2) throw new Error("Exactly two seeded keepers required.");
+const deadlineMode = globalThis.fotoSceneProofMode === "shortlist-deadline";
+const shortlist = deadlineMode
+  ? JSON.parse(sessionStorage.getItem(`foto:qa:shortlist:${shoot}`) ?? "null")
+  : null;
+if (deadlineMode && (shortlist?.expected?.targetCount !== 3 || shortlist.expected.selectedIds.length !== 3))
+  throw new Error("Prepared three-photo shortlist fixture required for the one-photo deadline proof.");
+const expectedIds = deadlineMode
+  ? shortlist.expected.selectedIds.slice(0, 1)
+  : seed.entries.filter((item) => item.keeper).map((item) => item.id);
+if (expectedIds.length !== (deadlineMode ? 1 : 2)) throw new Error("Exact QA keeper set required.");
 const state = (globalThis.fotoSceneExportProof ??= { shoot, captures: {}, checks: [] });
 if (state.shoot !== shoot) throw new Error("Proof capture belongs to another QA shoot.");
 const phase = globalThis.fotoSceneProofPhase ?? "capture";
@@ -46,7 +55,7 @@ try {
       JSON.stringify(expectedIds),
   );
   check(
-    "both seeded keeper decisions remain saved",
+    "expected keeper decisions remain saved",
     expectedIds.every((id) => saved.documents[id]?.metadata.flag === "pick"),
   );
 } finally {
@@ -77,7 +86,7 @@ if (phase === "observe") {
   return {
     phase,
     instruction:
-      "Refresh set preview, select Prepared JPEG 0 then 1 and capture each. Observer expires after five minutes.",
+      `Refresh set preview and capture each of the ${expectedIds.length} Prepared JPEG options. Observer expires after five minutes.`,
   };
 }
 if (phase === "capture") {
@@ -88,7 +97,7 @@ if (phase === "capture") {
     throw new Error("Prepared native JPEG preview is not ready.");
   const index = Number(select.value);
   const option = select.selectedOptions[0];
-  check("valid prepared JPEG index", index === 0 || index === 1);
+  check("valid prepared JPEG index", Number.isInteger(index) && index >= 0 && index < expectedIds.length);
   const filename = option.textContent.replace(/^\d+\.\s*/, "").trim();
   const currentUrl = image.currentSrc || image.src;
   if (!currentUrl.startsWith("blob:")) throw new Error("Expected an actual native proof blob URL.");
@@ -109,8 +118,8 @@ if (phase === "capture") {
   return { phase, capture: state.captures[index], captured: Object.keys(state.captures) };
 }
 if (phase === "arm") {
-  if (!state.captures[0] || !state.captures[1])
-    throw new Error("Capture both displayed native proofs first.");
+  if (expectedIds.some((_, index) => !state.captures[index]))
+    throw new Error("Capture every displayed native proof first.");
   if (state.armed) throw new Error("Already armed; download or restore first.");
   const original = HTMLAnchorElement.prototype.click;
   let timer;
@@ -182,7 +191,7 @@ check(
   "ZIP central directory follows exact entries",
   offset + 4 <= bytes.length && view.getUint32(offset, true) === 0x02014b50,
 );
-check("exactly two ZIP entries", entries.length === 2);
+check("exact requested ZIP entry count", entries.length === expectedIds.length);
 for (let index = 0; index < entries.length; index++) {
   const proof = state.captures[index],
     entry = entries[index];

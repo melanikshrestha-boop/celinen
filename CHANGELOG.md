@@ -6,12 +6,18 @@ All notable LensLabs changes are documented here.
 
 ### Added — local checkpoint, 2026-09-13
 
+- Native requested-count shortlist previews via "shortlist 40 photos", preserving manual keeps/rejects, review holds and unchosen undecided frames. Mechanical quality and uncertain sequence groups are not semantic sports recognition.
+- Existing Shoot actions now opens the current shoot's assistant and its approval controls without replacing the application shell. Closing chat preserves its draft; dialog keyboard events cannot change underlying picks.
+- Reproducible shortlist receipt benchmark and browser approval/reload/deadline ZIP proof: [MVP checkpoint](docs/MVP-SHORTLIST-QA-2026-09-13.md).
 - Bound native decode/analysis staging and reserve decoder lanes before original-body upload. Reuse native previews and report stage timings and actual preview provenance.
 - Persist source-bound mechanical analysis with photo transactions, retain it on reload, and avoid unchanged full-library save work. Preserve review, history and inert pre-reconnect evidence with strict source/revision guards.
 - Review approximate Lightroom XMP global controls, HSL and explicit point curves in the existing preset exchange. Disclose unsupported Adobe settings and apply bounded source-lighting exposure adaptation without replacing crop or masks.
 
 ### Fixed — local checkpoint, 2026-09-13
 
+- Opening an existing shoot no longer auto-keeps restored undecided photos. Import culling is restricted to newly admitted, source-bound frames with a coalesced follow-up for overlapping arrivals.
+- Passive import reports follow the owner's saved journal across tabs and reloads, distinguish unverified activity and do not acquire cancellation authority.
+- Deadline commands respect the requested number of already-kept photos and current scene scope through the exact native export handoff.
 - Open the dashboard photo/folder picker directly and keep jersey/people tools opt-in through the assistant.
 - Preserve native analysis dimensions/provenance when culling saves larger display previews; handle stale import notifications and missing-original reconnection without false save conflicts.
 - Add fail-first persistence, upload admission, cancellation, source binding and preset regressions. See the [checkpoint evidence and remaining requirements](docs/CULLING-PRESET-QA-2026-09-13.md). This is not a claim of trained sports inference, 400 photos/second, complete Adobe compatibility or hosted native deployment.

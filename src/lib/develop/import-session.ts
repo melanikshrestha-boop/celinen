@@ -6,6 +6,7 @@ import { completeDevelopImportIds, runDevelopImport, type DevelopImportProgress 
 import {
   createDevelopStore,
   developAnalysisReceiptSchema,
+  developImportJobSchema,
   readDevelopPhotoAnalysis,
   type DevelopImportJob,
   type DevelopPhotoInput,
@@ -18,6 +19,9 @@ export type DevelopImportSnapshot = Omit<DevelopImportJob, "id" | "version" | "r
   jobId: string | null;
   failures: { fileName: string; message: string }[];
   selectedId: string | null;
+  /** A saved report, not evidence that this tab owns files or that another owner is alive. */
+  observing: boolean;
+  observationError: string | null;
   /** Measured from the original event; these are not decoder-throughput claims. */
   timing: {
     registeredMs: number | null;
@@ -33,7 +37,7 @@ type SessionStore = Pick<
   DevelopStore,
   "loadLibrary" | "addPhotosWithDocuments" | "readImportJob" | "saveImportJob"
 > &
-  Partial<Pick<DevelopStore, "namespace" | "supportsOrderedImports">>;
+  Partial<Pick<DevelopStore, "namespace" | "supportsOrderedImports" | "subscribe">>;
 type ImportSessionDependencies = {
   store: SessionStore;
   preparePreview?: (
@@ -63,6 +67,8 @@ const emptySnapshot = (): DevelopImportSnapshot => ({
   error: null,
   failures: [],
   selectedId: null,
+  observing: false,
+  observationError: null,
   timing: {
     registeredMs: null,
     firstPreviewMs: null,
@@ -75,6 +81,16 @@ const message = (error: unknown) =>
   error instanceof Error ? error.message : "Import could not continue.";
 const terminal = (phase: DevelopImportJob["phase"]) =>
   ["complete", "cancelled", "paused", "interrupted"].includes(phase);
+
+export function developImportSummary(snapshot: DevelopImportSnapshot): string {
+  if (snapshot.observationError) return snapshot.observationError;
+  if (snapshot.observing && !terminal(snapshot.phase))
+    return `Saved import report · ${snapshot.saved} of ${snapshot.found} saved · ${snapshot.failed} failed · ${snapshot.duplicates} duplicates. Activity is unverified; the import may still be running in another tab.`;
+  return (
+    snapshot.error ??
+    `${snapshot.saved} photos saved · ${snapshot.failed} failed · ${snapshot.duplicates} duplicates`
+  );
+}
 
 /** Import evidence only: reuse native embedded previews, never replace full Develop/export proof. */
 export async function prepareDevelopImportPreview(
@@ -176,6 +192,82 @@ export function createDevelopImportSession(
   let admittedJobId: string | null = null;
   let lastSettledOwnedJobId: string | null = null;
   const filesByHandle = new Map<File, number>();
+  let observationGeneration = 0;
+  let observationSuspended = false;
+  let unsubscribeReport: (() => void) | null = null;
+  let reportRead: { generation: number; again: boolean; promise: Promise<void> } | null = null;
+
+  function stopObserving(suspend = false) {
+    observationGeneration++;
+    observationSuspended ||= suspend;
+    unsubscribeReport?.();
+    unsubscribeReport = null;
+    reportRead = null;
+  }
+  function observeReports() {
+    if (observationSuspended || !listeners.size || unsubscribeReport || !store.subscribe) return;
+    unsubscribeReport = store.subscribe((change) => {
+      if (change.kind === "import-job") void refreshReport(true).catch(() => undefined);
+    });
+  }
+  function refreshReport(notification = false): Promise<void> {
+    if (running || controller || observationSuspended) return Promise.resolve();
+    if (reportRead?.generation === observationGeneration) {
+      reportRead.again ||= notification;
+      return reportRead.promise;
+    }
+    const read = { generation: observationGeneration, again: false, promise: Promise.resolve() };
+    const current = () =>
+      read.generation === observationGeneration && !observationSuspended && !running && !controller;
+    read.promise = Promise.resolve()
+      .then(async () => {
+        do {
+          read.again = false;
+          let prior: DevelopImportJob | null;
+          try {
+            const saved = await store.readImportJob();
+            prior = saved === null ? null : developImportJobSchema.parse(saved);
+          } catch (error) {
+            if (!current()) return;
+            if (read.again) continue;
+            state = {
+              ...state,
+              observationError: `Import status could not refresh. The last report and saved photos are unchanged. ${message(error)}`,
+            };
+            publish(true);
+            throw error;
+          }
+          if (!current()) return;
+          if (read.again) continue;
+          if (!prior || prior.revision < revision) return;
+          // A redundant notification must not erase this owner's measured timing.
+          if (!state.observing && prior.id === state.jobId && prior.revision <= revision) {
+            if (state.observationError) {
+              state = { ...state, observationError: null };
+              publish(true);
+            }
+            return;
+          }
+          const { id, version: _version, revision: savedRevision, ...report } = prior;
+          revision = savedRevision;
+          state = {
+            ...emptySnapshot(),
+            ...report,
+            jobId: id,
+            observing: true,
+            failures: report.rows
+              .filter((row) => row.error)
+              .map((row) => ({ fileName: row.path || row.name, message: row.error! })),
+          };
+          publish(true);
+        } while (read.again && current());
+      })
+      .finally(() => {
+        if (reportRead === read) reportRead = null;
+      });
+    reportRead = read;
+    return read.promise;
+  }
 
   function publish(immediate = false) {
     if (!immediate) {
@@ -273,6 +365,11 @@ export function createDevelopImportSession(
   }
   function begin() {
     if (running) throw new Error("An import is already running for this shoot.");
+    // A delayed observer read can never overwrite a newly admitted local owner.
+    observationGeneration++;
+    reportRead = null;
+    observationSuspended = false;
+    observeReports();
     controller = new AbortController();
     admitted = false;
     admittedJobId = null;
@@ -525,8 +622,11 @@ export function createDevelopImportSession(
     getSnapshot: () => published,
     subscribe(listener: () => void) {
       listeners.add(listener);
+      observeReports();
+      void refreshReport().catch(() => undefined);
       return () => {
         listeners.delete(listener);
+        if (!listeners.size) stopObserving();
       };
     },
     startFiles(files: readonly File[]) {
@@ -554,24 +654,17 @@ export function createDevelopImportSession(
       return track(discovery, owner);
     },
     cancel() {
-      controller?.abort();
+      if (!controller) return false;
+      controller.abort();
+      return true;
     },
+    stopObserving: () => stopObserving(true),
     isRunning: () => running !== null,
     whenSettled: () => running ?? Promise.resolve(),
     async restore() {
-      if (running || state.jobId) return;
-      const prior = await store.readImportJob();
-      if (running || state.jobId || !prior) return;
-      state = {
-        ...emptySnapshot(),
-        ...prior,
-        jobId: prior.id,
-        phase: terminal(prior.phase) ? prior.phase : "interrupted",
-        error: terminal(prior.phase)
-          ? prior.error
-          : "Import was interrupted. Saved photos are intact; reselect the folder to continue remaining files.",
-      };
-      publish(true);
+      observationSuspended = false;
+      observeReports();
+      await refreshReport();
     },
   };
 }
@@ -595,5 +688,9 @@ export function getDevelopImportSession(options: DevelopStoreOptions): DevelopIm
 
 /** Called on verified account change, never on route unmount. Saves already committed remain. */
 export function cancelDevelopImportsOutsideScope(scope: string) {
-  for (const [key, session] of sessions) if (JSON.parse(key)[0] !== scope) session.cancel();
+  for (const [key, session] of sessions)
+    if (JSON.parse(key)[0] !== scope) {
+      session.stopObserving?.(); // Existing HMR owners may predate passive report observation.
+      session.cancel();
+    }
 }

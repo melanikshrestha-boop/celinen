@@ -35,7 +35,7 @@ import {
   reconcileDevelopView,
   type DevelopViewBaseline,
 } from "@/lib/develop/cull-view";
-import { getDevelopImportSession } from "@/lib/develop/import-session";
+import { developImportSummary, getDevelopImportSession } from "@/lib/develop/import-session";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { readStudioSessionSnapshot } from "@/lib/studio/session";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
@@ -380,7 +380,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     alive = useRef(true);
   const operationLock = useRef<"import" | "dialog" | null>(null),
     [dialogError, setDialogError] = useState("");
-  const importing = importState.phase === "discovering" || importState.phase === "processing";
+  const importing =
+    !importState.observing &&
+    (importState.phase === "discovering" || importState.phase === "processing");
   const dialogElement = useRef<HTMLElement>(null),
     dialogOpener = useRef<HTMLElement | null>(null);
   const photo = library.photos.find((p) => p.id === selected) ?? null,
@@ -829,11 +831,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }, [repository, importSession]);
   useEffect(() => {
     setImportFailures(importState.failures);
-    if (importState.jobId && !importing)
-      setNotice(
-        importState.error ??
-          `${importState.saved} photos saved · ${importState.failed} failed · ${importState.duplicates} duplicates`,
-      );
+    if ((importState.jobId || importState.observationError) && !importing)
+      setNotice(developImportSummary(importState));
   }, [importState, importing]);
   useEffect(() => {
     if (!ready || !hydration.current.ready || failed.current || pendingRef.current) return;

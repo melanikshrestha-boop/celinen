@@ -1,6 +1,45 @@
 import { describe, expect, test } from "bun:test";
-import { parseStudioWorkflowIntent } from "../src/lib/studio/workflow-intents";
+import {
+  parseStudioWorkflowIntent,
+  selectDeadlineKeepers,
+} from "../src/lib/studio/workflow-intents";
 import { readFileSync } from "node:fs";
+
+describe("deadline keeper scope", () => {
+  const photos = [
+    { id: "rejected", verdict: "reject" },
+    { id: "b", verdict: "keep" },
+    { id: "unreviewed", verdict: "undecided" },
+    { id: "a", verdict: "keep" },
+    { id: "c", verdict: "keep" },
+  ];
+  test("freezes only the requested existing keeper IDs in scope order without changing picks", () => {
+    const input = structuredClone(photos);
+    const selected = selectDeadlineKeepers(input, 2);
+    expect(selected).toMatchObject({ ids: ["b", "a"], requestedCount: 2, availableCount: 3 });
+    expect(selected.note).toContain("picks are unchanged");
+    expect(input).toEqual(photos);
+    input[1]!.id = "later";
+    expect(selected.ids).toEqual(["b", "a"]);
+    expect(Object.isFrozen(selected)).toBe(true);
+    expect(Object.isFrozen(selected.ids)).toBe(true);
+  });
+  test("shortfall includes all available keepers with an explicit count, never fills with nonkeepers", () => {
+    const selected = selectDeadlineKeepers(photos, 20);
+    expect(selected.ids).toEqual(["b", "a", "c"]);
+    expect(selected.note).toContain("Only 3 of 20 requested keepers");
+    expect(selectDeadlineKeepers(photos.slice(0, 1), 20).ids).toEqual([]);
+    expect(selectDeadlineKeepers([], 20).note).toContain("No keepers");
+  });
+  test("direct calls reject invalid counts and ambiguous IDs", () => {
+    for (const count of [0, -1, 201, 2.5, NaN, Infinity])
+      expect(() => selectDeadlineKeepers(photos, count)).toThrow();
+    expect(() => selectDeadlineKeepers([...photos, photos[0]!], 1)).toThrow();
+    expect(() => selectDeadlineKeepers([{ id: " ", verdict: "keep" }], 1)).toThrow();
+    expect(selectDeadlineKeepers(photos, 1).ids).toEqual(["b"]);
+    expect(selectDeadlineKeepers(photos, 200).ids).toHaveLength(3);
+  });
+});
 
 test("people tools are opt-in, with no automatic tagging or face grouping", () => {
   for (const command of [

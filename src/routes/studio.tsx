@@ -32,8 +32,9 @@ import {
   mergeCullLightroomReviews,
   restoreCullReview,
 } from "@/lib/develop/cull-view";
-import { getDevelopImportSession } from "@/lib/develop/import-session";
+import { developImportSummary, getDevelopImportSession } from "@/lib/develop/import-session";
 import { CullChat, type ToolCall, type ImportAttachment } from "@/components/studio/CullChat";
+import { StudioChatDialog } from "@/components/studio/StudioChatDialog";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useProcessingWakeLock } from "@/components/account/WorkspacePreferences";
 import { DEFAULT_PREFERENCES } from "@/lib/account-preferences";
@@ -57,7 +58,8 @@ import {
 import { rememberStudioRuntime, restoreStudioRuntime } from "@/lib/studio/runtime";
 import { StudioSaveBoundary } from "@/lib/studio/save-boundary";
 import { BurstReview } from "@/components/studio/BurstReview";
-import type { StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
+import { selectDeadlineKeepers, type StudioWorkflowIntent } from "@/lib/studio/workflow-intents";
+import { requestShortlist, shortlistRequest, shortlistSummary } from "@/lib/studio/shortlist";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { PRODUCT_NAME } from "@/lib/product";
@@ -67,10 +69,13 @@ import { firstPassVerdict } from "@/lib/studio/first-pass";
 import { smartCullPass } from "@/lib/studio/smart-cull";
 import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
 import {
+  admitImportCull,
   applyImportCull,
   attachImportAnalysis,
   isImportAnalyzed,
   mergePreservedImportAnalysis,
+  sameImportAnalysisSource,
+  takeImportCullIds,
 } from "@/lib/studio/cull-on-import";
 import { createOriginalKeeperZip } from "@/lib/studio/keeper-package";
 import { importedReviewVerdict } from "@/lib/studio/review-metadata";
@@ -466,6 +471,16 @@ export function Studio({
   const mountedRef = useRef(true);
   const undoRef = useRef<UndoCheckpoint[]>([]);
   const runtimeKey = `${studioDatabaseKey(storageScope, shootId)}:${projectId ?? ""}`;
+  const shortlistOwnerRef = useRef(runtimeKey);
+  shortlistOwnerRef.current = runtimeKey;
+  const shortlistAbortRef = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      shortlistAbortRef.current?.abort();
+      shortlistAbortRef.current = null;
+    },
+    [runtimeKey],
+  );
   const [shootTitle, setShootTitle] = useState("");
   useEffect(() => {
     let alive = true;
@@ -486,7 +501,14 @@ export function Studio({
   }, [storageScope, shootId]);
   const importRunRef = useRef(0);
   const importingRef = useRef(false);
-  const importCullRef = useRef({ running: false, token: 0, applied: false });
+  const importCullRef = useRef({
+    running: false,
+    rerun: false,
+    token: 0,
+    pending: new Map<string, Shot>(),
+  });
+  const importCullOwnerRef = useRef(runtimeKey);
+  importCullOwnerRef.current = runtimeKey;
   const importAbortRef = useRef<AbortController | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -495,9 +517,20 @@ export function Studio({
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const [linked, setLinked] = useState(false);
   const [proposal, setProposal] = useState<StudioProposal | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const openQuickChat = workbench?.openQuickChat;
+  const openAssistant = useCallback(() => {
+    if (openQuickChat) void openQuickChat();
+    else setAssistantOpen(true);
+  }, [openQuickChat]);
+  useEffect(() => {
+    if (proposal) openAssistant();
+  }, [proposal, openAssistant]);
   const proposalRef = useRef<StudioProposal | null>(null);
   const recipeRef = useRef<EditRecipe | null>(null);
-  const canonicalOpenRef = useRef<() => Promise<boolean>>(async () => false);
+  const canonicalOpenRef = useRef<(exportShotIds?: readonly string[]) => Promise<boolean>>(
+    async () => false,
+  );
   const canonicalExportRef = useRef<() => Promise<boolean>>(async () => false);
   const [compareBefore, setCompareBefore] = useState(false);
   const [showBefore, setShowBefore] = useState(false);
@@ -608,77 +641,115 @@ export function Studio({
 
   const updateShots = useCallback((updater: (current: Shot[]) => Shot[]) => {
     if (sessionStatusRef.current === "conflicted") return;
+    const before = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
     const next = updater(latestShotsRef.current);
+    for (const shot of next) {
+      const prior = before.get(shot.id);
+      if (prior && (prior.verdict !== shot.verdict || !sameImportAnalysisSource(prior, shot)))
+        importCullRef.current.pending.delete(shot.id);
+    }
     latestShotsRef.current = next;
     setShots(next);
   }, []);
 
-  const runImportCull = useCallback(() => {
-    if (importingRef.current || proposalRef.current) return;
-    if (!canPersistStudioSession(sessionStatusRef.current)) return;
-    if (importCullRef.current.running) return;
-    const token = ++importCullRef.current.token;
-    importCullRef.current.running = true;
-    void (async () => {
-      try {
-        const pending = latestShotsRef.current.filter(
-          (shot) =>
-            unanalyzedIds.current.has(shot.id) &&
-            shot.sourceAvailable !== false &&
-            Boolean(shot.file?.size),
-        );
-        const analyzedIds = new Set<string>();
-        await Promise.all(
-          pending.map(async (shot) => {
-            try {
-              const result = await analyseFile(shot.file);
-              if (token !== importCullRef.current.token) return;
-              unanalyzedIds.current.delete(shot.id);
-              analyzedIds.add(shot.id);
-              updateShots((prev) =>
-                prev.map((entry) =>
-                  entry.id === shot.id ? attachImportAnalysis(entry, result) : entry,
-                ),
-              );
-            } catch {
-              /* Leave unanalyzed; never invent a quality score. */
-            }
-          }),
-        );
-        if (
-          token !== importCullRef.current.token ||
-          !canPersistStudioSession(sessionStatusRef.current) ||
-          proposalRef.current ||
-          importingRef.current
-        )
-          return;
-        const onlyIds = importCullRef.current.applied ? analyzedIds : undefined;
-        if (importCullRef.current.applied && !analyzedIds.size) return;
-        const current = latestShotsRef.current;
-        const result = applyImportCull(current, onlyIds ? { onlyIds } : {});
-        importCullRef.current.applied = true;
-        if (!result.changed) return;
-        undoRef.current.push({
-          selectedId: latestSelectedIdRef.current,
-          frames: current.map((shot) => ({
-            id: shot.id,
-            verdict: shot.verdict,
-            edits: { ...shot.edits },
-          })),
-        });
-        if (undoRef.current.length > 30) undoRef.current.shift();
-        updateShots(() => result.shots);
-        const decided = result.shots.filter(
-          (shot) => shot.verdict !== "undecided" && !shot.error,
-        ).length;
-        setSyncNote(
-          `Cull on import · ${decided} decided · ${result.flagged} near-dupes flagged. Originals were not changed.`,
-        );
-      } finally {
-        if (token === importCullRef.current.token) importCullRef.current.running = false;
+  const runImportCull = useCallback(
+    function run(newIds: readonly string[] = []) {
+      // Register while ingest is active too; a later refresh consumes this exact scope.
+      admitImportCull(importCullRef.current.pending, latestShotsRef.current, newIds);
+      if (!mountedRef.current) return;
+      if (importingRef.current || proposalRef.current) return;
+      if (!canPersistStudioSession(sessionStatusRef.current)) return;
+      if (importCullRef.current.running) {
+        importCullRef.current.rerun = true;
+        return;
       }
-    })();
-  }, [updateShots]);
+      importCullRef.current.rerun = false;
+      const token = ++importCullRef.current.token;
+      const controller = new AbortController();
+      importAbortRef.current = controller;
+      const owner = importCullOwnerRef.current;
+      const active = () =>
+        mountedRef.current &&
+        !controller.signal.aborted &&
+        owner === importCullOwnerRef.current &&
+        token === importCullRef.current.token;
+      importCullRef.current.running = true;
+      void (async () => {
+        try {
+          const pending = latestShotsRef.current.filter(
+            (shot) =>
+              unanalyzedIds.current.has(shot.id) &&
+              shot.sourceAvailable !== false &&
+              Boolean(shot.file?.size),
+          );
+          await Promise.all(
+            pending.map(async (shot) => {
+              try {
+                const result = await analyseFile(shot.file, { signal: controller.signal });
+                if (
+                  !active() ||
+                  !canPersistStudioSession(sessionStatusRef.current) ||
+                  !sameImportAnalysisSource(
+                    shot,
+                    latestShotsRef.current.find((entry) => entry.id === shot.id),
+                  )
+                )
+                  return;
+                unanalyzedIds.current.delete(shot.id);
+                updateShots((prev) =>
+                  prev.map((entry) =>
+                    sameImportAnalysisSource(shot, entry)
+                      ? attachImportAnalysis(entry, result)
+                      : entry,
+                  ),
+                );
+              } catch {
+                /* Leave unanalyzed; never invent a quality score. */
+              }
+            }),
+          );
+          if (
+            !active() ||
+            !canPersistStudioSession(sessionStatusRef.current) ||
+            proposalRef.current ||
+            importingRef.current
+          )
+            return;
+          const current = latestShotsRef.current;
+          const onlyIds = takeImportCullIds(importCullRef.current.pending, current);
+          if (!onlyIds.size) return;
+          const result = applyImportCull(current, { onlyIds });
+          if (!result.changed) return;
+          undoRef.current.push({
+            selectedId: latestSelectedIdRef.current,
+            frames: current.map((shot) => ({
+              id: shot.id,
+              verdict: shot.verdict,
+              edits: { ...shot.edits },
+            })),
+          });
+          if (undoRef.current.length > 30) undoRef.current.shift();
+          updateShots(() => result.shots);
+          const decided = result.shots.filter(
+            (shot) => shot.verdict !== "undecided" && !shot.error,
+          ).length;
+          setSyncNote(
+            `Cull on import · ${decided} decided · ${result.flagged} near-dupes flagged. Originals were not changed.`,
+          );
+        } finally {
+          if (token === importCullRef.current.token) importCullRef.current.running = false;
+          if (importAbortRef.current === controller) importAbortRef.current = null;
+          // Only a new request during this run schedules another pass. A failed
+          // receipt alone cannot create a retry loop or expand the admission set.
+          if (active() && importCullRef.current.rerun) {
+            importCullRef.current.rerun = false;
+            run([]);
+          }
+        }
+      })();
+    },
+    [updateShots],
+  );
 
   const selectShot = useCallback((id: string | null) => {
     if (id !== latestSelectedIdRef.current) {
@@ -949,7 +1020,7 @@ export function Studio({
         setSceneOpen(false);
         hydrationRecoveryRef.current = false;
         selectSessionStatus("ready");
-        runImportCull();
+        runImportCull([]);
         setSyncNote(
           `${session.shots.length} saved frame${session.shots.length === 1 ? "" : "s"} restored · ${session.shots.some((shot) => shot.sourceAvailable === false) ? "reconnect missing originals before high-resolution export." : "original files available on this device."}`,
         );
@@ -1007,17 +1078,16 @@ export function Studio({
   useEffect(() => {
     const update = () => {
       const job = importSession.getSnapshot();
-      const running = job.phase === "discovering" || job.phase === "processing";
+      const running = !job.observing && (job.phase === "discovering" || job.phase === "processing");
       importingRef.current = running;
       setProgress(
         running ? { done: job.saved + job.failed + job.duplicates, total: job.found } : null,
       );
-      setFolderStatus(job.phase === "discovering" ? `Reading folder · ${job.found} photos` : null);
-      if (!running && job.jobId) {
-        setSyncNote(
-          job.error ??
-            `${job.saved} photos saved · ${job.failed} failed · ${job.duplicates} duplicates`,
-        );
+      setFolderStatus(
+        running && job.phase === "discovering" ? `Reading folder · ${job.found} photos` : null,
+      );
+      if (!running && (job.jobId || job.observationError)) {
+        setSyncNote(developImportSummary(job));
         setCatalogSignal((value) => value + 1);
       }
     };
@@ -1106,7 +1176,7 @@ export function Studio({
       updateShots(() => merged);
       selectShot(current.selectedId);
       selectFilter(current.filter);
-      runImportCull();
+      runImportCull(merged.filter((shot) => !old.has(shot.id)).map((shot) => shot.id));
     })()
       .catch((error) => {
         if (error instanceof CullRefreshSuperseded) {
@@ -1186,10 +1256,15 @@ export function Studio({
     const bitmaps = bitmapCache.current;
     const bitmapPromises = bitmapPromisesRef.current;
     const previewUrls = previewUrlsRef.current;
+    const cullRun = importCullRef.current;
     if (resourceCleanupRef.current !== null) clearTimeout(resourceCleanupRef.current);
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      cullRun.token++;
+      cullRun.running = false;
+      cullRun.rerun = false;
+      cullRun.pending.clear();
       if (canPersistStudioSession(sessionStatusRef.current))
         rememberStudioRuntime(runtimeKey, latestShotsRef.current, undoRef.current);
       // Defer disposal one turn so Strict Mode / Fast Refresh can reconnect.
@@ -1275,6 +1350,7 @@ export function Studio({
     }
     const previous = undoRef.current.pop();
     if (!previous) return false;
+    importCullRef.current.pending.clear();
     const restoredShots = restoreCullReview(latestShotsRef.current, previous.frames);
     latestShotsRef.current = restoredShots;
     setShots(restoredShots);
@@ -1547,6 +1623,8 @@ export function Studio({
     (id: string, verdict: Verdict, advance = true) => {
       if (!canPersistStudioSession(sessionStatusRef.current)) return;
       if (!visible.some((shot) => shot.id === id)) return;
+      // U is an explicit decision too, even if the displayed verdict is already U.
+      importCullRef.current.pending.delete(id);
       checkpoint();
       updateShots((prev) => prev.map((s) => (s.id === id ? { ...s, verdict } : s)));
       if (!advance) return;
@@ -1561,6 +1639,7 @@ export function Studio({
     (changes: { id: string; verdict: Verdict }[]) => {
       if (!changes.length || !canPersistStudioSession(sessionStatusRef.current)) return;
       const next = new Map(changes.map((change) => [change.id, change.verdict]));
+      for (const change of changes) importCullRef.current.pending.delete(change.id);
       checkpoint();
       updateShots((prev) =>
         prev.map((shot) => {
@@ -1784,6 +1863,48 @@ export function Studio({
             "Keep suggestions only. Low scores and quality concerns stay undecided for review; no automatic rejection. Existing decisions are protected.",
           );
         }
+        case "propose_shortlist": {
+          if (importingRef.current || folderAbortRef.current)
+            return "failed: Finish or stop ingest before requesting a whole-shoot shortlist. Your current picks stay.";
+          if (proposalRef.current)
+            return "failed: Apply or discard the current proposal first. Your picks stay.";
+          if (!canPersistStudioSession(sessionStatusRef.current))
+            return "failed: Resolve the paused save before requesting a shortlist.";
+          const request = shortlistRequest(currentShots(), num("n") ?? NaN, unanalyzedIds.current);
+          const evidence = JSON.stringify(request);
+          const originals = currentShots().map((shot) => shot.file);
+          const owner = shortlistOwnerRef.current;
+          shortlistAbortRef.current?.abort();
+          const controller = new AbortController();
+          shortlistAbortRef.current = controller;
+          try {
+            const result = await requestShortlist(request, {
+              signal: controller.signal,
+              isCurrent: () =>
+                mountedRef.current &&
+                shortlistOwnerRef.current === owner &&
+                !importingRef.current &&
+                !folderAbortRef.current &&
+                !proposalRef.current &&
+                canPersistStudioSession(sessionStatusRef.current) &&
+                currentShots().every((shot, i) => shot.file === originals[i]) &&
+                JSON.stringify(
+                  shortlistRequest(currentShots(), request.targetCount, unanalyzedIds.current),
+                ) === evidence,
+            });
+            const summary = shortlistSummary(result);
+            if (!result.candidateIds.length) return summary;
+            const candidates = new Set(result.candidateIds);
+            return stageCull(
+              (shot) =>
+                shot.verdict === "undecided" && candidates.has(shot.id) ? "keep" : shot.verdict,
+              `Whole-shoot shortlist · ${result.selectedIds.length} of ${result.targetCount}`,
+              summary,
+            );
+          } finally {
+            if (shortlistAbortRef.current === controller) shortlistAbortRef.current = null;
+          }
+        }
         case "keep_top": {
           if (importingRef.current)
             return "failed: Wait for ingest to finish before ranking the whole shoot. Your current picks are unchanged.";
@@ -1988,10 +2109,9 @@ export function Studio({
       const t = e.target as HTMLElement;
       if (
         e.defaultPrevented ||
-        (workbench &&
-          t?.closest(
-            'summary, details[open], [role="combobox"], [role="listbox"], [role="menu"], [role="dialog"]',
-          ))
+        t?.closest(
+          'dialog, summary, details[open], [role="combobox"], [role="listbox"], [role="menu"], [role="dialog"]',
+        )
       )
         return;
       if (workbench && (!workbench.studioVisible || !t?.closest('[data-workbench-tool="studio"]')))
@@ -2090,12 +2210,19 @@ export function Studio({
   };
 
   const cancelImport = () => {
+    if (importSession.getSnapshot().observing) {
+      setSyncNote(developImportSummary(importSession.getSnapshot()));
+      return;
+    }
     importSession.cancel();
     folderAbortRef.current?.abort();
     folderAbortRef.current = null;
     setFolderStatus(null);
     importRunRef.current++;
     importCullRef.current.token += 1;
+    importCullRef.current.running = false;
+    importCullRef.current.rerun = false;
+    importCullRef.current.pending.clear();
     importAbortRef.current?.abort();
     importAbortRef.current = null;
     importingRef.current = false;
@@ -2147,9 +2274,18 @@ export function Studio({
       setBurstOpen(true);
       return "Opened burst review. Keeping one frame rejects the other unreviewed frames in that burst. Existing picks stay.";
     }
-    if (!latestShotsRef.current.some((shot) => shot.verdict === "keep"))
-      return "Keep the photos you want to deliver first. A deadline export never selects photos for you.";
-    return requestDevelopOutput("deadline keeper exports");
+    const selection = selectDeadlineKeepers(scopedShots, intent.count);
+    if (!selection.ids.length) return selection.note;
+    const note = `${selection.note} Opening Develop for export review. Nothing was downloaded or sent.`;
+    void canonicalOpenRef.current(selection.ids).then((opened) => {
+      if (mountedRef.current)
+        setSyncNote(
+          opened
+            ? `${selection.note} Develop opened for export review. Nothing was downloaded or sent.`
+            : "Deadline export did not open. Resolve the save or source warning and retry; nothing was downloaded or sent.",
+        );
+    });
+    return note;
   };
 
   const shootBrief = useMemo(
@@ -2400,6 +2536,7 @@ export function Studio({
                 </div>
                 {(
                   [
+                    ["Ask celinen", openAssistant, false],
                     ...(workbench && shots.length
                       ? [["Auto-cull shoot", () => autoCull(), Boolean(progress || folderStatus)]]
                       : []),
@@ -2961,7 +3098,11 @@ export function Studio({
             </div>,
             workbench.chatTarget,
           )
-        ) : dashboard ? null : (
+        ) : dashboard ? (
+          <StudioChatDialog open={assistantOpen} onClose={() => setAssistantOpen(false)}>
+            {chat}
+          </StudioChatDialog>
+        ) : (
           <aside
             className="xl:order-1 xl:sticky xl:top-16 xl:h-[calc(100vh-5rem)]"
             aria-label="Photo assistant"

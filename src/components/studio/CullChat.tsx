@@ -706,7 +706,7 @@ function CullChatSession({
             <p>tell it what you want. it culls in the background.</p>
             {(account?.preferences.suggestedPrompts ?? true) &&
               [
-                "cull the shoot and keep the top 40",
+                "shortlist 40 photos",
                 "reject everything blurred or duplicate",
                 "warm the keepers slightly and export",
               ].map((q) => (

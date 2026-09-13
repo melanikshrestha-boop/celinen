@@ -45,7 +45,7 @@ export function nativeEngineStatus(): Promise<NativeStatus | null> {
 }
 
 export async function nativeStudioRequest(
-  path: "/__native/bursts" | "/__native/analyze" | "/__native/people",
+  path: "/__native/bursts" | "/__native/analyze" | "/__native/people" | "/__native/shortlist",
   init: RequestInit,
 ): Promise<Response> {
   const checked = async (response: Response) => {

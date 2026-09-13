@@ -13,6 +13,16 @@ PIPELINE = $(BUILD_DIR)/pipeline.o
 WORKER = $(BUILD_DIR)/worker.o
 
 .PHONY: all test sanitize
+all: $(BUILD_DIR)/lenslabs-shortlist
+test: shortlist-test
+.PHONY: shortlist-test
+shortlist-test: $(BUILD_DIR)/shortlist-tests
+	$(BUILD_DIR)/shortlist-tests
+$(BUILD_DIR)/shortlist.o $(BUILD_DIR)/shortlist_main.o: include/lenslabs/shortlist.hpp
+$(BUILD_DIR)/lenslabs-shortlist: $(BUILD_DIR)/shortlist_main.o $(BUILD_DIR)/shortlist.o $(BUILD_DIR)/bursts.o
+	$(CXX) $(CXXFLAGS) $^ -o $@
+$(BUILD_DIR)/shortlist-tests: tests/shortlist_tests.cpp $(BUILD_DIR)/shortlist.o $(BUILD_DIR)/bursts.o include/lenslabs/shortlist.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/shortlist.o $(BUILD_DIR)/bursts.o -o $@
 all: $(BUILD_DIR)/lenslabs-native $(BUILD_DIR)/lenslabs-bursts $(BUILD_DIR)/lenslabs-people $(BUILD_DIR)/lenslabs-social $(BUILD_DIR)/lenslabs-develop $(BUILD_DIR)/lenslabs-reference $(BUILD_DIR)/lenslabs-crop-suggest $(BUILD_DIR)/lenslabs-object-remove $(BUILD_DIR)/lenslabs-receipt $(BUILD_DIR)/lenslabs-gallery $(BUILD_DIR)/lenslabs-settings $(BUILD_DIR)/lenslabs-calendar
 
 $(BUILD_DIR):

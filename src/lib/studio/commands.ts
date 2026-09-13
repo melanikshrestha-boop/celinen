@@ -10,6 +10,7 @@ export type ToolName =
   | "auto_refine"
   | "cull"
   | "keep_top"
+  | "propose_shortlist"
   | "reject_flagged"
   | "set_filter"
   | "select_photo"
@@ -29,6 +30,27 @@ export type LocalCommandMatch = {
 };
 
 export const STUDIO_TOOL_DEFINITIONS = [
+  {
+    type: "function",
+    function: {
+      name: "propose_shortlist",
+      description:
+        "Preview a C++ shortlist toward a requested total count using measured quality and sequence diversity. Preserve existing keeps/rejects, leave uncertain and unchosen photos undecided, and require photographer approval. Does not recognize sports action, publish, or export.",
+      parameters: {
+        type: "object",
+        properties: {
+          n: {
+            type: "integer",
+            minimum: 1,
+            maximum: 100000,
+            description:
+              "Requested total including existing keeps; may report shortfall or protected keeps over target.",
+          },
+        },
+        required: ["n"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -300,6 +322,17 @@ export function parseLocalCommand(input: string): LocalCommandMatch | null {
   if (!source) return null;
   const text = source.toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
   const calls: ToolCall[] = [];
+
+  // Exact phrasing avoids interpreting questions, negations or send instructions as approval.
+  const shortlist = /^(?:shortlist|pick|choose)\s+(\d+)(?:\s+(?:photos|frames|images))?[.!]?$/.exec(
+    text,
+  );
+  if (shortlist)
+    return {
+      calls: [{ name: "propose_shortlist", args: { n: Number(shortlist[1]) } }],
+      reply:
+        "Matched a shortlist request. Existing decisions stay protected; a preview still requires your approval.",
+    };
 
   if (/^(?:undo|undo that|undo last|go back|revert(?: that| last)?)\.?$/.test(text)) {
     return {
