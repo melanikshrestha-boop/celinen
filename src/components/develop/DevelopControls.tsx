@@ -23,10 +23,12 @@ export function Panel({
   title,
   children,
   open = false,
+  disabled = false,
 }: {
   title: string;
   children: ReactNode;
   open?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <details className="develop-panel" open={open || undefined}>
@@ -34,7 +36,16 @@ export function Panel({
         {title}
         <ChevronDown size={12} />
       </summary>
-      <div className="develop-panel-body">{children}</div>
+      <div className="develop-panel-body">
+        {disabled ? (
+          <>
+            <p className="develop-hint">Requires the local C++ Develop engine.</p>
+            <fieldset disabled>{children}</fieldset>
+          </>
+        ) : (
+          children
+        )}
+      </div>
     </details>
   );
 }
@@ -48,6 +59,7 @@ export function DevelopSlider({
   max = 100,
   step = 1,
   reset = 0,
+  disabled = false,
   onChange,
 }: {
   label: string;
@@ -58,6 +70,7 @@ export function DevelopSlider({
   max?: number;
   step?: number;
   reset?: number;
+  disabled?: boolean;
   onChange: (value: number, commit: boolean) => void;
 }) {
   const last = useRef(value);
@@ -65,13 +78,16 @@ export function DevelopSlider({
   return (
     <div className="develop-slider">
       <label
-        onDoubleClick={() => onChange(reset, true)}
+        onDoubleClick={(event) => {
+          if (!disabled && !event.currentTarget.closest("fieldset:disabled")) onChange(reset, true);
+        }}
         title={help ? `${help} Double-click to reset.` : "Double-click to reset"}
       >
         {displayLabel ?? label}
       </label>
       <input
         type="range"
+        disabled={disabled}
         aria-label={label}
         title={help}
         min={min}
@@ -79,15 +95,23 @@ export function DevelopSlider({
         step={step}
         value={value}
         onChange={(e) => {
+          if (disabled) return;
           last.current = Number(e.target.value);
           onChange(last.current, false);
         }}
-        onPointerUp={() => onChange(last.current, true)}
-        onKeyUp={() => onChange(last.current, true)}
-        onBlur={() => onChange(last.current, true)}
+        onPointerUp={() => {
+          if (!disabled) onChange(last.current, true);
+        }}
+        onKeyUp={() => {
+          if (!disabled) onChange(last.current, true);
+        }}
+        onBlur={() => {
+          if (!disabled) onChange(last.current, true);
+        }}
       />
       <input
         type="number"
+        disabled={disabled}
         aria-label={`${label} value`}
         title={help}
         min={min}
@@ -95,13 +119,16 @@ export function DevelopSlider({
         step={step}
         value={value}
         onChange={(e) => {
+          if (disabled) return;
           const v = Number(e.target.value);
           if (Number.isFinite(v)) {
             last.current = Math.min(max, Math.max(min, v));
             onChange(last.current, false);
           }
         }}
-        onBlur={() => onChange(last.current, true)}
+        onBlur={() => {
+          if (!disabled) onChange(last.current, true);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
@@ -489,6 +516,7 @@ export function DevelopControls({
   onMask,
   sourceAspect = 1.5,
   onSuggestCrop,
+  browserOnly = false,
 }: {
   value: DevelopSettings;
   change: DevelopChange;
@@ -499,6 +527,7 @@ export function DevelopControls({
   onMask: (id: string | null) => void;
   sourceAspect?: number;
   onSuggestCrop?: () => void;
+  browserOnly?: boolean;
 }) {
   const [hslIndex, setHslIndex] = useState(0);
   const defaults = defaultDevelopSettings();
@@ -508,7 +537,7 @@ export function DevelopControls({
     min = -100,
     max = 100,
     step = 1,
-    options: { displayLabel?: string; help?: string } = {},
+    options: { displayLabel?: string; help?: string; disabled?: boolean } = {},
   ) => (
     <DevelopSlider
       key={key}
@@ -592,16 +621,22 @@ export function DevelopControls({
         {scalar("whites", "Whites")}
         {scalar("blacks", "Blacks")}
         <p className="develop-control-heading">Presence</p>
-        {scalar("texture", "Texture")}
-        {scalar("clarity", "Clarity")}
+        {scalar("texture", "Texture", -100, 100, 1, {
+          disabled: browserOnly,
+          help: browserOnly ? "Requires the local C++ Develop engine." : undefined,
+        })}
+        {scalar("clarity", "Clarity", -100, 100, 1, {
+          disabled: browserOnly,
+          help: browserOnly ? "Requires the local C++ Develop engine." : undefined,
+        })}
         {scalar("dehaze", "Dehaze")}
         {scalar("vibrance", "Vibrance")}
         {scalar("saturation", "Saturation")}
       </Panel>
-      <Panel title="Tone Curve">
+      <Panel title="Tone Curve" disabled={browserOnly}>
         <ToneCurve key={photoId} value={value} change={change} />
       </Panel>
-      <Panel title="Color Mixer">
+      <Panel title="Color Mixer" disabled={browserOnly}>
         <div className="develop-colors" role="group" aria-label="Color range">
           {DEVELOP_HSL_CHANNELS.map((name, i) => (
             <button
@@ -644,10 +679,10 @@ export function DevelopControls({
           />
         ))}
       </Panel>
-      <Panel title="Color Grading">
+      <Panel title="Color Grading" disabled={browserOnly}>
         <ColorGrading key={photoId} value={value} change={change} Slider={DevelopSlider} />
       </Panel>
-      <Panel title="Effects">
+      <Panel title="Effects" disabled={browserOnly}>
         {scalar("grain", "Grain", 0)}
         {scalar("grainSize", "Grain size", 0.5, 4, 0.1)}
         {scalar("grainLuminance", "Grain luminance", 0)}
@@ -657,7 +692,7 @@ export function DevelopControls({
         {scalar("vignette", "Vignette")}
         {scalar("filmFalloff", "Film falloff", 0)}
       </Panel>
-      <Panel title="Detail">
+      <Panel title="Detail" disabled={browserOnly}>
         {scalar("sharpening", "Sharpening", 0)}
         {scalar("sharpeningRadius", "Sharpening radius", 0.5, 3, 0.1, {
           displayLabel: "Radius",
@@ -676,7 +711,11 @@ export function DevelopControls({
         <p className="develop-hint">Inspect at 100% for fine detail.</p>
       </Panel>
       <Panel title="Crop & Straighten" open={tool === "crop"}>
-        {onSuggestCrop && <button onClick={onSuggestCrop}>Automatic crop…</button>}
+        {onSuggestCrop && (
+          <button onClick={onSuggestCrop} disabled={browserOnly}>
+            Automatic crop…
+          </button>
+        )}
         <div className="develop-inline">
           <button
             aria-pressed={tool === "crop"}
@@ -711,6 +750,8 @@ export function DevelopControls({
         </div>
         <DevelopSlider
           label="Straighten"
+          disabled={browserOnly}
+          help={browserOnly ? "Requires the local C++ Develop engine." : undefined}
           value={crop.angle}
           min={-45}
           max={45}
@@ -774,7 +815,7 @@ export function DevelopControls({
           />
         ))}
       </Panel>
-      <Panel title="Masking" open={tool === "mask"}>
+      <Panel title="Masking" open={tool === "mask"} disabled={browserOnly}>
         <div className="develop-button-row">
           <button disabled={value.masks.length >= 12} onClick={() => addMask("linear")}>
             <Plus size={12} />

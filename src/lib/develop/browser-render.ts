@@ -1,5 +1,6 @@
-import { DEVELOP_ENGINE_LIMITS, type DevelopSettings } from "./contract";
+import { cloneDevelopSettings, DEVELOP_ENGINE_LIMITS, type DevelopSettings } from "./contract";
 import { isNeutralDevelopRecipe } from "./neutral";
+import { assertBrowserDevelopSettingsSupported } from "./browser-capabilities";
 
 export const BROWSER_DEVELOP_ENGINE = "foto-develop-browser-1";
 
@@ -16,8 +17,34 @@ function srgb(v: number) {
   return v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
 }
 
-/** Same source LUT as native `source_values`: exposure in linear, then temp/tint. */
+/** Color-only entry point. Geometry belongs to renderDevelopInBrowser; reject it
+ * here so direct callers cannot mistake an unchanged crop for a complete edit.
+ */
 export function applyDevelopRgba(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  settings: DevelopSettings,
+) {
+  assertBrowserDevelopSettingsSupported(settings);
+  const crop = settings.crop;
+  if (
+    crop.x !== 0 ||
+    crop.y !== 0 ||
+    crop.width !== 1 ||
+    crop.height !== 1 ||
+    crop.rotate !== 0 ||
+    crop.flipX ||
+    crop.flipY
+  )
+    throw new Error("Crop, rotate and flip require the full browser renderer.");
+  applySupportedDevelopRgba(rgba, width, height, settings);
+}
+
+/** Same source LUT as native `source_values`: exposure in linear, then temp/tint.
+ * Only called after checking the complete recipe's browser capabilities.
+ */
+function applySupportedDevelopRgba(
   rgba: Uint8ClampedArray,
   width: number,
   height: number,
@@ -124,8 +151,7 @@ function cropCanvas(
     Math.min(ch, height),
   );
   const out = ctx.createImageData(outW, outH);
-  // Rotate/flip in source crop space; angle is applied as a 2D sample in native
-  // and omitted here for the hosted preview (straight crop/flips still apply).
+  // Rotate/flip in source crop space. The capability guard rejects straighten.
   for (let y = 0; y < src.height; y++) {
     for (let x = 0; x < src.width; x++) {
       let u = x,
@@ -167,6 +193,8 @@ export async function renderDevelopInBrowser(
   },
 ): Promise<Blob> {
   options.signal?.throwIfAborted();
+  const recipe = cloneDevelopSettings(settings);
+  assertBrowserDevelopSettingsSupported(recipe);
   const bitmap = await createImageBitmap(source);
   try {
     options.signal?.throwIfAborted();
@@ -180,9 +208,9 @@ export async function renderDevelopInBrowser(
     if (!ctx) throw new Error("Develop could not open a drawing surface.");
     ctx.drawImage(bitmap, 0, 0, width, height);
     const image = ctx.getImageData(0, 0, width, height);
-    applyDevelopRgba(image.data, width, height, settings);
+    applySupportedDevelopRgba(image.data, width, height, recipe);
     ctx.putImageData(image, 0, 0);
-    cropCanvas(ctx, width, height, settings.crop);
+    cropCanvas(ctx, width, height, recipe.crop);
     options.signal?.throwIfAborted();
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", options.quality),
