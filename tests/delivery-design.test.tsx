@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 import { GalleryPresentationForm } from "../src/components/delivery/GalleryPresentationForm";
 import {
   galleryCovers,
@@ -63,6 +64,16 @@ const presentation = (ids: string[]) => ({
 });
 
 describe("gallery-specific design and exact covers", () => {
+  test("explicit client themes cover the viewport, but never the owner workspace or preview", () => {
+    const css = readFileSync(
+      new URL("../src/components/delivery/delivery.css", import.meta.url),
+      "utf8",
+    );
+    expect(css).toContain('body:has(.delivery-client[data-gallery-theme="light"])');
+    expect(css).toContain('body:has(.delivery-client[data-gallery-theme="dark"])');
+    expect(css).not.toContain("body:has(.delivery-client-preview");
+    expect(css).not.toContain("body:has(.delivery-workspace");
+  });
   test("old records keep original styling and require no migration", () => {
     const state = draft();
     expect(galleryDesign(state)).toEqual({

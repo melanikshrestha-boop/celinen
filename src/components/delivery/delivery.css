@@ -3,6 +3,7 @@
   color: var(--color-ink);
 }
 /* Gallery-scoped choices do not rewrite the photographer's workspace theme. */
+body:has(.delivery-client[data-gallery-theme="light"]),
 [data-gallery-theme="light"] {
   --color-ink: #172b35;
   --color-moss: #536875;
@@ -11,6 +12,7 @@
   --destructive: #b52835;
   color-scheme: light;
 }
+body:has(.delivery-client[data-gallery-theme="dark"]),
 [data-gallery-theme="dark"] {
   --color-ink: #eef3f5;
   --color-moss: #aebdc6;
@@ -19,6 +21,8 @@
   --destructive: #ff9a9a;
   color-scheme: dark;
 }
+body:has(.delivery-client[data-gallery-theme="light"]),
+body:has(.delivery-client[data-gallery-theme="dark"]),
 [data-gallery-theme="light"],
 [data-gallery-theme="dark"] {
   color: var(--color-ink);

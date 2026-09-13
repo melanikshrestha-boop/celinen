@@ -13,10 +13,10 @@ Existing full/web-size final downloads, immutable approvals, private invitations
 
 ## Verification
 
-- `bun test tests/delivery-*.test.ts tests/delivery-*.test.tsx`: 156 passed, including real workflow transitions and isolated server-transport tests. No customer libraries used.
+- `bun test tests/delivery-*.test.ts tests/delivery-*.test.tsx`: 157 passed, including real workflow transitions and isolated server-transport tests. No customer libraries used.
 - Production build succeeds. Targeted source lint succeeds. Full typecheck still reports 152 repository errors, outside the changed gallery files.
-- Full regression run with ephemeral loopback servers allowed: 2,596 passed, 21 skipped, 1 todo, 5 existing appearance assertions failed. A subsequent deadline-adoption regression adds one targeted passing test. The earlier sandboxed run also blocked six loopback transport tests; it is not the release result.
-- Real browser fixture at isolated `127.0.0.1:8086`: saved choices/deadline survive reload, account and stale-tab writes are rejected, stale upload refreshes preserve settings, photo/feedback state remains unchanged. Checked desktop light/editorial, phone dark/sans, viewer theme, and no horizontal overflow at 390px.
+- Full regression run with ephemeral loopback servers allowed: 2,596 passed, 21 skipped, 1 todo, 5 existing appearance assertions failed. Subsequent deadline-adoption and viewport-theme regressions add two targeted passing tests. The earlier sandboxed run also blocked six loopback transport tests; it is not the release result.
+- Real browser fixture at isolated `127.0.0.1:8086`: saved choices/deadline survive reload, account and stale-tab writes are rejected, stale upload refreshes preserve settings, photo/feedback state remains unchanged. Checked desktop light/editorial, phone dark/sans, viewer theme and arrow-key navigation, and no horizontal overflow at 390px. Explicit client-page appearance also covers the outer viewport, so a visitor's dark preference does not leave black gutters around a light gallery; owner previews do not recolor the workspace.
 - These are gallery metadata/presentation tests using public JPEG fixtures, **not** a RAW ingest benchmark, payment test, email-delivery test or live publication proof.
 
 ### Reproduce the browser fixture
