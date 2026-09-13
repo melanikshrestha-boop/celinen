@@ -644,3 +644,30 @@ html.dark .celinen-dash__theme button[aria-pressed="true"] {
   color: #f3f3f3;
   box-shadow: none;
 }
+/* Match useIsMobile without overwriting the saved desktop --rail width. */
+@media (max-width: 767px) {
+  .celinen-dash {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+  .celinen-dash__rail {
+    min-height: 0;
+  }
+  .celinen-dash__nav {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .celinen-dash__top,
+  .celinen-dash__foot {
+    flex-shrink: 0;
+  }
+  .celinen-dash__body.is-tool:not(:has(.foto-develop)),
+  .celinen-dash__body.is-cal {
+    padding-right: 0;
+  }
+  .celinen-dash__theme {
+    position: static;
+    align-self: flex-end;
+    flex-shrink: 0;
+    margin: 8px 12px;
+  }
+}

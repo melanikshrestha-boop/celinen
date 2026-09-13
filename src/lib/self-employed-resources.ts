@@ -5,6 +5,13 @@ export const SELF_EMPLOYED_REFERENCE = {
   reviewedLabel: "September 10, 2026",
 } as const;
 
+/** Separate review date for the preparation topics added after the original references. */
+export const TAX_PREPARATION_REFERENCE = {
+  year: 2026,
+  reviewedOn: "2026-09-12",
+  reviewedLabel: "September 12, 2026",
+} as const;
+
 export const TAX_SOURCES = {
   taxCenter:
     "https://www.irs.gov/businesses/small-businesses-self-employed/self-employed-individuals-tax-center",
@@ -24,7 +31,90 @@ export const TAX_SOURCES = {
     "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500",
   stateDirectory:
     "https://www.irs.gov/businesses/small-businesses-self-employed/state-government-websites",
+  healthInsurance: "https://www.irs.gov/instructions/i7206",
+  hsa: "https://www.irs.gov/publications/p969",
+  hsa2026: "https://www.irs.gov/irb/2026-02_IRB",
+  w9: "https://www.irs.gov/instructions/iw9",
+  contractors: "https://www.irs.gov/instructions/i1099mec",
+  depreciation: "https://www.irs.gov/publications/p946",
+  mileage: "https://www.irs.gov/tax-professionals/standard-mileage-rates",
+  travelAndMeals: "https://www.irs.gov/publications/p463",
+  homeOffice: "https://www.irs.gov/publications/p587",
+  qbi: "https://www.irs.gov/instructions/i8995",
 } as const;
+
+/** Preparation prompts only: no taxpayer inputs, eligibility decisions or calculated amounts. */
+export const TAX_PREPARATION_TOPICS = [
+  {
+    id: "self-employment-tax",
+    title: "Self-employment tax",
+    detail:
+      "Self-employment tax is separate from income tax. The 2026 worksheet generally starts with 92.35% of net business profit—not gross collections. Social Security limits, other wages and Medicare rules affect the result. Keep wage and business-profit records; this desk does not calculate your liability.",
+    sources: [{ label: "IRS 2026 tax worksheet", href: TAX_SOURCES.estimatedGuide }],
+  },
+  {
+    id: "health-insurance-hsa",
+    title: "Health insurance and HSA",
+    detail:
+      "A self-employed health-insurance deduction depends on eligible business income, qualifying coverage and access to employer-subsidized plans. It is generally a Schedule 1 adjustment, not a Schedule C expense. HSA contributions have separate coverage, Medicare and dependent-status rules. Qualifying individual-market Bronze and Catastrophic plans become HSA-compatible in 2026; self-employment alone does not establish eligibility.",
+    sources: [
+      { label: "IRS health insurance", href: TAX_SOURCES.healthInsurance },
+      { label: "IRS HSA eligibility", href: TAX_SOURCES.hsa },
+      { label: "IRS 2026 coverage changes", href: TAX_SOURCES.hsa2026 },
+    ],
+  },
+  {
+    id: "contractor-reporting",
+    title: "W-9 and contractor reporting",
+    detail:
+      "Check worker status before hiring second shooters or editors. Form W-9 collects U.S. payee tax information; keep taxpayer IDs out of this ledger. For 2026 nonemployee service payments, the general federal Form 1099-NEC threshold is USD 2,000 per recipient. Payment-card and qualifying third-party network payments follow different reporting rules; exceptions and backup withholding matter. Below-threshold income is not automatically tax-free.",
+    sources: [
+      { label: "IRS W-9 responsibilities", href: TAX_SOURCES.w9 },
+      { label: "IRS contractor reporting", href: TAX_SOURCES.contractors },
+    ],
+  },
+  {
+    id: "equipment-depreciation",
+    title: "Equipment and depreciation",
+    detail:
+      "Keep purchase cost, placed-in-service date, business-use share and disposal records. Equipment may require depreciation or qualify for an expensing election; buying a camera does not automatically make its full price deductible. Acquisition dates, current-year rules and potential recapture matter when reviewing Section 179 or bonus depreciation.",
+    sources: [{ label: "IRS depreciation guide", href: TAX_SOURCES.depreciation }],
+  },
+  {
+    id: "mileage",
+    title: "Mileage and vehicle costs",
+    detail:
+      "Log each trip’s date, destination, miles and business purpose; separate commuting and personal travel. Standard mileage and actual-cost methods have eligibility and election rules. Use the IRS rate for the actual trip date—not one assumed rate for all of 2026—and do not count the same vehicle costs twice.",
+    sources: [
+      { label: "IRS rates by trip date", href: TAX_SOURCES.mileage },
+      { label: "IRS vehicle-cost rules", href: TAX_SOURCES.travelAndMeals },
+    ],
+  },
+  {
+    id: "business-meals",
+    title: "Business meals",
+    detail:
+      "Keep receipts, attendees and the business purpose. Otherwise deductible business meals are generally subject to a 50% limit, with exceptions; entertainment is generally nondeductible. Travel away from your tax home and reimbursements can change treatment. An expense category or shoot booking does not establish deductibility.",
+    sources: [{ label: "IRS meals and travel", href: TAX_SOURCES.travelAndMeals }],
+  },
+  {
+    id: "home-office",
+    title: "Home office",
+    detail:
+      "Generally, a specific area must be used regularly and exclusively for business and meet an IRS qualifying-use test, such as a principal place of business. Keep area measurements and business-use records. Actual-expense and simplified methods have different limits and exceptions; working from home alone does not establish eligibility.",
+    sources: [{ label: "IRS business use of home", href: TAX_SOURCES.homeOffice }],
+  },
+  {
+    id: "qbi",
+    title: "Qualified business income (QBI)",
+    detail:
+      "Eligible business owners may qualify for a deduction of up to 20% of qualified business income—not gross collections or cash in the bank. Taxable income, business type, wages, property and other deductions can affect it. QBI continues in 2026; use current-year rules, not prior-year thresholds or outdated 2025 expiration wording. This desk does not determine eligibility.",
+    sources: [
+      { label: "IRS QBI instructions", href: TAX_SOURCES.qbi },
+      { label: "IRS 2026 tax updates", href: TAX_SOURCES.estimatedGuide },
+    ],
+  },
+] as const;
 
 export const FEDERAL_ESTIMATED_DATES_2026 = [
   { period: "January 1 – March 31", date: "2026-04-15", label: "April 15, 2026" },

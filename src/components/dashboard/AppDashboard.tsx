@@ -17,6 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
@@ -117,6 +118,9 @@ function replyFor(text: string) {
 
 export function AppDashboard({ children }: { children?: ReactNode }) {
   const account = useAccount();
+  const mobile = useIsMobile();
+  const mobileRef = useRef(mobile);
+  mobileRef.current = mobile;
   const navigate = useNavigate();
   const search = useRouterState({ select: (state) => state.location.searchStr });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -207,6 +211,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     const px = liveRef.current ?? shownWidth();
     liveRef.current = null;
     setLiveWidth(null);
+    // A desktop drag that crosses the mobile breakpoint is not a preference change.
+    if (mobileRef.current) return;
     const next = widthToMode(px);
     if (next === "open") persistOpenWidth(px);
     setRail(next);
@@ -219,6 +225,14 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const wasTool = useRef(false);
 
   useEffect(() => () => detachResize(), []);
+
+  useEffect(() => {
+    if (!mobile) return;
+    drag.current = null;
+    detachResize();
+    liveRef.current = null;
+    setLiveWidth(null);
+  }, [mobile]);
 
   useEffect(() => {
     if (account?.status === "out")
@@ -301,8 +315,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     }
   }
 
-  const shown = shownWidth();
-  const visual = liveWidth == null ? rail : widthToMode(liveWidth);
+  // Narrow-screen presentation is temporary; retain the user's desktop rail settings.
+  const shown = mobile ? MINI_W : shownWidth();
+  const visual = mobile ? "mini" : liveWidth == null ? rail : widthToMode(liveWidth);
 
   return (
     <DashboardContext.Provider value={true}>
@@ -313,7 +328,11 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     >
       <aside className="celinen-dash__rail">
         <div className="celinen-dash__top">
-          {visual === "mini" ? (
+          {mobile ? (
+            <Link to="/dashboard" className="celinen-dash__brand" aria-label="Home">
+              <LogoMark size={28} />
+            </Link>
+          ) : visual === "mini" ? (
             <button
               type="button"
               className="celinen-dash__brand"
@@ -352,6 +371,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                 key={item.label}
                 to={item.to}
                 title={item.label}
+                aria-label={item.label}
                 search={calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined}
                 activeOptions={"end" in item || calendar ? { exact: true } : undefined}
                 className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
@@ -374,6 +394,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
           <Link
             to="/pricing"
             title="Upgrade"
+            aria-label="Upgrade"
             className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
           >
             <span className="celinen-dash__ico" aria-hidden="true">
@@ -389,7 +410,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
           </div>
         </div>
       </aside>
-      <div
+      {!mobile && <div
         className="celinen-dash__resize"
         data-no-press
         role="separator"
@@ -404,7 +425,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         onPointerCancel={onResizeUp}
         onLostPointerCapture={onResizeUp}
         onDoubleClick={() => setRail(visual === "mini" ? "open" : "mini")}
-      />
+      />}
       <main
         className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? " is-cal" : " is-chat"}`}
       >

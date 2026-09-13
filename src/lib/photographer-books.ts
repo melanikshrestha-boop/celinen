@@ -125,7 +125,14 @@ export function buildPhotographerBooks(
     return true;
   };
   for (const row of scoped) {
-    if (row.accounting === "invoice" && row.outstandingMinor > 0 && row.date && row.date <= options.today)
+    if (
+      row.eligibleForTotals &&
+      row.accounting === "invoice" &&
+      ["open", "upcoming", "overdue"].includes(row.status) &&
+      row.outstandingMinor > 0 &&
+      row.date &&
+      row.date <= options.today
+    )
       openInvoices += 1;
     if (row.eligibleForTotals && inPeriod(row.date)) {
       if (row.accounting === "collection") paidThisPeriod += 1;
@@ -229,5 +236,3 @@ export function buildPhotographerBooks(
     stream,
   };
 }
-
-

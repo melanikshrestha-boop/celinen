@@ -49,6 +49,42 @@
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
+.spend-sankey--donut .spend-sankey__legend {
+  max-height: 250px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 4px;
+}
+.spend-sankey__disk {
+  position: relative;
+  width: min(220px, 100%);
+  margin-inline: auto;
+}
+.spend-sankey__disk svg {
+  display: block;
+  width: 100%;
+}
+.spend-sankey__center {
+  position: absolute;
+  inset: 28% 16%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  pointer-events: none;
+}
+.spend-sankey__center strong {
+  font-size: clamp(14px, 2cqi, 22px);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+}
+.spend-sankey__center span {
+  color: var(--fos-muted);
+  font-size: 12px;
+}
 .books-filter {
   position: relative;
 }

@@ -236,4 +236,6 @@ export function VisualFixture() {
 
 const mount = document.getElementById("finance-visual-root");
 if (!mount) throw new Error("The isolated finance fixture requires its own mount point");
-createRoot(mount).render(<VisualFixture />);
+const root = createRoot(mount);
+root.render(<VisualFixture />);
+if (import.meta.hot) import.meta.hot.dispose(() => root.unmount());
