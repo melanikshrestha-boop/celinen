@@ -25,6 +25,10 @@ Public name and tab title remain defined by `src/lib/product.ts`.
   health insurance/HSA, W-9/contractors, depreciation, mileage, meals, home office
   and QBI. Existing 2026 estimated-payment dates and Solo 401(k), SEP, SIMPLE and
   IRA references remain available. The new topics have their own review date.
+- The dashboard shell uses a 60px rail on phones and removes its reserved
+  Appearance gutter. At 390px, Earnings now has 330px instead of 50px. Desktop
+  widths and preferences survive resizing, including interrupted sidebar drags;
+  icon navigation retains accessible names.
 
 ## Financial boundaries
 
@@ -65,14 +69,18 @@ keyboard inspection must retain exact minor-unit amounts.
 
 ## Verification so far
 
-- 75 focused financial tests passed; 19,720 assertions.
+- 84 focused financial/mobile tests passed; 19,804 assertions.
 - Storage-free browser checks: 71 assertions each at 390, 768 and 1440px, covering
   both themes, all desk canvases/panels, shared font, overflow and tax links/details.
 - USD, JPY and KWD formatting, exact keyboard inspection, empty and unavailable
   states checked interactively. Real local LAB route themes/dropdowns checked.
-- Production build and scoped lint passed before the subsequent mobile-shell fix.
-- Environment-free full suite before the mobile-shell fix: 2,330 passed, 21
-  skipped, 1 TODO and 5 failed. Exact committed baseline `033e64e`: 2,317 passed,
+  The invoice dialog fits 390px, respects Light and was closed without submission.
+  Mobile Dark uses a black canvas; restoring 1440px restores the 248px desktop rail.
+- Production client/SSR build and scoped finance/test lint passed after the
+  mobile-shell fix. Shell logic lint passes; pre-existing AppDashboard formatting
+  warnings were left untouched to avoid unrelated file-wide churn.
+- Final environment-free full suite: 2,339 passed, 21 skipped, 1 TODO and 5 failed,
+  with 455,092 assertions across 228 files. Exact committed baseline `033e64e`: 2,317 passed,
   the same skips/TODO and the same five failures. No new finance failures.
 - Existing failures: connector mark path, Develop chrome color, default-theme
   assertion, compact-sidebar row token and workbench typography fallback.
@@ -84,6 +92,8 @@ keyboard inspection must retain exact minor-unit amounts.
 
 - Worktree: ChatGPT `intelligent-image-aid`, local branch
   `codex/lenslabs-photographer-platform`; starting HEAD `033e64e`.
+- Final readback found the implementation checkpointed locally at `c425c64`.
+  This document's final verification addendum remains an unstaged local edit.
 - Read-only remote check: `main` remains `8210e95`, remote platform remains
   `af28aaa`. Remote platform and local history diverge; never force-push either.
 - Publishing-branch choice was requested before push/merge. No Git push or Lovable
