@@ -324,7 +324,7 @@ async function runFixture(scenario: number) {
   } else if (scenario === 3) {
     const files = [
       { storage_path: path, filename: "original æ.jpg", width: 4000, height: 3000 },
-      { storage_path: secondPath, filename: `${"x".repeat(180)}.jpg` },
+      { storage_path: secondPath, filename: `${"x".repeat(180)}.jpg`, folder: "edited" },
     ];
     assert.equal((await add(files)).added, 2);
     assert.deepEqual(infoCalls.slice().sort(), [path, secondPath].sort());
@@ -341,6 +341,7 @@ async function runFixture(scenario: number) {
             width: file.width ?? null,
             height: file.height ?? null,
             sort_order: index + 1,
+            folder: index === 0 ? "proofs" : "edited",
           })),
         },
       ],

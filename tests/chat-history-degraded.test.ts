@@ -197,13 +197,31 @@ if (!process.argv.includes("--degraded-chat-fixture")) {
   assert.equal(blocker!.enableBeforeUnload(), true);
   assert.equal(await leaveGuard!(), false, "unsaved temporary work requires discard consent");
   assert.ok(confirms > 0);
+  const beforeSameShoot = confirms;
+  assert.equal(
+    await blocker!.shouldBlockFn({
+      next: {
+        routeId: "/shoots/$id/develop",
+        pathname: "/shoots/legacy/develop",
+        search: {},
+      },
+    }),
+    false,
+    "canonical Develop in the same workspace retains temporary chat without a discard prompt",
+  );
+  assert.equal(confirms, beforeSameShoot);
   assert.equal(
     await blocker!.shouldBlockFn({
       next: { routeId: "/develop", pathname: "/develop", search: {} },
     }),
-    false,
-    "Develop in the same workspace remains usable without discarding temporary chat",
+    true,
+    "bare Develop changes to the dashboard shell and must protect the unmounting temporary chat",
   );
+  assert.equal(confirms, beforeSameShoot + 1);
+  assert.equal(state!.active.id, temporaryId);
+  assert.equal(state!.active.draft, "Unsent draft");
+  assert.equal(state!.active.messages[0]!.text, "Keep my review");
+  assert.equal(saveCalls, 0);
   assert.equal(
     await blocker!.shouldBlockFn({
       next: {
