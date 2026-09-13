@@ -1232,3 +1232,71 @@ file. No customer library was accessed. The existing heartbeat was updated in
 place to retain this branch hold and preserve current typography rather than
 replaying superseded design instructions. The three-second/1,000-entry target,
 real RAW performance matrix and live Google/publication gates remain open.
+
+## 2026-09-13 Studio namespace and pending-dialog checkpoint
+
+Base for this run: `8e551a0`. Continued the local import/edit/save gates without
+changing the current UI, touching customer libraries, or publishing.
+
+### Two reproduced integration defects
+
+- **Dashboard Studio opened a different library from Develop.** After `/studio`
+  moved outside Workbench, its standalone route omitted `storageScope`. Studio's
+  repository and import session defaulted to `device-local`; its canonical
+  `/shoots/.../develop` destination instead used the signed-in account. The shoot
+  and selected-photo URL could be correct while the storage namespace was wrong.
+  `984c26a` passes the verified owner explicitly, keys the controller by owner and
+  validated binding, and removes the optional device-local default from Studio's
+  component contract. All three production callers supply scope. Missing identity
+  cannot instantiate Studio; conflicting deep links fail closed. Workbench's
+  existing persistent controller and exact local delivery references are retained.
+- **A pending snapshot could contaminate another photo's next save.** With A at
+  exposure +1 and B at -1, a snapshot action waiting in its initial flush could
+  resume after accepted same-shoot navigation hydrated B. `updateDoc(A, true)`
+  replaced B's global active draft with A's recipe; the next `commitDraft` wrote
+  +1 into B. `db2c1fd` binds dialog actions and export results to their admission
+  hydration owner, and only updates the active draft when the document's photo ID
+  matches the selected photo. Legitimate background document writes still persist
+  to their own photo. Same-owner snapshot and preview cancellation still work;
+  late export successes/errors cannot download or update the new route's proof,
+  notice, or dialog. No early operation-lock release was added.
+
+Existing device-local records, originals, identities and histories were **not**
+moved, deleted, or assigned to a signed-in owner. This fixes future route ownership;
+it is not an automatic recovery/migration of imports previously saved under the
+wrong namespace. Such recovery must retain explicit ownership and source checks.
+
+### Evidence and remaining gates
+
+- New route fixture initially had **2 passes / 9 failures**, including the actual
+  Studio repository/import initializer mismatch. With the fix plus the full-length
+  delivery-reference case, **12 tests pass**. The latter preserves a 4,200-character
+  frame, 2,000-character version, handoff, selected ID and project namespace.
+- The new dialog fixture initially had **1 pass / 2 failures** for wrong-photo
+  draft/save corruption. All **8 tests pass** after the fix, including deferred
+  export success/failure and same-owner cancellation. Fixtures execute actual
+  component actions/route bindings/leave guards with isolated hooks and synthetic
+  in-memory I/O. They are not an authenticated end-to-end browser or RAW benchmark.
+- Combined targeted gate: **240 passed, 1,891 assertions, 14 files**.
+- Full suite with temporary loopback test ports allowed: **2,304 passed, 21 skipped,
+  1 TODO, 10 failed; 2,336 tests / 223 files**. The ten failed test names exactly
+  match the previous checkpoint. An initial sandboxed run also failed native HTTP
+  port binding; those environment failures disappear in the loopback-enabled run.
+- Production build passes. Strict TypeScript remains at **151 diagnostics**, with
+  identical normalized file/message output to the previous checkpoint. DevelopPage
+  and both new test files pass scoped ESLint. Studio has four pre-existing Prettier
+  errors reproduced from the pre-edit source; no new lint diagnostics were added.
+  Whitespace checks pass. The overall release gate is still not green.
+- Logs: `/private/tmp/celinen-studio-scope-before-20260913.log`,
+  `/private/tmp/celinen-dialog-navigation-before-20260913.log`,
+  `/private/tmp/celinen-workflow-targeted-20260913.log`,
+  `/private/tmp/celinen-workflow-full-loopback-20260913.log`,
+  `/private/tmp/celinen-workflow-final-build-20260913.log`, and
+  `/private/tmp/celinen-workflow-final-typecheck-20260913.log`.
+
+Both fixes are local commits. The owner has not answered the main-versus-platform
+branch choice; no push, merge, mirror copy, backend mutation or Lovable Publish was
+performed. `.env.development` remains untouched and unstaged. Real folder/RAW
+performance, authenticated drop-to-export, hosted capability implementation and
+live sign-in/publication remain separate open gates; these checks do not establish
+the three-second/1,000-entry target or Lightroom parity.
