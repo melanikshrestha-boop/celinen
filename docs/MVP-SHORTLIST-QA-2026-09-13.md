@@ -50,3 +50,18 @@ Reproduction helpers: `tests/scene-navigation-seed.browser.js`, `tests/studio-sh
 - Hosted native processing, production Google sign-in, live Stripe checkout, client delivery/recipient readback and Lovable publication still need their own owner-connected gates. A local JPEG ZIP is not a completed client delivery.
 - Existing dashboard and Workbench shells remain distinct. This change repairs the current-shoot chat access and canonical export handoff without redesigning Melani's approved interfaces.
 - Push only validated files to the existing private branch; do not stage `.env.development`, customer originals, build-baseline or sanitizer artifacts. Do not rewrite main. Git push does not publish `lenslab.dev`.
+
+## Overnight follow-up: durable refresh must not abandon new-photo culling
+
+Reproduced another integration defect after `bc8d55a`: a JPEG could save while a RAW was still processing, but the final full catalog read produced a new JavaScript File handle for that same original. Studio correctly treats a changed handle as a stale analysis/admission boundary, so this accidentally removed the newly imported JPEG from automatic culling. A terminal RAW failure is one reproducible trigger because it adds no photo receipt and therefore takes the full-read path.
+
+The fix is confined to Cull's canonical File cache. It reuses a verified full-SHA original across IndexedDB handle clones only when namespace, photo ID, creation time, source availability, source metadata and File metadata still match. Preview-only, missing-source and unverified legacy records do not get this shortcut. Studio's exact-File asynchronous fence, source/account guards and manual K/X/U invalidation remain unchanged. This relies on canonical imports' verified identities and the store's immutable-original contract; it is not a new rehash of potentially corrupted database content on every read. No UI or C++ processing behavior changed.
+
+Evidence:
+
+- Fail-first unit reproduction: equivalent full-read File handles failed reference equality before the change. Added identity, availability, metadata, recreation and namespace negative cases.
+- Eight integration cases execute the actual Studio callbacks with the actual import session, repository and a structured-clone transaction double. A held RAW fails after the JPEG saves; automatic admission survives the final full read, manual K/X/U wins, and changed owner/digest/File/availability invalidates. No unnecessary second decode; originals, order, history and existing analysis remain unchanged.
+- Real isolated Chromium/IndexedDB reproduction in `tests/cull-source-refresh.browser.js`: baseline run `2d3981eb-2e00-4552-bac4-1646cb724a51` failed at the first retained-handle assertion. After the local patch and reload, fresh run `744150aa-9ba1-4af4-b11f-59eff65c70d0` passed all **19 checks**, including three full rereads, analysis admission, save/reopen, exact ID/order/history and reverified original SHA-256. Both used tiny explicitly synthetic bytes in UUID-named QA databases, not customer libraries or a RAW throughput benchmark.
+- Full regression: **2,573 passed, 21 skipped, 1 todo, the same 5 known appearance failures**, 457,112 assertions across 255 files (78.75 s). Production build and scoped ESLint passed. Independent source-safety review found no blocker.
+
+The local `8085` module is updated. This is a local recovery fix, not proof of production publication, semantic culling accuracy, or the requested real 300-photo import speed.

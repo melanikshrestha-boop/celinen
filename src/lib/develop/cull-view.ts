@@ -162,7 +162,7 @@ export function createCullShootView(repository: ShootRepository) {
   // into a subsequent stale "clear selection" gesture.
   let adoptedView: Pick<ShootManifest, "selectedId" | "filter"> | null = null;
   const baseline = new Map<string, { photoId: string; review: Review; edits: Shot["edits"] }>();
-  const reusableFiles = new Map<string, { blob: Blob | null; file: File }>();
+  const reusableFiles = new Map<string, { blob: Blob | null; file: File; identity: string }>();
   let queue: Promise<unknown> = Promise.resolve();
   const view = {
     photoId(shotId: string): string | null {
@@ -268,9 +268,33 @@ export function createCullShootView(repository: ShootRepository) {
         if (projected.needsAnalysis) unanalyzedIds.add(shot.id);
         if (projected.treatment === "native") nativeTreatmentIds.add(shot.id);
         const old = reusableFiles.get(photo.id);
-        const media = photo.sourceBlob ?? photo.previewBlob;
-        if (old && old.blob === media) shot.file = old.file;
-        else reusableFiles.set(photo.id, { blob: media, file: shot.file });
+        const media = shot.sourceAvailable ? photo.sourceBlob : photo.previewBlob;
+        const identity = JSON.stringify([
+          repository.namespace,
+          photo.createdAt,
+          photo.sourceDigest,
+          shot.sourceAvailable,
+          photo.sourceFileName,
+          photo.sourceLastModified,
+          photo.isRaw,
+          shot.file.name,
+          shot.file.lastModified,
+          shot.file.size,
+          shot.file.type,
+        ]);
+        // A full IndexedDB read clones Blob handles, not original content. The
+        // canonical import verifies full SHA-256 identities; the store never
+        // replaces an attached original. Reuse it only within this view's
+        // account/shoot, so refresh does not discard in-flight analysis/admission.
+        // Missing sources, previews and unverified legacy digests cannot use this
+        // path. Keep the asynchronous File-identity fence in Studio unchanged.
+        const verifiedOriginal =
+          Boolean(repository.namespace) &&
+          shot.sourceAvailable &&
+          /^sha256:[a-f0-9]{64}$/.test(photo.sourceDigest ?? "");
+        if (old && old.identity === identity && (old.blob === media || verifiedOriginal))
+          shot.file = old.file;
+        else reusableFiles.set(photo.id, { blob: media, file: shot.file, identity });
         baseline.set(shot.id, {
           photoId: photo.id,
           review: { ...document.metadata },

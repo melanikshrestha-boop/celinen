@@ -26,6 +26,12 @@ import {
   type ShootManifest,
 } from "../src/lib/develop/store";
 import { defaultDevelopSettings } from "../src/lib/develop/contract";
+import {
+  admitImportCull,
+  attachImportAnalysis,
+  sameImportAnalysisSource,
+  takeImportCullIds,
+} from "../src/lib/studio/cull-on-import";
 
 function fakeRepository() {
   const state: DevelopLibrary & { manifest: ShootManifest } = {
@@ -54,6 +60,7 @@ function fakeRepository() {
   };
   let documentWrites = 0;
   const repository = {
+    namespace: "cull-view-unit:shoot",
     read: async () => clone(),
     saveManifest: async (
       view: Parameters<ShootRepository["saveManifest"]>[0],
@@ -113,6 +120,148 @@ function oldPhoto(id: string, patch: Partial<Shot> = {}): Shot {
   };
 }
 describe("Cull is a canonical review projection", () => {
+  test("a full durable reread retains the verified original handle and pending cull admission", async () => {
+    const fake = fakeRepository();
+    const input = await developPhotoFromFile(
+      new File(["synthetic original bytes"], "new.jpg", { type: "image/jpeg", lastModified: 12 }),
+    );
+    await fake.add([input]);
+    const originalDocument = structuredClone(fake.state.documents[input.id]);
+    const read = fake.repository.read;
+    // IndexedDB returns newly structured-cloned Blob handles, unlike the shallow
+    // repository fake. A full catalog refresh must not impersonate a new source.
+    fake.repository.read = async () => {
+      const snapshot = await read();
+      return {
+        ...snapshot,
+        photos: snapshot.photos.map((photo) => ({
+          ...photo,
+          sourceBlob:
+            photo.sourceBlob?.slice(0, photo.sourceBlob.size, photo.sourceBlob.type) ?? null,
+        })),
+      };
+    };
+    const view = createCullShootView(fake.repository);
+    const initial = await view.read();
+    const pending = new Map<string, Shot>();
+    admitImportCull(pending, initial.shots, [input.id]);
+    expect(pending.size).toBe(1);
+    for (let repeat = 0; repeat < 3; repeat++) {
+      const refreshed = await view.read();
+      expect(refreshed.shots[0]!.file).toBe(initial.shots[0]!.file);
+      expect(sameImportAnalysisSource(initial.shots[0]!, refreshed.shots[0])).toBe(true);
+      expect(takeImportCullIds(pending, refreshed.shots).size).toBe(0);
+      expect(pending.size).toBe(1);
+      expect(refreshed.shots[0]!.verdict).toBe("undecided");
+    }
+    const refreshed = await view.read();
+    const analyzed = attachImportAnalysis(refreshed.shots[0]!, {
+      width: 10,
+      height: 10,
+      backend: "native-cpp",
+      analysis: {
+        sharpness: 200,
+        brightness: 120,
+        clippedHighlights: 0,
+        clippedShadows: 0,
+        hash: "0".repeat(64),
+      },
+    });
+    expect([...takeImportCullIds(pending, [analyzed])]).toEqual([input.id]);
+    expect(pending.size).toBe(0);
+    expect(await analyzed.file.text()).toBe("synthetic original bytes");
+    expect(fake.writes()).toBe(0);
+    expect(fake.state.documents[input.id]).toEqual(originalDocument);
+  });
+
+  test("source identity, availability and file metadata changes cannot reuse an old handle", async () => {
+    const variants = [
+      "digest",
+      "missing-digest",
+      "legacy-digest",
+      "unavailable",
+      "missing-original",
+      "size",
+      "type",
+      "name",
+      "modified",
+      "raw",
+      "recreated",
+      "namespace",
+    ] as const;
+    for (const variant of variants) {
+      const fake = fakeRepository();
+      const input = await developPhotoFromFile(
+        new File(["original"], "photo.jpg", { type: "image/jpeg", lastModified: 12 }),
+      );
+      await fake.add([input]);
+      // Exercise Blob projection as it is reconstructed by IndexedDB.
+      const photo = fake.state.photos[0]!;
+      photo.sourceBlob = new Blob(["original"], { type: "image/jpeg" });
+      if (variant === "missing-digest") photo.sourceDigest = null;
+      if (variant === "legacy-digest") photo.sourceDigest = "unverified-legacy-fingerprint";
+      const view = createCullShootView(fake.repository);
+      const before = (await view.read()).shots[0]!;
+      photo.sourceBlob = new Blob(["original"], { type: "image/jpeg" });
+      switch (variant) {
+        case "digest":
+          photo.sourceDigest = `sha256:${"f".repeat(64)}`;
+          break;
+        case "unavailable":
+          photo.sourceAvailable = false;
+          break;
+        case "missing-original":
+          photo.sourceBlob = null;
+          break;
+        case "size":
+          photo.sourceBlob = new Blob(["longer original"], { type: "image/jpeg" });
+          break;
+        case "type":
+          photo.sourceBlob = new Blob(["original"], { type: "image/png" });
+          break;
+        case "name":
+          photo.sourceFileName = "renamed.jpg";
+          break;
+        case "modified":
+          photo.sourceLastModified++;
+          break;
+        case "raw":
+          photo.isRaw = true;
+          break;
+        case "recreated":
+          photo.createdAt++;
+          break;
+        case "namespace":
+          Object.assign(fake.repository, { namespace: "other-owner:shoot" });
+          break;
+      }
+      const after = (await view.read()).shots[0]!;
+      expect(after.file).not.toBe(before.file);
+      expect(sameImportAnalysisSource(before, after)).toBe(false);
+      const pending = new Map([[before.id, before]]);
+      expect(takeImportCullIds(pending, [after]).size).toBe(0);
+      expect(pending.size).toBe(0);
+      expect(fake.writes()).toBe(0);
+    }
+  });
+
+  test("a verified preview-only photo never borrows an original File after source loss", async () => {
+    const fake = fakeRepository();
+    const input = await developPhotoFromFile(new File(["original"], "photo.jpg"));
+    await fake.add([input]);
+    const photo = fake.state.photos[0]!;
+    photo.previewBlob = new Blob(["preview"], { type: "image/jpeg" });
+    const view = createCullShootView(fake.repository);
+    const original = (await view.read()).shots[0]!;
+    photo.sourceAvailable = false;
+    const preview = (await view.read()).shots[0]!;
+    expect(preview.sourceAvailable).toBe(false);
+    expect(preview.file).not.toBe(original.file);
+    expect(await preview.file.text()).toBe("preview");
+    photo.previewBlob = photo.previewBlob.slice(0, photo.previewBlob.size, photo.previewBlob.type);
+    expect((await view.read()).shots[0]!.file).not.toBe(preview.file);
+  });
+
   test("K/X and selection arriving during refresh are not adopted away or rebased onto stale data", async () => {
     const fake = fakeRepository();
     await fake.add([developPhotoFromShot(oldPhoto("one")), developPhotoFromShot(oldPhoto("two"))]);
