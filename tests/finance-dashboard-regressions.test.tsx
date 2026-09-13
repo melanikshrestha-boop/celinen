@@ -23,6 +23,16 @@ const today = "2026-09-10";
 const period = { from: "2026-09-01", to: today };
 const money = (minor: number) => formatFinanceMoney(minor, "USD");
 const scope = { currency: "USD", period, shootId: "reserved-shoot-a", complete: true };
+
+test("narrow Earnings charts keep their intrinsic ratio instead of desktop-height letterboxing", () => {
+  const css = readFileSync(
+    new URL("../src/components/earnings/finance-os.css", import.meta.url),
+    "utf8",
+  );
+  const narrow = css.slice(css.indexOf("@container earnings (max-width: 620px)"));
+  expect(narrow).toMatch(/\.finance-os__stage \.finance-os__plot\s*\{[^}]*min-height:\s*0/);
+  expect(narrow).toMatch(/\.finance-os__stage \.finance-os__plot\s*\{[^}]*max-height:\s*none/);
+});
 function row(id: string, patch: Partial<EarningsRow> = {}): EarningsRow {
   return {
     id,

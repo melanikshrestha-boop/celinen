@@ -46,6 +46,11 @@ export function RetirementPathways() {
         catch-up is USD 8,000 at age 50+, or USD 11,250 at ages 60–63—not both. Income, other plans
         and contribution type matter.
       </p>
+      <p className="finance-os__vs">
+        Check the worksheet edition before calculating a contribution. Publication 560 may still use
+        prior-year dollar limits in its worksheets; use the applicable 2026 limits below, not an
+        older worksheet’s printed ceilings.
+      </p>
       <a href={TAX_SOURCES.retirementLimits} target="_blank" rel="noreferrer">
         IRS 2026 plan limits <span className="sr-only">(opens in a new tab)</span>↗
       </a>
@@ -121,11 +126,12 @@ export function FinanceTaxHub() {
         <details className="finance-os__resource-detail">
           <summary>Do I need estimated payments?</summary>
           <p>
-            Generally, estimated payments may be required if you expect to owe at least USD 1,000
-            after withholding and credits. The usual underpayment benchmarks compare 90% of
-            current-year tax with 100% of prior-year tax, or 110% for certain higher-income
-            taxpayers. Eligibility and timely installments matter; this is not your payment
-            calculation.
+            Generally, both conditions apply: you expect at least USD 1,000 still due after
+            withholding and refundable credits, and those amounts fall short of the smaller of 90%
+            of 2026 tax or 100% of 2025 tax. The prior return must cover all 12 months. Use 110%
+            instead of 100% if 2025 adjusted gross income exceeded USD 150,000, or USD 75,000 when
+            married filing separately for 2026. Exceptions and timely installments matter; this is
+            not your payment calculation.
           </p>
           <p>
             Seasonal shoots do not mean equal income each quarter. Ask about the annualized-income

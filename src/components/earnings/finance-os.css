@@ -851,6 +851,12 @@
   }
 }
 @container earnings (max-width: 620px) {
+  .finance-os .finance-os__stage .finance-os__plot {
+    /* Retain the SVG's intrinsic ratio. The desktop height otherwise adds
+       empty letterboxing above and below a narrow chart. */
+    min-height: 0;
+    max-height: none;
+  }
   .finance-os .finance-os__plot text {
     font-size: 20px;
   }
