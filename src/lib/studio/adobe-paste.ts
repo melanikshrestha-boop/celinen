@@ -265,7 +265,7 @@ function xmlTree(xml: string): XmlNode {
   return root;
 }
 
-function xmpFields(xml: string): Map<string, string | null> {
+function xmpFields(xml: string, pointCurves = false): Map<string, string | null> {
   const root = xmlTree(xml);
   const is = (node: XmlNode, namespace: string, local: string) =>
     node.namespace === namespace && node.local === local;
@@ -290,11 +290,30 @@ function xmpFields(xml: string): Map<string, string | null> {
       .filter((attr) => attr.namespace === CRS)
       .map((attr) => [attr.local, attr.value]);
     for (const child of description.children) {
-      if (child.namespace === CRS)
+      if (child.namespace === CRS) {
+        const sequence = child.children[0];
+        if (
+          pointCurves &&
+          /^ToneCurvePV2012(?:Red|Green|Blue)?$/.test(child.local) &&
+          !child.attributes.length &&
+          !child.text.trim() &&
+          child.children.length === 1 &&
+          sequence &&
+          is(sequence, RDF, "Seq") &&
+          !sequence.attributes.length &&
+          !sequence.text.trim() &&
+          sequence.children.every(
+            (item) => is(item, RDF, "li") && !item.children.length && !item.attributes.length,
+          )
+        ) {
+          values.push([child.local, sequence.children.map((item) => item.text.trim()).join(";")]);
+          continue;
+        }
         values.push([
           child.local,
           child.children.length || child.attributes.length ? null : child.text.trim(),
         ]);
+      }
     }
     if (values.length && ++settingsDescriptions > 1)
       throw new Error("Multiple Adobe settings records are ambiguous; paste one recipe.");
@@ -304,6 +323,24 @@ function xmpFields(xml: string): Map<string, string | null> {
     }
   }
   return fields;
+}
+
+/** Non-executing, bounded XMP data extraction for the native preset importer.
+ * The legacy browser mapper remains intentionally limited to its own controls.
+ */
+export function readAdobeXmpPresetFields(input: string): ReadonlyMap<string, string | null> {
+  if (typeof input !== "string" || input.length > ADOBE_PASTE_MAX_CHARS)
+    throw new Error("Choose an XMP preset smaller than 128,000 characters.");
+  const text = input.trim();
+  // No external entities/DTDs, arbitrary declarations, or executable XML.
+  if (
+    // eslint-disable-next-line no-control-regex
+    /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text) ||
+    /<!DOCTYPE|<!ENTITY/i.test(text) ||
+    /&(?!(?:amp|lt|gt|quot|apos);)/.test(text)
+  )
+    throw new Error("Unsupported XML entities or control characters in this preset.");
+  return xmpFields(text, true);
 }
 
 function lineFields(text: string): { fields: Map<string, string | null>; name: string } {

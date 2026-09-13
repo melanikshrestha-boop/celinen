@@ -78,17 +78,14 @@ import { photoExportFilename, uniquePhotoDisplayName } from "@/lib/develop/photo
 import { removalRenderEdge } from "@/lib/develop/object-remove";
 import { DevelopPhotoActions } from "./DevelopPhotoActions";
 import { PresetExchange } from "./PresetExchange";
+import { adaptPresetToLight } from "@/lib/develop/adaptive-preset";
 import { ReferencePresetDialog } from "./ReferencePresetDialog";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
 import { DevelopViewer } from "./DevelopViewer";
 import { DevelopHistogram } from "./DevelopHistogram";
 import { DevelopFilmstrip } from "./DevelopFilmstrip";
 import { DevelopLibraryGrid } from "./DevelopLibraryGrid";
-import {
-  suggestDevelopLight,
-  suggestDevelopTone,
-  type DevelopHistogramData,
-} from "@/lib/develop/histogram";
+import { suggestDevelopLight, type DevelopHistogramData } from "@/lib/develop/histogram";
 import { analyzeDevelopBlob } from "@/lib/develop/pixel-analysis";
 import {
   createDevelopPixelSampleChannel,
@@ -997,7 +994,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     return persistBatch([next], internal);
   }
   function change(next: DevelopSettings, label: string, commit = true) {
-    if (editsLocked() || !selectedRef.current || !source) return;
+    if (editsLocked() || !selectedRef.current || !source) return false;
     draftRef.current = next;
     setDraft(next);
     setBefore(false);
@@ -1011,6 +1008,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (dirty) void persistBatch([pushHistory(existing, next, label)]);
       markDraftDirty(false);
     }
+    return true;
   }
   function select(id: string, multi = false) {
     if (editsLocked() || !docs.current[id]) return;
@@ -1079,11 +1077,34 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     setZoom("fit");
   }
   function applyPreset(preset: { name: string; settings: DevelopSettings }) {
-    change(
-      { ...cloneDevelopSettings(preset.settings), crop: draft.crop, masks: draft.masks },
+    if (editsLocked() || !source) return;
+    if (adaptiveLooks && (!sourceStatsReady || !sourceHistogram)) {
+      setNotice("Waiting for this photo's lighting analysis.");
+      return;
+    }
+    const adapted =
+      adaptiveLooks && sourceHistogram
+        ? adaptPresetToLight(preset.settings, sourceHistogram)
+        : null;
+    const settings = adapted?.settings ?? cloneDevelopSettings(preset.settings);
+    const unavailable = browserOnly ? unsupportedBrowserDevelopEdits(settings) : [];
+    if (unavailable.length) {
+      setNotice(
+        `This preset requires the local C++ engine: ${unavailable.join(", ")}. No edits applied.`,
+      );
+      return;
+    }
+    const accepted = change(
+      { ...settings, crop: draft.crop, masks: draft.masks },
       `Preset: ${preset.name}`.slice(0, 100),
     );
-    setActivePreset(preset.name);
+    if (accepted) {
+      setActivePreset(preset.name);
+      if (adapted)
+        setNotice(
+          `${preset.name} · lighting correction ${adapted.adjustment >= 0 ? "+" : ""}${adapted.adjustment.toFixed(2)} EV · ${adapted.reason}.`,
+        );
+    }
   }
   const sourceStatsReady =
     sourceHistogram &&
@@ -1147,19 +1168,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       return;
     }
     const settings = { ...defaultDevelopSettings(), ...preset.patch };
-    if (adaptiveLooks && sourceStatsReady && sourceHistogram) {
-      const suggestion = suggestDevelopTone(sourceHistogram);
-      settings.exposure = suggestion.exposure;
-      if (settings.grain > 0) settings.grainLuminance = 100;
-      setNotice(
-        `${preset.name} · ${suggestion.exposure > 0 ? "+" : ""}${suggestion.exposure} EV · ${suggestion.reason}.`,
-      );
-    }
+    if (settings.grain > 0) settings.grainLuminance = 100;
     applyPreset({ name: preset.name, settings });
   }
   function reset() {
-    change(defaultDevelopSettings(), "Reset settings");
-    setActivePreset("Original");
+    if (change(defaultDevelopSettings(), "Reset settings")) setActivePreset("Original");
   }
   function undo() {
     if (editsLocked() || !source) return;
@@ -1916,7 +1929,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   checked={adaptiveLooks}
                   onChange={(e) => setAdaptiveLooks(e.target.checked)}
                 />
-                Adapt built-in looks to light
+                Adapt presets to light
               </label>
               <div className="develop-preset-list">
                 {builtinPresets.map((p) => (
@@ -1945,6 +1958,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     disabled={
                       !source ||
                       !!saveError ||
+                      !!busy ||
+                      (adaptiveLooks && !sourceStatsReady) ||
                       (browserOnly && unsupportedBrowserDevelopEdits(p.settings).length > 0)
                     }
                     aria-pressed={activePreset === p.name}

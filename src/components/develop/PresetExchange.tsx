@@ -8,6 +8,7 @@ import {
   parsePresetPackage,
   presetPackageFilename,
   PRESET_PACKAGE_MAX_BYTES,
+  reviewLightroomPreset,
 } from "@/lib/develop/preset-package";
 
 export function PresetExchange({
@@ -39,6 +40,9 @@ export function PresetExchange({
   }, []);
   const [choice, setChoice] = useState("current");
   const [imported, setImported] = useState<DevelopPreset | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [acceptedTranslation, setAcceptedTranslation] = useState(false);
+  const importedWarnings = useRef<string[]>([]);
   const load = (preset: DevelopPreset) => {
     setSettings(preset.settings);
     setTitle(preset.name);
@@ -52,7 +56,10 @@ export function PresetExchange({
     createPresetPackage({ title, creator, description, license }, settings);
   return (
     <div className="develop-preset-exchange">
-      <p>Portable FOTO preset files. No photos, local paths, crops, or masks are included.</p>
+      <p>
+        Import a Celinen preset or review a Lightroom XMP tone translation. Originals stay
+        untouched.
+      </p>
       <fieldset disabled={busy}>
         <label>
           Starting look
@@ -61,6 +68,8 @@ export function PresetExchange({
             value={choice}
             onChange={(e) => {
               setChoice(e.target.value);
+              setWarnings(e.target.value === "imported" ? importedWarnings.current : []);
+              setAcceptedTranslation(false);
               const preset =
                 e.target.value === "imported"
                   ? imported
@@ -125,8 +134,8 @@ export function PresetExchange({
         <input
           ref={picker}
           type="file"
-          accept=".json,application/json"
-          aria-label="Import FOTO preset file"
+          accept=".json,.xmp,application/json,application/rdf+xml"
+          aria-label="Import preset file"
           hidden
           onChange={async (e) => {
             const file = e.target.files?.[0];
@@ -137,13 +146,24 @@ export function PresetExchange({
             try {
               if (file.size > PRESET_PACKAGE_MAX_BYTES)
                 throw new Error("Choose a preset smaller than 256 KB.");
-              const pkg = parsePresetPackage(await file.text());
+              const text = await file.text();
+              const translation = /\.xmp$/i.test(file.name)
+                ? reviewLightroomPreset(text, file.name)
+                : null;
+              const pkg = translation?.package ?? parsePresetPackage(text);
               if (!alive.current) return;
+              setWarnings(translation?.warnings ?? []);
+              importedWarnings.current = translation?.warnings ?? [];
+              setAcceptedTranslation(false);
               const preset = developPresetFromPackage(pkg);
               setImported(preset);
               setChoice("imported");
               load(preset);
-              setNotice("Preset loaded for review. Save to add it to your library.");
+              setNotice(
+                translation
+                  ? "Review the translation limits before saving. Keep your original XMP file."
+                  : "Preset loaded for review. Save to add it to your library.",
+              );
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : "Preset import failed.");
             } finally {
@@ -158,12 +178,29 @@ export function PresetExchange({
       </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {warnings.length > 0 && (
+        <div>
+          <ul>
+            {warnings.map((warning, i) => (
+              <li key={i}>{warning}</li>
+            ))}
+          </ul>
+          <label>
+            <input
+              type="checkbox"
+              checked={acceptedTranslation}
+              onChange={(event) => setAcceptedTranslation(event.target.checked)}
+            />{" "}
+            Save only this approximate tone translation
+          </label>
+        </div>
+      )}
       <div className="develop-dialog-actions">
         <button disabled={busy} onClick={() => picker.current?.click()}>
           Import file
         </button>
         <button
-          disabled={busy || !title.trim()}
+          disabled={busy || !title.trim() || (warnings.length > 0 && !acceptedTranslation)}
           onClick={() => {
             try {
               const pkg = packageValue(),
@@ -185,7 +222,7 @@ export function PresetExchange({
           Export preset
         </button>
         <button
-          disabled={busy || !title.trim()}
+          disabled={busy || !title.trim() || (warnings.length > 0 && !acceptedTranslation)}
           onClick={async () => {
             setBusy(true);
             setError("");

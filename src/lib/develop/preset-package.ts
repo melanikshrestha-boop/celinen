@@ -1,6 +1,22 @@
 import { z } from "zod";
 import { defaultDevelopSettings, developSettingsSchema, type DevelopSettings } from "./contract";
 import type { DevelopPreset } from "./store";
+import { translateLightroomPreset } from "./lightroom-preset";
+
+/** Reviewed subset only. Never describes a non-Adobe renderer as pixel equivalent. */
+export function reviewLightroomPreset(text: string, fileName: string) {
+  const { settings, warnings } = translateLightroomPreset(text);
+  return {
+    package: createPresetPackage(
+      {
+        title: `${fileName.replace(/\.xmp$/i, "").slice(0, 76)} (tone translation)`,
+        description: warnings.join("\n").slice(0, 4000),
+      },
+      settings,
+    ),
+    warnings,
+  };
+}
 
 export const PRESET_PACKAGE_MAX_BYTES = 256 * 1024;
 const plainText = (limit: number, multiline = false) =>
