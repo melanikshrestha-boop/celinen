@@ -102,7 +102,7 @@ import {
 } from "@/lib/studio/people";
 import {
   canPersistStudioSession,
-  readStudioSessionSnapshot,
+  loadStudioSession,
   saveStudioSession,
   setStudioEventPeople,
   setStudioRoster,
@@ -111,6 +111,7 @@ import {
   type StudioHydrationState,
 } from "@/lib/studio/session";
 import { countReviewIssue, filterReviewIssue, type ReviewIssue } from "@/lib/studio/review-filter";
+import { cullReview, filterCullFrames, nextCullReviewId } from "@/lib/studio/cull-review";
 import { bridgeCredentials, bridgeFetch } from "@/lib/bridge-client";
 import { indexDuplicateFrames } from "@/lib/studio/culling-index";
 import {
@@ -344,7 +345,9 @@ export function Studio({
   const loadStoredSession = useCallback(async () => {
     const legacy = projectSession
       ? await projectSession.load()
-      : await readStudioSessionSnapshot(storageScope, shootId);
+      : // This is the owning controller's initial hydration. Read-only consumers
+        // must not acknowledge revisions, but this writer must load its CAS baseline.
+        await loadStudioSession(storageScope, shootId);
     try {
       const session = await canonicalView.read(legacy);
       const legacyById = new Map(legacy?.shots.map((shot) => [shot.id, shot]) ?? []);
@@ -447,6 +450,7 @@ export function Studio({
   const renderedProposalRef = useRef<{ proposal: StudioProposal; shotId: string } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cullViewRef = useRef<HTMLElement>(null);
   const bitmapCache = useRef(new Map<string, ImageBitmap>());
   const bitmapPromisesRef = useRef(new Map<string, Promise<ImageBitmap>>());
   const latestShotsRef = useRef<Shot[]>([]);
@@ -687,6 +691,18 @@ export function Studio({
     setFilter(next);
     setReviewIssue(null);
   }, []);
+
+  // An explicit request to open a photo may leave the review queue. Keyboard
+  // decisions do not: they continue to operate only on the displayed frames.
+  const revealShot = useCallback(
+    (id: string) => {
+      selectFilter("all");
+      setPersonFilter(null);
+      setClusterFilter(null);
+      selectShot(id);
+    },
+    [selectFilter, selectShot],
+  );
 
   const selectReviewIssue = useCallback((next: ReviewIssue) => {
     latestFilterRef.current = "flagged";
@@ -1382,37 +1398,48 @@ export function Studio({
   }, []);
 
   /* ---------------- derived ---------------- */
-  const visible = useMemo(() => {
+  const scopedShots = useMemo(() => {
     const cluster = clusterFilter
       ? eventPeople.find((person) => person.id === clusterFilter)
       : undefined;
     const byCluster = cluster ? shotsOfCluster(shots, cluster) : shots;
-    const scoped = personFilter ? shotsOfPerson(byCluster, personFilter) : byCluster;
-    if (reviewIssue) return filterReviewIssue(scoped, reviewIssue);
-    switch (filter) {
-      case "keepers":
-        return scoped.filter((s) => s.verdict === "keep");
-      case "rejected":
-        return scoped.filter((s) => s.verdict === "reject");
-      case "flagged":
-        return scoped.filter((s) => s.flags.length > 0);
-      case "todo":
-        return scoped.filter((s) => s.verdict === "undecided");
-      default:
-        return scoped;
-    }
-  }, [shots, filter, reviewIssue, personFilter, clusterFilter, eventPeople]);
+    return personFilter ? shotsOfPerson(byCluster, personFilter) : byCluster;
+  }, [shots, personFilter, clusterFilter, eventPeople]);
+  const visible = useMemo(
+    () =>
+      reviewIssue
+        ? filterReviewIssue(scopedShots, reviewIssue)
+        : filterCullFrames(scopedShots, filter),
+    [scopedShots, filter, reviewIssue],
+  );
 
-  const selected = shots.find((s) => s.id === selectedId) ?? null;
+  const focusReviewQueue = () =>
+    cullViewRef.current
+      ?.querySelector<HTMLElement>("[data-cull-filmstrip]")
+      ?.focus({ preventScroll: true });
+  const openFilter = (next: Filter) => {
+    selectFilter(next);
+    selectShot(filterCullFrames(scopedShots, next)[0]?.id ?? null);
+    requestAnimationFrame(focusReviewQueue);
+  };
+
+  // Never show or keyboard-edit a photo outside the displayed queue. A null selection
+  // is intentional after its final decision, so background updates must not restart it.
+  useEffect(() => {
+    if (selectedId && !visible.some((shot) => shot.id === selectedId))
+      selectShot(visible[0]?.id ?? null);
+  }, [selectedId, visible, selectShot]);
+
+  const selected = visible.find((s) => s.id === selectedId) ?? null;
   const counts = useMemo(
     () => ({
-      all: shots.length,
-      keepers: shots.filter((s) => s.verdict === "keep").length,
-      rejected: shots.filter((s) => s.verdict === "reject").length,
-      flagged: shots.filter((s) => s.flags.length > 0).length,
-      todo: shots.filter((s) => s.verdict === "undecided").length,
+      all: scopedShots.length,
+      keepers: scopedShots.filter((s) => s.verdict === "keep").length,
+      rejected: scopedShots.filter((s) => s.verdict === "reject").length,
+      flagged: scopedShots.filter((s) => cullReview(s).dot === "review").length,
+      todo: scopedShots.filter((s) => s.verdict === "undecided").length,
     }),
-    [shots],
+    [scopedShots],
   );
 
   /* ---------------- loupe render ---------------- */
@@ -1487,14 +1514,15 @@ export function Studio({
   const setVerdict = useCallback(
     (id: string, verdict: Verdict, advance = true) => {
       if (!canPersistStudioSession(sessionStatusRef.current)) return;
+      if (!visible.some((shot) => shot.id === id)) return;
       checkpoint();
       updateShots((prev) => prev.map((s) => (s.id === id ? { ...s, verdict } : s)));
       if (!advance) return;
-      const idx = visible.findIndex((s) => s.id === id);
-      const next = visible[idx + 1];
-      if (next) selectShot(next.id);
+      const next = nextCullReviewId(visible, id);
+      if (next) selectShot(next);
+      else if (filter !== "all" || reviewIssue) selectShot(null);
     },
-    [checkpoint, selectShot, updateShots, visible],
+    [checkpoint, selectShot, updateShots, visible, filter, reviewIssue],
   );
 
   const applyVerdicts = useCallback(
@@ -1516,6 +1544,7 @@ export function Studio({
     (dir: 1 | -1) => {
       if (!selectedId) return;
       const idx = visible.findIndex((s) => s.id === selectedId);
+      if (idx < 0) return;
       const next = visible[idx + dir];
       if (next) selectShot(next.id);
     },
@@ -1533,7 +1562,7 @@ export function Studio({
       const receipt = stageCull(
         firstPassVerdict,
         "Suggested selections",
-        "Review recommendations for undecided photos. Your existing keeps and rejects are protected.",
+        "Keep suggestions only. Focus, highlight and other concerns stay undecided for review. Existing decisions are protected.",
       );
       setSyncNote(receipt);
     } catch (error) {
@@ -1699,12 +1728,11 @@ export function Studio({
             return "failed: Ingest is still running. You can review arriving frames now; run the whole-shoot cull after ingest finishes.";
           const min = num("min_score") ?? 45;
           const keepAt = num("keep_score") ?? 70;
+          const verdicts = smartCullPass(currentShots(), [], { rejectBelow: min, keepAt });
           return stageCull(
-            (s) =>
-              smartCullPass(currentShots(), [], { rejectBelow: min, keepAt }).get(s.id) ??
-              firstPassVerdict(s, { rejectBelow: min, keepAt }),
+            (s) => verdicts.get(s.id) ?? s.verdict,
             "Suggested selections",
-            "Suggestions for undecided photos only. Your existing decisions are protected.",
+            "Keep suggestions only. Low scores and quality concerns stay undecided for review; no automatic rejection. Existing decisions are protected.",
           );
         }
         case "keep_top": {
@@ -1755,7 +1783,7 @@ export function Studio({
           if (!target && q === "worst") target = [...pool].sort((a, b) => a.score - b.score)[0];
           if (!target && /^\d+$/.test(q)) target = pool[Number(q) - 1];
           if (!target) return `failed: no frame matched "${q}"`;
-          selectShot(target.id);
+          revealShot(target.id);
           return `opened ${target.name}`;
         }
         case "apply_edits": {
@@ -1798,8 +1826,8 @@ export function Studio({
     [
       discardProposal,
       requestDevelopOutput,
+      revealShot,
       selectFilter,
-      selectShot,
       sendKeepers,
       stageCull,
       undoLast,
@@ -1904,13 +1932,12 @@ export function Studio({
         detail.respond(`Enter a photo number from 1 to ${frames.length}.`);
         return;
       }
-      selectFilter("all");
-      selectShot(frames[detail.number - 1]!.id);
+      revealShot(frames[detail.number - 1]!.id);
       detail.respond("");
     };
     window.addEventListener("lenslabs:go-to-photo", jump);
     return () => window.removeEventListener("lenslabs:go-to-photo", jump);
-  }, [selectFilter, selectShot]);
+  }, [revealShot]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -1939,18 +1966,22 @@ export function Studio({
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
-      if (!selectedId) return;
+      if (!selectedId || !selected) return;
       if (k === "arrowright" || k === "arrowdown") {
         e.preventDefault();
         step(1);
       } else if (k === "arrowleft" || k === "arrowup") {
         e.preventDefault();
         step(-1);
-      } else if (matchesShortcut(e, preferences.shortcuts.keep) || k === "k")
+      } else if (matchesShortcut(e, preferences.shortcuts.keep) || k === "k") {
+        e.preventDefault();
+        t?.closest<HTMLElement>("[data-cull-filmstrip]")?.focus({ preventScroll: true });
         setVerdict(selectedId, "keep");
-      else if (matchesShortcut(e, preferences.shortcuts.reject) || k === "x" || k === "r")
+      } else if (matchesShortcut(e, preferences.shortcuts.reject) || k === "x" || k === "r") {
+        e.preventDefault();
+        t?.closest<HTMLElement>("[data-cull-filmstrip]")?.focus({ preventScroll: true });
         setVerdict(selectedId, "reject");
-      else if (e.key === " " || e.key === "Spacebar") {
+      } else if (e.key === " " || e.key === "Spacebar") {
         e.preventDefault();
         const current = latestShotsRef.current.find((s) => s.id === selectedId)?.verdict;
         setVerdict(selectedId, current === "keep" ? "reject" : "keep");
@@ -1978,7 +2009,16 @@ export function Studio({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, step, setVerdict, stageRecipe, undoLast, workbench, preferences.shortcuts]);
+  }, [
+    selectedId,
+    selected,
+    step,
+    setVerdict,
+    stageRecipe,
+    undoLast,
+    workbench,
+    preferences.shortcuts,
+  ]);
 
   const onDrop = (e: React.DragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes("Files")) return;
@@ -2137,8 +2177,7 @@ export function Studio({
           selectedId={selectedId}
           onSelect={() => {
             if (deliveryFocus) {
-              selectFilter("all");
-              selectShot(deliveryFocus.frameId);
+              revealShot(deliveryFocus.frameId);
             }
           }}
         />
@@ -2149,8 +2188,7 @@ export function Studio({
         void workbench?.showStudio();
       }}
       onOpenPhoto={(id) => {
-        selectFilter("all");
-        selectShot(id);
+        revealShot(id);
         void workbench?.showStudio();
       }}
       status={folderStatus ?? (syncNote?.startsWith("0 saved frames restored") ? null : syncNote)}
@@ -2438,7 +2476,7 @@ export function Studio({
         />
       </header>
       {recovery && (
-        <div className={embedded ? "workbench-studio-recovery" : "px-6 py-3"}>{recovery}</div>
+        <div className={workbench ? "workbench-studio-recovery" : "px-6 py-3"}>{recovery}</div>
       )}
 
       {progress && (
@@ -2461,6 +2499,7 @@ export function Studio({
       )}
 
       <main
+        ref={cullViewRef}
         className={
           embedded
             ? "grid min-h-0 flex-1 grid-cols-1"
@@ -2536,7 +2575,12 @@ export function Studio({
                   </button>
                 </div>
                 {embedded ? (
-                  <StudioFilterMenu value={filter} counts={counts} onChange={selectFilter} />
+                  <StudioFilterMenu
+                    value={filter}
+                    counts={counts}
+                    onChange={openFilter}
+                    onQueueFocus={focusReviewQueue}
+                  />
                 ) : (
                   <>
                     <span className="font-mono text-[10px] uppercase tracking-wider text-moss">
@@ -2547,13 +2591,13 @@ export function Studio({
                         ["all", `All ${counts.all}`],
                         ["todo", `To review ${counts.todo}`],
                         ["keepers", `Keepers ${counts.keepers}`],
-                        ["flagged", `Flagged ${counts.flagged}`],
+                        ["flagged", `Red dots ${counts.flagged}`],
                         ["rejected", `Rejected ${counts.rejected}`],
                       ] as [Filter, string][]
                     ).map(([key, label]) => (
                       <button
                         key={key}
-                        onClick={() => selectFilter(key)}
+                        onClick={() => openFilter(key)}
                         aria-pressed={filter === key}
                         className={`rounded-full px-3 py-1 font-mono text-[11px] transition-colors ${
                           filter === key
@@ -2576,6 +2620,11 @@ export function Studio({
                     Filmstrip · {visible.length} frames
                   </div>
                   <Filmstrip shots={visible} selectedId={selectedId} onSelect={selectShot} />
+                  {filter === "flagged" && !reviewIssue && visible.length === 0 && (
+                    <p role="status" className="py-4 text-sm text-moss">
+                      No red-dot photos to review.
+                    </p>
+                  )}
                   <p className="mt-3 font-mono text-[10px] text-moss">
                     ← → browse · K keep · R/X reject · Space toggle · U clear · ⌘Z undo
                   </p>
@@ -2779,6 +2828,7 @@ export function Studio({
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           onClick={() => setVerdict(selected.id, "keep")}
+                          disabled={!canPersistStudioSession(sessionStatus)}
                           aria-pressed={selected.verdict === "keep"}
                           className={`rounded-full px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
                             selected.verdict === "keep"
@@ -2790,6 +2840,7 @@ export function Studio({
                         </button>
                         <button
                           onClick={() => setVerdict(selected.id, "reject")}
+                          disabled={!canPersistStudioSession(sessionStatus)}
                           aria-pressed={selected.verdict === "reject"}
                           className={`rounded-full px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
                             selected.verdict === "reject"

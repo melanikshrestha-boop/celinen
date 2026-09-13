@@ -7,6 +7,7 @@ import {
   isImportAnalyzed,
   mergePreservedImportAnalysis,
 } from "../src/lib/studio/cull-on-import";
+import { smartCullPass } from "../src/lib/studio/smart-cull";
 
 const file = (id: string) => new File([id], `${id}.jpg`, { type: "image/jpeg" });
 
@@ -34,14 +35,45 @@ function shot(id: string, overrides: Partial<Shot> = {}): Shot {
 }
 
 describe("cull on import", () => {
-  test("rejects blur and near-dupes on undecided frames only", () => {
+  test.each(["red", "Red"])(
+    "a saved %s review label survives smart cull and repeated import passes until Keep or Reject",
+    (label) => {
+      const marked = shot("marked", {
+        score: 90,
+        hash: "0".repeat(64),
+        develop: { origin: "lightroom", at: 0, label },
+      });
+      const clean = shot("clean", { score: 90, hash: "1".repeat(64) });
+      const input = [marked, clean];
+      const bursts = [{ frameIds: input.map((frame) => frame.id), recommendedId: marked.id }];
+      expect([...smartCullPass(input, bursts).values()]).toEqual(["undecided", "keep"]);
+
+      const first = applyImportCull(input, { bursts });
+      const second = applyImportCull(first.shots, { bursts, onlyIds: new Set([marked.id]) });
+      for (const result of [first, second]) {
+        expect(result.shots.map((frame) => frame.verdict)).toEqual(["undecided", "keep"]);
+        expect(result.shots[0]!.develop?.label).toBe(label);
+        expect(result.shots[0]!.file).toBe(marked.file);
+      }
+      expect(marked.verdict).toBe("undecided");
+      expect(marked.flags).toEqual([]);
+
+      for (const verdict of ["keep", "reject"] as const) {
+        const decided = { ...marked, verdict };
+        expect(smartCullPass([decided], bursts).get(marked.id)).toBe(verdict);
+        expect(applyImportCull([decided], { bursts }).shots[0]!.verdict).toBe(verdict);
+      }
+    },
+  );
+
+  test("routes blur and near-dupes to review while preserving existing decisions", () => {
     const keeper = shot("keep-me", { score: 90, hash: "1".repeat(64) });
     const blur = shot("blur", { score: 92, flags: ["blur"], hash: "0".repeat(64) });
     const dupe = shot("dupe", { score: 70, hash: "1".repeat(62) + "00" });
     const protectedKeep = shot("already", { verdict: "keep", flags: ["blur"], score: 10 });
     const original = keeper.file;
     const { shots, changed } = applyImportCull([keeper, blur, dupe, protectedKeep]);
-    expect(shots.map((frame) => frame.verdict)).toEqual(["keep", "reject", "reject", "keep"]);
+    expect(shots.map((frame) => frame.verdict)).toEqual(["keep", "undecided", "undecided", "keep"]);
     expect(shots[2]!.flags).toContain("duplicate");
     expect(shots[0]!.file).toBe(original);
     expect(changed).toBeGreaterThan(0);
@@ -61,7 +93,7 @@ describe("cull on import", () => {
     const incoming = shot("new", { flags: ["blur"], score: 90, hash: "1".repeat(64) });
     const { shots } = applyImportCull([oldOpen, incoming], { onlyIds: new Set(["new"]) });
     expect(shots[0]!.verdict).toBe("undecided");
-    expect(shots[1]!.verdict).toBe("reject");
+    expect(shots[1]!.verdict).toBe("undecided");
   });
 
   test("attachImportAnalysis writes blur from sharpness and never flips a keep", () => {

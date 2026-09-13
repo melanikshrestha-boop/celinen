@@ -24,7 +24,7 @@ export type ToolCall = { name: ToolName; args: Record<string, unknown> };
 
 export type LocalCommandMatch = {
   calls: ToolCall[];
-  /** A terse receipt shown after the local tools finish. */
+  /** A command-match summary, not an execution receipt; tool results confirm outcomes. */
   reply: string;
 };
 
@@ -34,17 +34,19 @@ export const STUDIO_TOOL_DEFINITIONS = [
     function: {
       name: "cull",
       description:
-        "Run the culling pass over the whole shoot: reject blurred, duplicate, eyes-closed and low-scoring frames, and keep strong ones.",
+        "Preview conservative culling suggestions for undecided frames: suggest eligible strong frames as keeps and leave concerns undecided for review. Preserve existing decisions and propose no new rejections. Saving the proposal requires photographer approval.",
       parameters: {
         type: "object",
         properties: {
           min_score: {
             type: "number",
-            description: "Frames scoring below this are rejected. Default 45.",
+            description:
+              "Compatibility field, not a rejection cutoff. Must be between 0 and keep_score; default 45. Low-scoring undecided frames remain available for review.",
           },
           keep_score: {
             type: "number",
-            description: "Frames scoring at or above this are kept. Default 70.",
+            description:
+              "Eligible undecided frames scoring at or above this may be suggested as keeps; review flags and manual review holds still apply. Default 70, maximum 100.",
           },
         },
       },
@@ -302,7 +304,7 @@ export function parseLocalCommand(input: string): LocalCommandMatch | null {
   if (/^(?:undo|undo that|undo last|go back|revert(?: that| last)?)\.?$/.test(text)) {
     return {
       calls: [{ name: "undo_last", args: {} }],
-      reply: "undone locally.",
+      reply: "Matched 1 local command. Tool results report execution and any approval needed.",
     };
   }
 
@@ -402,7 +404,12 @@ export function parseLocalCommand(input: string): LocalCommandMatch | null {
   if (!calls.length) return null;
   return {
     calls,
-    reply: calls.length === 1 ? "done locally." : `ran ${calls.length} steps locally.`,
+    reply:
+      `Matched ${calls.length} local command${calls.length === 1 ? "" : "s"}.` +
+      (wantsCull
+        ? " Cull preserves existing decisions and proposes no new rejections; min_score is retained for compatibility, not a rejection cutoff."
+        : "") +
+      " Tool results report execution and any approval needed.",
   };
 }
 

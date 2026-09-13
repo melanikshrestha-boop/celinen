@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import type { Shot } from "@/lib/imaging";
+import { cullReview } from "@/lib/studio/cull-review";
 import {
   filmstripSelectionScrollTop,
   getFilmstripRows,
@@ -16,7 +17,13 @@ interface FilmstripProps {
 }
 
 /** Virtualized contact sheet, or a single-row-height rail below the image in compact mode. */
-export function Filmstrip({ shots, selectedId, onSelect, compact = false, numbered = false }: FilmstripProps) {
+export function Filmstrip({
+  shots,
+  selectedId,
+  onSelect,
+  compact = false,
+  numbered = false,
+}: FilmstripProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 520, columns: 4 });
@@ -95,6 +102,8 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false, number
     <div
       ref={viewportRef}
       role="region"
+      tabIndex={0}
+      data-cull-filmstrip="true"
       aria-label={`Filmstrip, ${shots.length} frames${unreadable ? `, ${unreadable} unreadable for manual review` : ""}`}
       className={`relative overflow-y-auto pr-1 ${compact ? "shrink-0" : "max-h-[520px]"}`}
       style={compact ? { height: window.rowHeight, maxHeight: window.rowHeight } : undefined}
@@ -126,21 +135,21 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false, number
             {shots.slice(row * window.columns, (row + 1) * window.columns).map((shot, column) => {
               const index = row * window.columns + column;
               return (
-              <div
-                key={shot.id}
-                role="listitem"
-                aria-posinset={index + 1}
-                aria-setsize={shots.length}
-                className="min-w-0"
-              >
-                <FrameButton
-                  shot={shot}
-                  selected={shot.id === selectedId}
-                  onSelect={onSelect}
-                  index={numbered ? index + 1 : null}
-                />
-              </div>
-            );
+                <div
+                  key={shot.id}
+                  role="listitem"
+                  aria-posinset={index + 1}
+                  aria-setsize={shots.length}
+                  className="min-w-0"
+                >
+                  <FrameButton
+                    shot={shot}
+                    selected={shot.id === selectedId}
+                    onSelect={onSelect}
+                    index={numbered ? index + 1 : null}
+                  />
+                </div>
+              );
             })}
           </div>
         ))}
@@ -163,13 +172,15 @@ const FrameButton = memo(function FrameButton({
   const availability = frameAvailability(s);
   const status = frameAvailabilityLabel(availability);
   const showPreview = availability === "ready" && Boolean(s.previewUrl);
+  const review = cullReview(s);
   return (
     <button
       onClick={() => onSelect(s.id)}
       aria-pressed={selected}
-      aria-label={`${s.name} · ${status} · ${s.verdict}`}
-      title={`${s.name} · ${status}`}
+      aria-label={`${s.name} · ${status} · ${review.label}`}
+      title={`${s.name} · ${status} · ${review.label}`}
       data-frame-availability={availability}
+      data-cull-dot={review.dot}
       className={`relative block aspect-[4/5] w-full overflow-hidden bg-mist/50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rust ${
         selected ? "outline outline-2 -outline-offset-2 outline-rust" : ""
       }`}
@@ -192,29 +203,22 @@ const FrameButton = memo(function FrameButton({
               : "preview pending"}
         </span>
       )}
-      <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
-        {index != null
-          ? String(index)
-          : availability === "unreadable"
-            ? "review"
-            : s.score || "—"}
-      </span>
-      {s.develop && (
-        <span
-          className="absolute bottom-0 right-0 bg-paper2/85 px-1 font-mono text-[8px] uppercase text-ink"
-          title={`develop · ${s.develop.origin}`}
-        >
-          {s.develop.origin === "lens os" ? "OS" : "LR"}
+      {index != null && (
+        <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
+          {index}
         </span>
       )}
-      {s.verdict === "keep" && (
-        <span className="absolute right-1 top-1 size-2 rounded-full bg-moss" />
-      )}
-      {s.verdict === "reject" && (
-        <span className="absolute right-1 top-1 size-2 rounded-full bg-rust" />
-      )}
-      {s.flags.length > 0 && s.verdict === "undecided" && (
-        <span className="absolute right-1 top-1 size-2 rounded-full bg-sun" />
+      {review.dot !== "pending" && (
+        <span
+          aria-hidden="true"
+          className={`absolute right-1 top-1 size-2.5 rounded-full ring-1 ring-white/70 ${
+            review.dot === "keep"
+              ? "bg-[#16a34a]"
+              : review.dot === "reject"
+                ? "bg-[#991b1b]"
+                : "bg-[#ef4444]"
+          }`}
+        />
       )}
     </button>
   );

@@ -348,7 +348,7 @@ int main() {
     CHECK(same_image(source, before));
   });
 
-  test("first pass protects existing verdicts, follows thresholds, and never uses hash alone", [] {
+  test("first pass preserves decisions and leaves weak preview evidence for review", [] {
     Analysis analysis;
     for (const auto score : {0, 44, 45, 69, 70, 99, 100}) {
       analysis.score = score;
@@ -356,18 +356,61 @@ int main() {
       analysis.blur = false;
       CHECK(lenslabs::first_pass(analysis, Verdict::keep) == Verdict::keep);
       CHECK(lenslabs::first_pass(analysis, Verdict::reject) == Verdict::reject);
-      const auto expected = score < 45 ? Verdict::reject : score >= 70 ? Verdict::keep : Verdict::undecided;
+      const auto expected = score >= 70 ? Verdict::keep : Verdict::undecided;
       CHECK(lenslabs::first_pass(analysis) == expected);
       analysis.blur = true;
-      CHECK(lenslabs::first_pass(analysis) == Verdict::reject);
+      CHECK(lenslabs::first_pass(analysis) == Verdict::undecided);
       CHECK(lenslabs::first_pass(analysis, Verdict::keep) == Verdict::keep);
     }
     analysis.blur = false;
     analysis.score = 90;
-    analysis.soft = analysis.underexposed = analysis.overexposed = true;
+    analysis.underexposed = true;
     CHECK(lenslabs::first_pass(analysis) == Verdict::keep);
     analysis.score = 60;
     CHECK(lenslabs::first_pass(analysis) == Verdict::undecided);
+  });
+
+  test("soft and clipped-high preview diagnostics remain review even at strong scores", [] {
+    const auto soft = lenslabs::analyze(checker(8, 8, 100, 102));
+    CHECK(near(soft.sharpness, 64));
+    CHECK(soft.score == 73);
+    CHECK(soft.soft && !soft.blur && !soft.overexposed);
+    CHECK(lenslabs::first_pass(soft) == Verdict::undecided);
+    const auto clipped = lenslabs::analyze(checker(8, 8, 100, 255));
+    CHECK(clipped.score == 87);
+    CHECK(clipped.overexposed && !clipped.blur && !clipped.soft);
+    CHECK(clipped.clipped_highlights == 50);
+    CHECK(lenslabs::first_pass(clipped) == Verdict::undecided);
+    for (const auto& measured : {soft, clipped}) {
+      CHECK(lenslabs::first_pass(measured, Verdict::keep) == Verdict::keep);
+      CHECK(lenslabs::first_pass(measured, Verdict::reject) == Verdict::reject);
+    }
+  });
+
+  test("flat scenes and a sharp small subject do not establish whole-photo severe blur", [] {
+    for (const auto value : {0u, 128u, 255u}) {
+      const auto measured = lenslabs::analyze(uniform(256, 256,
+        {static_cast<std::uint8_t>(value), static_cast<std::uint8_t>(value), static_cast<std::uint8_t>(value), 255}));
+      CHECK(measured.sharpness == 0);
+      CHECK(measured.blur);
+      CHECK(lenslabs::first_pass(measured) == Verdict::undecided);
+    }
+    auto image = uniform(256, 256);
+    // Sharp pixel transitions in a small subject surrounded by a flat field.
+    // The unchanged global diagnostic still says blur; it cannot localize focus.
+    for (unsigned y = 124; y < 132; ++y) for (unsigned x = 124; x < 132; ++x)
+      for (unsigned c = 0; c < 3; ++c)
+        image.rgba[(y * image.width + x) * 4 + c] = (x + y) % 2 ? 100 : 120;
+    const auto measured = lenslabs::analyze(image);
+    CHECK(measured.blur);
+    CHECK(lenslabs::first_pass(measured) == Verdict::undecided);
+    auto underexposed = lenslabs::analyze(checker(8, 8, 0, 6));
+    CHECK(underexposed.underexposed && !underexposed.blur);
+    CHECK(lenslabs::first_pass(underexposed) != Verdict::reject);
+    underexposed.score = 20;
+    CHECK(lenslabs::first_pass(underexposed) == Verdict::undecided);
+    CHECK(lenslabs::first_pass(underexposed, Verdict::keep) == Verdict::keep);
+    CHECK(lenslabs::first_pass(underexposed, Verdict::reject) == Verdict::reject);
   });
 
   test("invalid analysis does not produce a new first-pass decision", [] {

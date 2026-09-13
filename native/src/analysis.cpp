@@ -207,7 +207,10 @@ Verdict first_pass(const Analysis& analysis, Verdict existing) {
   if (analysis.score < 0 || analysis.score > 100 || !std::isfinite(analysis.sharpness) ||
       !std::isfinite(analysis.brightness) || !std::isfinite(analysis.clipped_highlights) ||
       !std::isfinite(analysis.clipped_shadows)) return Verdict::undecided;
-  if (analysis.blur || analysis.score < 45) return Verdict::reject;
+  // Preview Laplacian variance is not proof of severe whole-photo blur: flat
+  // scenes and small sharp subjects against soft backgrounds can score alike.
+  // Exposure also influences score. Neither measurement authorizes a reject.
+  if (analysis.blur || analysis.soft || analysis.overexposed) return Verdict::undecided;
   return analysis.score >= 70 ? Verdict::keep : Verdict::undecided;
 }
 

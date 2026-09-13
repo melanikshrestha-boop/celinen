@@ -1,6 +1,7 @@
 import type { Shot, Verdict } from "@/lib/imaging";
 
 export interface FirstPassThresholds {
+  /** Legacy configuration boundary; retained/validated, never authorizes rejection. */
   rejectBelow: number;
   keepAt: number;
 }
@@ -10,9 +11,9 @@ export const DEFAULT_FIRST_PASS_THRESHOLDS: Readonly<FirstPassThresholds> = Obje
   keepAt: 70,
 });
 
-export type FirstPassFrame = Pick<Shot, "verdict" | "error" | "score" | "flags">;
+export type FirstPassFrame = Pick<Shot, "verdict" | "error" | "score" | "flags" | "develop">;
 
-/** A mechanical suggestion only; callers must stage it for photographer review. */
+/** Preview diagnostics route to review; they cannot establish a bad photograph. */
 export function firstPassVerdict(
   shot: FirstPassFrame,
   thresholds: Readonly<FirstPassThresholds> = DEFAULT_FIRST_PASS_THRESHOLDS,
@@ -32,14 +33,22 @@ export function firstPassVerdict(
   )
     throw new RangeError("First-pass thresholds must satisfy 0 ≤ rejectBelow ≤ keepAt ≤ 100.");
 
+  // A saved manual/XMP red label is an explicit review hold, not a quality score.
+  // Only a photographer's Keep/Reject decision above can resolve that hold.
+  if (shot.develop?.label?.toLowerCase() === "red") return "undecided";
+
   // An unreadable or incomplete analysis is not evidence that a photo is bad.
   if (!Number.isFinite(shot.score) || shot.score < 0 || shot.score > 100) return "undecided";
   if (
     shot.flags.includes("blur") ||
+    shot.flags.includes("soft") ||
+    shot.flags.includes("face-soft") ||
     shot.flags.includes("duplicate") ||
     shot.flags.includes("eyes-closed") ||
-    shot.score < rejectBelow
+    shot.flags.includes("overexposed")
   )
-    return "reject";
+    return "undecided";
+  // Underexposure alone is not a defect. Low score also remains reviewable,
+  // regardless of the backwards-compatible rejectBelow configuration value.
   return shot.score >= keepAt ? "keep" : "undecided";
 }
