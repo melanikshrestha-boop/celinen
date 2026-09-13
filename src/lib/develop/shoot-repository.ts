@@ -115,6 +115,7 @@ export type ShootRepository = ReturnType<typeof createShootRepository>;
 export function projectDevelopPhotoToStudio(
   photo: DevelopPhoto,
   document: DevelopDocument,
+  namespace?: string,
 ): {
   shot: Shot;
   treatment: "native";
@@ -182,6 +183,7 @@ export function projectDevelopPhotoToStudio(
       ...oldDevelop,
       origin: oldDevelop?.origin ?? "lens os",
       at: oldDevelop?.at ?? 0,
+      canonical: namespace === undefined ? undefined : { namespace, photoId: photo.id },
       rating: saved.metadata.rating,
       label: saved.metadata.colorLabel,
     },

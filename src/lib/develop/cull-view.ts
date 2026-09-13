@@ -3,7 +3,7 @@ import { createLightroomVerdicts, mergeLightroomFrames } from "../lightroom-matc
 import { applyProposal, sameEdits, type StudioProposal } from "../studio/proposals";
 import type { HydratedStudioSession, StudioFilter } from "../studio/session";
 import {
-  developPhotoFromShot,
+  developPhotosFromStudio,
   type DevelopDocument,
   type DevelopLibrary,
   type ShootManifest,
@@ -177,7 +177,9 @@ export function createCullShootView(repository: ShootRepository) {
       const prior = await repository.read();
       if (legacy?.shots.length) {
         // This is merge-only: existing Develop history wins and legacy records remain archived.
-        await repository.store.addPhotosWithDocuments(legacy.shots.map(developPhotoFromShot));
+        await repository.store.addPhotosWithDocuments(
+          developPhotosFromStudio(legacy.shots, prior, repository.namespace),
+        );
       }
       let current = legacy?.shots.length ? await repository.read() : prior;
       if (!prior.photos.length && legacy?.shots.length) {
@@ -204,7 +206,7 @@ export function createCullShootView(repository: ShootRepository) {
         const document = current.documents[photo.id];
         if (!document)
           throw new Error("This saved photo has no editing document. No review was replaced.");
-        const projected = projectDevelopPhotoToStudio(photo, document);
+        const projected = projectDevelopPhotoToStudio(photo, document, repository.namespace);
         const shot = projected.shot;
         if (baseline.has(shot.id) && baseline.get(shot.id)!.photoId !== photo.id)
           throw new Error(

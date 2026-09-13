@@ -64,7 +64,7 @@ import {
   removeSnapshot,
   createDevelopPreset,
   developRecoveryDocuments,
-  developPhotoFromShot,
+  developPhotosFromStudio,
   developPhotoFromFile,
   reconnectDevelopPhoto,
   mergeDevelopImportCommit,
@@ -701,7 +701,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           try {
             if (current() && session.shots.length) {
               const receipt = await store.addPhotosWithDocuments(
-                session.shots.map(developPhotoFromShot),
+                developPhotosFromStudio(session.shots, snapshot, store.namespace),
               );
               snapshot = mergeDevelopImportCommit(snapshot, receipt);
             }
@@ -794,15 +794,26 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             (value): value is DevelopImportCommit => value !== null && value.photos.length > 0,
           ),
         );
-        for (const receipt of receipts) incoming = mergeDevelopImportCommit(incoming, receipt);
-        const missing = ids.filter(
-          (id) => !captured.get(id)?.photos.some((photo) => photo.id === id),
-        );
-        if (missing.length)
-          incoming = mergeDevelopImportCommit(
-            incoming,
-            await store.readPhotosWithDocuments(missing),
-          );
+        const receipt: DevelopImportCommit = { photos: [], documents: Object.create(null) };
+        // A newer per-photo notification supersedes that entry even when another
+        // photo still retains the original multi-photo receipt.
+        for (const cached of receipts)
+          for (const photo of cached.photos)
+            if (captured.get(photo.id) === cached) {
+              receipt.photos.push(photo);
+              receipt.documents[photo.id] = cached.documents[photo.id]!;
+            }
+        const received = new Set(receipt.photos.map((photo) => photo.id));
+        const missing = ids.filter((id) => !received.has(id));
+        if (missing.length) {
+          const loaded = await store.readPhotosWithDocuments(missing);
+          receipt.photos.push(...loaded.photos);
+          Object.assign(receipt.documents, loaded.documents);
+        }
+        // Targeted rereads must not move earlier imports behind cached entries.
+        const order = new Map(ids.map((id, index) => [id, index]));
+        receipt.photos.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+        incoming = mergeDevelopImportCommit(incoming, receipt);
         if (presetsChanged.current)
           incoming = { ...incoming, presets: (await store.loadLibrary()).presets };
         return incoming;
