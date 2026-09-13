@@ -240,7 +240,13 @@ void raw_previews(TemporaryFiles& temporary) {
     const auto path = std::filesystem::path(root) / name;
     const auto before = read_bytes(path);
     // Match the native pipeline's macOS worker stack, not only the larger main stack.
-    const auto preview = std::async(std::launch::async, [&] { return lenslabs::decode_preview(path, 1280); }).get();
+    lenslabs::DecodeTimings timings;
+    lenslabs::CaptureMetadata metadata;
+    const auto preview = std::async(std::launch::async, [&] {
+      return lenslabs::decode_preview(path, 1280, &timings, &metadata);
+    }).get();
+    require(timings.embedded_raw_jpeg && timings.raw_extract_ms > 0,
+            "RAW origin and extraction timing must come from the actual LibRaw path.");
     require(preview.width > 100 && preview.height > 100 && preview.width <= 1280 && preview.height <= 1280,
             "A real Sony RAW must provide a bounded, useful preview.");
     require(preview.source_width > preview.width && preview.source_height > preview.height,

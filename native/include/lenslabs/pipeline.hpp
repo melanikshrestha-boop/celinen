@@ -29,12 +29,17 @@ struct FrameResult {
   std::uint32_t width = 0, height = 0, source_width = 0, source_height = 0;
   bool cached = false;
   std::string error;
+  DecodeTimings decode_timings;
+  double decode_ms = 0, analysis_ms = 0, queue_wait_ms = 0;
 };
 struct RunOptions {
   unsigned threads = 4;
   std::uint32_t max_edge = 256;
   std::size_t cache_entries = 1024;
   std::size_t repeat = 1;
+  // Decode workers feed one analysis consumer through preallocated bounded slots.
+  // False keeps fused per-worker execution for paired benchmarks.
+  bool staged = true;
 };
 struct RunStats {
   std::size_t unique_inputs = 0, requested = 0, completed = 0, failed = 0;
@@ -42,6 +47,11 @@ struct RunStats {
   bool cancelled = false;
   unsigned workers_used = 0;
   double elapsed_ms = 0, first_result_ms = 0;
+  unsigned analysis_workers = 0;
+  std::size_t queue_capacity = 0, peak_queued = 0, max_live_images = 0;
+  std::uint64_t kernel_budget_bytes = 0;
+  // Summed wall time across operations, not additive to elapsed time across lanes.
+  double decode_ms = 0, analysis_ms = 0, queue_wait_ms = 0, receipt_ms = 0;
 };
 // Receipts may arrive concurrently. No result is a committed keep/reject.
 using Receipt = std::function<void(std::size_t, const FrameResult&)>;

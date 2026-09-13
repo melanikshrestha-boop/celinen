@@ -3,10 +3,12 @@
 #include <cerrno>
 #include <cctype>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <list>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -144,11 +146,16 @@ RunStats process(const std::vector<SourceFile>& files, const RunOptions& options
   RunStats stats;
   stats.unique_inputs = files.size();
   stats.requested = files.size() * options.repeat;
-  // Bound concurrent RGBA + double-luma kernel buffers to an estimated 256 MiB.
-  // ImageIO's internal decoder allocations are additional, not covered by this estimate.
+  // Keep the previous conservative admission estimate. Each permit follows its
+  // image through decode, the bounded queue, analysis and receipt delivery.
+  // Queueing never adds unaccounted images. ImageIO internal memory is additional.
   const std::uint64_t kernel_bytes_per_worker = std::uint64_t{options.max_edge} * options.max_edge * 12;
   const auto affordable_workers = std::max<std::uint64_t>(1, (256ULL * 1024 * 1024) / kernel_bytes_per_worker);
   stats.workers_used = static_cast<unsigned>(std::min<std::uint64_t>({options.threads, affordable_workers, stats.requested}));
+  stats.kernel_budget_bytes = stats.workers_used * kernel_bytes_per_worker;
+  const bool staged = options.staged && stats.workers_used > 1;
+  stats.analysis_workers = staged ? 1 : 0;
+  stats.queue_capacity = staged ? stats.workers_used : 0;
   const auto started = std::chrono::steady_clock::now();
   if (files.empty()) { stats.cancelled = cancelled.load(); return stats; }
   std::atomic<std::size_t> cursor{0}, completed{0}, failed{0}, decoded{0}, hits{0};
@@ -157,18 +164,104 @@ RunStats process(const std::vector<SourceFile>& files, const RunOptions& options
   std::exception_ptr callback_failure;
   bool saw_first = false;
   Cache cache(options.cache_entries);
+  using Clock = std::chrono::steady_clock;
+  auto milliseconds = [](auto start) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+  };
+  std::atomic<double> decode_time{0}, analysis_time{0}, queue_time{0}, receipt_time{0};
+  auto add_time = [](std::atomic<double>& target, double value) {
+    auto previous = target.load(std::memory_order_relaxed);
+    while (!target.compare_exchange_weak(previous, previous + value, std::memory_order_relaxed)) {}
+  };
+  struct Job {
+    std::size_t index = 0;
+    FrameResult result;
+    Image image;
+    std::string key;
+    Clock::time_point queued;
+  };
+  // Fixed-capacity ring; permits bound decoding + queued + analyzing images,
+  // rather than bounding only the queue and forgetting decoder-owned buffers.
+  std::vector<std::optional<Job>> queue(stats.queue_capacity);
+  std::mutex queue_mutex;
+  std::condition_variable changed;
+  std::size_t head = 0, tail = 0, queued = 0, live = 0;
+  unsigned producers = stats.workers_used;
+  auto stopping = [&] {
+    return cancelled.load(std::memory_order_relaxed) || stop.load(std::memory_order_relaxed);
+  };
+  auto finish = [&](Job& job) {
+    auto& result = job.result;
+    if (result.error.empty() && result.cached) {
+      try { unchanged(result.source); }
+      catch (const std::exception& error) { result.error = error.what(); ++failed; }
+    }
+    if (result.error.empty() && !result.cached) {
+      try {
+        if (stopping()) return;
+        const auto analysis_started = Clock::now();
+        try { result.analysis = analyze(job.image); }
+        catch (...) {
+          add_time(analysis_time, milliseconds(analysis_started));
+          throw;
+        }
+        result.analysis_ms = milliseconds(analysis_started);
+        add_time(analysis_time, result.analysis_ms);
+        unchanged(result.source);
+        ++decoded;
+        cache.put(job.key, result);
+      } catch (const std::exception& error) {
+        result.error = error.what();
+        ++failed;
+      }
+    }
+    if (stopping()) return;
+    {
+      std::lock_guard lock(first_mutex);
+      if (!saw_first) {
+        stats.first_result_ms = milliseconds(started);
+        saw_first = true;
+      }
+    }
+    const auto receipt_started = Clock::now();
+    if (receipt) receipt(job.index, result);
+    add_time(receipt_time, milliseconds(receipt_started));
+    ++completed;
+  };
+  auto fatal = [&] {
+    {
+      std::lock_guard lock(failure_mutex);
+      if (!callback_failure) callback_failure = std::current_exception();
+    }
+    stop.store(true, std::memory_order_relaxed);
+    changed.notify_all();
+  };
   std::vector<std::thread> workers;
   auto work = [&] {
     try {
-      while (!cancelled.load(std::memory_order_relaxed) && !stop.load(std::memory_order_relaxed)) {
+      while (!stopping()) {
+        if (staged) {
+          std::unique_lock lock(queue_mutex);
+          while (live == stats.workers_used && !stopping())
+            changed.wait_for(lock, std::chrono::milliseconds(10));
+          if (stopping()) break;
+          ++live;
+          stats.max_live_images = std::max(stats.max_live_images, live);
+        }
         const auto index = cursor.fetch_add(1, std::memory_order_relaxed);
-        if (index >= stats.requested) break;
+        if (index >= stats.requested) {
+          if (staged) { std::lock_guard lock(queue_mutex); --live; changed.notify_all(); }
+          break;
+        }
         const auto& file = files[index % files.size()];
-        FrameResult result;
+        Job job;
+        job.index = index;
+        auto& result = job.result;
         result.source = file;
         try {
           unchanged(file);
-          auto key = file.path.string();
+          auto& key = job.key;
+          key = file.path.string();
           key.push_back('\0');
           key += std::to_string(file.bytes);
           key.push_back('\0');
@@ -178,42 +271,85 @@ RunStats process(const std::vector<SourceFile>& files, const RunOptions& options
           key.append(reinterpret_cast<const char*>(&ticks), sizeof(ticks));
           key += ":" + std::to_string(file.device) + ":" + std::to_string(file.inode) +
                  ":" + std::to_string(file.changed_seconds) + ":" + std::to_string(file.changed_nanoseconds);
-          if (cache.get(key, result)) ++hits;
+          if (cache.get(key, result)) {
+            ++hits;
+            // A cache hit does no new decode/analysis. Never replay old timings.
+            const auto embedded = result.decode_timings.embedded_raw_jpeg;
+            result.decode_timings = {};
+            result.decode_timings.embedded_raw_jpeg = embedded;
+            result.decode_ms = result.analysis_ms = result.queue_wait_ms = 0;
+          }
           else {
-            auto image = decode_preview(file.path, options.max_edge);
-            if (cancelled.load(std::memory_order_relaxed)) break;
+            const auto decode_started = Clock::now();
+            try { job.image = decode_preview(file.path, options.max_edge, &result.decode_timings); }
+            catch (...) {
+              add_time(decode_time, milliseconds(decode_started));
+              throw;
+            }
+            result.decode_ms = milliseconds(decode_started);
+            add_time(decode_time, result.decode_ms);
+            const auto& image = job.image;
             result.width = image.width; result.height = image.height;
             result.source_width = image.source_width; result.source_height = image.source_height;
-            result.analysis = analyze(image);
             unchanged(file);
-            ++decoded;
-            cache.put(key, result);
           }
         } catch (const std::exception& error) {
           result.error = error.what();
           ++failed;
         }
-        {
-          std::lock_guard lock(first_mutex);
-          if (!saw_first) {
-            stats.first_result_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
-            saw_first = true;
-          }
+        if (staged) {
+          std::lock_guard lock(queue_mutex);
+          if (stopping()) { --live; break; }
+          job.queued = Clock::now();
+          queue[tail].emplace(std::move(job));
+          tail = (tail + 1) % queue.size();
+          ++queued;
+          stats.peak_queued = std::max(stats.peak_queued, queued);
+          changed.notify_all();
+        } else {
+          finish(job);
         }
-        if (receipt) receipt(index, result);
-        ++completed;
       }
-    } catch (...) {
-      std::lock_guard lock(failure_mutex);
-      if (!callback_failure) callback_failure = std::current_exception();
-      stop.store(true, std::memory_order_relaxed);
+    } catch (...) { fatal(); }
+    if (staged) {
+      std::lock_guard lock(queue_mutex);
+      --producers;
+      changed.notify_all();
     }
   };
+  auto consume = [&] {
+    try {
+      while (!stopping()) {
+        std::optional<Job> job;
+        {
+          std::unique_lock lock(queue_mutex);
+          while (!queued && producers && !stopping())
+            changed.wait_for(lock, std::chrono::milliseconds(10));
+          if (stopping() || !queued) break;
+          job = std::move(queue[head]);
+          queue[head].reset();
+          head = (head + 1) % queue.size();
+          --queued;
+        }
+        job->result.queue_wait_ms = milliseconds(job->queued);
+        add_time(queue_time, job->result.queue_wait_ms);
+        finish(*job);
+        job.reset(); // release RGBA before admitting its replacement
+        {
+          std::lock_guard lock(queue_mutex);
+          --live;
+          changed.notify_all();
+        }
+      }
+    } catch (...) { fatal(); }
+  };
   try {
+    if (staged) workers.emplace_back(consume);
     for (unsigned lane = 0; lane < stats.workers_used; ++lane)
       workers.emplace_back(work);
   } catch (...) {
     stop.store(true);
+    changed.notify_all();
     for (auto& thread : workers) thread.join();
     throw;
   }
@@ -221,6 +357,8 @@ RunStats process(const std::vector<SourceFile>& files, const RunOptions& options
   if (callback_failure) std::rethrow_exception(callback_failure);
   stats.completed = completed; stats.failed = failed; stats.decoded = decoded; stats.cache_hits = hits;
   stats.cancelled = cancelled.load();
+  stats.decode_ms = decode_time.load(); stats.analysis_ms = analysis_time.load();
+  stats.queue_wait_ms = queue_time.load(); stats.receipt_ms = receipt_time.load();
   stats.elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   return stats;
 }

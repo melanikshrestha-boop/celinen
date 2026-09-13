@@ -1,4 +1,5 @@
 #include "lenslabs/develop.hpp"
+#include "lenslabs/capture_metadata.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
@@ -9,6 +10,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -234,7 +236,12 @@ RawPreview embedded_raw_preview(Input& input) {
 
 }  // namespace
 
-static Image decode_image(const std::filesystem::path& path, std::uint32_t max_edge, bool high_resolution) {
+static Image decode_image(const std::filesystem::path& path, std::uint32_t max_edge, bool high_resolution,
+                          DecodeTimings* timings = nullptr, CaptureMetadata* metadata = nullptr) {
+  using Clock = std::chrono::steady_clock;
+  const auto started = Clock::now();
+  if (timings) *timings = {};
+  if (metadata) *metadata = {};
   if (max_edge < 8 || max_edge > (high_resolution ? develop_max_edge : max_preview_edge))
     throw std::invalid_argument(high_resolution ? "Develop max_edge must be between 8 and 8192." :
                                 "Preview max_edge must be between 8 and 4096.");
@@ -274,7 +281,14 @@ static Image decode_image(const std::filesystem::path& path, std::uint32_t max_e
       CFEqual(type, CFSTR("public.png")) || CFEqual(type, CFSTR("org.webmproject.webp")) ||
       CFEqual(type, CFSTR("com.compuserve.gif")) || CFEqual(type, CFSTR("com.microsoft.bmp")) ||
       CFEqual(type, CFSTR("public.heic")) || CFEqual(type, CFSTR("public.avif")));
+  const auto extraction_started = Clock::now();
   const auto raw = ordinary_raster ? RawPreview{} : embedded_raw_preview(input);
+  const auto extraction_finished = Clock::now();
+  if (timings) {
+    timings->raw_extract_ms = ordinary_raster ? 0 :
+      std::chrono::duration<double, std::milli>(extraction_finished - extraction_started).count();
+    timings->embedded_raw_jpeg = !raw.jpeg.empty();
+  }
   CFHandle<CFDataRef> raw_data(raw.jpeg.empty() ? nullptr : CFDataCreateWithBytesNoCopy(
       kCFAllocatorDefault, raw.jpeg.data(), raw.jpeg.size(), kCFAllocatorNull));
   CFHandle<CGImageSourceRef> source(raw_data
@@ -298,6 +312,21 @@ static Image decode_image(const std::filesystem::path& path, std::uint32_t max_e
   if (!raw.jpeg.empty() && width * height > 32.0 * 1024 * 1024)
     throw std::runtime_error("Embedded RAW preview exceeds the 32-million-pixel bound.");
 
+  if (metadata) {
+    const auto metadata_started = Clock::now();
+    // Ordinary rasters reuse the properties already required by decode. RAW
+    // capture identity comes from the ORIGINAL source, never the embedded JPEG.
+    // Both use the same held descriptor and final source-snapshot validation.
+    if (raw.jpeg.empty()) *metadata = capture_detail::from_properties(properties.get());
+    else if (original_source && CGImageSourceGetCount(original_source.get()) > 0) {
+      CFHandle<CFDictionaryRef> original_properties(CGImageSourceCopyPropertiesAtIndex(
+        original_source.get(), CGImageSourceGetPrimaryImageIndex(original_source.get()), options.get()));
+      if (original_properties) *metadata = capture_detail::from_properties(original_properties.get());
+    }
+    if (timings) timings->metadata_ms =
+      std::chrono::duration<double, std::milli>(Clock::now() - metadata_started).count();
+  }
+
   auto thumbnail_options = dictionary();
   const auto edge = static_cast<std::int32_t>(high_resolution
       ? develop_thumbnail_edge(static_cast<unsigned>(width), static_cast<unsigned>(height), max_edge)
@@ -309,7 +338,14 @@ static Image decode_image(const std::filesystem::path& path, std::uint32_t max_e
   CFDictionarySetValue(thumbnail_options.get(), kCGImageSourceCreateThumbnailFromImageAlways, kCFBooleanTrue);
   CFDictionarySetValue(thumbnail_options.get(), kCGImageSourceShouldCacheImmediately, kCFBooleanTrue);
   CFDictionarySetValue(thumbnail_options.get(), kCGImageSourceShouldAllowFloat, kCFBooleanFalse);
+  const auto thumbnail_started = Clock::now();
+  if (timings) timings->source_open_ms =
+    std::chrono::duration<double, std::milli>(thumbnail_started - started).count() -
+    timings->raw_extract_ms - timings->metadata_ms;
   CFHandle<CGImageRef> thumbnail(CGImageSourceCreateThumbnailAtIndex(source.get(), frame_index, thumbnail_options.get()));
+  const auto thumbnail_finished = Clock::now();
+  if (timings) timings->imageio_decode_resize_ms =
+    std::chrono::duration<double, std::milli>(thumbnail_finished - thumbnail_started).count();
   if (!thumbnail || input.read_error.load(std::memory_order_relaxed) != 0 ||
       CGImageSourceGetStatusAtIndex(source.get(), frame_index) != kCGImageStatusComplete)
     throw std::runtime_error("ImageIO could not decode a bounded preview. No full-size fallback was attempted.");
@@ -348,11 +384,14 @@ static Image decode_image(const std::filesystem::path& path, std::uint32_t max_e
   if (input.read_error.load(std::memory_order_relaxed) != 0 || fstat(fd.get(), &after) != 0 ||
       !same_file_snapshot(before, after))
     throw std::runtime_error("Source changed or became unreadable while its preview was decoding; retry the original file.");
+  if (timings) timings->rgba_ms =
+    std::chrono::duration<double, std::milli>(Clock::now() - thumbnail_finished).count();
   return image;
 }
 
-Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge) {
-  return decode_image(path, max_edge, false);
+Image decode_preview(const std::filesystem::path& path, std::uint32_t max_edge, DecodeTimings* timings,
+                     CaptureMetadata* metadata) {
+  return decode_image(path, max_edge, false, timings, metadata);
 }
 
 Image decode_develop_preview(const std::filesystem::path& path, std::uint32_t max_edge) {

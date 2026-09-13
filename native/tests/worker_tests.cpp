@@ -160,6 +160,21 @@ void real_fixtures(const std::filesystem::path& fixtures, Temp& temp) {
   for (std::size_t i = 0; i < 4; ++i) {
     auto value = response(frames);
     require(value.header.find("\"ok\":true") != std::string::npos, "Real fixture must succeed: " + value.header);
+    require(value.header.find("\"preview_origin\":\"raster_decode\"") != std::string::npos,
+            "JPEG origin is reported from the actual decoder path");
+    double stages = 0;
+    for (const auto key : {"decode_total", "analysis_resize", "analysis", "jpeg_encode"}) {
+      const auto timing = number(value.header, key);
+      require(std::isfinite(timing) && timing >= 0, "Stage timing must be finite and nonnegative");
+      stages += timing;
+    }
+    require(stages <= number(value.header, "elapsed_ms") + 0.001,
+            "Disjoint worker stage times must fit inside elapsed processing time");
+    require(number(value.header, "raw_extract") == 0, "Ordinary JPEG does not claim RAW extraction work");
+    const auto decode_parts = number(value.header, "source_open") + number(value.header, "raw_extract") +
+      number(value.header, "imageio_decode_resize") + number(value.header, "rgba") + number(value.header, "metadata");
+    require(decode_parts >= 0 && decode_parts <= number(value.header, "decode_total") + 0.001,
+            "Metadata is a measured substage of the shared decoder lifecycle");
     require(value.jpeg.size() > 1000 && value.jpeg.front() == 0xff && value.jpeg[1] == 0xd8 &&
             value.jpeg[value.jpeg.size() - 2] == 0xff && value.jpeg.back() == 0xd9, "Payload must be a complete JPEG");
     const auto pixels = histogram(value.header);
@@ -231,6 +246,11 @@ void metadata_and_tone(Temp& temp) {
     return result;
   };
   const auto dated = run("dated.jpg", "2026:09:04 13:45:12", "+05:45", "serial-001");
+  const auto disguised = run("raster-disguised.ARW", "2026:09:04 13:45:12", "+05:45", "serial-001");
+  require(disguised.header.find("\"preview_origin\":\"raster_decode\"") != std::string::npos,
+          "A RAW extension must not mislabel raster bytes as an embedded RAW preview");
+  require(disguised.jpeg == dated.jpeg && histogram(disguised.header) == histogram(dated.header),
+          "Preview and analysis depend on source bytes rather than the extension");
   const auto expected = std::chrono::sys_days(std::chrono::year(2026) / 9 / 4) +
     std::chrono::hours(8) + std::chrono::seconds(12) + std::chrono::milliseconds(125);
   require(number(dated.header, "captured_at_ms") == std::chrono::duration_cast<std::chrono::milliseconds>(expected.time_since_epoch()).count(),

@@ -48,7 +48,7 @@ void help() {
   std::cout <<
     "LensLabs C++ preview engine (macOS; no Python runtime)\n"
     "  lenslabs-native scan PATH [--threads 1..16] [--edge 8..4096]\n"
-    "      [--cache-entries 0..4096] [--repeat 1..1000] [--max-files 1..100000] [--quiet]\n"
+    "      [--cache-entries 0..4096] [--repeat 1..1000] [--max-files 1..100000] [--quiet] [--fused]\n"
     "  lenslabs-native render INPUT OUTPUT.jpg [--edge 1600] [--quality 0.9]\n"
     "      [--exposure -5..5] [--contrast -100..100] [--highlights -100..100]\n"
     "      [--shadows -100..100] [--saturation -100..100]\n"
@@ -60,6 +60,8 @@ void help() {
     "Ingest writes NEW cull.csv + job.json suggestions into --out. Originals are not copied.\n"
     "--export proof writes NEW 2048px JPEGs of suggested keepers under out/proof/ (max 200).\n"
     "Workers are also capped by a 256 MiB kernel-buffer estimate (OS decoding uses extra memory).\n"
+    "Staged scans add one analysis consumer with shared image permits; --fused compares the old per-worker path.\n"
+    "stage_sum_ms adds per-operation times across lanes, not disjoint wall-clock phases.\n"
     "Render writes a NEW bounded-resolution JPEG, never overwrites an existing path.\n"
     "RAW support depends on this macOS ImageIO version; this is not a full RAW editor.\n"
     "--repeat measures repeated work on the SAME inputs, not more unique photos.\n";
@@ -73,6 +75,7 @@ int scan(int argc, char** argv) {
   for (int i = 3; i < argc; ++i) {
     const std::string option = argv[i];
     if (option == "--quiet") { quiet = true; continue; }
+    if (option == "--fused") { options.staged = false; continue; }
     if (i + 1 == argc) throw std::invalid_argument("Missing value for " + option);
     const auto value = integer(argv[++i]);
     if (option == "--threads") {
@@ -149,6 +152,13 @@ int scan(int argc, char** argv) {
             << ",\"truncated\":" << (found.truncated ? "true" : "false")
             << ",\"threads\":" << options.threads << ",\"edge\":" << options.max_edge
             << ",\"workers_used\":" << stats.workers_used
+            << ",\"analysis_workers\":" << stats.analysis_workers
+            << ",\"queue_capacity\":" << stats.queue_capacity << ",\"peak_queued\":" << stats.peak_queued
+            << ",\"max_live_images\":" << stats.max_live_images
+            << ",\"kernel_budget_bytes\":" << stats.kernel_budget_bytes
+            << ",\"stage_sum_ms\":{\"decode\":" << stats.decode_ms
+            << ",\"analysis\":" << stats.analysis_ms << ",\"queue_wait\":" << stats.queue_wait_ms
+            << ",\"receipt\":" << stats.receipt_ms << "}"
             << ",\"discovery_ms\":" << discovery_ms << ",\"processing_ms\":" << stats.elapsed_ms
             << ",\"first_result_ms\":" << (stats.completed ? discovery_ms + stats.first_result_ms : 0)
             << ",\"total_ms\":" << total_ms

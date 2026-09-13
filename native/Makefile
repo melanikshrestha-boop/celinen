@@ -23,6 +23,7 @@ $(LIBRAW):
 	@exit 1
 
 $(BUILD_DIR)/decode_mac.o: $(LIBRAW)
+$(BUILD_DIR)/decode_mac.o: include/lenslabs/capture_metadata.hpp
 
 $(BUILD_DIR)/%.o: src/%.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
@@ -43,6 +44,10 @@ $(BUILD_DIR)/pipeline-tests: tests/pipeline_tests.cpp $(CORE) $(PIPELINE) $(HEAD
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) $(PIPELINE) -o $@
 
 $(BUILD_DIR)/worker-tests: tests/worker_tests.cpp $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(LIBRAW) $(FRAMEWORKS) -o $@
+
+# Explicit timing harness; never part of sanitizer or regression timing claims.
+$(BUILD_DIR)/worker-benchmark: tests/worker_benchmark.cpp $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) $(DECODER) $(PIPELINE) $(WORKER) $(LIBRAW) $(FRAMEWORKS) -o $@
 
 $(BUILD_DIR)/lenslabs-bursts: $(BUILD_DIR)/bursts_main.o $(BUILD_DIR)/bursts.o

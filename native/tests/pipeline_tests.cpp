@@ -1,6 +1,7 @@
 #include "lenslabs/pipeline.hpp"
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -12,6 +13,9 @@
 namespace {
 unsigned checks = 0, failures = 0;
 std::atomic<unsigned> decode_calls{0};
+std::atomic<bool> receipt_active{false}, decoded_during_receipt{false};
+std::atomic<bool> gate_decoders{false};
+std::atomic<unsigned> gate_sequence{0};
 void check(bool condition, const char* label) {
   ++checks;
   if (!condition) { ++failures; std::cerr << "FAIL: " << label << '\n'; }
@@ -44,8 +48,15 @@ std::string read(const std::filesystem::path& path) {
 
 // Deterministic test decoder. Pipeline tests do not need OS image decoding.
 namespace lenslabs {
-Image decode_preview(const std::filesystem::path& path, std::uint32_t) {
+Image decode_preview(const std::filesystem::path& path, std::uint32_t, DecodeTimings* timings, CaptureMetadata*) {
+  if (timings) *timings = {};
   ++decode_calls;
+  if (gate_decoders.load() && gate_sequence.fetch_add(1) > 0) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!receipt_active.load() && !decoded_during_receipt.load() &&
+           std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+  }
+  if (receipt_active.load()) decoded_during_receipt = true;
   if (path.filename() == "bad.jpg") throw std::runtime_error("Injected decode failure");
   Image image{8, 8, 80, 80, std::vector<std::uint8_t>(8 * 8 * 4, 255)};
   for (unsigned y = 0; y < 8; ++y) for (unsigned x = 0; x < 8; ++x)
@@ -96,6 +107,10 @@ int main() {
     check(receipts[0].width == 8 && receipts[0].source_width == 80, "source and preview sizes distinct");
     check(!receipts[0].cached && receipts[3].cached, "per-frame cache receipt accurate");
     check(stats.elapsed_ms >= stats.first_result_ms, "first result timing within run");
+    check(receipts[3].decode_ms == 0 && receipts[3].analysis_ms == 0,
+          "cache hits do not replay previous stage measurements");
+    check(stats.decode_ms > 0 && stats.analysis_ms > 0 && stats.receipt_ms >= 0,
+          "stage timers measure actual work");
     options.cache_entries = 0;
     stats = process(found.files, options, cancelled);
     check(stats.decoded == 12 && stats.cache_hits == 0, "cache can be disabled for honest decode benchmark");
@@ -106,6 +121,52 @@ int main() {
     options.cache_entries = 8;
     stats = process(found.files, options, cancelled);
     check(stats.completed == 12 && stats.decoded + stats.cache_hits == 12, "parallel work accounted once");
+    check(stats.analysis_workers == 1 && stats.queue_capacity == stats.workers_used,
+          "staged execution uses one analysis consumer and bounded slots");
+    check(stats.max_live_images <= stats.workers_used && stats.peak_queued <= stats.queue_capacity,
+          "queued plus decoding plus analyzing images share the admission bound");
+    check(stats.kernel_budget_bytes <= 256ULL * 1024 * 1024, "staged kernel budget remains conservative");
+    options.cache_entries = 0;
+    options.repeat = 20;
+    std::vector<FrameResult> staged_results(60), fused_results(60);
+    gate_decoders = true;
+    bool first_receipt = true;
+    stats = process(found.files, options, cancelled, [&](std::size_t index, const auto& result) {
+      staged_results[index] = result;
+      if (first_receipt) {
+        first_receipt = false;
+        receipt_active = true;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (!decoded_during_receipt.load() && std::chrono::steady_clock::now() < deadline)
+          std::this_thread::yield();
+        receipt_active = false;
+      }
+    });
+    gate_decoders = false;
+    check(decoded_during_receipt.load(), "decoder advances while downstream receipt delivery is busy");
+    check(stats.completed == 60 && stats.max_live_images <= 4 && stats.peak_queued <= 4,
+          "backpressure bounds the whole pipeline during slow receipt delivery");
+    options.staged = false;
+    const auto fused = process(found.files, options, cancelled, [&](std::size_t index, const auto& result) {
+      fused_results[index] = result;
+    });
+    check(fused.completed == 60 && fused.analysis_workers == 0 && fused.queue_capacity == 0,
+          "fused baseline remains available without queue workers");
+    for (std::size_t i = 0; i < staged_results.size(); ++i) {
+      const auto& a = staged_results[i]; const auto& b = fused_results[i];
+      check(a.source.relative_path == b.source.relative_path && a.analysis.hash == b.analysis.hash &&
+            a.analysis.histogram == b.analysis.histogram && a.analysis.sharpness == b.analysis.sharpness &&
+            a.analysis.score == b.analysis.score, "staged/fused receipts preserve exact results and source association");
+    }
+    options.staged = true;
+    throws([&] { process(found.files, options, cancelled, [](std::size_t, const auto&) {
+      throw std::runtime_error("staged receipt failure");
+    }); }, "staged callback failure wakes blocked producers and joins all workers");
+    stats = process(found.files, options, cancelled, [&](std::size_t, const auto&) { cancelled = true; });
+    check(stats.cancelled && stats.completed == 1, "staged cancellation drops queued work after the first receipt");
+    cancelled = false;
+    options.repeat = 4;
+    options.cache_entries = 8;
     cancelled = true;
     stats = process(found.files, options, cancelled);
     check(stats.cancelled && stats.completed == 0, "cancelled run does no decode");
@@ -131,6 +192,8 @@ int main() {
     options.threads = 16;
     stats = process(found.files, options, cancelled);
     check(stats.workers_used == 1, "large working images reduce concurrency under joint buffer budget");
+    check(stats.analysis_workers == 0 && stats.queue_capacity == 0,
+          "single-slot admission uses fused execution rather than allocating another image");
     options.max_edge = 256;
     options.threads = 1;
 
