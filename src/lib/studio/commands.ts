@@ -193,7 +193,7 @@ export const STUDIO_TOOL_DEFINITIONS = [
     function: {
       name: "send_gallery",
       description:
-        "Send keepers as a same-night gallery with a passcode and downloads once ~90% of the set is decided.",
+        "Open the exact keeper set in Develop to review export proofs. Does not publish or send a gallery.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -414,4 +414,4 @@ export function parseLocalCommand(input: string): LocalCommandMatch | null {
 }
 
 export const LOCAL_COMMAND_HELP =
-  "try “cull the shoot”, “keep top 40”, “show flagged”, “open best”, “auto-refine keepers”, “send gallery”, or “write xmp”.";
+  "try “cull the shoot”, “show flagged”, “find scene changes”, “show outliers”, “open best”, “export keepers”, or “write xmp”.";

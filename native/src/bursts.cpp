@@ -52,6 +52,9 @@ bool valid_utf8(std::string_view text) {
 }
 
 void validate(const BurstFrame& frame) {
+  if ((frame.hash_domain != "legacy" && frame.hash_domain != "native-cpp" && frame.hash_domain != "browser" && frame.hash_domain != "unknown") ||
+      (frame.time_basis != "legacy" && frame.time_basis != "utc" && frame.time_basis != "camera_clock" && frame.time_basis != "unknown"))
+    throw std::invalid_argument("Invalid scene evidence domain");
   if (frame.id.empty() || frame.id.size() > 512 || !valid_utf8(frame.id) ||
       frame.camera_key.size() > 4096 || !valid_utf8(frame.camera_key) ||
       frame.folder.size() > 4096 || !valid_utf8(frame.folder)) {
@@ -166,6 +169,80 @@ double decimal(const std::string& value) {
 
 } // namespace
 
+std::vector<SceneCandidate> group_scene_candidates(const std::vector<BurstFrame>& frames) {
+  if (frames.size() > max_frames) throw std::invalid_argument("At most 100000 scene frames are supported");
+  std::unordered_set<std::string> ids;
+  std::vector<SceneCandidate> groups;
+  const auto resembles = [](const BurstFrame& a, const BurstFrame& b) {
+    return a.hash_domain != "unknown" && a.hash_domain == b.hash_domain &&
+        usable(a) && usable(b) && a.folder == b.folder && a.camera_key == b.camera_key &&
+        std::popcount(a.hash ^ b.hash) <= 8 && std::abs(a.brightness - b.brightness) < 15;
+  };
+  for (std::size_t i = 0; i < frames.size(); ++i) {
+    const auto& current = frames[i];
+    validate(current);
+    if (!ids.insert(current.id).second) throw std::invalid_argument("Duplicate scene frame identity");
+    SceneCandidate boundary;
+    if (!i) boundary.reason = "sequence-start";
+    else {
+      const auto& previous = frames[i - 1];
+      const bool comparable = previous.hash_domain != "unknown" && previous.hash_domain == current.hash_domain;
+      if (comparable) {
+        boundary.hash_distance = static_cast<unsigned>(std::popcount(previous.hash ^ current.hash));
+        boundary.brightness_delta = std::abs(previous.brightness - current.brightness);
+      }
+      const bool same_camera = !current.camera_key.empty() && current.camera_key == previous.camera_key;
+      if (same_camera && current.time_basis != "unknown" && current.time_basis == previous.time_basis &&
+          previous.capture_time_ms > 0 && current.capture_time_ms >= previous.capture_time_ms)
+        boundary.gap_ms = current.capture_time_ms - previous.capture_time_ms;
+      // Deliberately conservative, uncalibrated navigation heuristics. Exposure,
+      // camera movement and clock gaps can all occur within the same real scene.
+      if (current.folder != previous.folder) boundary.reason = "folder-change";
+      else if (!current.camera_key.empty() && !previous.camera_key.empty() && !same_camera)
+        boundary.reason = "camera-change";
+      else if (boundary.gap_ms >= 60000) boundary.reason = "capture-gap";
+      else if (usable(previous) && usable(current) && boundary.hash_distance >= 24 && boundary.brightness_delta >= 30 &&
+               !(i + 1 < frames.size() && resembles(previous, frames[i + 1])) &&
+               !(i >= 2 && resembles(frames[i - 2], current)))
+        boundary.reason = "appearance-change";
+    }
+    if (!boundary.reason.empty()) groups.push_back(std::move(boundary));
+    groups.back().frame_ids.push_back(current.id);
+    if (i > 0 && i + 1 < frames.size() && resembles(frames[i - 1], frames[i + 1]) &&
+        current.hash_domain == frames[i - 1].hash_domain && usable(current) &&
+        current.folder == frames[i - 1].folder && current.camera_key == frames[i - 1].camera_key &&
+        std::popcount(current.hash ^ frames[i - 1].hash) >= 24 &&
+        std::abs(current.brightness - frames[i - 1].brightness) >= 30)
+      groups.back().possible_visual_outlier_ids.push_back(current.id);
+  }
+  return groups;
+}
+
+std::string scene_review_json(const std::vector<SceneCandidate>& groups) {
+  std::ostringstream out;
+  out.imbue(std::locale::classic());
+  out << "{\"status\":\"suggestions-only\",\"uncertain\":true,\"method\":\"adjacent-preview-time-v1\","
+         "\"limitations\":\"Not subject or location recognition. Same-scene exposure and camera changes can split groups; unrelated frames can remain together.\",\"groups\":[";
+  for (std::size_t i = 0; i < groups.size(); ++i) {
+    if (i) out << ',';
+    const auto& group = groups[i];
+    out << "{\"frameIds\":[";
+    for (std::size_t j = 0; j < group.frame_ids.size(); ++j) {
+      if (j) out << ',';
+      out << quote(group.frame_ids[j]);
+    }
+    out << "],\"possibleVisualOutlierIds\":[";
+    for (std::size_t j = 0; j < group.possible_visual_outlier_ids.size(); ++j) {
+      if (j) out << ',';
+      out << quote(group.possible_visual_outlier_ids[j]);
+    }
+    out << "],\"reason\":" << quote(group.reason) << ",\"evidence\":{\"hashDistance\":" << group.hash_distance
+        << ",\"brightnessDelta\":" << group.brightness_delta << ",\"captureGapMs\":" << group.gap_ms << "}}";
+  }
+  out << "]}";
+  return out.str();
+}
+
 BurstReview group_bursts(const std::vector<BurstFrame>& frames) {
   if (frames.size() > max_frames) throw std::invalid_argument("At most 100000 burst frames are supported");
   BurstReview result;
@@ -250,7 +327,7 @@ BurstReview group_bursts(const std::vector<BurstFrame>& frames) {
 std::vector<BurstFrame> read_burst_protocol(std::istream& input) {
   std::istringstream header(read_line(input));
   std::string magic, count_text, extra;
-  if (!(header >> magic >> count_text) || (header >> extra) || magic != "LENSBURST1") throw std::invalid_argument("Invalid burst protocol header");
+  if (!(header >> magic >> count_text) || (header >> extra) || (magic != "LENSBURST1" && magic != "LENSBURST2")) throw std::invalid_argument("Invalid burst protocol header");
   const auto count = integer<std::size_t>(count_text);
   if (count > max_frames) throw std::invalid_argument("At most 100000 burst frames are supported");
   std::vector<BurstFrame> frames;
@@ -262,8 +339,14 @@ std::vector<BurstFrame> read_burst_protocol(std::istream& input) {
     if (total_bytes > 64 * 1024 * 1024) throw std::invalid_argument("Burst request exceeds 64 MiB");
     std::istringstream line(text);
     std::string id, hash, score, sharpness, brightness, time, camera, folder, verdict;
-    if (!(line >> id >> hash >> score >> sharpness >> brightness >> time >> camera >> folder >> verdict) || (line >> extra) || hash.size() != 16) throw std::invalid_argument("Invalid burst protocol row");
+    if (!(line >> id >> hash >> score >> sharpness >> brightness >> time >> camera >> folder >> verdict) || hash.size() != 16) throw std::invalid_argument("Invalid burst protocol row");
     BurstFrame frame;
+    if (magic == "LENSBURST2") {
+      frame.scene_only = true;
+      if (!(line >> frame.hash_domain >> frame.time_basis) || frame.hash_domain == "legacy" || frame.time_basis == "legacy")
+        throw std::invalid_argument("Missing scene evidence domains");
+    }
+    if (line >> extra) throw std::invalid_argument("Invalid burst protocol row");
     frame.id = unhex(id, 512, false);
     frame.hash = integer<std::uint64_t>(hash, 16);
     frame.score = decimal(score);

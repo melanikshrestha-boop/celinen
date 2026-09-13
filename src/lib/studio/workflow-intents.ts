@@ -1,9 +1,23 @@
 /** Exact UI intents only. Opening a review dialog never authorizes picks or downloads. */
 export type StudioWorkflowIntent =
-  { kind: "people" } | { kind: "bursts" } | { kind: "deadline"; count: number } | { kind: "refusal"; reason: string };
+  | { kind: "people" }
+  | { kind: "scenes" }
+  | { kind: "bursts" }
+  | { kind: "deadline"; count: number }
+  | { kind: "refusal"; reason: string };
 export function parseStudioWorkflowIntent(input: string): StudioWorkflowIntent | null {
   const text = input.trim().replace(/\s+/g, " ");
-  if (/^(?:(?:show|open)(?: the)? (?:people|jersey|bib|tagging)(?: tools| panel)?|tag (?:jerseys?|bibs?)|group faces)[.!]?$/i.test(text))
+  if (
+    /^(?:find|show|review|group|open)(?: my| the)? (?:scenes|scene changes|location changes|subject changes|unrelated photos|outliers)[.!]?$/i.test(
+      text,
+    )
+  )
+    return { kind: "scenes" };
+  if (
+    /^(?:(?:show|open)(?: the)? (?:people|jersey|bib|tagging)(?: tools| panel)?|tag (?:jerseys?|bibs?)|group faces)[.!]?$/i.test(
+      text,
+    )
+  )
     return { kind: "people" };
   if (/^(?:review|compare|show)(?: my| the)? (?:bursts|similar frames)[.!]?$/i.test(text))
     return { kind: "bursts" };

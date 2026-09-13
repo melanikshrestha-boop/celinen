@@ -34,6 +34,72 @@ std::vector<lenslabs::BurstFrame> parse(const std::string& input) {
 
 int main() {
   using namespace lenslabs;
+  CHECK(group_scene_candidates({}).empty());
+  auto scene_a = frame("scene-a", 10000);
+  auto scene_b = frame("scene-b", 69999);
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1);
+  scene_b.capture_time_ms = 70000;
+  auto scenes = group_scene_candidates({scene_a, scene_b});
+  CHECK(scenes.size() == 2 && scenes[1].reason == "capture-gap");
+  CHECK(scenes[1].gap_ms == 60000);
+  scene_b.camera_key.clear();
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1);
+  scene_b.camera_key = scene_a.camera_key;
+  scene_b.capture_time_ms = 0;
+  scene_b.brightness += 30;
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1); // exposure alone
+  scene_b.hash ^= 0xffffffULL;
+  scenes = group_scene_candidates({scene_a, scene_b});
+  CHECK(scenes.size() == 2 && scenes[1].reason == "appearance-change");
+  CHECK(scenes[1].hash_distance == 24 && scenes[1].brightness_delta == 30);
+  scene_b.brightness -= 1;
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1);
+  scene_b.brightness += 1;
+  auto scene_c = scene_a; scene_c.id = "scene-c";
+  CHECK(group_scene_candidates({scene_a, scene_b, scene_c}).size() == 1); // isolated excursion
+  CHECK(group_scene_candidates({scene_a, scene_b, scene_c})[0].possible_visual_outlier_ids == std::vector<std::string>({"scene-b"}));
+  scene_a.hash_domain = "native-cpp"; scene_b.hash_domain = "browser";
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1);
+  scene_b.hash_domain = "unknown";
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1);
+  scene_b.hash_domain = scene_a.hash_domain = "legacy";
+  scene_b.capture_time_ms = 100000; scene_a.time_basis = "utc"; scene_b.time_basis = "camera_clock";
+  scene_b.hash = scene_a.hash;
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1);
+  scene_a.time_basis = scene_b.time_basis = "legacy"; scene_b.capture_time_ms = 0;
+  scene_b.hash = 0;
+  CHECK(group_scene_candidates({scene_a, scene_b}).size() == 1); // degenerate hash
+  scene_b.folder = "other";
+  CHECK(group_scene_candidates({scene_a, scene_b})[1].reason == "folder-change");
+  scene_b.folder = scene_a.folder; scene_b.camera_key = "other-camera";
+  CHECK(group_scene_candidates({scene_a, scene_b})[1].reason == "camera-change");
+  scene_b.verdict = Verdict::reject; scene_a.verdict = Verdict::keep;
+  scenes = group_scene_candidates({scene_b, scene_a, scene_c});
+  std::vector<std::string> ordered;
+  for (const auto& group : scenes) for (const auto& id : group.frame_ids) ordered.push_back(id);
+  CHECK(ordered == std::vector<std::string>({"scene-b", "scene-a", "scene-c"}));
+  CHECK(scene_b.verdict == Verdict::reject && scene_a.verdict == Verdict::keep);
+  CHECK(scene_review_json(scenes).find("\"uncertain\":true") != std::string::npos);
+  invalid([&] { group_scene_candidates({scene_a, scene_a}); });
+  auto invalid_scene = scene_a; invalid_scene.brightness = std::nan("");
+  invalid([&] { group_scene_candidates({invalid_scene}); });
+  invalid([&] { group_scene_candidates(std::vector<BurstFrame>(100001, scene_a)); });
+  const auto version2 = parse("LENSBURST2 1\n61 aaaaaaaaaaaaaaaa 80 100 125 0 - - keep native-cpp unknown\n");
+  CHECK(version2[0].scene_only && version2[0].hash_domain == "native-cpp" && version2[0].time_basis == "unknown");
+  invalid([&] { parse("LENSBURST2 1\n61 aaaaaaaaaaaaaaaa 80 100 125 0 - - keep legacy unknown\n"); });
+  invalid([&] { parse("LENSBURST2 1\n61 aaaaaaaaaaaaaaaa 80 100 125 0 - - keep native-cpp\n"); });
+  for (const std::size_t count : {300u, 10000u, 100000u}) {
+    std::vector<BurstFrame> navigation;
+    navigation.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) navigation.push_back(frame("nav-" + std::to_string(i), 10000 + i * 100));
+    const auto start = std::chrono::steady_clock::now();
+    const auto candidates = group_scene_candidates(navigation);
+    const auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    CHECK(candidates.size() == 1 && candidates[0].frame_ids.size() == count);
+    CHECK(candidates[0].frame_ids.front() == "nav-0");
+    CHECK(candidates[0].frame_ids.back() == "nav-" + std::to_string(count - 1));
+    std::cout << "Synthetic " << count << " receipt scene navigation: " << ms << " ms (no decoding or semantic accuracy).\n";
+  }
   CHECK(group_bursts({}).groups.empty());
   CHECK(group_bursts({frame("a")}).groups.empty());
   const auto a = frame("a", 10000), b = frame("b", 11500);
@@ -139,7 +205,8 @@ int main() {
   CHECK(parse("LENSBURST1 0\n").empty());
   invalid([] { parse("LENSBURST1 100001\n"); });
   invalid([] { parse("LENSBURST1 1\n"); });
-  invalid([] { parse("LENSBURST2 0\n"); });
+  CHECK(parse("LENSBURST2 0\n").empty());
+  invalid([] { parse("LENSBURST3 0\n"); });
   invalid([] { parse("LENSBURST1 0\nextra"); });
   invalid([] { parse("LENSBURST1 1\n61 aaaaaaaaaaaaaaaa NaN 1 100 0 - - keep\n"); });
   invalid([] { parse("LENSBURST1 1\n61 aaaaaaaaaaaaaaaa 80 1 100 0 - - invalid\n"); });

@@ -33,7 +33,7 @@ type SessionStore = Pick<
   DevelopStore,
   "loadLibrary" | "addPhotosWithDocuments" | "readImportJob" | "saveImportJob"
 > &
-  Partial<Pick<DevelopStore, "namespace">>;
+  Partial<Pick<DevelopStore, "namespace" | "supportsOrderedImports">>;
 type ImportSessionDependencies = {
   store: SessionStore;
   preparePreview?: (
@@ -349,7 +349,14 @@ export function createDevelopImportSession(
                 message: warning.message,
               })),
             );
-            const files = discovered.files.filter((file) => supportedPhoto(file));
+            const files = [...new Set(discovered.files.filter((file) => supportedPhoto(file)))];
+            if (
+              files.length !== state.rows.length ||
+              files.some((file, index) => filesByHandle.get(file) !== index)
+            )
+              throw new Error(
+                "The discovered photo order changed after registration. No photos were read or saved; reselect the folder to retry.",
+              );
             // No filename guesses while enumeration is incomplete. A later collision cannot
             // retroactively steal a sidecar from a source already admitted into the library.
             const sidecars = await readImportSidecars(discovered.files, owner.signal);
@@ -377,6 +384,12 @@ export function createDevelopImportSession(
             owner.signal.throwIfAborted();
             state.phase = "processing";
             changed();
+            // Ordered photo commits validate this exact registered owner/ordinal
+            // in their transaction; discovery timing remains tied to the drop event.
+            if (store.supportsOrderedImports) {
+              await persistNow();
+              owner.signal.throwIfAborted();
+            }
             const rowAt = (progress: DevelopImportProgress) =>
               state.rows[filesByHandle.get(files[progress.index - 1]!) ?? -1];
             const result = await runDevelopImport(files, {
@@ -384,6 +397,9 @@ export function createDevelopImportSession(
               signal: owner.signal,
               preparationConcurrency: 4,
               rawPreparationConcurrency: 2,
+              ...(store.supportsOrderedImports
+                ? { ordering: { namespace, jobId: state.jobId! } }
+                : {}),
               preparePreview: async (file, input, signal) => {
                 const prepared = dependencies.preparePreview
                   ? await dependencies.preparePreview(file, input, signal)

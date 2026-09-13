@@ -140,11 +140,13 @@ export async function renderDevelop(
     signal?: AbortSignal;
     sourceMode?: DevelopSourceMode;
     priority?: "interactive" | "background";
+    /** Batch native proofs must never fall through to a hosted Canvas renderer. */
+    nativeOnly?: boolean;
   } = {},
 ): Promise<Blob> {
   // Snapshot the immutable packet and options once. An obsolete render cannot
   // pick up a newer recipe, source mode, or signal while waiting for a worker.
-  const { edge, quality, sourceMode = "preview", signal } = options;
+  const { edge, quality, sourceMode = "preview", signal, nativeOnly = false } = options;
   signal?.throwIfAborted();
   const recipe = developSettingsSchema.parse(settings);
   const body = encodeDevelopRequest(source, recipe, edge, quality, sourceMode);
@@ -168,6 +170,10 @@ export async function renderDevelop(
         if (!status?.ready || !status.token)
           throw new Error(
             "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
+          );
+        if (nativeOnly && status.engine === BROWSER_DEVELOP_ENGINE)
+          throw new Error(
+            "Native batch export is unavailable on this hosted site. Open this shoot in the local app; no browser fallback was used.",
           );
         if (sourceMode === "raw" && !status.rawSupported)
           throw new Error(

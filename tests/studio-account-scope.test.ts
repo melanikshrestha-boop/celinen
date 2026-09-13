@@ -89,7 +89,7 @@ function studioNamespaces(props: Element["props"]) {
 async function openDevelop(props: Element["props"], selectedPhotoId: string) {
   let navigated = "";
   const opened = await execute(
-    between(studioSource, "  async function openDevelop()", "  canonicalOpenRef.current"),
+    between(studioSource, "  async function openDevelop(", "  canonicalOpenRef.current"),
     {
       projectId: props.projectId,
       shootId: props.shootId,
@@ -98,6 +98,7 @@ async function openDevelop(props: Element["props"], selectedPhotoId: string) {
       sessionStatusRef: { current: "ready" },
       proposalRef: { current: null },
       repository: { flush: async () => true },
+      mountedRef: { current: true },
       latestSelectedIdRef: { current: "synthetic-studio-shot" },
       canonicalView: {
         photoId: (shotId: string) => (shotId === "synthetic-studio-shot" ? selectedPhotoId : null),

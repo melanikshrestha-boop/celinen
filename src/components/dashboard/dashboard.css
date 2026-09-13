@@ -340,7 +340,8 @@ html:has(.celinen-dash) {
   background: #fff;
 }
 .celinen-embedded-studio > header {
-  position: static;
+  /* Keep the existing header's z-30 effective above the positioned preview. */
+  position: relative;
   background: #fff;
   border: 0;
 }

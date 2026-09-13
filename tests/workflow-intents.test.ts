@@ -80,6 +80,23 @@ test("import notifications coalesce without losing the last refresh or firing af
 });
 
 describe("bounded Studio workflow intents", () => {
+  test("scene and outlier requests open review only, not semantic auto-rejection", () => {
+    for (const command of [
+      "find scene changes",
+      "show unrelated photos",
+      "review location changes",
+      "group scenes",
+      "find subject changes",
+      "show outliers",
+    ])
+      expect(parseStudioWorkflowIntent(command)).toEqual({ kind: "scenes" });
+    for (const command of [
+      "delete unrelated photos",
+      "find scenes and reject them",
+      "show scene changes then export",
+    ])
+      expect(parseStudioWorkflowIntent(command)).toBeNull();
+  });
   test("exact burst commands open only the review workflow", () => {
     for (const verb of ["review", "compare", "show"])
       for (const scope of ["", " my", " the"])

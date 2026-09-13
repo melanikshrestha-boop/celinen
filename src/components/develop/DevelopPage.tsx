@@ -46,6 +46,14 @@ import {
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
+import {
+  readDevelopExportScope,
+  createDevelopBatchPlan,
+  prepareDevelopBatch,
+  developBatchZip,
+  type DevelopExportScope,
+  type DevelopBatchProof,
+} from "@/lib/develop/export-scope";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { prepareDevelopPreview } from "@/lib/develop/preview";
@@ -356,6 +364,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     [exportSourceMode, setExportSourceMode] = useState<"raw" | "preview">("raw");
   const [exportProof, setExportProof] = useState<DevelopExportProof | null>(null),
     [proofZoom, setProofZoom] = useState(false);
+  const [exportScope, setExportScope] = useState<DevelopExportScope | null>(null);
+  const [batchProof, setBatchProof] = useState<DevelopBatchProof | null>(null);
+  const [batchIndex, setBatchIndex] = useState(0);
+  const [batchProgress, setBatchProgress] = useState("");
+  const openedExportScope = useRef("");
   const [syncCrop, setSyncCrop] = useState(false),
     [syncMasks, setSyncMasks] = useState(false);
   const input = useRef<HTMLInputElement>(null),
@@ -396,6 +409,19 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       : null;
   const proofReady = currentDevelopExportProof(exportProof, exportRequest);
   const proofUrl = useBlobUrl(proofReady ? exportProof?.blob : null);
+  const batchReady = Boolean(
+    ready &&
+    hydration.current.ready &&
+    exportScope &&
+    batchProof &&
+    exportScope.namespace === store.namespace &&
+    batchProof.plan.scope.id === exportScope.id &&
+    batchProof.plan.config.edge === exportEdge &&
+    batchProof.plan.config.quality === exportQuality &&
+    batchProof.plan.config.sourceMode === exportSourceMode,
+  );
+  const batchImage = batchReady ? batchProof?.images[batchIndex] : null;
+  const batchUrl = useBlobUrl(batchImage?.blob);
   const url = useBlobUrl(
       currentDevelopRender(renderOwner.current, selected, previewSource, tool !== "edit", renderKey)
         ? renderBlob
@@ -486,9 +512,42 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     };
   }, []);
   useEffect(() => {
+    if (!hydration.current.ready || !ready) return;
+    const scopeKey = `${store.namespace}:${href}`;
+    if (openedExportScope.current === scopeKey) return;
+    if (!new URL(href, "https://workspace.invalid").searchParams.has("exportScope")) {
+      setExportScope(null);
+      setBatchProof(null);
+      return;
+    }
+    try {
+      const incoming = readDevelopExportScope(sessionStorage, store.namespace, href);
+      if (
+        !incoming ||
+        incoming.photoIds.some(
+          (id) => !library.documents[id] || !library.photos.some((item) => item.id === id),
+        )
+      )
+        throw new Error(
+          "An export photo is missing from this shoot. Select the photos again in Cull.",
+        );
+      openedExportScope.current = scopeKey;
+      setExportScope(incoming);
+      setBatchProof(null);
+      setBatchIndex(0);
+      // An explicit scope opens a dialog; it never changes the photographer's
+      // active photo, multi-selection, keep/reject decisions or saved view filter.
+      setDialog("export");
+    } catch (error) {
+      setLoadError(errorMessage(error));
+    }
+  }, [ready, href, store.namespace, library]);
+  useEffect(() => {
     setDialogError("");
     if (dialog !== "export") {
       setExportProof(null);
+      setBatchProof(null);
+      setBatchProgress("");
       setProofZoom(false);
     }
   }, [dialog]);
@@ -811,6 +870,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         const order = new Map(ids.map((id, index) => [id, index]));
         receipt.photos.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
         incoming = mergeDevelopImportCommit(incoming, receipt);
+        // Decode completion is not folder order. The manifest records each file's
+        // admitted position even when later files finish processing first.
+        const manifest = await store.readManifest();
+        const indexed = new Map(incoming.photos.map((photo) => [photo.id, photo]));
+        incoming =
+          manifest.photoIds.length === indexed.size &&
+          manifest.photoIds.every((id) => indexed.has(id))
+            ? { ...incoming, photos: manifest.photoIds.map((id) => indexed.get(id)!) }
+            : await store.loadLibrary(); // A commit raced this refresh: use one validated snapshot.
         if (presetsChanged.current)
           incoming = { ...incoming, presets: (await store.loadLibrary()).presets };
         return incoming;
@@ -1443,6 +1511,84 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (alive.current) setBusy("");
     }
   }
+  async function previewBatchExport() {
+    if (!exportScope || dialog !== "export" || editsLocked()) return;
+    const owner = hydration.current;
+    const current = () => alive.current && hydration.current === owner;
+    operationLock.current = "dialog";
+    setDialogError("");
+    setBatchProof(null);
+    setBatchIndex(0);
+    setBusy("Rendering export preview…");
+    setBatchProgress("Checking saved photos…");
+    const controller = new AbortController();
+    exportAbort.current = controller;
+    try {
+      if (!(await flush())) throw new Error("Save the current edits before exporting this set.");
+      if (!current()) return;
+      const plan = await createDevelopBatchPlan(
+        exportScope,
+        store,
+        {
+          edge: exportEdge,
+          quality: exportQuality,
+          sourceMode: exportSourceMode,
+        },
+        controller.signal,
+      );
+      const proof = await prepareDevelopBatch(plan, store, {
+        signal: controller.signal,
+        onProgress: (done, total) => {
+          if (current()) setBatchProgress(`${done} of ${total} native JPEGs prepared`);
+        },
+      });
+      if (current() && !controller.signal.aborted) setBatchProof(proof);
+    } catch (error) {
+      if (current())
+        setDialogError(
+          controller.signal.aborted
+            ? "Batch preview cancelled. No ZIP was offered."
+            : errorMessage(error),
+        );
+    } finally {
+      operationLock.current = null;
+      exportAbort.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
+  async function downloadBatchExport() {
+    if (!batchReady || !batchProof || dialog !== "export" || editsLocked()) return;
+    const owner = hydration.current;
+    const current = () => alive.current && hydration.current === owner;
+    operationLock.current = "dialog";
+    setDialogError("");
+    setBusy("Preparing native JPEG ZIP…");
+    const controller = new AbortController();
+    exportAbort.current = controller;
+    try {
+      if (!(await flush())) throw new Error("Save the current edits before exporting this set.");
+      if (!current()) return;
+      const blob = await developBatchZip(batchProof, store, controller.signal);
+      if (current() && !controller.signal.aborted) {
+        download(blob, `foto-${batchProof.images.length}-native-jpegs.zip`);
+        setNotice(
+          `Download requested · ${batchProof.images.length} native JPEGs. Check your browser downloads; originals are unchanged.`,
+        );
+        setDialog(null);
+      }
+    } catch (error) {
+      if (current())
+        setDialogError(
+          controller.signal.aborted
+            ? "ZIP cancelled. No download was requested."
+            : errorMessage(error),
+        );
+    } finally {
+      operationLock.current = null;
+      exportAbort.current = null;
+      if (alive.current) setBusy("");
+    }
+  }
   async function previewExport() {
     if (dialog !== "export" || editsLocked() || !exportRequest) return;
     const owner = hydration.current;
@@ -1762,6 +1908,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           <button
             onClick={() => {
               if (workbench) void workbench.showStudio();
+              else if (exportScope && shootId)
+                void navigate({
+                  to: "/studio",
+                  search: { shoot: shootId, ...(projectId ? { project: projectId } : {}) },
+                });
               else void navigate({ to: "/dashboard" });
             }}
           >
@@ -2860,7 +3011,38 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             ) : (
               <fieldset className="develop-export-settings" disabled={!!busy}>
                 <p>JPEG · sRGB · original file untouched</p>
-                {photo?.isRaw && photo.sourceAvailable && (
+                {exportScope && (
+                  <>
+                    <p>
+                      {exportScope.label} · {exportScope.photoIds.length} photos · frozen selection
+                    </p>
+                    <details>
+                      <summary>Photos in export order</summary>
+                      <ol>
+                        {exportScope.photoIds.map((id) => (
+                          <li key={id}>
+                            {library.photos.find((item) => item.id === id)?.name ?? id}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                    <p className="develop-export-disclosure">
+                      Up to 200 photos / 100 MiB per ZIP. Preview the saved native edits, then
+                      download that exact JPEG set. No gallery is sent.
+                    </p>
+                    {browserOnly && (
+                      <p role="alert">
+                        Native batch export is unavailable on this hosted site. Open this shoot in
+                        the local app.
+                      </p>
+                    )}
+                  </>
+                )}
+                {(exportScope
+                  ? library.photos.some(
+                      (item) => exportScope.photoIds.includes(item.id) && item.isRaw,
+                    )
+                  : photo?.isRaw && photo.sourceAvailable) && (
                   <>
                     <label>
                       Processing source · editor and export
@@ -2870,26 +3052,32 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                       >
                         <option value="raw">Full RAW demosaic</option>
                         <option value="preview">
-                          {photo.previewOrigin === "raw-demosaic"
-                            ? "Saved sensor-derived preview"
-                            : photo.previewOrigin === "embedded"
-                              ? "Embedded camera preview"
-                              : "Saved preview"}
+                          {exportScope
+                            ? "Saved previews"
+                            : photo?.previewOrigin === "raw-demosaic"
+                              ? "Saved sensor-derived preview"
+                              : photo?.previewOrigin === "embedded"
+                                ? "Embedded camera preview"
+                                : "Saved preview"}
                         </option>
                       </select>
                     </label>
                     <p className="develop-export-disclosure">
-                      {exportSourceMode === "raw"
-                        ? "The editor and export use the same sensor RAW render, size, quality and sRGB color. The displayed edited JPEG is reused for download when all settings match."
-                        : photo.previewOrigin === "raw-demosaic"
-                          ? "The editor and export both use the saved sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
-                          : photo.previewOrigin === "embedded"
-                            ? "The editor and export both use the camera’s embedded preview, not sensor RAW data."
-                            : "The editor and export both use the saved preview, not a new render from sensor RAW data."}
+                      {exportScope
+                        ? exportSourceMode === "raw"
+                          ? "RAW photos use their original sensor data. JPEG photos use their original source."
+                          : "RAW photos use their saved previews, not a new sensor render. JPEG photos use their original source."
+                        : exportSourceMode === "raw"
+                          ? "The editor and export use the same sensor RAW render, size, quality and sRGB color. The displayed edited JPEG is reused for download when all settings match."
+                          : photo?.previewOrigin === "raw-demosaic"
+                            ? "The editor and export both use the saved sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
+                            : photo?.previewOrigin === "embedded"
+                              ? "The editor and export both use the camera’s embedded preview, not sensor RAW data."
+                              : "The editor and export both use the saved preview, not a new render from sensor RAW data."}
                     </p>
                   </>
                 )}
-                {!photo?.sourceAvailable && (
+                {!exportScope && !photo?.sourceAvailable && (
                   <p className="develop-export-disclosure">
                     Only a saved preview is available for this photo.
                   </p>
@@ -2928,12 +3116,21 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 <div className="develop-proof-toolbar">
                   <button
                     type="button"
-                    onClick={() => void previewExport()}
-                    disabled={!exportRequest || !!saveError}
+                    onClick={() => (exportScope ? void previewBatchExport() : void previewExport())}
+                    disabled={
+                      (exportScope ? browserOnly || engine === false : !exportRequest) ||
+                      !!saveError
+                    }
                   >
-                    {proofReady ? "Refresh preview" : "Preview export"}
+                    {exportScope
+                      ? batchReady
+                        ? "Refresh set preview"
+                        : "Preview export set"
+                      : proofReady
+                        ? "Refresh preview"
+                        : "Preview export"}
                   </button>
-                  {proofReady && (
+                  {!exportScope && proofReady && (
                     <button
                       type="button"
                       aria-label="Export preview at 100 percent"
@@ -2944,7 +3141,43 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     </button>
                   )}
                 </div>
-                {proofUrl && exportProof && (
+                {exportScope && batchProgress && <p role="status">{batchProgress}</p>}
+                {exportScope && batchUrl && batchImage && batchProof && (
+                  <figure className="develop-export-proof">
+                    <label>
+                      Prepared JPEG
+                      <select
+                        value={batchIndex}
+                        onChange={(event) => setBatchIndex(Number(event.target.value))}
+                      >
+                        {batchProof.plan.frames.map((frame, index) => (
+                          <option key={frame.id} value={index}>
+                            {index + 1}. {frame.filename}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <img
+                      src={batchUrl}
+                      alt={`Native export preview of ${batchProof.plan.frames[batchIndex]?.name}`}
+                      width={batchImage.width}
+                      height={batchImage.height}
+                    />
+                    <figcaption>
+                      {batchImage.width} × {batchImage.height} ·{" "}
+                      {batchProof.plan.frames[batchIndex]?.sourceMode === "raw"
+                        ? "Sensor RAW"
+                        : "JPEG/preview source"}{" "}
+                      · This exact file is included in the ZIP.
+                    </figcaption>
+                  </figure>
+                )}
+                {exportScope && batchProof && !batchReady && (
+                  <p className="develop-export-disclosure">
+                    Export settings changed. Preview the set again before downloading.
+                  </p>
+                )}
+                {!exportScope && proofUrl && exportProof && (
                   <figure className="develop-export-proof">
                     <div
                       className={proofZoom ? "is-actual-size" : ""}
@@ -2970,7 +3203,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     </figcaption>
                   </figure>
                 )}
-                {!proofReady && exportProof && (
+                {!exportScope && !proofReady && exportProof && (
                   <p className="develop-export-disclosure">
                     Export settings changed. Preview again to inspect the new file.
                   </p>
@@ -2984,8 +3217,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               dialog !== "remove" &&
               dialog !== "auto-crop" && (
                 <div className="develop-dialog-actions">
-                  {busy === "Rendering export preview…" && (
-                    <button onClick={() => exportAbort.current?.abort()}>Stop preview</button>
+                  {(busy === "Rendering export preview…" ||
+                    busy === "Preparing native JPEG ZIP…") && (
+                    <button onClick={() => exportAbort.current?.abort()}>
+                      {busy === "Preparing native JPEG ZIP…" ? "Stop export" : "Stop preview"}
+                    </button>
                   )}
                   <button disabled={!!busy} onClick={() => setDialog(null)}>
                     Cancel
@@ -2994,14 +3230,21 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     className="develop-primary"
                     disabled={
                       !!busy ||
+                      (dialog === "export" && Boolean(exportScope) && !batchReady) ||
                       ((dialog === "preset" || dialog === "snapshot" || dialog === "rename") &&
                         !name.trim())
                     }
-                    onClick={() => void confirmDialog()}
+                    onClick={() =>
+                      dialog === "export" && exportScope
+                        ? void downloadBatchExport()
+                        : void confirmDialog()
+                    }
                   >
                     {busy ||
                       (dialog === "export"
-                        ? "Export JPEG"
+                        ? exportScope
+                          ? `Download ${exportScope.photoIds.length} JPEG ZIP`
+                          : "Export JPEG"
                         : dialog === "sync"
                           ? "Sync settings"
                           : "Save")}

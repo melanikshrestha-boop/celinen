@@ -40,6 +40,8 @@ import { DEFAULT_PREFERENCES } from "@/lib/account-preferences";
 import { matchesShortcut } from "@/lib/shortcuts";
 import { importLanes } from "@/lib/settings-transfer";
 import { Filmstrip } from "@/components/studio/Filmstrip";
+import { SceneNavigation } from "@/components/studio/SceneNavigation";
+import { saveDevelopExportScope } from "@/lib/develop/export-scope";
 import { PeoplePanel } from "@/components/studio/PeoplePanel";
 import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
@@ -70,8 +72,6 @@ import {
   isImportAnalyzed,
   mergePreservedImportAnalysis,
 } from "@/lib/studio/cull-on-import";
-import { tonightGalleryPath } from "@/lib/studio/tonight-gallery";
-import { sendTonightKeepers } from "@/lib/delivery/tonight-local";
 import { createOriginalKeeperZip } from "@/lib/studio/keeper-package";
 import { importedReviewVerdict } from "@/lib/studio/review-metadata";
 import { LIGHTROOM_MATCHING } from "@/lib/lightroom-matching";
@@ -417,6 +417,8 @@ export function Studio({
   const [eventPeople, setEventPeople] = useState<EventPerson[]>([]);
   const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [clusterFilter, setClusterFilter] = useState<string | null>(null);
+  const [sceneOpen, setSceneOpen] = useState(false);
+  const [sceneIds, setSceneIds] = useState<ReadonlySet<string> | null>(null);
   const [peopleGrouping, setPeopleGrouping] = useState(false);
   const [reviewIssue, setReviewIssue] = useState<ReviewIssue | null>(null);
   const [sessionStatus, setSessionStatus] = useState<StudioHydrationState>("loading");
@@ -496,6 +498,7 @@ export function Studio({
   const proposalRef = useRef<StudioProposal | null>(null);
   const recipeRef = useRef<EditRecipe | null>(null);
   const canonicalOpenRef = useRef<() => Promise<boolean>>(async () => false);
+  const canonicalExportRef = useRef<() => Promise<boolean>>(async () => false);
   const [compareBefore, setCompareBefore] = useState(false);
   const [showBefore, setShowBefore] = useState(false);
   const [dropActive, setDropActive] = useState(false);
@@ -699,6 +702,8 @@ export function Studio({
       selectFilter("all");
       setPersonFilter(null);
       setClusterFilter(null);
+      setSceneIds(null);
+      setSceneOpen(false);
       selectShot(id);
     },
     [selectFilter, selectShot],
@@ -940,6 +945,8 @@ export function Studio({
         setStudioEventPeople(session.eventPeople ?? [], storageScope, shootId);
         setPersonFilter(null);
         setClusterFilter(null);
+        setSceneIds(null);
+        setSceneOpen(false);
         hydrationRecoveryRef.current = false;
         selectSessionStatus("ready");
         runImportCull();
@@ -1402,9 +1409,10 @@ export function Studio({
     const cluster = clusterFilter
       ? eventPeople.find((person) => person.id === clusterFilter)
       : undefined;
-    const byCluster = cluster ? shotsOfCluster(shots, cluster) : shots;
+    const byScene = sceneIds ? shots.filter((shot) => sceneIds.has(shot.id)) : shots;
+    const byCluster = cluster ? shotsOfCluster(byScene, cluster) : byScene;
     return personFilter ? shotsOfPerson(byCluster, personFilter) : byCluster;
-  }, [shots, personFilter, clusterFilter, eventPeople]);
+  }, [shots, sceneIds, personFilter, clusterFilter, eventPeople]);
   const visible = useMemo(
     () =>
       reviewIssue
@@ -1417,6 +1425,30 @@ export function Studio({
     cullViewRef.current
       ?.querySelector<HTMLElement>("[data-cull-filmstrip]")
       ?.focus({ preventScroll: true });
+  const selectScene = useCallback(
+    (ids: readonly string[] | null) => {
+      setSceneIds(ids ? new Set(ids) : null);
+      if (ids) {
+        const allowed = new Set(ids);
+        setPersonFilter(null);
+        setClusterFilter(null);
+        setReviewIssue(null);
+        selectShot(
+          filterCullFrames(
+            latestShotsRef.current.filter((shot) => allowed.has(shot.id)),
+            latestFilterRef.current,
+          )[0]?.id ?? null,
+        );
+      }
+      if (ids)
+        requestAnimationFrame(() =>
+          cullViewRef.current
+            ?.querySelector<HTMLElement>("[data-cull-filmstrip]")
+            ?.focus({ preventScroll: true }),
+        );
+    },
+    [selectShot],
+  );
   const openFilter = (next: Filter) => {
     selectFilter(next);
     selectShot(filterCullFrames(scopedShots, next)[0]?.id ?? null);
@@ -1570,7 +1602,7 @@ export function Studio({
     }
   };
 
-  async function openDevelop() {
+  async function openDevelop(exportShotIds?: readonly string[]) {
     if (!canPersistStudioSession(sessionStatusRef.current)) {
       setSyncNote("Resolve the paused save before opening Develop. Your work is unchanged.");
       return false;
@@ -1586,7 +1618,8 @@ export function Studio({
         );
         return false;
       }
-      const href = developWorkspaceHref(
+      if (!mountedRef.current) return false;
+      let href = developWorkspaceHref(
         {
           kind: "ready",
           projectId,
@@ -1595,15 +1628,42 @@ export function Studio({
         },
         latestSelectedIdRef.current ? canonicalView.photoId(latestSelectedIdRef.current) : null,
       );
+      if (exportShotIds) {
+        if (deliveryFocus) {
+          setSyncNote(
+            "Open the shoot outside this delivery revision before exporting a keeper set.",
+          );
+          return false;
+        }
+        const photoIds = exportShotIds.map((id) => canonicalView.photoId(id));
+        if (photoIds.some((id) => !id)) {
+          setSyncNote(
+            "Some keepers are not saved in Develop yet. Reconnect or finish saving them before exporting.",
+          );
+          return false;
+        }
+        const token = saveDevelopExportScope(window.sessionStorage, repository.namespace, {
+          kind: "keepers",
+          photoIds: photoIds as string[],
+          label: sceneIds ? "Keepers in this scene" : "Keepers",
+        });
+        href += `${href.includes("?") ? "&" : "?"}exportScope=${encodeURIComponent(token)}`;
+      }
       if (workbench) return await workbench.openTool(href);
       await navigate({ href });
       return true;
     } catch (error) {
-      pauseSaving(error);
+      if (exportShotIds)
+        setSyncNote(
+          error instanceof Error ? error.message : "Export could not open. Nothing was downloaded.",
+        );
+      else pauseSaving(error);
       return false;
     }
   }
   canonicalOpenRef.current = openDevelop;
+  canonicalExportRef.current = () =>
+    openDevelop(scopedShots.filter((shot) => shot.verdict === "keep").map((shot) => shot.id));
 
   const requestDevelopOutput = useCallback((purpose: string) => {
     const note = `Opening Develop for ${purpose}. No image was exported, downloaded or sent.`;
@@ -1624,12 +1684,28 @@ export function Studio({
       setSyncNote("Apply or discard the preview before zipping keepers.");
       return;
     }
+    const requested = scopedShots.filter((shot) => shot.verdict === "keep");
+    const stillCurrent = () =>
+      mountedRef.current &&
+      canPersistStudioSession(sessionStatusRef.current) &&
+      !proposalRef.current &&
+      requested.every((shot) =>
+        latestShotsRef.current.some(
+          (current) =>
+            current.id === shot.id &&
+            current.verdict === "keep" &&
+            current.file === shot.file &&
+            current.sourceAvailable !== false &&
+            !current.error,
+        ),
+      );
     setBusy("Packing keepers…");
     try {
-      const pack = await createOriginalKeeperZip(
-        latestShotsRef.current,
-        shootTitle.trim() || "Untitled shoot",
-      );
+      if (!(await repository.flush()) || !stillCurrent())
+        throw new Error("This keeper set changed or saving paused. Request a fresh original ZIP.");
+      const pack = await createOriginalKeeperZip(requested, shootTitle.trim() || "Untitled shoot");
+      if (!stillCurrent())
+        throw new Error("This keeper set changed while packing. No download was requested.");
       const url = URL.createObjectURL(pack.blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1642,7 +1718,9 @@ export function Studio({
         window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       }
       setBusy(null);
-      setSyncNote(`${pack.keepers} keepers zipped to Downloads.`);
+      setSyncNote(
+        `Download requested: ${pack.keepers} original keepers. Develop edits are not included.`,
+      );
     } catch (error) {
       setBusy(null);
       setSyncNote(
@@ -1671,42 +1749,13 @@ export function Studio({
   }, [shots, counts, filter, selected]);
 
   const sendKeepers = useCallback(async (): Promise<string> => {
-    if (proposalRef.current) {
-      const note = "Apply or discard the preview before sending.";
-      setSyncNote(note);
-      return `failed: ${note}`;
-    }
-    if (importingRef.current) {
-      const note = "Wait for import to finish before sending.";
-      setSyncNote(note);
-      return `failed: ${note}`;
-    }
-    setBusy("Sending gallery…");
-    try {
-      const gallery = await sendTonightKeepers(
-        latestShotsRef.current,
-        shootTitle.trim() || "Untitled shoot",
-      );
-      const path = tonightGalleryPath(gallery.slug);
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const url = `${origin}${path}`;
-      try {
-        await navigator.clipboard.writeText(`${url} · ${gallery.passcode}`);
-      } catch {
-        /* Clipboard is optional; the note still has the link. */
-      }
-      setBusy(null);
-      const note = `${gallery.keepers} keepers · ${path} · ${gallery.passcode}`;
-      setSyncNote(note);
-      return note;
-    } catch (error) {
-      setBusy(null);
-      const note =
-        error instanceof Error ? error.message : "Gallery was not sent. Originals are unchanged.";
-      setSyncNote(note);
-      return `failed: ${note}`;
-    }
-  }, [shootTitle]);
+    const opened = await canonicalExportRef.current();
+    const note = opened
+      ? "Keepers opened in Develop for export review. No gallery has been published or sent."
+      : "Export did not open. No gallery was published or sent.";
+    setSyncNote(note);
+    return note;
+  }, []);
 
   const executeTool = useCallback(
     async ({ name, args }: ToolCall): Promise<string> => {
@@ -1802,9 +1851,9 @@ export function Studio({
           if (proposalRef.current) return "failed: Apply or discard the preview before exporting.";
           const n = currentShots().filter((s) => s.verdict === "keep" && !s.error).length;
           if (!n) return "failed: no keepers to export";
-          const opened = await canonicalOpenRef.current();
+          const opened = await canonicalExportRef.current();
           return opened
-            ? `Develop opened for your ${n} keepers. Choose the photos and export settings there; no download has been requested.`
+            ? "The exact keeper set opened in Develop. Review the export proofs before downloading; nothing has been sent."
             : "Develop could not open. No keepers were exported.";
         }
         case "write_xmp": {
@@ -1876,10 +1925,6 @@ export function Studio({
       setSyncNote(note);
       return `failed: ${note}`;
     }
-  };
-
-  const downloadKeeperPackage = async () => {
-    requestDevelopOutput("edited keeper proofs");
   };
 
   /* ---------------- keyboard ---------------- */
@@ -2090,6 +2135,10 @@ export function Studio({
       setPeopleOpen(true);
       return "Opened people tools. No faces were grouped or tags changed.";
     }
+    if (intent.kind === "scenes") {
+      setSceneOpen(true);
+      return "Opened scene navigation. Visual, folder and capture-time changes are suggestions only; no photos were moved or rejected.";
+    }
     if (intent.kind === "bursts") {
       if (importingRef.current || folderAbortRef.current)
         return "Finish or stop ingest before grouping the current shoot.";
@@ -2274,13 +2323,11 @@ export function Studio({
             {!!counts.keepers && (
               <button
                 type="button"
-                onClick={() => void zipKeepers()}
+                onClick={() => void canonicalExportRef.current()}
                 disabled={Boolean(busy)}
                 className="rounded-md bg-ink px-2.5 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
               >
-                {busy?.startsWith("Packing")
-                  ? "Packing keepers…"
-                  : `ZIP keepers (${counts.keepers})`}
+                {`Export keepers (${counts.keepers})`}
               </button>
             )}
             {!workbench && (
@@ -2368,6 +2415,11 @@ export function Studio({
                     ],
                     ["Cancel import", cancelImport, !progress && !folderStatus],
                     [
+                      "Find scene changes",
+                      () => setSyncNote(openWorkflow({ kind: "scenes" })),
+                      shots.length < 2,
+                    ],
+                    [
                       "Review bursts",
                       () => setSyncNote(openWorkflow({ kind: "bursts" })),
                       shots.length < 2,
@@ -2395,13 +2447,7 @@ export function Studio({
                       !shots.some((s) => s.verdict !== "undecided"),
                     ],
                     ["Export cull.csv", exportCullSheet, !shots.length],
-                    ["ZIP keepers", () => void zipKeepers(), !counts.keepers],
-                    [
-                      "Download keepers package",
-                      () => void downloadKeeperPackage(),
-                      !counts.keepers,
-                    ],
-                    ["Send keepers to gallery", () => void sendKeepers(), !counts.keepers],
+                    ["Download original keepers ZIP", () => void zipKeepers(), !counts.keepers],
                     ["Publish verdicts to Lightroom", () => void pushToLightroom(), !shots.length],
                     [
                       "Download Lightroom plugin",
@@ -2527,7 +2573,7 @@ export function Studio({
             >
               <h1 className="font-display text-3xl font-semibold tracking-tight">Drop the shoot</h1>
               <p className="mt-2 font-mono text-[11px] text-moss">
-                Then K keep · R reject · ZIP keepers. Originals stay on this device.
+                Then K keep · X reject · Export keepers. Originals stay on this device.
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-2">
                 <button
@@ -2611,6 +2657,13 @@ export function Studio({
                   </>
                 )}
                 {busy && <span className="ml-auto font-mono text-[11px] text-rust">{busy}</span>}
+                <SceneNavigation
+                  open={sceneOpen}
+                  shots={shots}
+                  scopeKey={repository.namespace}
+                  onSelect={selectScene}
+                  onQueueFocus={focusReviewQueue}
+                />
               </div>
 
               <div className="grid gap-5 pt-5 lg:grid-cols-12">

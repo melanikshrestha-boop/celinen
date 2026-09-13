@@ -145,6 +145,16 @@ describe("Develop high-resolution capability gate", () => {
 });
 
 describe("Hosted Develop queued recipe ownership", () => {
+  test("native-only batch requests refuse hosted rendering before decode or upload", async () => {
+    Object.defineProperty(globalThis, "window", {
+      value: { location: { hostname: "lenslab.dev" } },
+      configurable: true,
+    });
+    await expect(
+      renderDevelop(source, defaultDevelopSettings(), { nativeOnly: true }),
+    ).rejects.toThrow("Native batch export is unavailable");
+    expect(renderCalls).toHaveLength(0);
+  });
   test.each(["supported exposure", "unsupported curve"])(
     "a queued render keeps its admitted recipe after a caller changes %s",
     async (change) => {

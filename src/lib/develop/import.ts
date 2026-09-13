@@ -1,10 +1,12 @@
 import { supportedPhoto } from "../studio/ingest";
 import {
   developDocumentSchema,
+  developImportOrderSchema,
   developPhotoFromFile,
   type DevelopImportCommit,
   type DevelopPhoto,
   type DevelopPhotoInput,
+  type DevelopImportOrder,
 } from "./store";
 
 export type DevelopImportProgress = { index: number; total: number; fileName: string };
@@ -30,6 +32,8 @@ export type DevelopImportOptions = {
   preparationConcurrency?: number;
   /** RAW preview preparation has its own limit (one by default, never more than two). */
   rawPreparationConcurrency?: number;
+  /** Opt-in durable input ordering; requires an admitted coordinator/store receipt. */
+  ordering?: Pick<DevelopImportOrder, "namespace" | "jobId">;
   /** Metadata registration only: no source read, decoded preview, or durable save is implied. */
   onRegistered?: (progress: DevelopImportRegistration) => void;
   onProgress?: (progress: DevelopImportProgress) => void;
@@ -70,7 +74,7 @@ function barrier() {
 }
 type Prepared =
   | { kind: "prepared"; value: DevelopPhotoInput }
-  | { kind: "duplicate" }
+  | { kind: "duplicate"; sourceId: string }
   | { kind: "failed"; message: string }
   | { kind: "stopped" };
 type Identified =
@@ -161,6 +165,7 @@ export async function runDevelopImport(
   const controller = new AbortController();
   const signal = controller.signal;
   const batch = [...files];
+  const ordering = options.ordering ? { ...options.ordering } : null;
   const concurrency = options.preparationConcurrency ?? 1;
   const rawConcurrency = options.rawPreparationConcurrency ?? 1;
   if (
@@ -190,6 +195,15 @@ export async function runDevelopImport(
     raws = candidateQueue();
   const heldPreviews = new Set<number>(); // Active + ready + currently committing, <= concurrency.
   const activePreviews = new Set<Promise<void>>();
+  const committedOrdinals = new Map<number, string>();
+  const sortedOrdinals: number[] = [];
+  const importedByIndex = new Map<number, DevelopPhoto[]>();
+  const consumedIndices = new Set<number>();
+  const readyQueue: number[] = [];
+  const pendingDuplicates = new Map<string, number[]>();
+  let readyHead = 0;
+  let consumedCount = 0;
+  let outcomeAvailable = barrier();
   let nextRead = 0,
     commitIndex = 0,
     rawActive = 0,
@@ -199,13 +213,29 @@ export async function runDevelopImport(
     if (!signal.aborted) controller.abort(options.signal?.reason);
     for (const completion of completions) completion.release();
     commitAdvance.release();
+    outcomeAvailable.release();
   };
   options.signal?.addEventListener("abort", stop, { once: true });
   if (options.signal?.aborted) stop();
 
+  function wakeReady() {
+    const available = outcomeAvailable;
+    outcomeAvailable = barrier();
+    available.release();
+  }
   function complete(index: number, outcome: Prepared) {
     outcomes.set(index, outcome);
     completions[index]!.release();
+    if (ordering) {
+      if (outcome.kind === "duplicate" && !knownIds.has(outcome.sourceId)) {
+        const waiting = pendingDuplicates.get(outcome.sourceId) ?? [];
+        waiting.push(index);
+        pendingDuplicates.set(outcome.sourceId, waiting);
+      } else {
+        readyQueue.push(index);
+        wakeReady();
+      }
+    }
     const firstSettlement = !preparationSettled.has(index);
     preparationSettled.add(index);
     preparationStopped ||= outcome.kind === "stopped";
@@ -254,7 +284,9 @@ export async function runDevelopImport(
       if (
         prepared.id !== sourceId ||
         prepared.sourceDigest !== sourceDigest ||
-        prepared.sourceBlob !== file
+        prepared.sourceBlob !== file ||
+        prepared.importOrder !== undefined ||
+        prepared.importBefore !== undefined
       )
         throw new Error(
           "Preview preparation changed the original photo identity. This file was not saved.",
@@ -266,7 +298,7 @@ export async function runDevelopImport(
       const snapshot = copyPrepared(prepared);
       claim.succeeded = true;
       for (const duplicate of claim.waiting.splice(0))
-        complete(duplicate.index, { kind: "duplicate" });
+        complete(duplicate.index, { kind: "duplicate", sourceId });
       if (options.onPrepared)
         observer(() => options.onPrepared?.(copyPrepared(snapshot), progress(index)));
       signal.throwIfAborted();
@@ -301,6 +333,7 @@ export async function runDevelopImport(
       // the next receipt. Otherwise a slow hash / duplicate retry can deadlock
       // behind a completely full ready buffer that cannot commit out of order.
       if (
+        !ordering &&
         candidate.index !== commitIndex &&
         !heldPreviews.has(commitIndex) &&
         heldPreviews.size >= concurrency - 1
@@ -323,7 +356,8 @@ export async function runDevelopImport(
       else {
         const input = identified.value;
         const existing = claims.get(input.id);
-        if (knownIds.has(input.id) || existing?.succeeded) complete(index, { kind: "duplicate" });
+        if (knownIds.has(input.id) || existing?.succeeded)
+          complete(index, { kind: "duplicate", sourceId: input.id });
         else if (existing) existing.waiting.push({ index, input });
         else {
           const claim: IdentityClaim = { succeeded: false, waiting: [] };
@@ -342,11 +376,44 @@ export async function runDevelopImport(
   function consumed(index: number) {
     outcomes.delete(index);
     heldPreviews.delete(index);
-    commitIndex = index + 1;
+    consumedCount++;
+    consumedIndices.add(index);
+    while (consumedIndices.delete(commitIndex)) commitIndex++;
     const advanced = commitAdvance;
     commitAdvance = barrier();
     advanced.release();
     dispatchPreviews();
+  }
+  async function* readyIndices() {
+    if (!ordering) {
+      for (let index = 0; index < batch.length && !signal.aborted; index++) {
+        await completions[index]!.promise;
+        yield index;
+      }
+      return;
+    }
+    while (consumedCount < batch.length && !signal.aborted) {
+      const wait = outcomeAvailable.promise;
+      // A duplicate is counted only after its winning source's durable ACK.
+      if (readyHead < readyQueue.length) {
+        const index = readyQueue[readyHead++]!;
+        if (readyHead >= 1024 && readyHead * 2 >= readyQueue.length) {
+          readyQueue.splice(0, readyHead);
+          readyHead = 0;
+        }
+        yield index;
+      } else await wait;
+    }
+  }
+  function ordinalPosition(index: number) {
+    let low = 0,
+      high = sortedOrdinals.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (sortedOrdinals[middle]! < index) low = middle + 1;
+      else high = middle;
+    }
+    return low;
   }
 
   try {
@@ -356,12 +423,12 @@ export async function runDevelopImport(
     }
     if (!batch.length && !signal.aborted) observer(() => options.onPreparationComplete?.());
     identifying = identifyInOrder();
-    for (const [index, file] of batch.entries()) {
+    for await (const index of readyIndices()) {
+      const file = batch[index]!;
       if (signal.aborted) {
         report.stopped = true;
         break;
       }
-      await completions[index]!.promise;
       const outcome = outcomes.get(index);
       if (signal.aborted || !outcome || outcome.kind === "stopped") {
         report.stopped = true;
@@ -380,15 +447,45 @@ export async function runDevelopImport(
         consumed(index);
         continue;
       }
-      const prepared = outcome.value;
+      let prepared = outcome.value;
       try {
         signal.throwIfAborted();
+        if (ordering) {
+          const later = sortedOrdinals[ordinalPosition(index)];
+          prepared = {
+            ...prepared,
+            importOrder: developImportOrderSchema.parse({
+              version: 1,
+              ...ordering,
+              ordinal: index,
+              photoId: prepared.id,
+              sourceDigest: prepared.sourceDigest,
+            }),
+            ...(later !== undefined
+              ? { importBefore: { ordinal: later, photoId: committedOrdinals.get(later)! } }
+              : {}),
+          };
+        }
         const receipt = await options.save(prepared);
         const saved = Array.isArray(receipt) ? receipt : receipt.photos;
         if (saved.length !== 1 || saved[0]?.id !== prepared.id)
           throw new Error(
             "Import storage returned an unexpected receipt. Reload the library before continuing.",
           );
+        if (ordering) {
+          if (
+            Array.isArray(receipt) ||
+            !receipt.ordering ||
+            JSON.stringify(developImportOrderSchema.parse(receipt.ordering.order)) !==
+              JSON.stringify(prepared.importOrder) ||
+            typeof receipt.ordering.inserted !== "boolean"
+          )
+            throw new Error("Import storage did not acknowledge this photo's exact job order.");
+          if (receipt.ordering.inserted) {
+            committedOrdinals.set(index, prepared.id);
+            sortedOrdinals.splice(ordinalPosition(index), 0, index);
+          }
+        }
         let observed: DevelopImportCommit | null = null;
         if (!Array.isArray(receipt)) {
           if (
@@ -412,8 +509,15 @@ export async function runDevelopImport(
         // Do not check cancellation between a completed save and recording its receipt.
         // A stop request cannot undo bytes that have already committed to IndexedDB.
         report.imported.push(...saved);
+        importedByIndex.set(index, saved);
         report.selectedId ??= saved[0]?.id ?? null;
         knownIds.add(prepared.id);
+        const duplicates = pendingDuplicates.get(prepared.id);
+        if (duplicates) {
+          pendingDuplicates.delete(prepared.id);
+          for (const duplicate of duplicates) readyQueue.push(duplicate);
+          wakeReady();
+        }
         if (observed && options.onCommitted) {
           try {
             await options.onCommitted(observed, {
@@ -442,6 +546,12 @@ export async function runDevelopImport(
     await Promise.all(reads.values());
     await Promise.all(activePreviews);
     options.signal?.removeEventListener("abort", stop);
+  }
+  if (ordering) {
+    report.imported = [...importedByIndex]
+      .sort(([a], [b]) => a - b)
+      .flatMap(([, photos]) => photos);
+    report.selectedId = report.imported[0]?.id ?? null;
   }
   return report;
 }

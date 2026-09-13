@@ -21,6 +21,9 @@ struct BurstFrame {
   std::string camera_key; // A device identifier, not merely its shared model name.
   std::string folder;
   Verdict verdict = Verdict::undecided;
+  std::string hash_domain = "legacy";
+  std::string time_basis = "legacy";
+  bool scene_only = false;
 };
 
 struct BurstGroup {
@@ -44,6 +47,18 @@ struct BurstReview {
   std::size_t grouped_frames = 0;
   std::size_t comparisons = 0;
 };
+
+// Navigation suggestions only: no subject/location recognition or verdicts.
+struct SceneCandidate {
+  std::vector<std::string> frame_ids;
+  std::vector<std::string> possible_visual_outlier_ids;
+  std::string reason;
+  unsigned hash_distance = 0;
+  double brightness_delta = 0;
+  std::int64_t gap_ms = 0;
+};
+std::vector<SceneCandidate> group_scene_candidates(const std::vector<BurstFrame>& frames);
+std::string scene_review_json(const std::vector<SceneCandidate>& groups);
 
 // No pixels are decoded here. These conservative review groups use existing native
 // analysis receipts; grouping itself never changes a verdict.

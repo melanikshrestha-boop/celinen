@@ -75,6 +75,24 @@ export const shootManifestSchema = z
   });
 export type ShootManifest = z.infer<typeof shootManifestSchema>;
 export type ShootManifestView = Pick<ShootManifest, "photoIds" | "selectedId" | "filter">;
+const importJobPhaseSchema = z.enum([
+  "discovering",
+  "processing",
+  "complete",
+  "cancelled",
+  "paused",
+  "interrupted",
+]);
+const importJobRowSchema = z
+  .object({
+    id: nonempty,
+    name: sourceNameSchema,
+    path: z.string().max(4000),
+    status: z.enum(["found", "preview-ready", "saved", "failed", "duplicate", "cancelled"]),
+    photoId: developPhotoIdSchema.optional(),
+    error: z.string().max(2000).optional(),
+  })
+  .strict();
 export const developImportJobSchema = z
   .object({
     version: z.literal(1),
@@ -84,23 +102,10 @@ export const developImportJobSchema = z
       .min(0)
       .max(Number.MAX_SAFE_INTEGER - 1),
     id: nonempty,
-    phase: z.enum(["discovering", "processing", "complete", "cancelled", "paused", "interrupted"]),
+    phase: importJobPhaseSchema,
     startedAt: z.number().finite().nonnegative(),
     finishedAt: z.number().finite().nonnegative().nullable(),
-    rows: z
-      .array(
-        z
-          .object({
-            id: nonempty,
-            name: sourceNameSchema,
-            path: z.string().max(4000),
-            status: z.enum(["found", "preview-ready", "saved", "failed", "duplicate", "cancelled"]),
-            photoId: developPhotoIdSchema.optional(),
-            error: z.string().max(2000).optional(),
-          })
-          .strict(),
-      )
-      .max(50000),
+    rows: z.array(importJobRowSchema).max(50000),
     found: z.number().int().min(0).max(50000),
     previewReady: z.number().int().min(0).max(50000),
     analyzed: z.number().int().min(0).max(50000),
@@ -125,6 +130,20 @@ export const developImportJobSchema = z
       });
   });
 export type DevelopImportJob = z.infer<typeof developImportJobSchema>;
+export const developImportOrderSchema = z
+  .object({
+    version: z.literal(1),
+    namespace: z.string().min(1).max(4200),
+    jobId: nonempty,
+    ordinal: z.number().int().min(0).max(49999),
+    photoId: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    sourceDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  })
+  .strict();
+export type DevelopImportOrder = z.infer<typeof developImportOrderSchema>;
+const importBeforeSchema = z
+  .object({ photoId: developPhotoIdSchema, ordinal: z.number().int().min(0).max(49999) })
+  .strict();
 const sidecarSchema = z
   .object({ name: sourceNameSchema, path: z.string().max(4000), text: z.string() })
   .strict()
@@ -293,6 +312,10 @@ export type DevelopPhotoInput = {
   initialState?: z.infer<typeof initialStateSchema>;
   /** Consumed into the edit document atomically, never stored with the original media. */
   analysis?: DevelopAnalysisReceipt;
+  /** Consumed into an immutable job/source ordering record, never copied with photo media. */
+  importOrder?: DevelopImportOrder;
+  /** Exact later saved ordinal in this job; consumed by the manifest transaction. */
+  importBefore?: z.infer<typeof importBeforeSchema>;
   /** Explicit source-attachment operation; never emitted by ordinary Studio imports. */
   reconnectOriginal?: true;
   /** Scan-time identity guard; consumed by attachment, never persisted. */
@@ -300,7 +323,12 @@ export type DevelopPhotoInput = {
 };
 export type DevelopPhoto = Omit<
   DevelopPhotoInput,
-  "initialState" | "analysis" | "reconnectOriginal" | "reconnectExpected"
+  | "initialState"
+  | "analysis"
+  | "importOrder"
+  | "importBefore"
+  | "reconnectOriginal"
+  | "reconnectExpected"
 > & {
   sourceAvailable: boolean;
   createdAt: number;
@@ -311,7 +339,10 @@ export type DevelopLibrary = {
   presets: DevelopPreset[];
 };
 /** Media and exact saved edit documents acknowledged by one completed transaction. */
-export type DevelopImportCommit = Pick<DevelopLibrary, "photos" | "documents">;
+export type DevelopImportCommit = Pick<DevelopLibrary, "photos" | "documents"> & {
+  /** Only this acknowledgment establishes a usable insertion anchor for the owner. */
+  ordering?: { order: DevelopImportOrder; inserted: boolean };
+};
 export type DevelopPhotoRecord = { photo: DevelopPhoto; document: DevelopDocument };
 export type DevelopStoreChange = {
   kind: "photos" | "documents" | "presets" | "manifest" | "import-job";
@@ -733,11 +764,28 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
     throw new Error("Invalid photo identity.");
   const initialState =
     input.initialState === undefined ? undefined : initialStateSchema.parse(input.initialState);
+  const importOrder =
+    input.importOrder === undefined ? undefined : developImportOrderSchema.parse(input.importOrder);
+  const importBefore =
+    input.importBefore === undefined ? undefined : importBeforeSchema.parse(input.importBefore);
+  if (
+    (importOrder &&
+      (importOrder.photoId !== input.id ||
+        importOrder.sourceDigest !== input.sourceDigest ||
+        importOrder.photoId !== importOrder.sourceDigest ||
+        !input.sourceBlob?.size ||
+        !input.previewBlob?.size ||
+        input.reconnectOriginal)) ||
+    (importBefore && (!importOrder || importBefore.ordinal <= importOrder.ordinal))
+  )
+    throw new Error("Import order must belong to this complete original and a later job ordinal.");
   return {
     ...input,
     previewOrigin: input.previewOrigin ?? "unknown",
     ...(reconnectExpected ? { reconnectExpected } : {}),
     ...(initialState ? { initialState } : {}),
+    ...(importOrder ? { importOrder } : {}),
+    ...(importBefore ? { importBefore } : {}),
     ...(input.analysis ? { analysis: assertDevelopPhotoAnalysis(input.analysis, input) } : {}),
     ...(input.legacy ? { legacy: copyLegacy(input.legacy) } : {}),
     ...(input.sidecar ? { sidecar: sidecarSchema.parse(input.sidecar) } : {}),
@@ -1138,6 +1186,23 @@ type DocumentRecord = { key: string; namespace: string; value: DevelopDocument }
 type PresetRecord = { key: string; scope: string; value: DevelopPreset };
 type ManifestRecord = { key: string; value: ShootManifest };
 type ImportJobRecord = { key: string; value: DevelopImportJob };
+type ImportOrderRecord = { key: string; value: DevelopImportOrder; inserted: boolean };
+const importAdmissionSchema = z
+  .object({
+    version: z.literal(1),
+    jobId: nonempty,
+    phase: importJobPhaseSchema,
+    revision: revisionSchema,
+    rows: z.number().int().min(0).max(50000),
+  })
+  .strict();
+type ImportAdmissionRecord = { key: string; value: z.infer<typeof importAdmissionSchema> };
+type ImportRowRecord = {
+  key: string;
+  jobId: string;
+  ordinal: number;
+  value: z.infer<typeof importJobRowSchema>;
+};
 
 /** Preserve membership and ordering; an older view cannot silently drop an imported photo. */
 export function advanceShootManifest(
@@ -1292,6 +1357,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
   const namespace = JSON.stringify([scope, libraryId]);
   const key = (id: string) => JSON.stringify([scope, libraryId, developPhotoIdSchema.parse(id)]);
   const presetKey = (id: string) => JSON.stringify([scope, nonempty.parse(id)]);
+  const importAdmissionKey = JSON.stringify([scope, libraryId, "import-admission"]);
+  const importRowKey = (jobId: string, ordinal: number) =>
+    JSON.stringify([scope, libraryId, "import-row", jobId, ordinal]);
   const listeners = new Set<LocalObserver>();
   let channel: BroadcastChannel | null = null;
   let closed = false;
@@ -1328,12 +1396,16 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     tx: IDBTransaction,
     ids: readonly string[],
     previous?: { value: ShootManifest; stored: boolean },
+    beforeId?: string,
   ) {
     const { value, stored } = previous ?? (await manifestInTransaction(tx));
     const known = new Set(value.photoIds);
     const appended = ids.filter((id) => !known.has(id));
     if (stored && !appended.length) return;
-    const photoIds = [...value.photoIds, ...appended];
+    const photoIds = [...value.photoIds];
+    const before = beforeId === undefined ? photoIds.length : photoIds.indexOf(beforeId);
+    if (before < 0) throw new DevelopSaveConflict("import-order-anchor");
+    photoIds.splice(before, 0, ...appended);
     const next = shootManifestSchema.parse({
       ...value,
       photoIds,
@@ -1395,6 +1467,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
   }
   const store = {
     namespace,
+    supportsOrderedImports: true as const,
     async readPhotosWithDocuments(photoIds: readonly string[]): Promise<DevelopImportCommit> {
       const ids = z.array(developPhotoIdSchema).max(50000).parse(photoIds);
       if (new Set(ids).size !== ids.length) throw new Error("Read each photo only once.");
@@ -1477,6 +1550,42 @@ export function createDevelopStore(options: DevelopStoreOptions) {
           const value = advanceDevelopImportJob(record?.value ?? null, checked, expectedRevision);
           if (value.revision !== record?.value.revision)
             jobs.put({ key: namespace, value } satisfies ImportJobRecord);
+          // Photo transactions need one owner and one registered row, not a clone
+          // and validation of the complete (up to 50k-row) progress journal.
+          // Keep this derived index atomic with the unchanged journal CAS.
+          const indexed = (await requestResult(jobs.get(importAdmissionKey))) as
+            ImportAdmissionRecord | undefined;
+          const priorIndex = indexed ? importAdmissionSchema.parse(indexed.value) : null;
+          if (indexed && indexed.key !== importAdmissionKey)
+            throw new Error("The import admission belongs to another shoot.");
+          const sameIndex =
+            priorIndex?.jobId === record?.value.id &&
+            priorIndex?.revision === record?.value.revision &&
+            priorIndex?.phase === record?.value.phase &&
+            priorIndex?.rows === record?.value.rows.length;
+          if (!sameIndex || value.revision !== priorIndex?.revision) {
+            for (const [ordinal, row] of value.rows.entries()) {
+              const previous =
+                sameIndex && record?.value.id === value.id ? record.value.rows[ordinal] : undefined;
+              if (previous && JSON.stringify(previous) === JSON.stringify(row)) continue;
+              jobs.put({
+                key: importRowKey(value.id, ordinal),
+                jobId: value.id,
+                ordinal,
+                value: row,
+              } satisfies ImportRowRecord);
+            }
+            jobs.put({
+              key: importAdmissionKey,
+              value: {
+                version: 1,
+                jobId: value.id,
+                phase: value.phase,
+                revision: value.revision,
+                rows: value.rows.length,
+              },
+            } satisfies ImportAdmissionRecord);
+          }
           return value;
         });
         notify({ kind: "import-job", ids: [result.id] });
@@ -1735,6 +1844,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     /** Progressive import receipt; no full-library read or fabricated local history is needed. */
     async addPhotosWithDocuments(inputs: DevelopPhotoInput[]): Promise<DevelopImportCommit> {
       const checked = inputs.map(checkedPhoto);
+      const ordered = checked.find((input) => input.importOrder);
+      if (ordered && (checked.length !== 1 || ordered.importOrder!.namespace !== namespace))
+        throw new Error("An ordered import receipt must contain one photo from this exact shoot.");
       for (const input of checked)
         if (input.analysis) assertDevelopPhotoAnalysis(input.analysis, input, namespace);
       if (new Set(checked.map((photo) => photo.id)).size !== checked.length)
@@ -1744,7 +1856,12 @@ export function createDevelopStore(options: DevelopStoreOptions) {
       try {
         const committed = await transaction(
           db,
-          [STORES.photos, STORES.documents, STORES.manifests],
+          [
+            STORES.photos,
+            STORES.documents,
+            STORES.manifests,
+            ...(ordered ? [STORES.importJobs] : []),
+          ],
           "readwrite",
           async (tx) => {
             const photosStore = tx.objectStore(STORES.photos),
@@ -1763,10 +1880,84 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             const output: DevelopPhoto[] = [];
             const documents: Record<string, DevelopDocument> = Object.create(null);
             const previousManifest = await manifestInTransaction(tx);
+            let ownsInsertion = false;
+            if (ordered) {
+              const order = ordered.importOrder!;
+              const jobStore = tx.objectStore(STORES.importJobs);
+              const registeredKey = importRowKey(order.jobId, order.ordinal);
+              const [record, registered] = await Promise.all([
+                requestResult(jobStore.get(importAdmissionKey)) as Promise<
+                  ImportAdmissionRecord | undefined
+                >,
+                requestResult(jobStore.get(registeredKey)) as Promise<ImportRowRecord | undefined>,
+              ]);
+              const job = record ? importAdmissionSchema.parse(record.value) : null;
+              const row = registered ? importJobRowSchema.parse(registered.value) : null;
+              if (
+                record?.key !== importAdmissionKey ||
+                job?.jobId !== order.jobId ||
+                job.phase !== "processing" ||
+                job.rows <= order.ordinal ||
+                registered?.key !== registeredKey ||
+                registered.jobId !== order.jobId ||
+                registered.ordinal !== order.ordinal ||
+                row?.id !== `${order.jobId}:${order.ordinal}` ||
+                row.name !== ordered.sourceFileName ||
+                (row.photoId !== undefined && row.photoId !== ordered.id) ||
+                ["failed", "duplicate", "cancelled"].includes(row.status)
+              )
+                throw new DevelopSaveConflict("import-owner");
+              const orderKey = (ordinal: number) =>
+                JSON.stringify([scope, libraryId, "import-order", order.jobId, ordinal]);
+              const boundKey = orderKey(order.ordinal);
+              const bound = (await requestResult(jobStore.get(boundKey))) as
+                ImportOrderRecord | undefined;
+              if (
+                bound &&
+                (bound.key !== boundKey ||
+                  typeof bound.inserted !== "boolean" ||
+                  JSON.stringify(developImportOrderSchema.parse(bound.value)) !==
+                    JSON.stringify(order))
+              )
+                throw new DevelopSaveConflict("import-order-source");
+              ownsInsertion = bound?.inserted ?? !existing[0]!.photo;
+              if (ordered.importBefore) {
+                const anchorKey = orderKey(ordered.importBefore.ordinal);
+                const [anchor, photo] = await Promise.all([
+                  requestResult(jobStore.get(anchorKey)) as Promise<ImportOrderRecord | undefined>,
+                  requestResult(photosStore.get(key(ordered.importBefore.photoId))) as Promise<
+                    PhotoRecord | undefined
+                  >,
+                ]);
+                const origin = anchor ? developImportOrderSchema.parse(anchor.value) : null;
+                if (
+                  anchor?.key !== anchorKey ||
+                  !anchor.inserted ||
+                  origin?.namespace !== namespace ||
+                  origin.jobId !== order.jobId ||
+                  origin.ordinal !== ordered.importBefore.ordinal ||
+                  origin.photoId !== ordered.importBefore.photoId ||
+                  photo?.key !== key(origin.photoId) ||
+                  photo.namespace !== namespace ||
+                  photo.value.id !== origin.photoId ||
+                  photo.value.sourceDigest !== origin.sourceDigest ||
+                  !previousManifest.value.photoIds.includes(origin.photoId)
+                )
+                  throw new DevelopSaveConflict("import-order-anchor");
+              }
+              if (!bound)
+                jobStore.add({
+                  key: boundKey,
+                  value: order,
+                  inserted: ownsInsertion,
+                } satisfies ImportOrderRecord);
+            }
             for (const { input, photo, document } of existing) {
               const {
                 initialState: _initialState,
                 analysis: _analysis,
+                importOrder: _importOrder,
+                importBefore: _importBefore,
                 reconnectOriginal: _reconnectOriginal,
                 reconnectExpected: _reconnectExpected,
                 ...media
@@ -1904,8 +2095,15 @@ export function createDevelopStore(options: DevelopStoreOptions) {
               tx,
               output.map((photo) => photo.id),
               previousManifest,
+              ordered?.importBefore?.photoId,
             );
-            return { photos: output, documents };
+            return {
+              photos: output,
+              documents,
+              ...(ordered
+                ? { ordering: { order: ordered.importOrder!, inserted: ownsInsertion } }
+                : {}),
+            };
           },
         );
         notify({

@@ -220,6 +220,7 @@ export function burstProtocol(value: unknown): string {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new NativeBridgeError(400, "Invalid burst request.");
   const frames = (value as Record<string, unknown>)["frames"];
+  const sceneNavigation = (value as Record<string, unknown>)["sceneNavigation"] === true;
   if (!Array.isArray(frames) || frames.length > 100_000)
     throw new NativeBridgeError(400, "Burst review accepts up to 100,000 receipts.");
   const ids = new Set<string>();
@@ -266,7 +267,7 @@ export function burstProtocol(value: unknown): string {
     const basis = frame["captureTimeBasis"] ?? "unknown";
     if (!["utc", "camera_clock", "unknown"].includes(String(basis)))
       throw new NativeBridgeError(400, "Invalid camera clock basis.");
-    if (clockPartition !== undefined && clockPartition !== basis)
+    if (!sceneNavigation && clockPartition !== undefined && clockPartition !== basis)
       throw new NativeBridgeError(400, "Review different camera clock bases separately.");
     clockPartition = String(basis);
     // An unqualified timestamp is not evidence of a camera-timed burst.
@@ -282,9 +283,12 @@ export function burstProtocol(value: unknown): string {
     )
       throw new NativeBridgeError(400, "Invalid camera or folder identity.");
     const folder = relative.replace(/\\/g, "/").split("/").slice(0, -1).join("/");
-    return `${hex(id)} ${hashHex} ${frame["score"]} ${frame["sharpness"]} ${frame["brightness"]} ${captured} ${hex(camera)} ${hex(folder)} ${verdict}`;
+    const domain = frame["hashDomain"] ?? "unknown";
+    if (sceneNavigation && !["native-cpp", "browser", "unknown"].includes(String(domain)))
+      throw new NativeBridgeError(400, "Invalid scene hash domain.");
+    return `${hex(id)} ${hashHex} ${frame["score"]} ${frame["sharpness"]} ${frame["brightness"]} ${captured} ${hex(camera)} ${hex(folder)} ${verdict}${sceneNavigation ? ` ${domain} ${basis}` : ""}`;
   });
-  return `LENSBURST1 ${frames.length}\n${lines.join("\n")}${lines.length ? "\n" : ""}`;
+  return `${sceneNavigation ? "LENSBURST2" : "LENSBURST1"} ${frames.length}\n${lines.join("\n")}${lines.length ? "\n" : ""}`;
 }
 
 export function insightfacePackFromEnv(): {

@@ -56,6 +56,7 @@ function fixture(withPeople = false) {
     personFilter: withPeople ? "review" : null,
     clusterFilter: withPeople ? "review-group" : null,
     reviewIssue: null as ReviewIssue | null,
+    sceneIds: null as ReadonlySet<string> | null,
   };
   const selectShot = (id: string | null) => {
     state.selectedId = id;
@@ -70,6 +71,8 @@ function fixture(withPeople = false) {
     "selectShot",
     "setPersonFilter",
     "setClusterFilter",
+    "setSceneIds",
+    "setSceneOpen",
     revealDefinition + "\nreturn revealShot;",
   )(
     (callback: unknown) => callback,
@@ -77,6 +80,8 @@ function fixture(withPeople = false) {
     selectShot,
     (id: string | null) => (state.personFilter = id),
     (id: string | null) => (state.clusterFilter = id),
+    (ids: ReadonlySet<string> | null) => (state.sceneIds = ids),
+    () => {},
   ) as (id: string) => void;
   const visible = () =>
     new Function(
@@ -91,6 +96,7 @@ function fixture(withPeople = false) {
       "filter",
       "filterReviewIssue",
       "filterCullFrames",
+      "sceneIds",
       projection + "\nreturn visible;",
     )(
       (calculate: () => unknown) => calculate(),
@@ -104,6 +110,7 @@ function fixture(withPeople = false) {
       state.filter,
       filterReviewIssue,
       filterCullFrames,
+      state.sceneIds,
     ) as Shot[];
   const reconcile = () =>
     new Function("selectedId", "visible", "selectShot", guard)(
@@ -136,6 +143,7 @@ describe("explicit Studio photo navigation leaves filters, keyboard review does 
         personFilter: null,
         clusterFilter: null,
         reviewIssue: null,
+        sceneIds: null,
       });
       expect(app.visible().map((shot) => shot.id)).toEqual(["best", "review"]);
       expect(app.shots.map((shot) => shot.verdict)).toEqual(["keep", "undecided"]);
@@ -159,12 +167,23 @@ describe("explicit Studio photo navigation leaves filters, keyboard review does 
 
   test("the shared reveal callback clears people scopes for direct photo links", () => {
     const app = fixture(true);
+    app.state.sceneIds = new Set(["review"]);
     app.revealShot("best");
     app.reconcile();
     expect(app.state.selectedId).toBe("best");
     expect(app.state.personFilter).toBeNull();
     expect(app.state.clusterFilter).toBeNull();
     expect(app.state.filter).toBe("all");
+    expect(app.state.sceneIds).toBeNull();
+  });
+
+  test("scene filters combine with red-dot review without moving or deciding originals", () => {
+    const app = fixture();
+    app.state.sceneIds = new Set(["best"]);
+    expect(app.visible()).toHaveLength(0);
+    app.state.filter = "keepers";
+    expect(app.visible().map((shot) => shot.id)).toEqual(["best"]);
+    expect(app.shots.map((shot) => shot.verdict)).toEqual(["keep", "undecided"]);
   });
 
   test("an unknown requested photo leaves the existing queue and selection intact", () => {
