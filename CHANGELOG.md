@@ -4,6 +4,18 @@ All notable LensLabs changes are documented here.
 
 ## [0.1.0.1] - 2026-09-12
 
+### Added — local checkpoint, 2026-09-13
+
+- Bound native decode/analysis staging and reserve decoder lanes before original-body upload. Reuse native previews and report stage timings and actual preview provenance.
+- Persist source-bound mechanical analysis with photo transactions, retain it on reload, and avoid unchanged full-library save work. Preserve review, history and inert pre-reconnect evidence with strict source/revision guards.
+- Review approximate Lightroom XMP global controls, HSL and explicit point curves in the existing preset exchange. Disclose unsupported Adobe settings and apply bounded source-lighting exposure adaptation without replacing crop or masks.
+
+### Fixed — local checkpoint, 2026-09-13
+
+- Open the dashboard photo/folder picker directly and keep jersey/people tools opt-in through the assistant.
+- Preserve native analysis dimensions/provenance when culling saves larger display previews; handle stale import notifications and missing-original reconnection without false save conflicts.
+- Add fail-first persistence, upload admission, cancellation, source binding and preset regressions. See the [checkpoint evidence and remaining requirements](docs/CULLING-PRESET-QA-2026-09-13.md). This is not a claim of trained sports inference, 400 photos/second, complete Adobe compatibility or hosted native deployment.
+
 ### Changed
 
 - Stream native analysis through three grayscale rows instead of a full-image scratch buffer, preserving histogram and sharpness arithmetic and existing scoring rules. No interface or delivery behavior changes.

@@ -1,5 +1,34 @@
 # Sports culling foundation — 2026-09-04
 
+## Current local checkpoint — 2026-09-13
+
+The September 4 sections below are historical measurements and workflow notes,
+not current performance guarantees. The current scoped changes are documented
+in [Culling and preset verification](CULLING-PRESET-QA-2026-09-13.md).
+
+Canonical shoot import now reserves a native worker before uploading source
+bytes, reuses its JPEG preview and actual mechanical measurements, and persists
+source/account/shoot-bound analysis receipts with the photo document. `Analyzed`
+advances only after the storage acknowledgement; preview availability alone
+does not count. Valid receipts survive reopening Cull and avoid needless repeat
+analysis. Failed native jobs remain explicit; the existing Develop fallback is
+used only when native analysis is unavailable. Full RAW Develop/export remains
+a separate source-rendering path.
+
+CLI decode/analysis staging holds bounded permits through the queue and receipt
+delivery. The worker reuses its existing source properties for capture metadata.
+See [native measurements](../native/ANALYSIS-PERFORMANCE.md) for the measured
+benefit, exact commands and limits. ImageIO decoding remains the dominant cost;
+none of the repeated-fixture rates below or in that report establishes a
+representative-shoot target.
+
+A trained Core ML shared encoder with quality/action heads and embeddings,
+conditional second-pass analysis, learned sequence ranking and athlete identity
+are **not delivered** by this checkpoint. A representative 10,000-RAW shoot
+completed and ranked in at most 25 seconds remains unverified. Missing neural
+capabilities are not replaced with invented outputs, confident automatic rejects
+or a claim that focus/exposure/hash heuristics understand sporting action.
+
 ## Interface contract
 
 Preserve the Lovable presentation from commit `980d276`. The homepage, navigation,
