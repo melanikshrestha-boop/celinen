@@ -1175,3 +1175,60 @@ probe: `/private/tmp/foto-personal-style-isolation-audit.test.ts`; handoff audit
 
 The dialog repair is local and uncommitted. No push, Lovable publication, backend
 migration or customer-library operation was performed by this checkpoint.
+
+## 2026-09-13 account/import lifetime checkpoint
+
+Current local base before this run: `217d064`. See
+[September 12 checkpoint](CELINEN-2026-09-12-CHECKPOINT.md) for the hosted renderer
+capability guard, recipe snapshots, Earnings checks and Git divergence. Historical
+font and publication notes above are not instructions to restore an older UI.
+This run preserves the latest committed interface and makes no presentation redesign.
+
+### Reproduced lifecycle defect and fix
+
+`1efec97` moved bare `/develop`, `/earnings` and other destinations into the
+dashboard shell. Route-independent imports intentionally survived that navigation,
+but account cancellation still lived only inside the now-unmounted Workbench.
+Signing out or changing accounts on a dashboard/public/setup surface could leave
+the previous owner's job running. Its store remained scoped to the old owner;
+this was not evidence of a cross-account data leak.
+
+`f5f6d65` moves the existing account cancellation effect to `WorkbenchBoundary`,
+which covers every shell and is mounted under the account-keyed root. Same-owner
+navigation does not cancel imports. On an owner change, pending old-owner work is
+cancelled, late preview results cannot save, and already-committed transaction
+receipts remain in that original owner's library. No source bytes, repository
+schema, rendering math, Auth API or saved preferences changed.
+
+### Regression corrections and verification
+
+- Five new boundary/session tests failed before the effect move and pass afterward.
+  They execute the actual boundary branches and cancellation loop with real import
+  sessions, in-memory stores and synthetic files. They cover canonical Workbench,
+  dashboard, public and setup branches, matching-owner work, late previews and an
+  in-flight committed receipt. They are not an authenticated browser or RAW benchmark.
+- Combined import/account/navigation/gallery checks: **45 passed, 218 assertions**.
+- `5bc7277` corrects two stale expectations without weakening safety: bare Develop
+  must protect temporary chat on shell unmount, while canonical same-shoot Develop
+  remains usable; gallery registration must retain the default `proofs` and explicit
+  `edited` folders alongside exact paths, dimensions, owner and ordering.
+- `71d12b6` fixes three exact-optional TypeScript errors in the previous checkpoint's
+  capability hints. Browser and Detail checks: **49 passed, 332 assertions**.
+- Final full suite: **2,284 passed, 21 skipped, 1 existing TODO, 10 failed** across
+  2,316 tests / 221 files. The remaining failures are the previously recorded
+  presentation and combined-suite fixture failures, not waived release gates.
+- Production build, scoped ESLint and whitespace checks passed. Strict TypeScript
+  remains red with **151 diagnostics**, identical by file/message (excluding line
+  offsets) to the environment-free `8210e95` archive. Do not report typecheck green.
+- Logs: `/private/tmp/celinen-account-import-final-20260913.log`,
+  `/private/tmp/celinen-heartbeat-full-20260913.log`,
+  `/private/tmp/celinen-heartbeat-build-20260913.log` and
+  `/private/tmp/celinen-heartbeat-typecheck-final-20260913.log`.
+
+All changes are local commits. The unanswered main-versus-platform branch choice
+still prevents pushing; no merge, history rewrite, mirror overwrite or Lovable
+publication was attempted. `.env.development` remains the only unrelated dirty
+file. No customer library was accessed. The existing heartbeat was updated in
+place to retain this branch hold and preserve current typography rather than
+replaying superseded design instructions. The three-second/1,000-entry target,
+real RAW performance matrix and live Google/publication gates remain open.
