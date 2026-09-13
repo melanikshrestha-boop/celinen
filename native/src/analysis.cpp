@@ -79,38 +79,42 @@ std::uint8_t byte(double value) noexcept {
 Analysis analyze(const Image& image) {
   const auto pixels = validate_image(image);
   Analysis analysis;
-  std::vector<double> gray(pixels);
+  const auto width = static_cast<std::size_t>(image.width);
+  std::vector<double> gray(3 * width);
   double sum = 0;
   std::size_t high = 0;
   std::size_t low = 0;
-  for (std::size_t index = 0; index < pixels; ++index) {
-    const auto value = static_cast<double>(luma_scaled(image.rgba.data() + index * 4)) / 1000.0;
-    gray[index] = value;
-    ++analysis.histogram[static_cast<std::size_t>(std::lround(value))];
-    sum += value;
-    high += value > 250.0;
-    low += value < 5.0;
-  }
-  analysis.brightness = sum / static_cast<double>(pixels);
-  analysis.clipped_highlights = 100.0 * static_cast<double>(high) / static_cast<double>(pixels);
-  analysis.clipped_shadows = 100.0 * static_cast<double>(low) / static_cast<double>(pixels);
-
-  // Population variance over the interior 4-neighbor Laplacian. Welford's
-  // recurrence avoids negative variance from cancellation on nearly flat inputs.
   std::size_t count = 0;
   double mean = 0;
   double squared_deviation = 0;
-  const auto width = static_cast<std::size_t>(image.width);
-  for (std::uint32_t y = 1; y + 1 < image.height; ++y) {
-    for (std::uint32_t x = 1; x + 1 < image.width; ++x) {
+  for (std::uint32_t y = 0; y < image.height; ++y) {
+    auto* row = gray.data() + (y % 3) * width;
+    for (std::size_t x = 0; x < width; ++x) {
       const auto index = static_cast<std::size_t>(y) * width + x;
-      const double laplacian = 4 * gray[index] - gray[index - 1] - gray[index + 1] -
-                               gray[index - width] - gray[index + width];
+      const auto value = static_cast<double>(luma_scaled(image.rgba.data() + index * 4)) / 1000.0;
+      row[x] = value;
+      ++analysis.histogram[static_cast<std::size_t>(std::lround(value))];
+      sum += value;
+      high += value > 250.0;
+      low += value < 5.0;
+    }
+    if (y < 2) continue;
+    // Once the next row is available, consume the center row in the same
+    // row-major order as the full-plane implementation. Welford's recurrence
+    // and histogram arithmetic remain unchanged; scratch is independent of height.
+    const auto* center = gray.data() + ((y - 1) % 3) * width;
+    const auto* above = gray.data() + ((y - 2) % 3) * width;
+    for (std::size_t x = 1; x + 1 < width; ++x) {
+      const double laplacian = 4 * center[x] - center[x - 1] - center[x + 1] -
+                               above[x] - row[x];
       const double delta = laplacian - mean;
       mean += delta / static_cast<double>(++count);
       squared_deviation += delta * (laplacian - mean);
     }
   }
+  analysis.brightness = sum / static_cast<double>(pixels);
+  analysis.clipped_highlights = 100.0 * static_cast<double>(high) / static_cast<double>(pixels);
+  analysis.clipped_shadows = 100.0 * static_cast<double>(low) / static_cast<double>(pixels);
   analysis.sharpness = std::max(0.0, squared_deviation / static_cast<double>(count));
   analysis.hash = average_hash(image);
   analysis.blur = analysis.sharpness < 40;

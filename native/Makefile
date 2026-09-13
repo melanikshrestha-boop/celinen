@@ -33,6 +33,9 @@ $(BUILD_DIR)/lenslabs-native: $(BUILD_DIR)/main.o $(CORE) $(DECODER) $(PIPELINE)
 $(BUILD_DIR)/core-tests: tests/core_tests.cpp $(CORE) $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) -o $@
 
+$(BUILD_DIR)/analysis-streaming-tests: tests/analysis_streaming_tests.cpp $(CORE) $(HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CORE) -o $@
+
 $(BUILD_DIR)/decoder-tests: tests/decoder_tests.cpp $(DECODER) $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(DECODER) $(LIBRAW) $(FRAMEWORKS) -o $@
 
@@ -121,8 +124,9 @@ $(BUILD_DIR)/calendar-tests: tests/calendar_tests.cpp $(BUILD_DIR)/calendar.o in
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/analysis-streaming-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests
 	$(BUILD_DIR)/core-tests
+	$(BUILD_DIR)/analysis-streaming-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
 	$(BUILD_DIR)/worker-tests ../tests/fixtures/photos
