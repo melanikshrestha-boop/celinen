@@ -623,11 +623,11 @@ export function DevelopControls({
         <p className="develop-control-heading">Presence</p>
         {scalar("texture", "Texture", -100, 100, 1, {
           disabled: browserOnly,
-          help: browserOnly ? "Requires the local C++ Develop engine." : undefined,
+          ...(browserOnly ? { help: "Requires the local C++ Develop engine." } : {}),
         })}
         {scalar("clarity", "Clarity", -100, 100, 1, {
           disabled: browserOnly,
-          help: browserOnly ? "Requires the local C++ Develop engine." : undefined,
+          ...(browserOnly ? { help: "Requires the local C++ Develop engine." } : {}),
         })}
         {scalar("dehaze", "Dehaze")}
         {scalar("vibrance", "Vibrance")}
@@ -751,7 +751,7 @@ export function DevelopControls({
         <DevelopSlider
           label="Straighten"
           disabled={browserOnly}
-          help={browserOnly ? "Requires the local C++ Develop engine." : undefined}
+          {...(browserOnly ? { help: "Requires the local C++ Develop engine." } : {})}
           value={crop.angle}
           min={-45}
           max={45}
