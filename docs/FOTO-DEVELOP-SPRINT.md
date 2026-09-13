@@ -1300,3 +1300,97 @@ performed. `.env.development` remains untouched and unstaged. Real folder/RAW
 performance, authenticated drop-to-export, hosted capability implementation and
 live sign-in/publication remain separate open gates; these checks do not establish
 the three-second/1,000-entry target or Lightroom parity.
+
+## 2026-09-13 Canonical Cull roundtrip and catalog receipt checkpoint
+
+Base: `7f93d29`; implementation checkpoint: `1dcd42b`. Kept current presentation
+and customer libraries untouched.
+
+### Reproduced and repaired
+
+- **Cull snapshots reimported canonical photos as legacy copies.** A fresh isolated
+  LAB browser imported three synthetic JPEGs through the actual standalone Studio
+  file input and opened full Develop automatically. After Cull and reopening
+  Develop, the canonical library grew from three `sha256:` originals to six rows:
+  three extra `studio:sha256:` preview-only records. The new serialized Cull
+  projection carries an explicit account-and-shoot namespace plus canonical photo
+  ID. Both adoption boundaries validate that reference against the current own
+  photo/document and skip reimporting it. Missing/foreign/mismatched references
+  fail before any batch write. Unmarked legacy records, even hash-shaped IDs,
+  still adopt additively; existing duplicate records are not deleted or merged.
+  Virtual copies, missing originals, unresolved legacy crops and histories stay.
+  Fail-first integration tests: **1 passed / 2 failed**; expanded roundtrip suite:
+  **7 passed / 85 assertions**.
+- **Coalesced notifications replayed superseded entries.** A retained A/B import
+  receipt still replayed stale A after A's own later save replaced its notification.
+  Refresh failed before rereading A, leaving durable B invisible. Overlapping
+  receipts could also revert names and reorder earlier imports behind later ones.
+  Catalog assembly now accepts only each photo's still-authoritative receipt,
+  rereads document-only notifications, and preserves first-seen order before the
+  existing validating merge. Stale/duplicate/mismatched authoritative receipts
+  still fail closed; dirty active drafts stay separate. Fail-first: **2 passed /
+  3 failed**; all five new catalog regressions now pass.
+- **Public-page test mocks contaminated workspace tests.** `8210d98` isolates
+  legal/blog presentation tests in bounded child Bun processes. Original six
+  child tests and 71 assertions are unchanged. Partial account/router mocks no
+  longer poison unrelated workspace SSR or AccentColorPicker tests. Both prior
+  poison probes now pass 20/20; the combined four-file probe passes 21 parent
+  tests. This is test isolation, not a production auth/UI change.
+
+### Real browser evidence and limits
+
+`tests/develop-studio-roundtrip.browser.js` uses only reserved shoot IDs under
+`eeaf3000-1111-4222-8333-1c13570904xx` on the separately isolated LAB at 8085.
+It never accepts a customer account or namespace. The passing run used `...0431`:
+
+- Actual Studio file-input change → automatic full Develop → Exposure +0.85 →
+  Cull navigation initiated **4.4 ms** after the change, with the known pending
+  work confirmation explicitly accepted → Develop → real browser reload.
+- Exact three IDs/order, original byte digests, edit history and Cull pick survive.
+- The displayed edited pixels equal the approved export proof; the intercepted
+  actual JPEG download is byte-identical to that proof. Proof SHA-256:
+  `884bc9eca38b59abffce37ea0430c7c00f6f57c03ea9b3ba6cd40153ba6b4daa`.
+- **30 browser checks pass.** Result:
+  `/private/tmp/celinen-studio-roundtrip-browser-20260913.json`; inspected screenshot:
+  `/private/tmp/celinen-studio-roundtrip-20260913.png`. Reserved synthetic fixtures
+  remain in the disposable QA profile for inspection. No customer records read,
+  mutated, migrated or deleted.
+- These are three tiny generated 480 x 320 JPEGs, not a RAW performance trial,
+  physical OS folder gesture, authenticated cloud test, or proof of the
+  three-second/1,000-entry target. Export capture prevents an actual filesystem
+  download but exercises the application download path and exact emitted bytes.
+- An initial fast-navigation probe without controlled confirmation handling failed
+  its save assertion; controlled cold and warm probes passed. The suspected
+  mutable router-blocker array was disproved against the installed history code.
+  No speculative save-layer change was made. The LAB correctly denied a test-only
+  `fetch(blob:)`; comparison now uses decoded canvas pixels without relaxing CSP.
+  A separate older warm-navigation fixture passed its first seven checks, but its
+  reload/cleanup invocation was interrupted by navigation; it is not counted as
+  a completed browser gate here.
+
+### Verification and release hold
+
+- Final targeted gate: **107 passed, 64,038 assertions across 8 matched files**.
+  Independently reviewed provenance, foreign-account/missing-source/virtual-copy
+  cases and preservation of genuine legacy identities.
+- Full loopback-enabled suite: **2,317 passed, 21 skipped, 1 TODO, 5 failed;
+  2,344 tests across 225 files**. Remaining failures are the same five existing
+  presentation expectations (sidebar metrics, connector icons, light Develop
+  chrome, default appearance and typography). No visual rollback was made to
+  satisfy superseded expectations.
+- Production build passes. Strict TypeScript remains **151 diagnostics**, with
+  identical normalized file/message output to the previous checkpoint. Scoped
+  ESLint passes for all changed production and Bun test files. The browser fixture
+  passes formatting and async-evaluator-body syntax checks; it intentionally has
+  top-level return statements and is not an ordinary JS module for ESLint.
+- Logs: `/private/tmp/celinen-roundtrip-targeted-final-20260913.log`,
+  `/private/tmp/celinen-roundtrip-full-20260913.log`,
+  `/private/tmp/celinen-roundtrip-build-20260913.log`,
+  `/private/tmp/celinen-roundtrip-typecheck-20260913.log`, and
+  `/private/tmp/celinen-roundtrip-lint-20260913.log`.
+
+Local checkpoints only: no push, merge, rebase, mirror overwrite, backend change
+or Lovable publication. The unanswered main-versus-platform branch choice remains
+the publishing hold. `.env.development` is untouched and unstaged. This does not
+claim existing duplicate recovery, RAW throughput, full hosted editing support,
+live Google sign-in or production publication has passed.
