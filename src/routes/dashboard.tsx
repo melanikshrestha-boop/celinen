@@ -7,7 +7,7 @@ export const Route = createFileRoute("/dashboard")({
     view: search.view === "calendar" ? ("calendar" as const) : undefined,
   }),
   head: () => ({
-    meta: [{ title: `Dashboard — ${PRODUCT_NAME}` }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: `Chat — ${PRODUCT_NAME}` }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AppDashboard,
 });

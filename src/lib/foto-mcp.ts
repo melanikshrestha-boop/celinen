@@ -5,12 +5,7 @@ import { SOCIAL_NETWORKS, type SocialId } from "@/lib/social-accounts";
 export const FOTO_MCP_URL = "https://lenslab.dev/api/mcp";
 export const FOTO_MCP_PROTOCOL = "2025-03-26";
 
-const PROTOCOLS = new Set([
-  "2024-11-05",
-  "2025-03-26",
-  "2025-06-18",
-  "2025-11-25",
-]);
+const PROTOCOLS = new Set(["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"]);
 
 type Rpc = {
   jsonrpc?: string;
@@ -55,7 +50,8 @@ export const FOTO_MCP_TOOLS = [
         hashtags: { type: "boolean" },
         network: {
           type: "string",
-          description: "Optional network id for a length-clipped variant (x, instagram, threads, …).",
+          description:
+            "Optional network id for a length-clipped variant (x, instagram, threads, …).",
         },
       },
       required: ["idea"],
@@ -64,7 +60,8 @@ export const FOTO_MCP_TOOLS = [
   },
   {
     name: "celinen_open",
-    description: "Return the in-app URL for Pick, Galleries, Develop, Social, Analytics, or Calendar.",
+    description:
+      "Return the in-app URL for Pick, Galleries, Develop, Social, Analytics, or Calendar.",
     inputSchema: {
       type: "object",
       properties: {
@@ -120,7 +117,7 @@ function fail(id: Rpc["id"], code: number, message: string) {
 }
 
 const DESKS: Record<string, { path: string; label: string }> = {
-  home: { path: "/dashboard", label: "Home" },
+  home: { path: "/dashboard", label: "Chat" },
   pick: { path: "/studio", label: "Pick" },
   galleries: { path: "/deliver", label: "Galleries" },
   develop: { path: "/develop", label: "Develop" },
@@ -212,7 +209,8 @@ export function fotoMcpRpc(message: Rpc) {
   const id = message.id;
   const params = message.params ?? {};
   if (method === "initialize") {
-    const protocolVersion = typeof params.protocolVersion === "string" ? params.protocolVersion : "";
+    const protocolVersion =
+      typeof params.protocolVersion === "string" ? params.protocolVersion : "";
     return ok(id, fotoMcpInitialize(protocolVersion));
   }
   if (method === "notifications/initialized" || method === "notifications/cancelled") return null;
@@ -238,7 +236,12 @@ export async function handleMcpRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
   if (request.method === "GET") {
     return encode(
-      { name: "foto", protocol: FOTO_MCP_PROTOCOL, url: FOTO_MCP_URL, tools: FOTO_MCP_TOOLS.map((t) => t.name) },
+      {
+        name: "foto",
+        protocol: FOTO_MCP_PROTOCOL,
+        url: FOTO_MCP_URL,
+        tools: FOTO_MCP_TOOLS.map((t) => t.name),
+      },
       request,
     );
   }

@@ -14,9 +14,9 @@ import {
 } from "../src/components/workbench/primary-navigation";
 
 describe("FOTO primary navigation", () => {
-  test("seven destinations include Home plus a dedicated CRM, no editor or duplicate create action", () => {
+  test("seven destinations include Chat plus a dedicated CRM, no editor or duplicate create action", () => {
     expect(FOTO_PRIMARY_NAV.map(({ label, href }) => [label, href])).toEqual([
-      ["Home", "/workspace"],
+      ["Chat", "/workspace"],
       ["Tonight", "/tonight"],
       ["Shoots", "/shoots"],
       ["Clients", "/clients"],

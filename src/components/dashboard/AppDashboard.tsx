@@ -42,7 +42,7 @@ import "./social-accounts.css";
 
 const HOME_ACTIONS = [
   { label: "Open Pick", to: "/studio", icon: Aperture },
-  { label: "Send a gallery", to: "/deliver", icon: Images },
+  { label: "Send a gallery", action: "folder", icon: Images },
   {
     label: "Open calendar",
     to: "/dashboard",
@@ -53,7 +53,7 @@ const HOME_ACTIONS = [
 ] as const;
 
 const MAIN = [
-  { to: "/dashboard", label: "Home", icon: House, end: true },
+  { to: "/dashboard", label: "Chat", icon: House, end: true },
   { to: "/deliver", label: "Galleries", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
   { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
@@ -123,7 +123,12 @@ function replyFor(text: string) {
     return { text: "Opening Social accounts with that idea.", href: "/publish" };
   }
   if (path === "/earnings") return { text: "Opening Analytics.", href: "/earnings" };
-  if (path === "/deliver") return { text: "Opening Galleries.", href: "/deliver" };
+  if (path === "/deliver") {
+    if (/\b(send|create|new|start|prepare|build|deliver)\b/i.test(text)) {
+      return { text: "Choose your photo folder to start.", href: null, action: "folder" as const };
+    }
+    return { text: "Opening Galleries.", href: "/deliver" };
+  }
   if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
   if (path === "/adobe") return { text: "Opening Develop.", href: "/develop" };
   if (path === "/studio") return { text: "Opening Pick in chat.", href: "/studio" };
@@ -265,6 +270,11 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const folderPicker = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const importing = useRef(false);
+  function openPhotoFolder() {
+    if (!scope || loading || importing.current) return;
+    // Keep the picker inside the user gesture; route changes/timers lose activation.
+    folderPicker.current?.click();
+  }
   function importPhotos(input: File[] | DataTransfer) {
     if (!scope || loading || importing.current) return;
     if (Array.isArray(input) && !input.some(supportedPhoto)) {
@@ -294,7 +304,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     if (!scope) return;
     const rows = readThreads(scope);
     setThreads(rows);
-    // Home lands on the Ocoya generate pane, not the last ChatGPT-style thread.
+    // Start Chat fresh without deleting any saved conversations.
     setActiveId(null);
   }, [scope]);
 
@@ -349,7 +359,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
       box.current.style.height = "";
     }
     persist(next, id);
-    if (reply.href) {
+    if ("action" in reply && reply.action === "folder") {
+      openPhotoFolder();
+    } else if (reply.href) {
       const href = reply.href;
       window.setTimeout(() => {
         if (href === "/dashboard")
@@ -374,7 +386,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         <aside className="celinen-dash__rail">
           <div className="celinen-dash__top">
             {mobile ? (
-              <Link to="/dashboard" className="celinen-dash__brand" aria-label="Home">
+              <Link to="/dashboard" className="celinen-dash__brand" aria-label="Chat">
                 <LogoMark size={28} />
               </Link>
             ) : visual === "mini" ? (
@@ -583,9 +595,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                       <DropdownMenuItem onSelect={() => photoPicker.current?.click()}>
                         Photos
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => folderPicker.current?.click()}>
-                        Folder
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={openPhotoFolder}>Folder</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <textarea
@@ -631,6 +641,26 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   <div className="social-post__actions">
                     {HOME_ACTIONS.map((item) => {
                       const Icon = item.icon;
+                      const content = (
+                        <>
+                          <span className="social-post__action-mark" aria-hidden="true">
+                            <Icon size={18} strokeWidth={1.6} />
+                          </span>
+                          {item.label}
+                        </>
+                      );
+                      if ("action" in item) {
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            className="social-post__action"
+                            onClick={openPhotoFolder}
+                          >
+                            {content}
+                          </button>
+                        );
+                      }
                       return (
                         <Link
                           key={item.label}
@@ -638,10 +668,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                           search={"search" in item ? item.search : undefined}
                           className="social-post__action"
                         >
-                          <span className="social-post__action-mark" aria-hidden="true">
-                            <Icon size={18} strokeWidth={1.6} />
-                          </span>
-                          {item.label}
+                          {content}
                         </Link>
                       );
                     })}

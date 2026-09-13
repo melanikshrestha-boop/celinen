@@ -3,7 +3,7 @@ import { Camera, Clock3, Grid2X2, House, Send, UsersRound, Wallet } from "lucide
 
 /** One global navigation. Editing lives inside a shoot. */
 export const FOTO_PRIMARY_NAV = [
-  { href: "/workspace", label: "Home", Icon: House },
+  { href: "/workspace", label: "Chat", Icon: House },
   { href: "/tonight", label: "Tonight", Icon: Clock3 },
   { href: "/shoots", label: "Shoots", Icon: Camera },
   { href: "/clients", label: "Clients", Icon: UsersRound },

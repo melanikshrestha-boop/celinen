@@ -61,6 +61,8 @@ function shell(mode: "open" | "mini" | null, width = 248) {
       },
     }),
     supportedPhoto: (file: File) => /\.(jpg|arw)$/i.test(file.name),
+    isPostIntent: () => false,
+    destinationPathFor: () => "/deliver",
     crypto,
     dashboardGreetingFor: () => "Hello",
     DropdownMenu: "DropdownMenu",
@@ -93,6 +95,7 @@ function shell(mode: "open" | "mini" | null, width = 248) {
       });
     },
     window: {
+      setTimeout: (callback: () => void) => callback(),
       addEventListener: (type: string, listener: (event: unknown) => void) =>
         listeners.set(type, listener),
       removeEventListener: (type: string) => listeners.delete(type),
@@ -167,6 +170,75 @@ test("dashboard plus opens attachment choices, never restores the old shoot", ()
   ).toBe("");
   expect(app.navigations).toEqual([]);
   expect(app.imports).toEqual([]);
+});
+
+test("Send a gallery opens the Chat folder picker synchronously without leaving Chat", () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const action = find(
+    tree,
+    (node) =>
+      node.props.className === "social-post__action" &&
+      JSON.stringify(node.props.children).includes("Send a gallery"),
+  )!;
+  expect(action.type).toBe("button");
+  expect(action.props.type).toBe("button");
+  const picker = find(tree, (node) => node.props["aria-label"] === "Choose photo folder")!;
+  let opened = 0;
+  (picker.props.ref as { current: unknown }).current = { click: () => opened++ };
+  (action.props.onClick as () => void)();
+  expect(opened).toBe(1);
+  expect(app.navigations).toEqual([]);
+  expect(app.imports).toEqual([]);
+  (picker.props.onChange as (event: unknown) => void)({ currentTarget: { files: [], value: "" } });
+  expect(app.navigations).toEqual([]);
+  expect(app.writes).toEqual([]);
+});
+
+test("asking Chat to send a gallery opens the same picker, not an empty Deliver desk", () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const picker = find(tree, (node) => node.props["aria-label"] === "Choose photo folder")!;
+  let opened = 0;
+  (picker.props.ref as { current: unknown }).current = { click: () => opened++ };
+  const voice = find(tree, (node) => node.type === "VoiceMic")!;
+  (voice.props.onSend as (text: string) => void)("Send a gallery");
+  expect(opened).toBe(1);
+  expect(app.navigations).toEqual([]);
+  expect(app.imports).toEqual([]);
+  expect(app.writes).toHaveLength(1);
+  expect(app.writes[0]?.[0]).toBe("celinen.dashboard.chat.v1:synthetic-owner");
+});
+
+test("browsing an existing gallery remains available from Chat", () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const voice = find(tree, (node) => node.type === "VoiceMic")!;
+  (voice.props.onSend as (text: string) => void)("Open gallery");
+  expect(app.navigations).toEqual([{ to: "/deliver" }]);
+  expect(app.imports).toEqual([]);
+});
+
+test("Chat's folder picker starts the shared import only after files are selected", () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const picker = find(tree, (node) => node.props["aria-label"] === "Choose photo folder")!;
+  const files = [
+    new File(["synthetic JPEG"], "frame.jpg"),
+    new File(["synthetic RAW"], "frame.arw"),
+  ];
+  const target = { files, value: "Synthetic folder" };
+  (picker.props.onChange as (event: unknown) => void)({ currentTarget: target });
+  expect(app.imports).toHaveLength(1);
+  expect(app.imports[0]?.input).toEqual(files);
+  expect(target.value).toBe("");
+  const options = app.imports[0]?.options as { scope: string; libraryId: string };
+  expect(options.scope).toBe("synthetic-owner");
+  expect(options.libraryId).toMatch(/^shoot:[a-f0-9-]{36}$/);
+  expect(app.navigations).toEqual([
+    { to: "/studio", search: { shoot: options.libraryId.slice(6) } },
+  ]);
+  expect(app.writes).toEqual([]);
 });
 
 test("picker cancel stays home; actual photos start a fresh owner-scoped import", async () => {
@@ -244,11 +316,11 @@ describe("dashboard mobile shell keeps tool space without changing desktop prefe
         find(
           tree,
           (node) =>
-            node.props["aria-label"] === "Home" && node.props.className === "celinen-dash__brand",
+            node.props["aria-label"] === "Chat" && node.props.className === "celinen-dash__brand",
         )?.props.to,
       ).toBe("/dashboard");
       for (const label of [
-        "Home",
+        "Chat",
         "Galleries",
         "Develop",
         "Calendar",

@@ -104,10 +104,11 @@ function makeSlug(title: string) {
 export const listGalleries = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: galleries } = await context.supabase
+    const { data: galleries, error } = await context.supabase
       .from("galleries")
       .select("*")
       .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
     if (!galleries?.length) return [];
 
     const ids = galleries.map((g) => g.id);

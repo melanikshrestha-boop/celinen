@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, ChevronDown, Copy, Plus, Upload } from "lucide-react";
 import { MessageComposer } from "@/components/customer/MessageComposer";
 import { Shell } from "@/components/lensos/Shell";
@@ -49,6 +50,9 @@ import {
 import { loadProject, listProjects, readProjectBlobs } from "@/lib/projects/repository";
 import type { Project } from "@/lib/projects/model";
 import type { RoomView } from "@/lib/delivery/remote.server";
+import { isLocalSingleUserMode } from "@/lib/app-mode";
+import { listGalleries } from "@/lib/delivery.functions";
+import { listLocalDeliveryGalleries } from "@/lib/delivery/local";
 import "./delivery.css";
 
 type Summary = {
@@ -139,6 +143,12 @@ function AccountDeliveryWorkspace({
   }, [ensureIdentity]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [draftsLoaded, setDraftsLoaded] = useState(false);
+  const [summariesLoaded, setSummariesLoaded] = useState(false);
+  const [legacyChecked, setLegacyChecked] = useState(false);
+  const [legacyCount, setLegacyCount] = useState(0);
+  const href = useLocation({ select: (location) => location.href });
+  const navigate = useNavigate();
   const [room, setRoom] = useState<RoomView | null>(null);
   const [local, setLocal] = useState(false);
   const [ready, setReady] = useState(false);
@@ -234,9 +244,14 @@ function AccountDeliveryWorkspace({
     let alive = true;
     void listDrafts(ownerId)
       .then((saved) => {
-        if (alive) setDrafts(saved);
+        if (alive) {
+          setDrafts(saved);
+          setDraftsLoaded(true);
+        }
       })
-      .catch((e) => setError(messageOf(e)));
+      .catch((e) => {
+        if (alive) setError(messageOf(e));
+      });
     // Device-local drafts do not need a cloud-readiness request or a cloud account.
     if (!ownerId) {
       setReady(false);
@@ -264,9 +279,14 @@ function AccountDeliveryWorkspace({
     let alive = true;
     void listPrivateDeliveries()
       .then((items) => {
-        if (alive) setSummaries(items);
+        if (alive) {
+          setSummaries(items);
+          setSummariesLoaded(true);
+        }
       })
-      .catch((e) => setError(messageOf(e)));
+      .catch((e) => {
+        if (alive) setError(messageOf(e));
+      });
     return () => {
       alive = false;
     };
@@ -662,6 +682,80 @@ function AccountDeliveryWorkspace({
       }
     : null;
 
+  const requested = new URL(href, "https://workspace.invalid");
+  // Unknown query/hash references are context too; never silently redirect them.
+  const explicitContext = Boolean(requested.search || requested.hash);
+  const modernLoaded = draftsLoaded && (!signedIn || summariesLoaded);
+  const emptyWorkspace =
+    !room &&
+    !allSummaries.length &&
+    !explicitContext &&
+    !newOpen &&
+    !newFormDirty &&
+    !busy &&
+    !preparing &&
+    !unsentFeedback &&
+    !presentationDirty &&
+    !activeId.current;
+  useEffect(() => {
+    if (!emptyWorkspace || !modernLoaded || legacyChecked || error) return;
+    if (!isLocalSingleUserMode && !ownerId) return;
+    let alive = true;
+    // Only an otherwise empty modern workspace needs this separate legacy check.
+    void (isLocalSingleUserMode ? listLocalDeliveryGalleries() : listGalleries())
+      .then((rows) => {
+        if (!alive) return;
+        ensureActive();
+        if (!Array.isArray(rows)) throw new Error("Saved galleries could not be checked.");
+        setLegacyCount(rows.length);
+        setLegacyChecked(true);
+      })
+      .catch((cause) => {
+        if (alive) setError(messageOf(cause));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [emptyWorkspace, modernLoaded, legacyChecked, error, ownerId, ensureActive]);
+  const returnToChat = emptyWorkspace && modernLoaded && legacyChecked && !legacyCount && !error;
+  useEffect(() => {
+    if (!returnToChat) return;
+    void navigate({ to: "/dashboard", search: { view: undefined }, replace: true }).catch(
+      (cause) => {
+        if (mounted.current) setError(messageOf(cause));
+      },
+    );
+  }, [returnToChat, navigate]);
+
+  if (emptyWorkspace)
+    return (
+      <Shell hideEventHeader>
+        {error ? (
+          <p className="delivery-error" role="alert">
+            {error}
+          </p>
+        ) : legacyCount ? null : (
+          <p className="delivery-meta" role="status">
+            {returnToChat
+              ? "Opening Chat…"
+              : draftsLoaded && !ready
+                ? setupNote
+                : "Checking saved galleries…"}
+          </p>
+        )}
+        {legacyCount > 0 && (
+          <p>
+            <Link className="delivery-quiet" to="/deliver" search={{ legacy: "1" }}>
+              Open saved galleries
+            </Link>
+          </p>
+        )}
+        <Link className="delivery-quiet" to="/dashboard" search={{ view: undefined }}>
+          Back to Chat
+        </Link>
+      </Shell>
+    );
+
   return (
     <Shell hideEventHeader>
       <section
@@ -714,31 +808,16 @@ function AccountDeliveryWorkspace({
                 </small>
               </button>
             ))}
-            {!allSummaries.length && (
-              <p className="delivery-meta">Your galleries will live here.</p>
-            )}
           </aside>
           <div>
             {!room ? (
-              <div className="delivery-empty">
-                <p>
-                  A thoughtful handoff.
-                  <br />
-                  From first picks to final files.
-                </p>
-                <span>
-                  Give your client a private space to choose photos, leave notes, request changes,
-                  and approve the final edits.
-                </span>
-                <button className="delivery-primary mt-6" onClick={() => setNewOpen(true)}>
-                  Create your first gallery <ArrowRight size={16} />
-                </button>
-                {setupNote && (
-                  <p className="delivery-notice mt-6">
-                    {setupNote} Drafts can be prepared here now; they are not shared.
-                  </p>
-                )}
-              </div>
+              <p className="delivery-meta">
+                Choose a saved gallery or{" "}
+                <Link className="delivery-quiet" to="/dashboard" search={{ view: undefined }}>
+                  add photos in Chat
+                </Link>
+                .
+              </p>
             ) : (
               <>
                 <div className="delivery-room-heading">

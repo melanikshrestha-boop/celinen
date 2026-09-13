@@ -28,7 +28,8 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
     "utf8",
   );
   expect(source).toContain("dashboardGreetingFor");
-  expect(source).toContain('label: "Home"');
+  expect(source).toContain('label: "Chat"');
+  expect(source).not.toContain('label: "Home"');
   expect(source).not.toContain('label: "Pick"');
   expect(source).toContain('label: "Galleries"');
   expect(source).toContain('label: "Develop"');
@@ -50,9 +51,10 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   for (const match of source.matchAll(/<([A-Z][A-Za-z0-9]*)\s+size=/g)) {
     const name = match[1]!;
     if (name === "LogoMark" || name === "BrandMark" || name === "Icon") continue;
-    expect(imported.has(name), `${name} is used in AppDashboard JSX but not imported from lucide-react`).toBe(
-      true,
-    );
+    expect(
+      imported.has(name),
+      `${name} is used in AppDashboard JSX but not imported from lucide-react`,
+    ).toBe(true);
   }
   expect(source).toContain('to: "/deliver"');
   expect(source).toContain('to: "/develop"');
@@ -116,7 +118,7 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain(".celinen-dash__body.is-chat");
   expect(css).toContain(".social-post .celinen-dash__composer");
   expect(css).toContain("font-weight: 400");
-  expect(css).toContain('font-family: var(--celinen-sans');
+  expect(css).toContain("font-family: var(--celinen-sans");
   expect(css).toContain(".celinen-dash.is-mini");
   expect(css).toContain(".celinen-dash__ico");
   expect(css).toContain("place-items: center");
