@@ -1,55 +1,55 @@
-import {
-  createLovableAuth,
-  type OAuthProvider,
-  type SignInWithOAuthOptions,
-} from "@lovable.dev/cloud-auth-js";
 import { supabase } from "@/integrations/supabase/client";
-import { verifiedPhotographer } from "@/lib/account-access";
 
-const broker = createLovableAuth();
+export type OAuthProvider = "google";
+export type SignInWithOAuthOptions = {
+  redirect_uri?: string;
+  extraParams?: Record<string, string>;
+};
 export type OAuthSignInResult =
-  { status: "redirected" } | { status: "authenticated" } | { status: "error"; error: Error };
+  | { status: "redirected" }
+  | { status: "authenticated" }
+  | { status: "error"; error: Error };
 
-/** Owned boundary: a broker token response is not an installed account session. */
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Google via Supabase Auth. Never Lovable's oauth.lovable.app grant screen. */
 export async function signInWithOAuth(
   provider: OAuthProvider,
   options?: SignInWithOAuthOptions,
 ): Promise<OAuthSignInResult> {
   try {
-    const result = await broker.signInWithOAuth(provider, {
-      ...options,
-      extraParams: { ...options?.extraParams },
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: options?.redirect_uri,
+        skipBrowserRedirect: true,
+        queryParams: {
+          prompt: "select_account",
+          ...options?.extraParams,
+        },
+      },
     });
-    if (result.error) return { status: "error", error: result.error };
-    if (result.redirected) return { status: "redirected" };
-    const tokens = result.tokens;
-    if (
-      !tokens ||
-      typeof tokens.access_token !== "string" ||
-      !tokens.access_token.trim() ||
-      typeof tokens.refresh_token !== "string" ||
-      !tokens.refresh_token.trim()
-    )
+    if (error) return { status: "error", error };
+    const url = data?.url;
+    if (!url || typeof url !== "string" || !isHttpsUrl(url))
       return {
         status: "error",
         error: new Error("Sign-in did not return a session. Please try again."),
       };
-
-    // Supabase returns ordinary { error } results as well as thrown failures.
-    // setSession verifies with Auth (or refreshes an expired token) before it
-    // returns. Keep the account's existing verified-email/identity policy here.
-    const { data, error } = await supabase.auth.setSession(tokens);
-    if (error) return { status: "error", error };
-    if (
-      !data.session?.user?.id ||
-      !data.session.access_token ||
-      !verifiedPhotographer(data.user, data.session.user.id)
-    )
+    if (/lovable\.(app|dev)/i.test(url))
       return {
         status: "error",
-        error: new Error("Sign-in could not verify your account session. Please try again."),
+        error: new Error("Google sign-in is misconfigured. Use email, or try again later."),
       };
-    return { status: "authenticated" };
+    if (typeof window !== "undefined" && typeof window.location?.assign === "function")
+      window.location.assign(url);
+    return { status: "redirected" };
   } catch (error) {
     return {
       status: "error",

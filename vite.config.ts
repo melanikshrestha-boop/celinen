@@ -14,6 +14,7 @@ import { nativeReceiptPlugin } from "./src/server/native-receipt";
 import { nativeGalleryPlugin } from "./src/server/native-gallery";
 import { nativeSettingsPlugin } from "./src/server/native-settings";
 import { socialPastePlugin } from "./src/server/social-paste-plugin";
+import { voiceSttPlugin } from "./src/server/voice-stt-plugin";
 
 export default defineConfig({
   vite: {
@@ -30,6 +31,7 @@ export default defineConfig({
       nativeGalleryPlugin(),
       nativeSettingsPlugin(),
       socialPastePlugin(),
+      voiceSttPlugin(),
     ],
   },
   tanstackStart: {

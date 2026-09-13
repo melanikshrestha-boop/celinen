@@ -1754,7 +1754,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 : "") ||
               notice ||
               (engine === false
-                ? "The local image engine is not ready. Rebuild it and reload Develop."
+                ? "The image engine on this computer is not running."
                 : "")}
           </span>
           {saveError ? (

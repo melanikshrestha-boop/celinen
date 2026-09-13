@@ -42,13 +42,16 @@ test("landing Features and Use Cases menus share exclusive open state", () => {
     new URL("../src/components/marketing/sky-entry.css", import.meta.url),
     "utf8",
   );
-  expect(sky).toContain("gap: 6px 10px");
+  expect(sky).toContain("gap: 2px 6px");
   expect(sky).toContain("min-height: 44px");
-  expect(sky).not.toContain("gap: 2px");
+  expect(sky).toContain("grid-template-columns: 24px minmax(0, 1fr)");
+  expect(sky).toContain(".marketing-nav-integrations .marketing-nav-feature");
   const details = readFileSync(
     new URL("../src/components/marketing/public-details.css", import.meta.url),
     "utf8",
   );
   expect(details).toContain(".marketing-nav__link:focus-visible");
   expect(details).toContain("outline: none");
+  expect(details).toContain("white-space: nowrap");
+  expect(details).toContain("min-width: max-content");
 });

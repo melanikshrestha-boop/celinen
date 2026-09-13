@@ -9,7 +9,6 @@ import {
   Image,
   LayoutTemplate,
   Megaphone,
-  Mic,
   Paperclip,
   Sparkles,
   Target,
@@ -20,6 +19,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { BrandMark } from "@/components/marketing/BrandMark";
 import { PRODUCT_NAME } from "@/lib/product";
 import { onHapticPress } from "@/lib/haptic-press";
+import { VoiceMic } from "./VoiceMic";
 import { useAccount } from "@/components/account/AccountProvider";
 import {
   SOCIAL_NETWORKS,
@@ -159,26 +159,6 @@ export function SocialAccounts() {
 
   const targets = links;
 
-  function listen() {
-    const Ctor = (
-      window as unknown as {
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-        };
-      }
-    ).webkitSpeechRecognition;
-    if (!Ctor) return;
-    const rec = new Ctor();
-    rec.lang = "en-US";
-    rec.onresult = (event) => {
-      const said = event.results[0]?.[0]?.transcript?.trim();
-      if (said) setDraft((value) => (value ? `${value} ${said}` : said));
-    };
-    rec.start();
-  }
-
   return (
     <div className="social-post" onPointerDown={onHapticPress}>
       <div className="social-post__chrome">
@@ -313,9 +293,7 @@ export function SocialAccounts() {
             >
               <Paperclip size={18} />
             </button>
-            <button type="button" className="social-post__icon" aria-label="Voice" onClick={listen}>
-              <Mic size={18} />
-            </button>
+            <VoiceMic value={draft} onChange={setDraft} onSend={(text) => makePost(text)} />
             <button type="submit" className="social-post__send" disabled={!draft.trim()} aria-label="Send">
               <ArrowUp size={18} />
             </button>

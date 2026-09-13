@@ -5,27 +5,21 @@ import {
   Aperture,
   CalendarDays,
   ChartNoAxesColumn,
-  Flag,
   House,
   Images,
-  Megaphone,
-  Mic,
   Moon,
   PanelLeft,
-  Paperclip,
   Plus,
   Share2,
   SlidersHorizontal,
   Sparkles,
   Sun,
   Wrench,
-  Zap,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
-import { BrandMark } from "@/components/marketing/BrandMark";
 import { onHapticPress } from "@/lib/haptic-press";
 import { PRODUCT_NAME } from "@/lib/product";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
@@ -33,14 +27,15 @@ import { destinationPathFor } from "@/lib/workspace-routing";
 import { buildSocialPost, isPostIntent, writeSocialDraft } from "@/lib/social-post";
 import { DashboardContext } from "./context";
 import { IosCalendar } from "./IosCalendar";
+import { VoiceMic } from "./VoiceMic";
 import "./dashboard.css";
 import "./social-accounts.css";
 
-const HOME_SUGGEST = [
-  { label: "Send a gallery", icon: Images },
-  { label: "Open Pick", icon: Aperture },
-  { label: "Check earnings", icon: ChartNoAxesColumn },
-  { label: "Sideline set", icon: Flag },
+const HOME_ACTIONS = [
+  { label: "Open Pick", to: "/studio", icon: Aperture },
+  { label: "Send a gallery", to: "/deliver", icon: Images },
+  { label: "Open calendar", to: "/dashboard", icon: CalendarDays, search: { view: "calendar" as const } },
+  { label: "Post", to: "/publish", icon: Share2 },
 ] as const;
 
 const MAIN = [
@@ -253,28 +248,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     wasTool.current = !onChat;
   }, [onChat]);
 
-  function listen() {
-    const Ctor = (
-      window as unknown as {
-        webkitSpeechRecognition?: new () => {
-          lang: string;
-          start: () => void;
-          onresult:
-            | ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void)
-            | null;
-        };
-      }
-    ).webkitSpeechRecognition;
-    if (!Ctor) return;
-    const rec = new Ctor();
-    rec.lang = "en-US";
-    rec.onresult = (event) => {
-      const said = event.results[0]?.[0]?.transcript?.trim();
-      if (said) setDraft((value) => (value ? `${value} ${said}` : said));
-    };
-    rec.start();
-  }
-
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, [active?.messages.length]);
@@ -285,8 +258,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     setActiveId(id);
     writeThreads(scope, next);
   }
-  function send() {
-    const text = draft.trim();
+  function send(fromVoice?: string) {
+    const text = (fromVoice ?? draft).trim();
     if (!text || !scope) return;
     const reply = replyFor(text);
     const user: DashMessage = { id: crypto.randomUUID(), role: "user", text };
@@ -314,6 +287,9 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
       id = created.id;
     }
     setDraft("");
+    if (box.current) {
+      box.current.style.height = "";
+    }
     persist(next, id);
     if (reply.href) {
       const href = reply.href;
@@ -466,26 +442,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
             className={`social-post${active?.messages.length ? " has-thread" : ""}`}
             onPointerDown={onHapticPress}
           >
-            <div className="social-post__chrome">
-              <span />
-              <p className="social-post__inside">
-                Generate inside
-                <Link to="/mcp">
-                  <BrandMark id="claude" />
-                  Claude
-                </Link>
-                <span aria-hidden="true">|</span>
-                <Link to="/mcp">
-                  <BrandMark id="chatgpt" />
-                  ChatGPT
-                </Link>
-                <span aria-hidden="true">|</span>
-                <Link to="/mcp">
-                  <BrandMark id="grok" />
-                  Grok
-                </Link>
-              </p>
-            </div>
             <div className="social-post__stage">
               {active?.messages.length ? (
                 <div className="celinen-dash__thread">
@@ -498,13 +454,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                 </div>
               ) : (
                 <div className="social-post__hero">
-                  <div className="social-post__title">
-                    <span className="social-post__mark" aria-hidden="true">
-                      <Sparkles size={22} strokeWidth={1.8} />
-                    </span>
-                    <h1>{dashboardGreetingFor(account?.workRole)}</h1>
-                  </div>
-                  <p>Turn a simple idea into the next shoot, gallery, or post.</p>
+                  <h1>{dashboardGreetingFor(account?.workRole)}</h1>
                 </div>
               )}
               <form
@@ -514,12 +464,25 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   send();
                 }}
               >
+                <button
+                  type="button"
+                  className="celinen-dash__plus"
+                  aria-label="Open Pick"
+                  onClick={() => void navigate({ to: "/studio" })}
+                >
+                  <Plus size={20} strokeWidth={1.8} />
+                </button>
                 <textarea
                   ref={box}
-                  rows={6}
+                  rows={1}
                   value={draft}
-                  placeholder={`Describe what you want ${PRODUCT_NAME} to work on...`}
-                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={`Ask ${PRODUCT_NAME}`}
+                  onChange={(event) => {
+                    setDraft(event.target.value);
+                    const el = event.currentTarget;
+                    el.style.height = "auto";
+                    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
@@ -527,115 +490,45 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     }
                   }}
                 />
-                <div className="social-post__bar">
-                  <button
-                    type="button"
-                    className="social-post__chip"
-                    onClick={() => void navigate({ to: "/studio" })}
-                  >
-                    <Plus size={16} />
-                    Pick
-                  </button>
-                  <button
-                    type="button"
-                    className="social-post__chip"
-                    onClick={() => void navigate({ to: "/deliver" })}
-                  >
-                    <Images size={16} />
-                    Galleries
-                  </button>
-                  <button
-                    type="button"
-                    className="social-post__chip"
-                    onClick={() => void navigate({ to: "/publish" })}
-                  >
-                    <Share2 size={16} />
-                    Post
-                  </button>
-                  <span className="social-post__spacer" />
-                  <Link to="/pricing" className="social-post__credits" title="Credits">
-                    <Zap size={14} />
-                    1
-                  </Link>
-                  <button
-                    type="button"
-                    className="social-post__icon"
-                    aria-label="Attach"
-                    onClick={() => void navigate({ to: "/studio" })}
-                  >
-                    <Paperclip size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className="social-post__icon"
-                    aria-label="Voice"
-                    onClick={listen}
-                  >
-                    <Mic size={18} />
-                  </button>
-                  <button
-                    type="submit"
-                    className="social-post__send"
-                    disabled={!draft.trim()}
-                    aria-label="Send"
-                  >
-                    <ArrowUp size={18} />
-                  </button>
-                </div>
+                <VoiceMic
+                  value={draft}
+                  onChange={(next) => {
+                    setDraft(next);
+                    const el = box.current;
+                    if (!el) return;
+                    el.style.height = "auto";
+                    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                  }}
+                  onSend={(text) => send(text)}
+                />
+                <button
+                  type="submit"
+                  className="social-post__send"
+                  disabled={!draft.trim()}
+                  aria-label="Send"
+                >
+                  <ArrowUp size={18} />
+                </button>
               </form>
               {active?.messages.length ? null : (
-                <>
-                  <div className="social-post__suggest">
-                    <span>Suggestions</span>
-                    {HOME_SUGGEST.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.label}
-                          type="button"
-                          onClick={() => setDraft((value) => value || item.label)}
-                        >
-                          <Icon size={14} />
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="social-post__cards">
-                    <button
-                      type="button"
-                      className="social-post__card"
-                      onClick={() =>
-                        void navigate({ to: "/dashboard", search: { view: "calendar" } })
-                      }
-                    >
-                      <span className="social-post__card-mark is-campaign" aria-hidden="true">
-                        <Megaphone size={18} />
-                      </span>
-                      <span>
-                        <strong>Planning a shoot week?</strong>
-                        <small>Drop the days on Calendar, then send galleries from there.</small>
-                      </span>
-                      <em>
-                        Open calendar
-                        <span aria-hidden="true">→</span>
-                      </em>
-                    </button>
-                    <Link to="/studio" className="social-post__card">
-                      <span className="social-post__card-mark is-studio" aria-hidden="true">
-                        <Aperture size={18} />
-                      </span>
-                      <span>
-                        <strong>Want to design it yourself?</strong>
-                        <small>Choose the frames in Pick, then finish the look in Develop.</small>
-                      </span>
-                      <em>
-                        Browse templates
-                        <span aria-hidden="true">→</span>
-                      </em>
-                    </Link>
-                  </div>
-                </>
+                <div className="social-post__actions">
+                  {HOME_ACTIONS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.label}
+                        to={item.to}
+                        search={"search" in item ? item.search : undefined}
+                        className="social-post__action"
+                      >
+                        <span className="social-post__action-mark" aria-hidden="true">
+                          <Icon size={18} strokeWidth={1.6} />
+                        </span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>

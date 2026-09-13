@@ -1,5 +1,12 @@
 /* Landing page only: no account, Studio, or global theme changes. */
 .marketing-page {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+  min-height: 100vh;
+  min-height: 100dvh;
   --marketing-background: #101112;
   --marketing-surface: #1b1c1d;
   --marketing-text: #ecebe7;
@@ -16,7 +23,6 @@
   --muted: #2a2b2d;
   --border: #36383a;
   --input: var(--marketing-control);
-  min-height: 100vh;
   background: var(--marketing-background);
   color: var(--marketing-text);
   color-scheme: dark;

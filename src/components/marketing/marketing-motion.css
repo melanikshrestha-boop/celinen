@@ -19,41 +19,37 @@
 @keyframes marketing-hero-develop {
   from {
     opacity: 0;
-    filter: blur(16px);
-    transform: translateY(28px) scale(1.04);
+    transform: translate3d(0, 28px, 0) scale(1.04);
   }
   to {
     opacity: 1;
-    filter: blur(0);
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 @keyframes marketing-hero-rise {
   from {
     opacity: 0;
-    filter: blur(8px);
-    transform: translateY(18px);
+    transform: translate3d(0, 18px, 0);
   }
   to {
     opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 @keyframes marketing-hero-ken {
   from {
-    transform: scale(1.08);
+    transform: translate3d(0, 0, 0) scale(1.08);
   }
   to {
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 @keyframes marketing-bob {
   from {
-    translate: 0 0;
+    transform: translate3d(0, 0, 0);
   }
   to {
-    translate: 0 -10px;
+    transform: translate3d(0, -10px, 0);
   }
 }
 @keyframes marketing-wheel-turn {
@@ -67,11 +63,11 @@
 @keyframes marketing-sticker-pop {
   from {
     opacity: 0;
-    scale: 0.86;
+    transform: scale(0.86);
   }
   to {
     opacity: 1;
-    scale: 1;
+    transform: scale(1);
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -79,6 +75,7 @@
     animation: marketing-appear 700ms ease-out both;
   }
   .marketing-page .marketing-hero__image {
+    will-change: transform;
     animation: marketing-hero-ken 18s cubic-bezier(0.16, 0.8, 0.22, 1) both;
   }
   .marketing-page .marketing-hero__eyebrow {
@@ -106,23 +103,20 @@
   .marketing-page [data-reveal-state] {
     transition:
       opacity 800ms cubic-bezier(0.21, 0.68, 0.35, 1),
-      transform 800ms cubic-bezier(0.21, 0.68, 0.35, 1),
-      filter 800ms cubic-bezier(0.21, 0.68, 0.35, 1);
+      transform 800ms cubic-bezier(0.21, 0.68, 0.35, 1);
   }
   .marketing-page [data-reveal-state="outside"] {
     opacity: 0;
-    filter: blur(8px);
-    transform: translateY(28px) scale(0.98);
+    transform: translate3d(0, 28px, 0) scale(0.98);
   }
   .marketing-page [data-reveal-state="outside"][data-reveal-from="up"] {
-    transform: translateY(-32px);
+    transform: translate3d(0, -32px, 0);
   }
   .marketing-page [data-reveal-state="outside"][data-reveal-from="down"] {
-    transform: translateY(32px);
+    transform: translate3d(0, 32px, 0);
   }
   .marketing-page [data-reveal-state="visible"] {
     opacity: 1;
-    filter: none;
     transform: none;
   }
   .marketing-page .marketing-workflow__card:nth-child(1) {
@@ -173,13 +167,7 @@
     transition:
       opacity 800ms cubic-bezier(0.21, 0.68, 0.35, 1),
       transform 800ms cubic-bezier(0.21, 0.68, 0.35, 1),
-      filter 800ms cubic-bezier(0.21, 0.68, 0.35, 1),
-      box-shadow 320ms ease,
-      translate 320ms ease;
-  }
-  .marketing-page .marketing-workflow__card:hover {
-    translate: 0 -6px;
-    box-shadow: 0 18px 40px #142a3614;
+      box-shadow 320ms ease;
   }
   .marketing-page .home-pricing__cards article[data-reveal-state="visible"]:hover {
     transition:
@@ -193,23 +181,28 @@
       color 160ms ease,
       transform 200ms ease;
   }
-  .marketing-page .marketing-action:hover {
-    transform: translateY(-2px);
-  }
   .marketing-page .marketing-action:active {
     transform: translateY(0);
   }
   .marketing-page .marketing-feature__art > * {
-    transition: translate 380ms ease;
+    transition: transform 380ms ease;
   }
-  .marketing-page .marketing-feature:hover .marketing-feature__art > :first-child {
-    translate: 0 -5px;
+  @media (hover: hover) and (pointer: fine) {
+    .marketing-page .marketing-workflow__card:hover {
+      transform: translate3d(0, -6px, 0);
+      box-shadow: 0 18px 40px #142a3614;
+    }
+    .marketing-page .marketing-action:hover {
+      transform: translateY(-2px);
+    }
+    .marketing-page .marketing-feature:hover .marketing-feature__art > :first-child {
+      transform: translate3d(0, -5px, 0);
+    }
   }
 }
 .marketing-page [data-reveal-state]:focus-within,
 .marketing-page [data-reveal-state]:target {
   opacity: 1;
-  filter: none;
   transform: none;
   transition: none;
 }

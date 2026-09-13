@@ -44,6 +44,12 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(source).toContain("pricing-audiences__thumb");
     expect(source).toContain("pricing-period");
     expect(source).toContain("pricing-figure");
+    expect(source).toContain("pricing-billing__cycle");
+    expect(source).toContain("pricing-billing__save");
+    expect(source).toContain("a year");
+    expect(source).not.toContain("USD {activeSaved}/yr");
+    expect(css).toContain("flex-direction: column");
+    expect(css).toContain(".pricing-billing__save");
     expect(source).toContain("Math.floor(t * AUDIENCES.length)");
     expect(css).toContain(".pricing-audiences.is-live .pricing-audiences__thumb");
     expect(css).toContain("transition: none");
@@ -234,8 +240,15 @@ if (!process.argv.includes(fixtureFlag)) {
             if (cycle === "yearly") {
               assert.ok(visible.includes(`USD ${(monthly - yearly) * 12}`));
               assert.ok(visible.includes(`USD ${yearly * 12}`));
+              assert.match(html, /class="pricing-billing__cycle"/);
+              assert.match(html, /class="pricing-billing__save"/);
+              assert.match(
+                visible,
+                new RegExp(`Save 20%\\. \\$${(monthly - yearly) * 12} a year`),
+              );
             } else {
               assert.ok(!visible.includes(`Save $`));
+              assert.doesNotMatch(html, /class="pricing-billing__save"/);
             }
             assert.doesNotMatch(html, /class="pricing-pay"/);
             assert.doesNotMatch(visible, /Choose your plan|you@studio\.com|Studio name|Continue to checkout/);

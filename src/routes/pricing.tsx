@@ -250,27 +250,29 @@ function PricingPage() {
           {/* billing toggle */}
           {audience !== "enterprise" && (
             <div className="pricing-billing">
-              <button
-                onClick={() => setCycle("monthly")}
-                className={yearly ? "text-moss hover:text-ink" : "text-ink"}
-              >
-                Monthly
-              </button>
-              <SettingsSwitch
-                checked={yearly}
-                onCheckedChange={(on) => setCycle(on ? "yearly" : "monthly")}
-                label="Yearly billing"
-              />
-              <button
-                onClick={() => setCycle("yearly")}
-                className={yearly ? "text-ink" : "text-moss hover:text-ink"}
-              >
-                Annual
-              </button>
+              <div className="pricing-billing__cycle">
+                <button
+                  onClick={() => setCycle("monthly")}
+                  className={yearly ? "text-moss hover:text-ink" : "text-ink"}
+                >
+                  Monthly
+                </button>
+                <SettingsSwitch
+                  checked={yearly}
+                  onCheckedChange={(on) => setCycle(on ? "yearly" : "monthly")}
+                  label="Yearly billing"
+                />
+                <button
+                  onClick={() => setCycle("yearly")}
+                  className={yearly ? "text-ink" : "text-moss hover:text-ink"}
+                >
+                  Annual
+                </button>
+              </div>
               {yearly ? (
-                <span className="rounded-full border border-rust/40 bg-rust/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-rust">
-                  Save {activePct}% · USD {activeSaved}/yr
-                </span>
+                <p className="pricing-billing__save">
+                  Save {activePct}%. ${activeSaved} a year
+                </p>
               ) : null}
             </div>
           )}

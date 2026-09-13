@@ -83,11 +83,16 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toMatch(/>\s*Light\s*</);
   expect(source).not.toMatch(/>\s*Dark\s*</);
   expect(source).toContain("social-post");
-  expect(source).toContain("Generate inside");
-  expect(source).toContain('BrandMark id="claude"');
-  expect(source).toContain('BrandMark id="chatgpt"');
-  expect(source).toContain('BrandMark id="grok"');
-  expect(source).toContain("Browse templates");
+  expect(source).not.toContain("Generate inside");
+  expect(source).not.toContain("Turn a simple idea");
+  expect(source).not.toContain("social-post__mark");
+  expect(source).not.toContain("Browse templates");
+  expect(source).not.toContain("Planning a shoot week");
+  expect(source).toContain("Ask ${PRODUCT_NAME}");
+  expect(source).toContain("Open Pick");
+  expect(source).toContain("Send a gallery");
+  expect(source).toContain("Open calendar");
+  expect(source).toContain("social-post__action");
   expect(source).toContain("dashboardGreetingFor");
   expect(source).toContain("DashboardContext.Provider");
   expect(source).toContain("children");
@@ -127,6 +132,23 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain("cursor: col-resize");
   expect(css).toContain(".celinen-dash .foto-develop");
   expect(css).toContain(".celinen-dash__body:has(.foto-develop)");
+});
+
+test("home canvas keeps a sky wash in dark, not a flat black field", () => {
+  const css = readFileSync(
+    new URL("../src/components/dashboard/social-accounts.css", import.meta.url),
+    "utf8",
+  );
+  expect(css).toMatch(
+    /\.social-post\s*\{[^}]*radial-gradient\(90% 70% at 50% 0%, #d7ecff 0%, #eef8f3 38%, #ffffff 72%\)/,
+  );
+  expect(css).toMatch(
+    /html\.dark \.social-post\s*\{[^}]*radial-gradient\(90% 70% at 50% 0%, #1e3f6b 0%, #16352f 38%, #0b0c0e 72%\)/,
+  );
+  expect(css).not.toMatch(/html\.dark \.social-post\s*\{[^}]*background:\s*#000/);
+  expect(css).toContain("home-composer-open");
+  expect(css).toContain("home-open");
+  expect(css).toContain(".social-post__action");
 });
 
 test("develop rail mounts the Lightroom editor as the full page", () => {

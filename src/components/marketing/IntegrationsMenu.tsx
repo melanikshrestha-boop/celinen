@@ -25,7 +25,7 @@ export function IntegrationsMenu() {
         collisionPadding={12}
         onPointerEnter={menu.openNow}
         onPointerLeave={menu.closeSoon}
-        className="marketing-nav-menu marketing-nav-integrations"
+        className="marketing-nav-menu marketing-nav-features marketing-nav-integrations"
       >
         <div className="marketing-nav-integrations__grid">
           {menuIntegrations().map((item) => (

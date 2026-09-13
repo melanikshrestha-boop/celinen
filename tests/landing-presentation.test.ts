@@ -89,7 +89,7 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toContain("max-height: min(70dvh");
     expect(css).toContain(".marketing-vista");
     expect(css).toMatch(/\.marketing-promises\s*\{[^}]*justify-content:\s*center/);
-    expect(css).toMatch(/\.marketing-promises\s*\{[^}]*margin:\s*0 auto/);
+    expect(css).toMatch(/\.marketing-promises\s*\{[^}]*margin-inline:\s*auto/);
     const motion = readFileSync(
       new URL("../src/components/marketing/marketing-motion.css", import.meta.url),
       "utf8",
@@ -100,8 +100,15 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(motion).toContain("animation: marketing-bob");
     expect(motion).toContain("animation: marketing-wheel-turn");
     expect(motion).toContain("cubic-bezier(0.21, 0.68, 0.35, 1)");
+    expect(motion).toContain("translate3d(0, 28px, 0)");
+    expect(motion).toContain("@media (hover: hover) and (pointer: fine)");
+    expect(motion).not.toMatch(/@keyframes marketing-hero-develop \{[^}]*filter:/);
     expect(css).toMatch(/\.marketing-hero\s*\{[^}]*border-radius:\s*28px/);
-    expect(css).toMatch(/\.marketing-hero\s*\{[^}]*min\(100% - 40px/);
+    expect(css).toContain("--marketing-gutter: 20px");
+    expect(css).toMatch(
+      /\.marketing-hero\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--marketing-gutter\)\)\)/,
+    );
+    expect(css).toMatch(/\.marketing-promises\s*\{[^}]*width:\s*fit-content/);
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(css).not.toMatch(/\.workbench|\.develop-|\.auth-|--foto-font-ui|auth-lens/);
     const source = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
@@ -251,6 +258,11 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("Billed yearly at $192"));
     assert.ok(!html.includes("Billed yearly at $288"));
     assert.ok(html.includes("Creator"));
+    assert.ok(html.includes("Arena"));
+    assert.ok(html.includes("$200"));
+    assert.ok(html.includes("25,000 credits/month"));
+    assert.ok(html.includes("Choose Arena"));
+    assert.ok(html.includes("USD 200"));
     assert.ok(html.includes("Enterprise"));
     assert.ok(html.includes("Most Popular"));
     assert.ok(html.includes("home-pricing__shine"));

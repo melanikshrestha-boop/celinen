@@ -38,7 +38,7 @@
   font-size: 15px;
   font-weight: 500;
 }
-.home-pricing__cycle button {
+.home-pricing__cycle button:not([role="switch"]) {
   margin: 0;
   padding: 0;
   border: 0;
@@ -47,7 +47,7 @@
   font: inherit;
   cursor: pointer;
 }
-.home-pricing__cycle button[data-active="true"] {
+.home-pricing__cycle button:not([role="switch"])[data-active="true"] {
   color: #142a36;
 }
 
@@ -62,10 +62,18 @@
 }
 .home-pricing__cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
   align-items: stretch;
   text-align: left;
+}
+.home-pricing__cards[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.home-pricing__cards[data-count="1"] {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 360px;
+  margin-inline: auto;
 }
 .home-pricing__cards article {
   position: relative;
@@ -117,6 +125,11 @@
   letter-spacing: -0.04em;
   line-height: 1;
   white-space: nowrap;
+}
+.home-pricing__figure .pricing-figure {
+  display: inline-block;
+  transform-origin: left center;
+  animation: grok-price-pop 480ms cubic-bezier(0.34, 1.45, 0.64, 1);
 }
 .home-pricing__figure small {
   margin-left: 6px;
@@ -225,10 +238,24 @@
 .marketing-page .home-pricing__cards .is-popular a.home-pricing__shine:is(:hover, :focus-visible) {
   background-color: var(--marketing-neon-hover);
 }
+@keyframes grok-price-pop {
+  0% {
+    transform: scale(0.78);
+  }
+  58% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .marketing-page .home-pricing__cards .is-popular a.home-pricing__shine {
     animation: none;
     background-image: none;
+  }
+  .home-pricing__figure .pricing-figure {
+    animation: none;
   }
 }
 .home-pricing__note {
@@ -283,8 +310,21 @@
   font-size: 15px;
   line-height: var(--marketing-leading, 1.3);
 }
-@media (max-width: 900px) {
-  .home-pricing__cards {
+@media (max-width: 1100px) {
+  .home-pricing__cards,
+  .home-pricing__cards[data-count="3"],
+  .home-pricing__cards[data-count="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .home-pricing__cards,
+  .home-pricing__cards[data-count="3"],
+  .home-pricing__cards[data-count="4"] {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .home-pricing__cycle {
+    gap: 16px;
+    font-size: 16px;
   }
 }

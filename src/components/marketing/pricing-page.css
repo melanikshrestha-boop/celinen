@@ -97,25 +97,35 @@
 }
 .marketing-pricing .pricing-billing {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: 8px;
   margin-top: 16px;
   font-size: 13px;
 }
-.marketing-pricing .pricing-billing > button:not([role="switch"]) {
+.marketing-pricing .pricing-billing__cycle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.marketing-pricing .pricing-billing__cycle > button:not([role="switch"]) {
   min-height: 44px;
 }
-
-.marketing-pricing .pricing-billing > span {
+/* Savings sits on its own row under Monthly / Annual, not beside Annual. */
+.marketing-pricing .pricing-billing__save {
+  margin: 0;
   border: 0;
+  border-radius: 999px;
   background: #edf7e4;
   color: #356021;
   padding: 6px 11px;
   font-size: 12px;
+  font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
+  line-height: 1.2;
 }
 .marketing-pricing .pricing-free {
   margin-top: 20px;

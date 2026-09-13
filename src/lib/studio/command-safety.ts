@@ -11,6 +11,9 @@ export function studioCommandRefusal(input: string): string | null {
   if (/^(?:discard(?: it| that| the preview)?|cancel(?: it| that| the preview)?)\.?$/.test(text)) {
     return null;
   }
+  if (/^(?:send|share)(?: the)? (?:keepers?|gallery)(?: tonight)?[.!?]?$/.test(text)) {
+    return null;
+  }
 
   // These exact restrictions have an unambiguous implementation. Do not
   // generalize this to “only the sky”, “keep skin unchanged”, or other masks.

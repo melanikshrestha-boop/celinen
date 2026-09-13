@@ -33,7 +33,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "Is culling, galleries, or who-is-in-this-photo a separate product?",
-    "No. Hobby, Creator, and Enterprise are one photography plan. Pick, send a gallery, and roster/jersey tags sit on every paid plan. Adobe and priority support sit on Creator and Enterprise. We do not sell cull, edit, and retouch as three Aftershoot-style add-ons.",
+    "No. Hobby, Creator, Arena, and Enterprise are one photography plan. Pick, send a gallery, and roster/jersey tags sit on every paid plan. Adobe and priority support sit on Creator, Arena, and Enterprise. We do not sell cull, edit, and retouch as three Aftershoot-style add-ons.",
   ],
   [
     "Can I cancel my plan?",
@@ -41,7 +41,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "How much does FOTO cost?",
-    "Hobby is USD 20 / month. Creator is USD 30 / month. Enterprise is set around your book.",
+    "Hobby is USD 20 / month. Creator is USD 30 / month. Arena is USD 200 / month. Enterprise is set around your book.",
   ],
   [
     "Is a reject a delete?",
@@ -72,7 +72,7 @@ function Mark({ included }: { included: boolean }) {
 
 export function PlanCardGrid({ plans }: { plans: readonly HomePlan[] }) {
   return (
-    <div className="home-pricing__cards">
+    <div className="home-pricing__cards" data-count={plans.length}>
       {plans.map((plan) => (
         <article
           key={plan.name}
@@ -86,7 +86,9 @@ export function PlanCardGrid({ plans }: { plans: readonly HomePlan[] }) {
               <span className="pricing-figure">Custom</span>
             ) : (
               <>
-                <span className="pricing-figure">${plan.price}</span>
+                <span className="pricing-figure" key={plan.price}>
+                  ${plan.price}
+                </span>
                 {plan.period ? <small className="pricing-period">{plan.period}</small> : null}
               </>
             )}
@@ -125,6 +127,7 @@ export function plansForAudience(
 ): HomePlan[] {
   const hobbyAmt = yearly ? 16 : 20;
   const creatorAmt = yearly ? 24 : 30;
+  const arenaAmt = yearly ? 160 : 200;
   const billedFor = (monthlyRate: number, yearlyRate: number) =>
     yearly
       ? {
@@ -192,6 +195,16 @@ export function plansForAudience(
       search: { plan: "creator", billing: yearly ? "yearly" : "monthly" },
       popular: true,
     },
+    {
+      name: "Arena",
+      price: String(arenaAmt),
+      period: "/month",
+      ...billedFor(200, 160),
+      points: [{ label: "25,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
+      cta: "Choose Arena",
+      to: "/signup",
+      search: { plan: "arena", billing: yearly ? "yearly" : "monthly" },
+    },
     enterprise,
   ];
 }
@@ -255,8 +268,8 @@ export function HomePricing() {
       <PlanCardGrid plans={plansForAudience("personal", yearly)} />
       <p className="home-pricing__note" data-reveal>
         Pick, gallery, and who-is-in-this-photo sit on every paid plan. Credits are monthly, not
-        unlimited. <Link to="/docs">REST API</Link> and <Link to="/mcp">MCP</Link> sit on Creator
-        and Enterprise.
+        unlimited. <Link to="/docs">REST API</Link> and <Link to="/mcp">MCP</Link> sit on Creator,
+        Arena, and Enterprise.
       </p>
       <div className="home-pricing__faq" data-reveal>
         <p className="home-pricing__eyebrow">Questions</p>

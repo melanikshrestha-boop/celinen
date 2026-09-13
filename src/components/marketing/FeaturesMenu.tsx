@@ -87,7 +87,7 @@ export function FeaturesMenu() {
                 className="marketing-nav-feature"
               >
                 <span className="marketing-nav-feature__icon" aria-hidden="true">
-                  <Icon size={20} strokeWidth={1.6} />
+                  <Icon size={24} strokeWidth={1.6} />
                 </span>
                 <span>
                   <strong>{feature.title}</strong>
