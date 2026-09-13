@@ -46,6 +46,8 @@ import {
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
+import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
+import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { prepareDevelopPreview } from "@/lib/develop/preview";
 import { canReuseNeutralDevelop, isNeutralDevelopRecipe } from "@/lib/develop/neutral";
 import { AutoCropDialog } from "./AutoCropDialog";
@@ -284,6 +286,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(""),
     [engine, setEngine] = useState<boolean | null>(null);
+  const [browserOnly, setBrowserOnly] = useState(false);
   const [removalPreviewPending, setRemovalPreviewPending] = useState(false);
   const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
     [dragging, setDragging] = useState(false);
@@ -472,7 +475,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     let cancelled = false;
     const read = () => {
       void developEngineStatus(true).then((s) => {
-        if (!cancelled) setEngine(Boolean(s?.ready));
+        if (!cancelled) {
+          setEngine(Boolean(s?.ready));
+          setBrowserOnly(s?.engine === BROWSER_DEVELOP_ENGINE);
+        }
       });
     };
     read();
@@ -1047,6 +1053,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   function changeTool(next: DevelopTool) {
     if (editsLocked() || !source) return;
+    if (browserOnly && next === "mask") {
+      setNotice("Masking requires the local C++ Develop engine. Your saved edits are unchanged.");
+      return;
+    }
     commitDraft();
     setTool(next);
     setCompare(false);
@@ -1083,7 +1093,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     if (spread) {
       const targets = visible
         .map((photo) => docs.current[photo.id])
-        .filter((document): document is DevelopDocument => Boolean(document) && document.photoId !== selected);
+        .filter(
+          (document): document is DevelopDocument =>
+            Boolean(document) && document.photoId !== selected,
+        );
       if (targets.length)
         void persistBatch(
           targets.map((target) =>
@@ -1093,7 +1106,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         );
     }
   }
-  function startSplit(edge: "left" | "right" | "film", event: ReactPointerEvent<HTMLButtonElement>) {
+  function startSplit(
+    edge: "left" | "right" | "film",
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
     event.preventDefault();
     const origin = edge === "film" ? event.clientY : event.clientX;
     const start = edge === "left" ? leftW : edge === "right" ? rightW : filmH;
@@ -1273,6 +1289,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           })
           .catch((e) => {
             if (!controller.signal.aborted) {
+              // An unsuccessful recipe must not leave an older edit or export
+              // proof looking current. Keep the explicitly labeled source preview.
+              renderOwner.current = null;
+              editorProof.current = null;
+              setRenderBlob(null);
+              setExportProof(null);
               setRenderError(errorMessage(e));
               setRendering(false);
             }
@@ -1753,9 +1775,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 ? `${importState.found} found · ${importState.previewReady} previews · ${importState.saved} saved · ${importState.failed} failed`
                 : "") ||
               notice ||
-              (engine === false
-                ? "The image engine on this computer is not running."
-                : "")}
+              (engine === false ? "The image engine on this computer is not running." : "")}
           </span>
           {saveError ? (
             <button onClick={recoveryFile}>Save recovery file</button>
@@ -1885,6 +1905,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                       !source ||
                       !!saveError ||
                       !!busy ||
+                      (browserOnly &&
+                        unsupportedBrowserDevelopEdits({ ...defaultDevelopSettings(), ...p.patch })
+                          .length > 0) ||
                       (p.name !== "Original" && adaptiveLooks && !sourceStatsReady)
                     }
                     aria-pressed={activePreset === p.name}
@@ -1898,7 +1921,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 {library.presets.map((p) => (
                   <button
                     key={p.id}
-                    disabled={!source || !!saveError}
+                    disabled={
+                      !source ||
+                      !!saveError ||
+                      (browserOnly && unsupportedBrowserDevelopEdits(p.settings).length > 0)
+                    }
                     aria-pressed={activePreset === p.name}
                     onClick={() => applyPreset(p)}
                   >
@@ -2273,7 +2300,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   <button
                     aria-label="Compare before and after"
                     aria-pressed={compare}
-                    disabled={!beforeUrl}
+                    disabled={!beforeUrl || !url || !!renderError}
                     onClick={() => {
                       setCompare((v) => !v);
                       setBefore(false);
@@ -2284,16 +2311,18 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   </button>
                 </div>
                 <span>
-                  {quickPreviewUrl
-                    ? importing
-                      ? "Import preview"
-                      : "Import preview · Preparing full-quality image…"
-                    : rendering
-                      ? "Rendering…"
-                      : dimensions.width
-                        ? `${dimensions.width} × ${dimensions.height}`
-                        : ""}
-                  {!quickPreviewUrl && source && photo?.isRaw
+                  {renderError
+                    ? "Adjustments unavailable · Showing source preview"
+                    : quickPreviewUrl
+                      ? importing
+                        ? "Import preview"
+                        : "Import preview · Preparing full-quality image…"
+                      : rendering
+                        ? "Rendering…"
+                        : dimensions.width
+                          ? `${dimensions.width} × ${dimensions.height}`
+                          : ""}
+                  {!renderError && !rendering && url && source && photo?.isRaw
                     ? processingMode === "raw"
                       ? " · Sensor RAW · export-matched"
                       : photo.previewOrigin === "raw-demosaic"
@@ -2358,7 +2387,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     ? "Import preview"
                     : before
                       ? "Before adjustments"
-                      : "Rendered preview"
+                      : !url && beforeUrl
+                        ? "Original preview · Adjustments unavailable"
+                        : "Rendered preview"
                 }
               />
               {currentHistogramError && (
@@ -2391,6 +2422,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 </span>
               </div>
             </div>
+            {browserOnly && (
+              <p className="develop-hint" role="status">
+                Browser Develop supports basic tone, white balance and crop. Advanced edits need the
+                local C++ engine; originals and saved recipes remain intact.
+              </p>
+            )}
             <fieldset disabled={!source || !!saveError || !!busy}>
               <DevelopControls
                 photoId={selected ?? "empty"}
@@ -2402,6 +2439,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 onMask={setMaskId}
                 sourceAspect={sourceAspect}
                 onSuggestCrop={() => openDialog("auto-crop")}
+                browserOnly={browserOnly}
               />
             </fieldset>
             <div className="develop-right-footer">

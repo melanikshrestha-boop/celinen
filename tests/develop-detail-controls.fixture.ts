@@ -130,7 +130,17 @@ for (const [key, label, caption, value, minimum, maximum, step, reset] of [
     },
   });
   check(blurred, "Enter must finish numeric editing via blur");
-  run(rendered.caption, "onDoubleClick");
+  const beforeDisabledReset = changes.length;
+  run(rendered.caption, "onDoubleClick", {
+    currentTarget: { closest: () => ({ disabled: true }) },
+  });
+  check(
+    changes.length === beforeDisabledReset,
+    "A disabled native-only panel reset a saved recipe",
+  );
+  run(rendered.caption, "onDoubleClick", {
+    currentTarget: { closest: () => null },
+  });
   check(
     settings[key] === reset && changes.at(-1)?.commit,
     "Double-click reset changed the compatibility default",
