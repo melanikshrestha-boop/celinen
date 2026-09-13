@@ -24,8 +24,20 @@ const books: PhotographerBooks = {
   expenseCount: 1,
   payoutCount: 0,
   spark: [
-    { date: "2026-09-01", collectedMinor: 100000, netMinor: 80000, expensesMinor: 20000, galleryMinor: 0 },
-    { date: "2026-09-08", collectedMinor: 250000, netMinor: 180000, expensesMinor: 70000, galleryMinor: 0 },
+    {
+      date: "2026-09-01",
+      collectedMinor: 100000,
+      netMinor: 80000,
+      expensesMinor: 20000,
+      galleryMinor: 0,
+    },
+    {
+      date: "2026-09-08",
+      collectedMinor: 250000,
+      netMinor: 180000,
+      expensesMinor: 70000,
+      galleryMinor: 0,
+    },
   ],
   incomeLines: [{ label: "Weddings", amountMinor: 250000 }],
   expenseLines: [{ label: "Equipment", amountMinor: 70000 }],
@@ -108,7 +120,10 @@ test("finance desks are a top text row, not a second sidebar", () => {
   expect(html).toContain("Tax");
   expect(html).not.toContain("Track");
   expect(html).not.toContain("Services");
-  const os = readFileSync(new URL("../src/components/earnings/FinanceOs.tsx", import.meta.url), "utf8");
+  const os = readFileSync(
+    new URL("../src/components/earnings/FinanceOs.tsx", import.meta.url),
+    "utf8",
+  );
   expect(os).not.toContain("lucide-react");
   expect(os).not.toContain("finance-os__kicker");
   expect(os).not.toContain("finance-os__mark");
@@ -127,22 +142,22 @@ test("overview paints ledger totals, not Origin demo merchants", () => {
   expect(html).toContain("finance-os__hero-figure");
   expect(html).toContain("USD 2500.00");
   expect(html).toContain("Jordan");
-  expect(html).toContain("Allocation");
+  expect(html).toContain("Collected breakdown");
   expect(html).toContain("Weddings");
   expect(html).toContain("Upcoming");
   expect(html).toContain("Outstanding");
   expect(html).toContain("Overdue");
-  expect(html).toContain("Paid jobs");
+  expect(html).toContain("Collection entries");
   expect(html).toContain("Open invoices");
-  expect(html).toContain("Avg job");
-  expect(html).toContain("USD 1250.00");
+  expect(html).not.toContain("Avg job");
+  expect(html).not.toContain("Paid jobs");
   expect(html).toContain("Expenses");
   expect(html).toContain("Net");
   expect(html).toContain("finance-os__stage");
   expect(html).not.toContain("finance-os__monthcal");
   expect(html).not.toContain("Collected this month");
   expect(html).not.toContain("Category breakdown");
-  expect(html).toContain("spend-sankey__bar");
+  expect(html).toContain("spend-sankey--donut");
   expect(html).not.toContain("finance-os__bars");
   expect(html).not.toContain("Apollo Bagels");
   expect(html).not.toContain("$5,070");
@@ -206,7 +221,10 @@ test("invest and equity stay honest about photographer books", () => {
 });
 
 test("finance os is light by default and only dark under html.dark", () => {
-  const css = readFileSync(new URL("../src/components/earnings/finance-os.css", import.meta.url), "utf8");
+  const css = readFileSync(
+    new URL("../src/components/earnings/finance-os.css", import.meta.url),
+    "utf8",
+  );
   expect(css).toContain("--fos-neon: #4d6fff");
   expect(css).toContain("--fos-bg: #ffffff");
   expect(css).not.toContain("#f4f3f0");

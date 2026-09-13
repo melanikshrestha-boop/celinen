@@ -16,6 +16,7 @@ import {
   type EarningsRow,
 } from "../src/lib/earnings-ledger";
 import { formatFinanceMoney } from "../src/lib/finance-money";
+import { SpendSankey } from "../src/components/earnings/SpendSankey";
 
 // Only immutable, synthetic ledger projections and server-rendered components.
 // These tests must never open a real account, browser store, or payment service.
@@ -62,6 +63,74 @@ function booksFor(rows: EarningsRow[]) {
 }
 
 describe("finance dashboard preserves complete money and unknown states", () => {
+  test.each([0, 1, 3, 10001])(
+    "chart guides never send fractional minor units to money formatting (%s)",
+    (amountMinor) => {
+      const rows = [row("odd-minor-units", { amountMinor })];
+      const amounts: number[] = [];
+      const html = renderToStaticMarkup(
+        <FinanceOverview
+          books={booksFor(rows)}
+          rows={rows}
+          today={today}
+          money={(value) => {
+            amounts.push(value);
+            return money(value);
+          }}
+          onOpen={() => {}}
+        />,
+      );
+      expect(amounts.every(Number.isSafeInteger)).toBe(true);
+      expect(html).toContain(money(amountMinor));
+      if (amountMinor > 0) expect(html).toContain("Use Left and Right arrows to inspect dates");
+    },
+  );
+
+  test("a positive-only category chart names its basis instead of pretending it equals net collections", () => {
+    for (const donut of [true, false]) {
+      const html = renderToStaticMarkup(
+        <SpendSankey
+          sourceLabel="Collected"
+          sourceMinor={15000}
+          slices={[
+            { label: "Portraits", amountMinor: 20000 },
+            { label: "Refunds", amountMinor: -5000 },
+          ]}
+          money={money}
+          donut={donut}
+        />,
+      );
+      expect(html).toContain("Positive categories");
+      expect(html).toContain("$200.00");
+      expect(html).toContain("The recorded total is $150.00 after refunds or corrections");
+      expect(html).not.toContain('aria-label="Collected');
+    }
+  });
+
+  test("collection entries are not presented as paid jobs or a refund-distorted average", () => {
+    const rows = [
+      row("deposit"),
+      row("balance"),
+      row("refund", { accounting: "refund", type: "refund", amountMinor: -5000 }),
+    ];
+    const html = renderToStaticMarkup(
+      <FinanceOverview
+        books={booksFor(rows)}
+        rows={rows}
+        today={today}
+        money={money}
+        onOpen={() => {}}
+        balancesAvailable={false}
+      />,
+    );
+    expect(html).toContain("<dt>Collection entries</dt><dd>2</dd>");
+    expect(html).toContain("<dt>Open invoices</dt><dd>—</dd>");
+    expect(html).not.toContain("Paid jobs");
+    expect(html).not.toContain("Avg job");
+    expect(html).toContain("Net cash flow");
+    expect(html).toContain("vs previous equal-length period");
+  });
+
   test("a fully refunded sale preserves its zero-valued chart and activity", () => {
     const rows = [
       row("receipt"),
@@ -164,7 +233,7 @@ describe("finance dashboard preserves complete money and unknown states", () => 
     for (const line of books.expenseLines)
       expect(html).toContain(`aria-label="${line.label}: ${money(line.amountMinor)}"`);
     expect(html).toContain(
-      `aria-label="Spent ${money(books.expensesMinor)} split across ${books.expenseLines.length} categories"`,
+      `aria-label="Expenses breakdown: ${money(books.expensesMinor)} across ${books.expenseLines.length} categories"`,
     );
     expect(JSON.stringify({ rows, books })).toBe(before);
   });

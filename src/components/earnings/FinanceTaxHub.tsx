@@ -4,6 +4,8 @@ import {
   FEDERAL_ESTIMATED_DATES_2026,
   RETIREMENT_PATHWAYS,
   SELF_EMPLOYED_REFERENCE,
+  TAX_PREPARATION_REFERENCE,
+  TAX_PREPARATION_TOPICS,
   TAX_RECORD_CHECKLIST,
   TAX_SOURCES,
 } from "@/lib/self-employed-resources";
@@ -58,6 +60,46 @@ export function RetirementPathways() {
       <a href={TAX_SOURCES.iraLimits} target="_blank" rel="noreferrer">
         IRS 2026 IRA and catch-up limits <span className="sr-only">(opens in a new tab)</span>↗
       </a>
+    </article>
+  );
+}
+
+export function TaxPreparationGuides() {
+  return (
+    <article className="finance-os__card finance-os__resource">
+      <h2>Tax questions, explained</h2>
+      <p className="finance-os__vs">
+        U.S. federal preparation · {TAX_PREPARATION_REFERENCE.year} · Reviewed{" "}
+        <time dateTime={TAX_PREPARATION_REFERENCE.reviewedOn}>
+          {TAX_PREPARATION_REFERENCE.reviewedLabel}
+        </time>
+      </p>
+      <p>
+        General preparation guidance, not personal tax advice. Eligibility depends on your
+        circumstances; no deduction or payment is calculated here.
+      </p>
+      <div className="finance-os__resource-grid">
+        {TAX_PREPARATION_TOPICS.map((topic) => (
+          <details key={topic.id} className="finance-os__resource-detail">
+            <summary>{topic.title}</summary>
+            <p>{topic.detail}</p>
+            <p className="finance-os__vs">
+              {topic.sources.map((source, index) => (
+                <span key={source.href}>
+                  {index > 0 ? " · " : null}
+                  <a href={source.href} target="_blank" rel="noreferrer">
+                    {source.label} <span className="sr-only">(opens in a new tab)</span>↗
+                  </a>
+                </span>
+              ))}
+            </p>
+          </details>
+        ))}
+      </div>
+      <p className="finance-os__vs">
+        Some linked forms and publications still show 2025 editions. Use the applicable 2026 updates
+        and limits; check the current edition before preparing a return.
+      </p>
     </article>
   );
 }
@@ -166,6 +208,7 @@ export function FinanceTaxHub() {
           IRS recordkeeping guide <span className="sr-only">(opens in a new tab)</span>↗
         </a>
       </article>
+      <TaxPreparationGuides />
       <RetirementPathways />
       <article className="finance-os__card finance-os__resource">
         <h2>Deductions need context</h2>
