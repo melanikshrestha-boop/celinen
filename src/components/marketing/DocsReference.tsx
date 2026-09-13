@@ -196,8 +196,8 @@ export function DocsReference() {
           />
           <p>
             Photo credits are not a rate limit. They reset with the billing cycle. Hobby is USD 20
-            / month (1,000 credits). Creator is USD 30 / month (5,000 credits, Adobe). Enterprise
-            is custom.
+            / month (1,000 credits). Creator is USD 30 / month (5,000 credits, Adobe). Arena is
+            USD 200 / month (25,000 credits). Enterprise is custom.
           </p>
         </section>
 
@@ -320,7 +320,10 @@ export function DocsReference() {
   "method": "tools/call",
   "params": { "name": "foto_plans", "arguments": {} }
 }`}</Code>
-          <p>Hobby 1,000 / month. Creator 5,000 / month. Unused credits do not roll into cash.</p>
+          <p>
+            Hobby 1,000 / month. Creator 5,000 / month. Arena 25,000 / month. Unused credits do not
+            roll into cash.
+          </p>
         </section>
 
         <section id="mcp">

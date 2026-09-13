@@ -3,6 +3,7 @@ import { LogoMark } from "@/components/lensos/Logo";
 import { Footer } from "@/components/lensos/Footer";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
+import { BILLING_PLANS } from "@/lib/billing-catalog";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -34,15 +35,7 @@ export const Route = createFileRoute("/signup")({
   component: SignupPage,
 });
 
-const PLANS = [
-  { id: "hobby", label: "Hobby", monthly: 20, yearly: 16 },
-  { id: "creator", label: "Creator", monthly: 30, yearly: 24 },
-  { id: "starter", label: "Individual · Starter", monthly: 20, yearly: 16 },
-  { id: "sideline", label: "Individual · Sideline", monthly: 60, yearly: 48 },
-  { id: "arena", label: "Individual · Arena", monthly: 200, yearly: 160 },
-  { id: "crew", label: "Teams · Crew (per user)", monthly: 40, yearly: 32 },
-  { id: "agency", label: "Teams · Agency (per user)", monthly: 80, yearly: 64 },
-];
+const PLANS = BILLING_PLANS;
 
 function SignupPage() {
   const search = Route.useSearch();

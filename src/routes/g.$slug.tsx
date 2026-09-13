@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/lensos/Logo";
 import { openGallery, toggleGalleryFavorite } from "@/lib/delivery.functions";
+import { readTonightGalleryBySlug } from "@/lib/delivery/tonight-local";
 import { makeZip } from "@/lib/zip";
 
 export const Route = createFileRoute("/g/$slug")({
@@ -36,12 +37,45 @@ function ClientGallery() {
   const [onlyPicks, setOnlyPicks] = useState(false);
   const [whoQuery, setWhoQuery] = useState("");
   const [zipping, setZipping] = useState(false);
+  const [localGallery, setLocalGallery] = useState(false);
+  const objectUrls = useRef<string[]>([]);
 
   /** Signed, per-visitor credential for this gallery — favourites can't be written without it. */
   const tokenKey = `lenslabs.gallery.${slug}.visitor`;
   const [visitor, setVisitor] = useState("");
 
+  useEffect(() => {
+    return () => {
+      for (const url of objectUrls.current) URL.revokeObjectURL(url);
+      objectUrls.current = [];
+    };
+  }, []);
+
   const load = async (code?: string) => {
+    const local = await readTonightGalleryBySlug(slug).catch(() => null);
+    if (local) {
+      if (local.gallery.passcode && local.gallery.passcode !== (code ?? "")) {
+        setTitle(local.gallery.title);
+        setLocalGallery(true);
+        setState("passcode");
+        return;
+      }
+      for (const url of objectUrls.current) URL.revokeObjectURL(url);
+      const photos = local.photos.map((photo) => {
+        const url = URL.createObjectURL(photo.blob);
+        objectUrls.current.push(url);
+        return { id: photo.id, filename: photo.filename, url };
+      });
+      setTitle(local.gallery.title);
+      setMessage(null);
+      setDownloads(local.gallery.downloadsEnabled);
+      setPhotos(photos);
+      setFavs(new Set());
+      setVisitor("local");
+      setLocalGallery(true);
+      setState("ok");
+      return;
+    }
     const stored = typeof window === "undefined" ? "" : (localStorage.getItem(tokenKey) ?? "");
     const res = (await openGallery({ data: { slug, passcode: code ?? "", visitor: stored } })) as any;
     if (res?.error === "passcode") {
@@ -73,6 +107,15 @@ function ClientGallery() {
 
   const toggle = async (id: string) => {
     if (!visitor) return;
+    if (localGallery) {
+      setFavs((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      return;
+    }
     const on = !favs.has(id);
     setFavs((prev) => {
       const next = new Set(prev);
@@ -205,7 +248,9 @@ function ClientGallery() {
               disabled={zipping}
               className="rounded-lg bg-ink px-3 py-1.5 font-mono text-[12px] text-paper2 disabled:opacity-50"
             >
-              {zipping ? "packing originals…" : `Download ${onlyPicks ? "favourites" : "all"} · RAW`}
+              {zipping
+                ? "packing…"
+                : `Download ${onlyPicks ? "favourites" : "all"}${localGallery ? "" : " · RAW"}`}
             </button>
           )}
         </div>

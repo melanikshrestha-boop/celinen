@@ -41,8 +41,10 @@
   justify-content: center;
   height: 40px;
   min-height: 40px;
-  min-width: 0;
+  min-width: max-content;
+  flex-shrink: 0;
   padding-inline: 8px;
+  white-space: nowrap;
 }
 .marketing-page .marketing-nav__links a {
   color: #516570;
@@ -81,8 +83,10 @@
   gap: 2px;
   height: 40px;
   min-height: 40px;
-  min-width: 0;
+  min-width: max-content;
+  flex-shrink: 0;
   padding: 0 8px;
+  white-space: nowrap;
   border: 0;
   background: none;
   box-shadow: none;

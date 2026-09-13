@@ -30,7 +30,11 @@ test("settings switch is a sliding on/off control", () => {
     "utf8",
   );
   expect(css).toContain("border-radius: 50%");
-  expect(css).toContain("translateX(20px)");
+  expect(css).toContain("translate: var(--switch-travel)");
+  expect(css).toContain("cubic-bezier(0.34, 1.45, 0.64, 1)");
+  expect(css).toContain("grok-knob-pop");
   expect(css).toContain("background: #4d6fff");
+  expect(css).toContain("background: #b8b8c0");
+  expect(css).toContain("--switch-w: 72px");
   expect(css).not.toContain("background: #111");
 });

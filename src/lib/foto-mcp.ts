@@ -141,6 +141,7 @@ function toolText(name: string, args: Record<string, unknown>) {
     return [
       "Hobby is USD 20 / month with 1,000 photo credits, pick, gallery, and roster tags.",
       "Creator is USD 30 / month with 5,000 photo credits, Adobe, REST API, and MCP.",
+      "Arena is USD 200 / month with 25,000 photo credits, Adobe, REST API, and MCP.",
       "Enterprise is custom.",
       "Confirm the amount at checkout before you pay.",
     ].join(" ");

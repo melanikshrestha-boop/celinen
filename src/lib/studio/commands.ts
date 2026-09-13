@@ -17,7 +17,8 @@ export type ToolName =
   | "export_keepers"
   | "write_xmp"
   | "import_photos"
-  | "undo_last";
+  | "undo_last"
+  | "send_gallery";
 
 export type ToolCall = { name: ToolName; args: Record<string, unknown> };
 
@@ -182,6 +183,15 @@ export const STUDIO_TOOL_DEFINITIONS = [
     function: {
       name: "undo_last",
       description: "Undo the most recent reversible Studio action.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_gallery",
+      description:
+        "Send keepers as a same-night gallery with a passcode and downloads once ~90% of the set is decided.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -383,6 +393,12 @@ export function parseLocalCommand(input: string): LocalCommandMatch | null {
     !/\b(?:edl|fcpxml|xml|csv)\b/.test(text);
   if (wantsExport) calls.push({ name: "export_keepers", args: {} });
 
+  const wantsSend =
+    (/\b(?:send|share)\b.{0,24}\b(?:gallery|keepers?)\b/.test(text) ||
+      /\bgallery tonight\b/.test(text)) &&
+    !/\blightroom\b/.test(text);
+  if (wantsSend) calls.push({ name: "send_gallery", args: {} });
+
   if (!calls.length) return null;
   return {
     calls,
@@ -391,4 +407,4 @@ export function parseLocalCommand(input: string): LocalCommandMatch | null {
 }
 
 export const LOCAL_COMMAND_HELP =
-  "try “cull the shoot”, “keep top 40”, “show flagged”, “open best”, “auto-refine keepers”, or “write xmp”.";
+  "try “cull the shoot”, “keep top 40”, “show flagged”, “open best”, “auto-refine keepers”, “send gallery”, or “write xmp”.";

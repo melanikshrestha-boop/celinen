@@ -35,4 +35,12 @@ describe("parseLocalCommand", () => {
   test("leaves open-ended requests to the optional hosted planner", () => {
     expect(parseLocalCommand("make this feel cinematic")).toBeNull();
   });
+
+  test("sends a same-night keeper gallery", () => {
+    expect(parseLocalCommand("send gallery tonight")?.calls).toEqual([
+      { name: "send_gallery", args: {} },
+    ]);
+    expect(parseLocalCommand("send keepers")?.calls).toEqual([{ name: "send_gallery", args: {} }]);
+    expect(parseLocalCommand("send to lightroom")?.calls).toEqual([{ name: "write_xmp", args: {} }]);
+  });
 });

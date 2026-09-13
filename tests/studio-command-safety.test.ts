@@ -45,6 +45,9 @@ describe("Studio command safety boundary", () => {
     "discard the preview",
     "cancel",
     "undo",
+    "send gallery",
+    "send keepers",
+    "send gallery tonight",
   ]) {
     test(`allows explicit supported intent: ${request}`, () => {
       expect(studioCommandRefusal(request)).toBeNull();

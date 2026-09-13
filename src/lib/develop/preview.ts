@@ -1,3 +1,4 @@
+import { BROWSER_DEVELOP_ENGINE } from "./browser-render";
 import { defaultDevelopSettings } from "./contract";
 import { developEngineStatus, renderDevelop } from "./client";
 
@@ -40,7 +41,8 @@ export async function prepareDevelopPreview(
   options: { priority?: "interactive" | "background" } = {},
 ): Promise<DevelopPreviewResult> {
   const status = await developEngineStatus();
-  if (!input.isRaw && (!status?.ready || !status.token)) return rasterDevelopPreview(file, signal);
+  if (!input.isRaw && (!status?.ready || !status.token || status.engine === BROWSER_DEVELOP_ENGINE))
+    return rasterDevelopPreview(file, signal);
   try {
     const preview = await renderDevelop(file, defaultDevelopSettings(), {
       edge: 1600,

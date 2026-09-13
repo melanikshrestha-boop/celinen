@@ -1,0 +1,59 @@
+.voice-mic {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #5b6570;
+  cursor: pointer;
+}
+.voice-mic:hover {
+  background: #f4f4f4;
+}
+.voice-mic.is-listening {
+  background: #111;
+  color: #fff;
+}
+.voice-mic.is-busy:not(.is-listening) {
+  color: #4d6fff;
+}
+.voice-mic__wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5px;
+  width: 22px;
+  height: 16px;
+}
+.voice-mic__wave span {
+  width: 1.5px;
+  min-height: 3px;
+  border-radius: 1px;
+  background: #fff;
+  transform-origin: center;
+}
+html.dark .voice-mic {
+  color: #c8c8ce;
+}
+html.dark .voice-mic:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+html.dark .voice-mic.is-listening {
+  background: #ededed;
+  color: #111;
+}
+html.dark .voice-mic.is-listening .voice-mic__wave span {
+  background: #111;
+}
+.social-post__composer:has(.voice-mic.is-listening) {
+  border-color: #111;
+  box-shadow: 0 14px 40px #142a3618;
+}
+html.dark .social-post__composer:has(.voice-mic.is-listening) {
+  border-color: #ededed;
+}

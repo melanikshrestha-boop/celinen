@@ -4,8 +4,38 @@ import {
   createStripeClient,
   getStripeErrorMessage,
 } from "@/lib/stripe.server";
+import { quoteForLookup } from "@/lib/billing-catalog";
 
 type CheckoutSessionResult = { url: string } | { error: string };
+
+async function resolveOrCreatePrice(
+  stripe: ReturnType<typeof createStripeClient>,
+  lookup: string,
+) {
+  const listed = await stripe.prices.list({ lookup_keys: [lookup], limit: 1 });
+  if (listed.data[0]) return listed.data[0];
+  const quote = quoteForLookup(lookup);
+  if (!quote) return undefined;
+  const product = await stripe.products.create({
+    name: quote.productName,
+    metadata: { plan: quote.plan.id, billing: quote.billing },
+  });
+  try {
+    return await stripe.prices.create({
+      product: product.id,
+      currency: "usd",
+      unit_amount: quote.unitAmountCents,
+      recurring: { interval: quote.interval },
+      lookup_key: lookup,
+      metadata: { plan: quote.plan.id, billing: quote.billing },
+    });
+  } catch (error) {
+    // Two checkouts can race; the winner owns the lookup key.
+    const again = await stripe.prices.list({ lookup_keys: [lookup], limit: 1 });
+    if (again.data[0]) return again.data[0];
+    throw error;
+  }
+}
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
@@ -59,9 +89,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CheckoutSessionResult> => {
     try {
       const stripe = createStripeClient(data.environment);
-
-      const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
-      const stripePrice = prices.data[0];
+      const stripePrice = await resolveOrCreatePrice(stripe, data.priceId);
       if (!stripePrice) throw new Error("Price not found");
       const isRecurring = stripePrice.type === "recurring";
 

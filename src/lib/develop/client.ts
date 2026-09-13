@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createDevelopAdmissionQueue } from "./admission";
+import { BROWSER_DEVELOP_ENGINE, renderDevelopInBrowser } from "./browser-render";
 import {
   defaultDevelopSettings,
   DEVELOP_ENGINE_LIMITS,
@@ -29,8 +30,26 @@ let cached: Promise<DevelopEngineStatus | null> | null = null,
 function isLocalDevelopHost(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
+
+/** Hosted sites cannot spawn the C++ binary. JPEG/PNG Develop still runs in the browser. */
+export function browserDevelopEngineStatus(): DevelopEngineStatus {
+  return {
+    ready: true,
+    token: "browser",
+    engine: BROWSER_DEVELOP_ENGINE,
+    maxEdge: DEVELOP_ENGINE_LIMITS.defaultExportEdge,
+    maxFileBytes: DEVELOP_ENGINE_LIMITS.maxFileBytes,
+    workingSpace: "sRGB preview",
+    rawSupported: false,
+    maxRawSensorPixels: DEVELOP_ENGINE_LIMITS.maxRawSensorPixels,
+    maxOutputPixels: DEVELOP_ENGINE_LIMITS.maxOutputPixels,
+    defaultExportEdge: DEVELOP_ENGINE_LIMITS.defaultExportEdge,
+  };
+}
+
 export async function developEngineStatus(refresh = false): Promise<DevelopEngineStatus | null> {
-  if (typeof window === "undefined" || !isLocalDevelopHost(window.location.hostname)) return null;
+  if (typeof window === "undefined") return null;
+  if (!isLocalDevelopHost(window.location.hostname)) return browserDevelopEngineStatus();
   if (!refresh && cached && Date.now() - checked < 5000) return cached;
   if (!refresh && inflight) return inflight;
   const request = (async () => {
@@ -150,9 +169,19 @@ export async function renderDevelop(
             "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
           );
         if (sourceMode === "raw" && !status.rawSupported)
-          throw new Error("Rebuild the local C++ engine to enable sensor RAW development.");
+          throw new Error(
+            status.engine === BROWSER_DEVELOP_ENGINE
+              ? "RAW development needs the local app."
+              : "Rebuild the local C++ engine to enable sensor RAW development.",
+          );
         if ((edge ?? DEVELOP_ENGINE_LIMITS.previewEdge) > status.maxEdge)
           throw new Error("Rebuild the local C++ engine to enable this larger export size.");
+        if (status.engine === BROWSER_DEVELOP_ENGINE)
+          return renderDevelopInBrowser(source, developSettingsSchema.parse(settings), {
+            edge: edge ?? DEVELOP_ENGINE_LIMITS.previewEdge,
+            quality: quality ?? 0.9,
+            ...(signal ? { signal } : {}),
+          });
         const response = await fetch("/__develop/render", {
           method: "POST",
           headers: {

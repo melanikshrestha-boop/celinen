@@ -58,7 +58,7 @@
 }
 .social-post.has-thread {
   justify-content: flex-start;
-  padding-top: 64px;
+  padding-top: 24px;
   padding-bottom: 24px;
 }
 .social-post__stage {
@@ -79,7 +79,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   text-align: center;
 }
 .social-post__title {
@@ -103,9 +103,9 @@
   margin: 0;
   color: #142a36;
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
-  font-size: clamp(26px, 3.2vw, 34px);
-  font-weight: 650;
-  letter-spacing: -0.035em;
+  font-size: clamp(28px, 3.4vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
 }
 .social-post__hero p {
   margin: 6px 0 0;
@@ -116,7 +116,7 @@
 }
 .social-post__composer {
   width: 100%;
-  margin-top: 18px;
+  margin-top: 22px;
   padding: 18px 18px 12px;
   border: 1px solid #e6edf3;
   border-radius: 22px;
@@ -308,6 +308,87 @@
   margin: 10px 0 0;
   color: #8b919a;
   font-size: 13px;
+}
+.social-post__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 18px;
+}
+.social-post__action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #142a36;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.social-post__action:hover,
+.social-post__action:focus-visible {
+  background: rgb(20 42 54 / 0.05);
+}
+.social-post__action-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 8px;
+  background: #f3f5f7;
+  color: #3a4450;
+}
+.social-post:not(.has-thread) .social-post__hero {
+  animation: home-open 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.social-post:not(.has-thread) .social-post__composer {
+  transform-origin: 50% 100%;
+  animation: home-composer-open 760ms cubic-bezier(0.16, 1, 0.3, 1) 70ms both;
+}
+.social-post:not(.has-thread) .social-post__action {
+  animation: home-open 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.social-post:not(.has-thread) .social-post__action:nth-child(1) {
+  animation-delay: 160ms;
+}
+.social-post:not(.has-thread) .social-post__action:nth-child(2) {
+  animation-delay: 210ms;
+}
+.social-post:not(.has-thread) .social-post__action:nth-child(3) {
+  animation-delay: 260ms;
+}
+.social-post:not(.has-thread) .social-post__action:nth-child(4) {
+  animation-delay: 310ms;
+}
+@keyframes home-open {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes home-composer-open {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .social-post__suggest {
   display: flex;
@@ -572,9 +653,16 @@
 .celinen-dash.is-mini .social-dock.is-mini .social-picker {
   left: 8px;
 }
+@media (prefers-reduced-motion: reduce) {
+  .social-post:not(.has-thread) .social-post__hero,
+  .social-post:not(.has-thread) .social-post__composer,
+  .social-post:not(.has-thread) .social-post__action {
+    animation: none;
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
   .social-post button,
-  .social-post a,
+  .social-post a:not(.social-post__action),
   .social-dock__chip,
   .social-dock__plus,
   .social-picker__row {
@@ -582,7 +670,7 @@
     transition: transform 180ms cubic-bezier(0.34, 1.45, 0.64, 1);
   }
   .social-post button:active,
-  .social-post a:active,
+  .social-post a:not(.social-post__action):active,
   .social-dock__chip:active,
   .social-dock__plus:active,
   .social-picker__row:active {
@@ -592,7 +680,9 @@
   }
 }
 html.dark .social-post {
-  background: #000;
+  /* Same sky→mint wash as light, inverted: cool top, teal mid, near-black field. */
+  background:
+    radial-gradient(90% 70% at 50% 0%, #1e3f6b 0%, #16352f 38%, #0b0c0e 72%);
 }
 html.dark .social-post__hero h1,
 html.dark .celinen-dash .social-post__hero h1 {
@@ -614,6 +704,17 @@ html.dark .social-picker__form-actions button {
   border-color: #2a2a2a;
   color: #ededed;
   box-shadow: none;
+}
+html.dark .social-post__action {
+  color: #ededed;
+}
+html.dark .social-post__action:hover,
+html.dark .social-post__action:focus-visible {
+  background: rgb(255 255 255 / 0.06);
+}
+html.dark .social-post__action-mark {
+  background: rgb(255 255 255 / 0.08);
+  color: #c8c8ce;
 }
 html.dark .social-picker__form-actions button[type="submit"] {
   background: #ededed;

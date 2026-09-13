@@ -61,6 +61,14 @@ import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
 import { smartCullPass } from "@/lib/studio/smart-cull";
 import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
+import {
+  applyImportCull,
+  attachImportAnalysis,
+  isImportAnalyzed,
+  mergePreservedImportAnalysis,
+} from "@/lib/studio/cull-on-import";
+import { tonightGalleryPath } from "@/lib/studio/tonight-gallery";
+import { sendTonightKeepers } from "@/lib/delivery/tonight-local";
 import { createOriginalKeeperZip } from "@/lib/studio/keeper-package";
 import { importedReviewVerdict } from "@/lib/studio/review-metadata";
 import { LIGHTROOM_MATCHING } from "@/lib/lightroom-matching";
@@ -413,6 +421,7 @@ export function Studio({
   }, [storageScope, shootId]);
   const importRunRef = useRef(0);
   const importingRef = useRef(false);
+  const importCullRef = useRef({ running: false, token: 0, applied: false });
   const importAbortRef = useRef<AbortController | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -536,6 +545,73 @@ export function Studio({
     latestShotsRef.current = next;
     setShots(next);
   }, []);
+
+  const runImportCull = useCallback(() => {
+    if (importingRef.current || proposalRef.current) return;
+    if (!canPersistStudioSession(sessionStatusRef.current)) return;
+    if (importCullRef.current.running) return;
+    const token = ++importCullRef.current.token;
+    importCullRef.current.running = true;
+    void (async () => {
+      try {
+        const pending = latestShotsRef.current.filter(
+          (shot) =>
+            unanalyzedIds.current.has(shot.id) &&
+            shot.sourceAvailable !== false &&
+            Boolean(shot.file?.size),
+        );
+        const analyzedIds = new Set<string>();
+        await Promise.all(
+          pending.map(async (shot) => {
+            try {
+              const result = await analyseFile(shot.file);
+              if (token !== importCullRef.current.token) return;
+              unanalyzedIds.current.delete(shot.id);
+              analyzedIds.add(shot.id);
+              updateShots((prev) =>
+                prev.map((entry) =>
+                  entry.id === shot.id ? attachImportAnalysis(entry, result) : entry,
+                ),
+              );
+            } catch {
+              /* Leave unanalyzed; never invent a quality score. */
+            }
+          }),
+        );
+        if (
+          token !== importCullRef.current.token ||
+          !canPersistStudioSession(sessionStatusRef.current) ||
+          proposalRef.current ||
+          importingRef.current
+        )
+          return;
+        const onlyIds = importCullRef.current.applied ? analyzedIds : undefined;
+        if (importCullRef.current.applied && !analyzedIds.size) return;
+        const current = latestShotsRef.current;
+        const result = applyImportCull(current, onlyIds ? { onlyIds } : {});
+        importCullRef.current.applied = true;
+        if (!result.changed) return;
+        undoRef.current.push({
+          selectedId: latestSelectedIdRef.current,
+          frames: current.map((shot) => ({
+            id: shot.id,
+            verdict: shot.verdict,
+            edits: { ...shot.edits },
+          })),
+        });
+        if (undoRef.current.length > 30) undoRef.current.shift();
+        updateShots(() => result.shots);
+        const decided = result.shots.filter(
+          (shot) => shot.verdict !== "undecided" && !shot.error,
+        ).length;
+        setSyncNote(
+          `Cull on import · ${decided} decided · ${result.flagged} near-dupes flagged. Originals were not changed.`,
+        );
+      } finally {
+        if (token === importCullRef.current.token) importCullRef.current.running = false;
+      }
+    })();
+  }, [updateShots]);
 
   const selectShot = useCallback((id: string | null) => {
     if (id !== latestSelectedIdRef.current) {
@@ -789,6 +865,7 @@ export function Studio({
         setClusterFilter(null);
         hydrationRecoveryRef.current = false;
         selectSessionStatus("ready");
+        runImportCull();
         setSyncNote(
           `${session.shots.length} saved frame${session.shots.length === 1 ? "" : "s"} restored · ${session.shots.some((shot) => shot.sourceAvailable === false) ? "reconnect missing originals before high-resolution export." : "original files available on this device."}`,
         );
@@ -820,6 +897,7 @@ export function Studio({
     updateShots,
     storageScope,
     shootId,
+    runImportCull,
   ]);
 
   useEffect(
@@ -900,7 +978,6 @@ export function Studio({
           before.filter === latestFilterRef.current,
       );
       if (cancelled || !mountedRef.current) return;
-      unanalyzedIds.current = current.unanalyzedIds;
       nativeTreatmentIds.current = current.nativeTreatmentIds;
       const old = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
       for (const shot of current.shots) {
@@ -916,9 +993,14 @@ export function Studio({
           previewUrlsRef.current.delete(prior.previewUrl);
         }
       }
-      updateShots(() => current.shots);
+      const merged = current.shots.map((shot) => mergePreservedImportAnalysis(shot, old.get(shot.id)));
+      unanalyzedIds.current = new Set(
+        merged.filter((shot) => !isImportAnalyzed(shot) && !shot.error).map((shot) => shot.id),
+      );
+      updateShots(() => merged);
       selectShot(current.selectedId);
       selectFilter(current.filter);
+      runImportCull();
     })()
       .catch((error) => {
         if (error instanceof CullRefreshSuperseded) catalogRefreshAgain.current = true;
@@ -944,6 +1026,7 @@ export function Studio({
     selectShot,
     selectFilter,
     pauseSaving,
+    runImportCull,
   ]);
 
   useEffect(() => {
@@ -1464,6 +1547,46 @@ export function Studio({
     ].join("\n");
   }, [shots, counts, filter, selected]);
 
+  const sendKeepers = useCallback(async (): Promise<string> => {
+    if (proposalRef.current) {
+      const note = "Apply or discard the preview before sending.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+    if (importingRef.current) {
+      const note = "Wait for import to finish before sending.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+    setBusy("Sending gallery…");
+    try {
+      const gallery = await sendTonightKeepers(
+        latestShotsRef.current,
+        shootTitle.trim() || "Untitled shoot",
+      );
+      const path = tonightGalleryPath(gallery.slug);
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const url = `${origin}${path}`;
+      try {
+        await navigator.clipboard.writeText(`${url} · ${gallery.passcode}`);
+      } catch {
+        /* Clipboard is optional; the note still has the link. */
+      }
+      setBusy(null);
+      const note = `${gallery.keepers} keepers · ${path} · ${gallery.passcode}`;
+      setSyncNote(note);
+      return note;
+    } catch (error) {
+      setBusy(null);
+      const note =
+        error instanceof Error
+          ? error.message
+          : "Gallery was not sent. Originals are unchanged.";
+      setSyncNote(note);
+      return `failed: ${note}`;
+    }
+  }, [shootTitle]);
+
   const executeTool = useCallback(
     async ({ name, args }: ToolCall): Promise<string> => {
       const num = (k: string) =>
@@ -1574,11 +1697,13 @@ export function Studio({
         case "undo_last":
           if (proposalRef.current) return discardProposal();
           return undoLast() ? "restored the previous studio state" : "nothing to undo";
+        case "send_gallery":
+          return await sendKeepers();
         default:
           return "failed: unknown tool";
       }
     },
-    [discardProposal, requestDevelopOutput, selectFilter, selectShot, stageCull, undoLast],
+    [discardProposal, requestDevelopOutput, selectFilter, selectShot, sendKeepers, stageCull, undoLast],
   );
 
   /** Download one validated archive; never flatten folders or overwrite originals. */
@@ -1627,10 +1752,6 @@ export function Studio({
 
   const downloadKeeperPackage = async () => {
     requestDevelopOutput("edited keeper proofs");
-  };
-
-  const sendKeepers = async () => {
-    requestDevelopOutput("finished gallery images");
   };
 
   /* ---------------- keyboard ---------------- */
@@ -1789,6 +1910,7 @@ export function Studio({
     folderAbortRef.current = null;
     setFolderStatus(null);
     importRunRef.current++;
+    importCullRef.current.token += 1;
     importAbortRef.current?.abort();
     importAbortRef.current = null;
     importingRef.current = false;
@@ -2137,9 +2259,7 @@ export function Studio({
                       () => void downloadKeeperPackage(),
                       !counts.keepers,
                     ],
-                    ...(isLocalSingleUserMode
-                      ? [["Send keepers to gallery", () => void sendKeepers(), !counts.keepers]]
-                      : []),
+                    ["Send keepers to gallery", () => void sendKeepers(), !counts.keepers],
                     ["Publish verdicts to Lightroom", () => void pushToLightroom(), !shots.length],
                     [
                       "Download Lightroom plugin",
