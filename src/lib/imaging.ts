@@ -85,6 +85,8 @@ export interface Shot {
     | {
         origin: "lightroom" | "sidecar" | "lens os";
         at: number;
+        /** Scoped canonical photo behind a Cull projection, not a legacy import. */
+        canonical?: { namespace: string; photoId: string } | undefined;
         rating?: number | undefined;
         label?: string | null | undefined;
         caption?: string | undefined;

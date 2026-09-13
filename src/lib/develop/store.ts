@@ -877,8 +877,49 @@ export function developInitialStateFromShot(shot: Shot): z.infer<typeof initialS
     },
   });
 }
+const studioCanonicalReferenceSchema = z
+  .object({ namespace: z.string().min(1).max(8192), photoId: developPhotoIdSchema })
+  .strict();
+
+/** Canonical Cull snapshots are references, while unmarked Studio rows remain legacy imports. */
+export function developPhotosFromStudio(
+  shots: readonly Shot[],
+  library: Pick<DevelopLibrary, "photos" | "documents">,
+  namespace: string,
+): DevelopPhotoInput[] {
+  const photos = new Map(library.photos.map((photo) => [photo.id, photo]));
+  return shots.flatMap((shot) => {
+    if (shot.develop?.canonical === undefined) return [developPhotoFromShot(shot)];
+    const reference = studioCanonicalReferenceSchema.parse(shot.develop.canonical);
+    const photo = photos.get(reference.photoId);
+    const document = Object.hasOwn(library.documents, reference.photoId)
+      ? library.documents[reference.photoId]
+      : undefined;
+    const projectedId =
+      photo?.legacy && photo.id === `studio:${photo.legacy.shotId}`
+        ? photo.legacy.shotId
+        : photo?.id;
+    if (
+      reference.namespace !== namespace ||
+      !photo ||
+      !document ||
+      document.photoId !== photo.id ||
+      shot.id !== projectedId ||
+      (shot.sourceDigest && photo.sourceDigest && shot.sourceDigest !== photo.sourceDigest)
+    )
+      throw new Error(
+        "This saved Cull reference does not match its canonical photo in this shoot. No legacy photos were imported.",
+      );
+    return [];
+  });
+}
+
 /** A restored Studio preview stays a preview; it is never mislabeled as a RAW original. */
 export function developPhotoFromShot(shot: Shot): DevelopPhotoInput {
+  if (shot.develop?.canonical !== undefined)
+    throw new Error(
+      "Resolve this canonical Cull reference in its original shoot before importing.",
+    );
   const sourceBlob = shot.sourceAvailable !== false && shot.file?.size > 0 ? shot.file : null;
   const { file: _file, previewUrl: _previewUrl, previewBlob: _previewBlob, ...metadata } = shot;
   const legacyCrop = shot.edits?.crop ?? "orig";
