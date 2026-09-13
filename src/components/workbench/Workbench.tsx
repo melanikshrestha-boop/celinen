@@ -104,15 +104,17 @@ const StudioController = lazy(() =>
 
 export function WorkbenchBoundary({ children }: { children: ReactNode }) {
   const identity = useAccount();
+  const account = identity?.scope;
+  useEffect(() => {
+    // Import sessions outlive route views, so their account fence must also
+    // cover dashboard, public and setup surfaces outside AccountWorkbench.
+    cancelDevelopImportsOutsideScope(account ?? "signed-out");
+  }, [account]);
   const routeIds = useRouterState({
     select: (state) => state.matches.map((match) => match.routeId),
   });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  if (
-    identity?.status === "in" &&
-    !identity.setupComplete &&
-    isPrivateAppRoute(routeIds, pathname)
-  )
+  if (identity?.status === "in" && !identity.setupComplete && isPrivateAppRoute(routeIds, pathname))
     return <AccountSetup key={identity.scope ?? "setup"} />;
   if (isDashboardAppRoute(routeIds, pathname)) return <AppDashboard>{children}</AppDashboard>;
   if (!isWorkbenchRoute(routeIds)) return children;
@@ -137,9 +139,6 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
   }, [identity?.scope]);
   const navigate = useNavigate();
   const account = identity?.scope;
-  useEffect(() => {
-    cancelDevelopImportsOutsideScope(account ?? "signed-out");
-  }, [account]);
   const [sidebarOpen, setSidebarOpen] = useState(identity?.preferences.sidebarOpen ?? true);
   useEffect(() => {
     setSidebarOpen(identity?.preferences.sidebarOpen ?? true);
