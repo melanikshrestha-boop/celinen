@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { clientState, newDelivery } from "../src/lib/delivery/workflow";
+import { galleryDesignAttributes } from "../src/lib/delivery/gallery-presentation";
 
 // Execute the actual component with local hook state; never mount account/storage
 // effects or install global module mocks that can contaminate the combined suite.
@@ -90,6 +91,7 @@ function fixture(
     messageOf: (error: Error) => error.message,
     dateValue: () => "2026-10-01",
     galleryPresentation: () => ({ studioName: "Synthetic", showLensLabsCredit: false }),
+    galleryDesignAttributes,
     ...Object.fromEntries(
       [...componentSource.matchAll(/<([A-Z][A-Za-z]+)/g)].map((match) => [match[1], match[1]]),
     ),

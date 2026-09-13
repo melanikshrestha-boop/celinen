@@ -34,6 +34,7 @@ import {
   isApproved,
   nextAction,
   selectionsLocked,
+  selectionDeadlinePassed,
   unresolved,
   type Actor,
   type DeliveryCommand,
@@ -45,6 +46,7 @@ import "./delivery.css";
 import { FinalDownloads } from "./FinalDownloads";
 import { currentVersion, messageOf, sizeLabel, type MediaReader } from "./presentation";
 import { useCommentDrafts } from "./useCommentDrafts";
+import { galleryCovers, galleryDesignAttributes } from "@/lib/delivery/gallery-presentation";
 const stamp = (date: string) =>
   new Date(date).toLocaleString(undefined, {
     month: "short",
@@ -80,6 +82,7 @@ export function DeliveryGallery({
   draftScope?: string;
 }) {
   const state = room.state;
+  const covers = galleryCovers(state, actor);
   const [tab, setTab] = useState<"photos" | "feedback" | "activity">("photos");
   const [filter, setFilter] = useState<"all" | "selected" | "changes" | "ready">("all");
   const [activityFilter, setActivityFilter] = useState<DeliveryActivityFilter>("all");
@@ -100,6 +103,16 @@ export function DeliveryGallery({
   const [confirmationIds, setConfirmationIds] = useState<string[]>([]);
   const [confirmation, setConfirmation] = useState<"submit" | "release" | null>(null);
   const [time, setTime] = useState(new Date().toISOString());
+  useEffect(() => {
+    if (!state.selectionDeadline || !(Date.parse(state.selectionDeadline) > Date.parse(time)))
+      return;
+    const delay = Math.max(0, Date.parse(state.selectionDeadline) - Date.now()) + 50;
+    const tick = window.setTimeout(
+      () => setTime(new Date().toISOString()),
+      Math.min(delay, 2147483647),
+    );
+    return () => window.clearTimeout(tick);
+  }, [state.selectionDeadline, time]);
   const mediaRef = useRef(media);
   mediaRef.current = media;
   const photos = state.photos.filter((p) => currentVersion(p, actor)?.ready);
@@ -117,7 +130,11 @@ export function DeliveryGallery({
   const version = photo && displayVersion(photo);
   const requestRevision = !!(version && drafts[version.id]?.revision);
   const visibleIds = [
-    ...new Set([...displayed.map((p) => displayVersion(p)!.id), ...(version ? [version.id] : [])]),
+    ...new Set([
+      ...displayed.map((p) => displayVersion(p)!.id),
+      ...(version ? [version.id] : []),
+      ...covers.map((v) => v.id),
+    ]),
   ];
   const idsKey = visibleIds.join(",");
   const approvedUnreleased = photos
@@ -234,18 +251,45 @@ export function DeliveryGallery({
     if (next) setActive(next.id);
   };
   const countChanges = state.comments.filter((c) => c.revision && !c.resolvedAt).length;
-  const pickAction = actor === "client" && !preview && !selectionsLocked(state);
+  const deadlinePassed = selectionDeadlinePassed(state, time);
+  const pickAction = actor === "client" && !preview && !selectionsLocked(state) && !deadlinePassed;
   const submitted = state.submissions.at(-1);
 
   return (
-    <section className="delivery-gallery">
+    <section className="delivery-gallery" {...galleryDesignAttributes(state)}>
+      {covers.length > 0 && (
+        <div className="delivery-cover" data-cover-count={covers.length} aria-label="Gallery cover">
+          {covers.map((cover) => (
+            <figure key={cover.id}>
+              {urls[cover.id] ? (
+                <img
+                  src={urls[cover.id]}
+                  alt={cover.filename}
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  onError={() =>
+                    setImageError("A cover preview could not load. Refresh the gallery to retry.")
+                  }
+                />
+              ) : (
+                <span className="delivery-image-loading">Preparing cover…</span>
+              )}
+            </figure>
+          ))}
+        </div>
+      )}
+      {actor === "owner" && covers.some((v) => !state.photos.some((p) => p.published === v.id)) && (
+        <p className="delivery-meta">
+          Some cover versions are not published. They remain hidden from clients until published.
+        </p>
+      )}
       <div className="delivery-status" role="status">
         <span className={`delivery-dot ${state.released.length ? "is-ready" : ""}`} />
         <p>{preview ? "Client preview · not a shared gallery" : nextAction(state, actor, time)}</p>
         {!preview && actor === "client" && !selectionsLocked(state) && (
           <button
             className="delivery-primary"
-            disabled={busy || !state.picks.length}
+            disabled={busy || !state.picks.length || deadlinePassed}
             onClick={() => {
               setConfirmationIds([...state.picks]);
               setConfirmation("submit");
@@ -268,6 +312,13 @@ export function DeliveryGallery({
         )}
       </div>
       {state.message && <p className="delivery-welcome">{state.message}</p>}
+      {state.selectionDeadline && (
+        <p className="delivery-meta">
+          Selections due{" "}
+          <time dateTime={state.selectionDeadline}>{stamp(state.selectionDeadline)}</time> ·{" "}
+          {Intl.DateTimeFormat().resolvedOptions().timeZone}
+        </p>
+      )}
       <div className="delivery-toolbar">
         <nav aria-label="Gallery sections" className="delivery-tabs">
           {(["photos", "feedback", "activity"] as const).map((name) => (
@@ -583,6 +634,7 @@ export function DeliveryGallery({
       >
         <DialogContent
           className="delivery-viewer"
+          {...galleryDesignAttributes(state)}
           onKeyDown={(event) => {
             if ((event.target as HTMLElement).closest("input,textarea,select,[contenteditable]"))
               return;
@@ -875,7 +927,7 @@ export function DeliveryGallery({
           if (!open) setConfirmation(null);
         }}
       >
-        <DialogContent className="delivery-confirm">
+        <DialogContent className="delivery-confirm" {...galleryDesignAttributes(state)}>
           <DialogTitle>
             {confirmation === "submit"
               ? "Ready to send your selections?"
@@ -892,7 +944,7 @@ export function DeliveryGallery({
             </button>
             <button
               className="delivery-primary"
-              disabled={busy}
+              disabled={busy || (confirmation === "submit" && deadlinePassed)}
               onClick={async () => {
                 if (
                   await act(

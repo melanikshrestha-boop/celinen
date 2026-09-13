@@ -181,6 +181,7 @@ export async function createRoom(owner: string, input: Parameters<typeof newDeli
       old.state.clientName !== state.clientName ||
       old.state.message !== state.message ||
       old.state.selectionLimit !== state.selectionLimit ||
+      (old.state.selectionDeadline ?? null) !== (state.selectionDeadline ?? null) ||
       old.state.expiresAt !== state.expiresAt ||
       !sameGalleryPresentation(old.state, state)
     )

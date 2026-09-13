@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { galleryPresentationSchema, type GalleryPresentation } from "./gallery-presentation";
+import {
+  galleryPresentationSchema,
+  galleryCovers,
+  validateGalleryCovers,
+  type GalleryPresentation,
+} from "./gallery-presentation";
 import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 
 // Workflow metadata only. Media processing stays in the existing renderer/native pipeline.
@@ -84,6 +89,7 @@ export type DeliveryState = {
   status: "draft" | "live" | "closed";
   expiresAt: string;
   selectionLimit: number;
+  selectionDeadline?: string | null;
   photos: DeliveryPhoto[];
   picks: string[];
   submissions: { id: string; at: string; items: { photoId: string; versionId: string }[] }[];
@@ -101,6 +107,7 @@ export const newDeliveryInput = z
     clientName: z.string().trim().min(1).max(120),
     message: z.string().trim().max(2000),
     selectionLimit: z.number().int().min(1).max(3000),
+    selectionDeadline: z.string().datetime().nullable().optional(),
     expiresAt: z.string().datetime(),
     presentation: galleryPresentationSchema.optional(),
   })
@@ -112,12 +119,23 @@ export function newDelivery(input: z.infer<typeof newDeliveryInput>, now: string
     Date.parse(parsed.expiresAt) > Date.parse(now) + 366 * 86400000
   )
     throw new Error("Choose an expiry within the next year.");
+  // A device draft can finish connecting after its selection window closes.
+  // Preserve that deadline instead of stranding its saved uploads. Client mutations
+  // still fail closed; only an explicit owner extension can reopen the window.
+  if (
+    parsed.selectionDeadline &&
+    Date.parse(parsed.selectionDeadline) > Date.parse(parsed.expiresAt)
+  )
+    throw new Error("The selection deadline must be no later than gallery expiry.");
   return {
     format: 1,
     title: parsed.title,
     clientName: parsed.clientName,
     message: parsed.message,
     selectionLimit: parsed.selectionLimit,
+    ...(parsed.selectionDeadline !== undefined
+      ? { selectionDeadline: parsed.selectionDeadline }
+      : {}),
     expiresAt: parsed.expiresAt,
     status: "draft",
     ...(parsed.presentation ? { presentation: parsed.presentation } : {}),
@@ -133,7 +151,50 @@ export function newDelivery(input: z.infer<typeof newDeliveryInput>, now: string
   };
 }
 
+export const selectionRequestSchema = z
+  .object({
+    selectionLimit: z.number().int().min(1).max(3000),
+    selectionDeadline: z.string().datetime().nullable(),
+  })
+  .strict();
+export type SelectionRequest = z.infer<typeof selectionRequestSchema>;
+export function selectionRequest(
+  state: Pick<DeliveryState, "selectionLimit" | "selectionDeadline">,
+): SelectionRequest {
+  return {
+    selectionLimit: state.selectionLimit,
+    selectionDeadline: state.selectionDeadline ?? null,
+  };
+}
+function validateSelectionDeadline(deadline: string | null, expiresAt: string, now: string) {
+  if (
+    deadline !== null &&
+    (!Number.isFinite(Date.parse(deadline)) ||
+      Date.parse(deadline) <= Date.parse(now) ||
+      Date.parse(deadline) > Date.parse(expiresAt))
+  )
+    throw new Error("Choose a future selection deadline no later than the gallery expiry.");
+}
+export function selectionDeadlinePassed(state: DeliveryState, now: string): boolean {
+  return (
+    state.selectionDeadline != null && !(Date.parse(state.selectionDeadline) > Date.parse(now))
+  );
+}
+export function validateSelectionRequest(
+  state: DeliveryState,
+  input: SelectionRequest,
+  now: string,
+) {
+  const request = selectionRequestSchema.parse(input);
+  if (selectionsLocked(state))
+    throw new Error("Reopen submitted selections before changing the request.");
+  if (request.selectionLimit < state.picks.length)
+    throw new Error("The selection limit cannot be lower than the client's saved picks.");
+  validateSelectionDeadline(request.selectionDeadline, state.expiresAt, now);
+  return request;
+}
 export const commandSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("selectionRequest"), request: selectionRequestSchema }).strict(),
   z.object({ type: z.literal("presentation"), presentation: galleryPresentationSchema }).strict(),
   z.object({ type: z.literal("reserve"), version: versionInput }).strict(),
   z
@@ -169,6 +230,7 @@ export const commandSchema = z.discriminatedUnion("type", [
 export type DeliveryCommand = z.infer<typeof commandSchema>;
 export type Actor = "owner" | "client";
 const ownerCommands = new Set([
+  "selectionRequest",
   "presentation",
   "reserve",
   "publish",
@@ -249,8 +311,14 @@ export function transition(
   const state = structuredClone(before);
   let text = "";
   switch (command.type) {
+    case "selectionRequest": {
+      Object.assign(state, validateSelectionRequest(state, command.request, now));
+      text = "Selection request updated";
+      break;
+    }
     case "presentation":
       state.presentation = galleryPresentationSchema.parse(command.presentation);
+      validateGalleryCovers(state, state.presentation);
       text = "Gallery presentation updated";
       break;
     case "reserve": {
@@ -317,6 +385,10 @@ export function transition(
       break;
     }
     case "pick": {
+      if (selectionDeadlinePassed(state, now))
+        throw new Error(
+          "The selection deadline has passed. Ask your photographer to extend it; saved picks are preserved.",
+        );
       const photo = state.photos.find((p) => p.id === command.photoId);
       if (!photo || !publishedVersion(photo))
         throw new Error("Only published photos can be selected.");
@@ -330,6 +402,10 @@ export function transition(
       break;
     }
     case "submit": {
+      if (selectionDeadlinePassed(state, now))
+        throw new Error(
+          "The selection deadline has passed. Ask your photographer to extend it; saved picks are preserved.",
+        );
       if (selectionsLocked(state)) throw new Error("Selections are already submitted.");
       if (
         new Set(command.photoIds).size !== command.photoIds.length ||
@@ -462,6 +538,10 @@ export function nextAction(state: DeliveryState, actor: Actor, now: string): str
   if (state.status === "closed" || Date.parse(state.expiresAt) <= Date.parse(now))
     return "Gallery closed";
   if (state.status === "draft") return "Review your photos, then publish the gallery";
+  if (!selectionsLocked(state) && selectionDeadlinePassed(state, now))
+    return actor === "owner"
+      ? "Selection deadline passed · saved picks are preserved"
+      : "Selection deadline passed · ask your photographer for an extension";
   if (!selectionsLocked(state))
     return actor === "owner"
       ? "Waiting for the client’s selections"
@@ -517,6 +597,17 @@ export function clientState(state: DeliveryState): DeliveryState {
   );
   return {
     ...state,
+    ...(state.presentation?.design
+      ? {
+          presentation: {
+            ...state.presentation,
+            design: {
+              ...state.presentation.design,
+              coverVersionIds: galleryCovers(state, "client").map((v) => v.id),
+            },
+          },
+        }
+      : {}),
     photos: visible,
     receipts: [],
     events: state.events.filter(

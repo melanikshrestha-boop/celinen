@@ -15,7 +15,8 @@ export function activityCategory(event: DeliveryEvent): DeliveryActivityCategory
     event.text === "Photo selected" ||
     event.text === "Photo deselected" ||
     event.text.endsWith(" selections submitted") ||
-    event.text === "Selections reopened"
+    event.text === "Selections reopened" ||
+    event.text === "Selection request updated"
   )
     return "selections";
   if (

@@ -8,7 +8,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { DeliveryGallery } from "./DeliveryGallery";
 import { ClientGalleryHeader, ClientGalleryFooter } from "./ClientGalleryIdentity";
 import { GalleryPresentationForm } from "./GalleryPresentationForm";
-import { galleryPresentation, type GalleryPresentation } from "@/lib/delivery/gallery-presentation";
+import { SelectionRequestForm } from "./SelectionRequestForm";
+import {
+  galleryPresentation,
+  galleryDesignAttributes,
+  type GalleryPresentation,
+} from "@/lib/delivery/gallery-presentation";
 import { NewGalleryFields } from "./NewGalleryFields";
 import {
   copyGalleryText,
@@ -22,6 +27,8 @@ import { prepareStudioHandoff, saveStudioHandoff } from "@/lib/delivery/studio-h
 import { messageOf, type MediaReader } from "./presentation";
 import {
   clientState,
+  selectionRequest,
+  type SelectionRequest,
   type DeliveryCommand,
   type DeliveryPhoto,
   type DeliveryVersion,
@@ -43,6 +50,7 @@ import {
   prepareUpload,
   saveDraft,
   saveDraftPresentation,
+  saveDraftSelectionRequest,
   uploadJob,
   type Draft,
   type UploadJob,
@@ -181,6 +189,7 @@ function AccountDeliveryWorkspace({
   const [copied, setCopied] = useState(false);
   const [invitationCopied, setInvitationCopied] = useState(false);
   const [presentationDirty, setPresentationDirty] = useState(false);
+  const [requestDirty, setRequestDirty] = useState(false);
   useEffect(() => {
     setCopied(false);
     setInvitationCopied(false);
@@ -197,7 +206,7 @@ function AccountDeliveryWorkspace({
       ? "Delivery preparation or upload is in progress. Leaving may interrupt it; already prepared files remain available to retry."
       : unsentFeedback
         ? "Your unsent photo comments will be discarded."
-        : presentationDirty || (newOpen && newFormDirty)
+        : presentationDirty || requestDirty || (newOpen && newFormDirty)
           ? "Your unsaved gallery details will be discarded."
           : null,
   );
@@ -425,6 +434,32 @@ function AccountDeliveryWorkspace({
       ensureActive();
       setRoom((old) =>
         old?.id === updated.id ? { ...old, state: { ...old.state, presentation } } : old,
+      );
+      setDrafts(await listDrafts(ownerId));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const saveSelectionRequest = async (request: SelectionRequest) => {
+    ensureActive();
+    if (!room) throw new Error("Open a gallery first.");
+    if (!local) {
+      await run({ type: "selectionRequest", request });
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await saveDraftSelectionRequest(
+        room.id,
+        ownerId,
+        selectionRequest(room.state),
+        request,
+      );
+      ensureActive();
+      setRoom((old) =>
+        old?.id === updated.id
+          ? { ...old, state: { ...old.state, ...selectionRequest(updated.state) } }
+          : old,
       );
       setDrafts(await listDrafts(ownerId));
     } finally {
@@ -696,6 +731,7 @@ function AccountDeliveryWorkspace({
     !preparing &&
     !unsentFeedback &&
     !presentationDirty &&
+    !requestDirty &&
     !activeId.current;
   useEffect(() => {
     if (!emptyWorkspace || !modernLoaded || legacyChecked || error) return;
@@ -1014,6 +1050,11 @@ function AccountDeliveryWorkspace({
                 setError("");
                 const form = new FormData(e.currentTarget);
                 try {
+                  if (
+                    form.get("selectionDeadline") &&
+                    !(Date.parse(String(form.get("selectionDeadline"))) > Date.now())
+                  )
+                    throw new Error("Choose a future selection deadline, or leave it empty.");
                   const draft = await createDraft(
                     {
                       id: pendingCreateId.current,
@@ -1022,6 +1063,13 @@ function AccountDeliveryWorkspace({
                       message: String(form.get("message")),
                       selectionLimit: Number(form.get("limit")),
                       expiresAt: new Date(`${form.get("expires")}T23:59:59`).toISOString(),
+                      ...(form.get("selectionDeadline")
+                        ? {
+                            selectionDeadline: new Date(
+                              String(form.get("selectionDeadline")),
+                            ).toISOString(),
+                          }
+                        : {}),
                     },
                     ownerId,
                   );
@@ -1110,7 +1158,10 @@ function AccountDeliveryWorkspace({
               require the published private link.
             </DialogDescription>
             {previewRoom && (
-              <>
+              <div
+                className="delivery-client-preview"
+                {...galleryDesignAttributes(previewRoom.state)}
+              >
                 <ClientGalleryHeader state={previewRoom.state} />
                 <DeliveryGallery
                   room={previewRoom}
@@ -1123,7 +1174,7 @@ function AccountDeliveryWorkspace({
                   localUrls={local ? localUrls : undefined}
                 />
                 <ClientGalleryFooter state={previewRoom.state} preview />
-              </>
+              </div>
             )}
           </DialogContent>
         </Dialog>
@@ -1288,8 +1339,8 @@ function AccountDeliveryWorkspace({
           onOpenChange={(open) => {
             if (
               !open &&
-              presentationDirty &&
-              !window.confirm("Discard unsaved presentation changes?")
+              (presentationDirty || requestDirty) &&
+              !window.confirm("Discard unsaved gallery settings?")
             )
               return;
             setSettings(open);
@@ -1302,6 +1353,15 @@ function AccountDeliveryWorkspace({
                 ? "This is a device-local draft. No client link or shared activity exists yet."
                 : "Your client’s selection, each approval, and every final release remain separate."}
             </DialogDescription>
+            {room && (
+              <SelectionRequestForm
+                key={`selection-${room.id}`}
+                state={room.state}
+                busy={busy || !!preparing}
+                save={saveSelectionRequest}
+                onDirty={setRequestDirty}
+              />
+            )}
             {room && (
               <GalleryPresentationForm
                 key={room.id}

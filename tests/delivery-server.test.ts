@@ -267,6 +267,7 @@ describe("private delivery server boundaries with an isolated fake Supabase tran
     for (const patch of [
       { message: "Different" },
       { selectionLimit: 3 },
+      { selectionDeadline: new Date(Date.now() + 3600000).toISOString() },
       { expiresAt: new Date(Date.now() + 172800000).toISOString() },
     ])
       await expect(createRoom(owner, { ...input, ...patch })).rejects.toThrow("different details");
@@ -343,6 +344,37 @@ describe("private delivery server boundaries with an isolated fake Supabase tran
     await expect(
       act(r.id, null, r.token, saved.revision, op, { ...cmd, body: "Changed" }),
     ).rejects.toThrow("conflict");
+  });
+  test("selection requests are owner-only and the server clock enforces the cutoff", async () => {
+    const r = await liveRoom();
+    const command: DeliveryCommand = {
+      type: "selectionRequest",
+      request: {
+        selectionLimit: 2,
+        selectionDeadline: new Date(Date.now() + 3600000).toISOString(),
+      },
+    };
+    await expect(clientAct(r.id, r.token, command)).rejects.toThrow("photographer");
+    await expect(act(r.id, other, "", rows.get(r.id)!.revision, uid(), command)).rejects.toThrow(
+      "unavailable",
+    );
+    const saved = await ownerAct(r.id, command);
+    expect((await openRoom(r.id, null, r.token)).state.selectionDeadline).toBe(
+      saved.state.selectionDeadline,
+    );
+    await clientAct(r.id, r.token, { type: "pick", photoId: r.v.photoId, on: true });
+    // Advancing only fixture metadata avoids global timers or any real gallery writes.
+    rows.get(r.id)!.state.selectionDeadline = new Date(Date.now() - 1).toISOString();
+    const revision = rows.get(r.id)!.revision;
+    await expect(
+      clientAct(r.id, r.token, { type: "submit", photoIds: [r.v.photoId] }),
+    ).rejects.toThrow("deadline has passed");
+    await expect(
+      clientAct(r.id, r.token, { type: "pick", photoId: r.v.photoId, on: false }),
+    ).rejects.toThrow("deadline has passed");
+    expect(rows.get(r.id)!.revision).toBe(revision);
+    expect(rows.get(r.id)!.state.picks).toEqual([r.v.photoId]);
+    expect(await signedMedia(r.id, null, r.token, [r.v.id], "proof")).toHaveLength(1);
   });
   test("verified browser handoff activity survives a stale revision retry exactly once", async () => {
     const r = await liveRoom();

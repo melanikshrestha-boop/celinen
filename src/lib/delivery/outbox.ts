@@ -7,6 +7,9 @@ import {
   versionInput,
   variantNames,
   safeDeliveryFilename,
+  selectionRequest,
+  validateSelectionRequest,
+  type SelectionRequest,
   type DeliveryState,
   type VersionInput,
   type VariantName,
@@ -102,7 +105,11 @@ async function put(store: "drafts" | "uploads", value: Draft | UploadJob) {
               ? {
                   ...next,
                   connecting: previous.connecting || next.connecting,
-                  state: { ...next.state, presentation: previous.state.presentation },
+                  state: {
+                    ...next.state,
+                    presentation: previous.state.presentation,
+                    ...selectionRequest(previous.state),
+                  },
                 }
               : next,
           );
@@ -153,6 +160,51 @@ export async function saveDraftPresentation(
   }
 }
 export const saveJob = (job: UploadJob) => put("uploads", job);
+/** Settings-only transaction: never overwrite an upload, pick or another tab's request. */
+export async function saveDraftSelectionRequest(
+  id: string,
+  ownerId: string | null,
+  expected: SelectionRequest,
+  input: SelectionRequest,
+): Promise<Draft> {
+  const db = await open();
+  try {
+    return await new Promise<Draft>((resolve, reject) => {
+      const tx = db.transaction("drafts", "readwrite");
+      let updated: Draft;
+      let failure = "Selection request could not be saved. Your gallery is unchanged.";
+      tx.oncomplete = () => resolve(updated);
+      tx.onerror = tx.onabort = () => reject(new Error(failure));
+      const records = tx.objectStore("drafts");
+      const read = records.get(id);
+      read.onsuccess = () => {
+        const draft = read.result as Draft | undefined;
+        if (!draft || draft.ownerId !== ownerId || draft.synced || draft.connecting) {
+          failure =
+            "This draft is connecting or belongs to another account. Reopen the matching gallery before saving.";
+          tx.abort();
+          return;
+        }
+        if (JSON.stringify(selectionRequest(draft.state)) !== JSON.stringify(expected)) {
+          failure =
+            "The selection request changed in another tab. Reopen this gallery before saving.";
+          tx.abort();
+          return;
+        }
+        try {
+          const request = validateSelectionRequest(draft.state, input, new Date().toISOString());
+          updated = { ...draft, state: { ...draft.state, ...request } };
+          records.put(updated);
+        } catch (error) {
+          failure = error instanceof Error ? error.message : failure;
+          tx.abort();
+        }
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
 export async function listDrafts(ownerId: string | null): Promise<Draft[]> {
   const db = await open();
   try {
@@ -201,6 +253,7 @@ export async function createDraft(
       existing.state.message !== state.message ||
       existing.state.expiresAt !== state.expiresAt ||
       existing.state.selectionLimit !== state.selectionLimit ||
+      (existing.state.selectionDeadline ?? null) !== (state.selectionDeadline ?? null) ||
       !sameGalleryPresentation(existing.state, state)
     )
       throw new Error(
@@ -409,6 +462,9 @@ export async function connectDraft(draft: Draft, ownerId: string, ensureActive: 
       message: draft.state.message,
       expiresAt: draft.state.expiresAt,
       selectionLimit: draft.state.selectionLimit,
+      ...(draft.state.selectionDeadline !== undefined
+        ? { selectionDeadline: draft.state.selectionDeadline }
+        : {}),
       presentation: draft.state.presentation,
     },
   });

@@ -51,6 +51,10 @@ export function NewGalleryFields({
           </label>
         </div>
         <label>
+          Selection deadline (optional, your local time)
+          <input name="selectionDeadline" type="datetime-local" />
+        </label>
+        <label>
           A note from you (optional)
           <textarea
             name="message"

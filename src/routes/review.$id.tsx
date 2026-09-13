@@ -16,6 +16,7 @@ import type { DeliveryCommand } from "@/lib/delivery/workflow";
 import type { RoomView } from "@/lib/delivery/remote.server";
 import { invitationGeneration } from "@/lib/delivery/experience";
 import { commentDraftScope } from "@/lib/delivery/comment-drafts";
+import { galleryDesignAttributes } from "@/lib/delivery/gallery-presentation";
 
 export const Route = createFileRoute("/review/$id")({
   head: () => ({
@@ -155,7 +156,7 @@ function ClientDelivery({ id }: { id: string }) {
     );
   const draftScope = commentDraftScope(id, invitationGeneration(room.state));
   return (
-    <main className="delivery-client">
+    <main className="delivery-client" {...galleryDesignAttributes(room.state)}>
       <ClientGalleryHeader state={room.state} />
       {error && (
         <p className="delivery-error" role="alert">
