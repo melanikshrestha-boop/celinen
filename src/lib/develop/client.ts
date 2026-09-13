@@ -146,7 +146,8 @@ export async function renderDevelop(
   // pick up a newer recipe, source mode, or signal while waiting for a worker.
   const { edge, quality, sourceMode = "preview", signal } = options;
   signal?.throwIfAborted();
-  const body = encodeDevelopRequest(source, settings, edge, quality, sourceMode);
+  const recipe = developSettingsSchema.parse(settings);
+  const body = encodeDevelopRequest(source, recipe, edge, quality, sourceMode);
   return admissionQueue.run(
     {
       raw: sourceMode === "raw",
@@ -177,7 +178,7 @@ export async function renderDevelop(
         if ((edge ?? DEVELOP_ENGINE_LIMITS.previewEdge) > status.maxEdge)
           throw new Error("Rebuild the local C++ engine to enable this larger export size.");
         if (status.engine === BROWSER_DEVELOP_ENGINE)
-          return renderDevelopInBrowser(source, developSettingsSchema.parse(settings), {
+          return renderDevelopInBrowser(source, recipe, {
             edge: edge ?? DEVELOP_ENGINE_LIMITS.previewEdge,
             quality: quality ?? 0.9,
             ...(signal ? { signal } : {}),

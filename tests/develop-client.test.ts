@@ -144,6 +144,85 @@ describe("Develop high-resolution capability gate", () => {
   });
 });
 
+describe("Hosted Develop queued recipe ownership", () => {
+  test.each(["supported exposure", "unsupported curve"])(
+    "a queued render keeps its admitted recipe after a caller changes %s",
+    async (change) => {
+      const previousBitmap = Object.getOwnPropertyDescriptor(globalThis, "createImageBitmap");
+      const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+      Object.defineProperty(globalThis, "window", {
+        value: { location: { hostname: "lenslab.dev" } },
+        configurable: true,
+      });
+      let decodeCalls = 0;
+      const release: (() => void)[] = [];
+      let bothActive!: () => void;
+      const active = new Promise<void>((resolve) => {
+        bothActive = resolve;
+      });
+      Object.defineProperty(globalThis, "createImageBitmap", {
+        configurable: true,
+        value: async () => {
+          decodeCalls++;
+          if (decodeCalls <= 2) {
+            await new Promise<void>((resolve) => {
+              release.push(resolve);
+              if (release.length === 2) bothActive();
+            });
+          }
+          return { width: 1, height: 1, close: () => {} };
+        },
+      });
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: {
+          createElement: () => {
+            const pixels = new Uint8ClampedArray([128, 128, 128, 255]);
+            return {
+              width: 1,
+              height: 1,
+              getContext: () => ({
+                drawImage: () => {},
+                getImageData: () => ({ data: pixels }),
+                putImageData: () => {},
+              }),
+              toBlob: (done: (blob: Blob) => void) =>
+                done(new Blob([pixels], { type: "image/jpeg" })),
+            };
+          },
+        },
+      });
+      const pending: Promise<Blob>[] = [];
+      try {
+        // Hold both admitted raster lanes in decoding so the third recipe must wait.
+        pending.push(renderDevelop(source), renderDevelop(source));
+        await active;
+        const settings = defaultDevelopSettings();
+        pending.push(renderDevelop(source, settings));
+        if (change === "supported exposure") settings.exposure = 1;
+        else settings.curve[0]!.y = 0.5;
+        const callerRecipe = JSON.stringify(settings);
+        expect(decodeCalls).toBe(2);
+        for (const finish of release) finish();
+        const results = await Promise.all(pending);
+        expect(new Uint8Array(await results[2]!.arrayBuffer())).toEqual(
+          Uint8Array.of(128, 128, 128, 255),
+        );
+        expect(JSON.stringify(settings)).toBe(callerRecipe);
+        expect(decodeCalls).toBe(3);
+        expect(renderCalls).toHaveLength(0);
+      } finally {
+        for (const finish of release) finish();
+        await Promise.allSettled(pending);
+        if (previousBitmap) Object.defineProperty(globalThis, "createImageBitmap", previousBitmap);
+        else Reflect.deleteProperty(globalThis, "createImageBitmap");
+        if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument);
+        else Reflect.deleteProperty(globalThis, "document");
+      }
+    },
+  );
+});
+
 describe("Develop busy-worker retry", () => {
   test("a newly available worker is retried after 100ms instead of an unconditional half-second", async () => {
     await withImmediateRetryClock(async (waits) => {
