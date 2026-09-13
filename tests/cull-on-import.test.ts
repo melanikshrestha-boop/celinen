@@ -95,6 +95,40 @@ describe("cull on import", () => {
     expect(merged.verdict).toBe("reject");
   });
 
+  test("catalog reload never rebinds old analysis after reconnect or across photos and namespaces", () => {
+    const canonical = { namespace: "synthetic-owner/shoot", photoId: "a" };
+    const prior = shot("a", {
+      sourceDigest: undefined,
+      develop: { origin: "lens os", at: 0, canonical },
+    });
+    const projected = shot("a", {
+      hash: "",
+      score: 0,
+      sourceDigest: "verified-source",
+      develop: prior.develop,
+    });
+    expect(mergePreservedImportAnalysis(projected, prior)).toBe(projected);
+    const bound = { ...prior, sourceDigest: "verified-source" };
+    for (const wrong of [
+      { ...bound, id: "b" },
+      { ...bound, sourceDigest: "different-source" },
+      {
+        ...bound,
+        develop: {
+          ...bound.develop!,
+          canonical: { ...canonical, namespace: "another-owner/shoot" },
+        },
+      },
+      {
+        ...bound,
+        develop: { ...bound.develop!, canonical: { ...canonical, photoId: "another-copy" } },
+      },
+      { ...bound, develop: undefined },
+    ])
+      expect(mergePreservedImportAnalysis(projected, wrong)).toBe(projected);
+    expect(mergePreservedImportAnalysis(projected, bound).hash).toBe(bound.hash);
+  });
+
   test("flagImportDuplicates does not mutate the input array or files", () => {
     const a = shot("a", { score: 90, hash: "1".repeat(64) });
     const b = shot("b", { score: 40, hash: "1".repeat(62) + "00" });

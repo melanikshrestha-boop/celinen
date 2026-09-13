@@ -144,11 +144,13 @@ async function runFixture(scenario: number) {
       await import("../src/lib/develop/photo-management"),
       await import("../src/lib/develop/preset-package"),
       await import("../src/lib/develop/contract"),
+      await import("../src/lib/develop/analysis"),
     );
     const source = readFileSync(new URL("../src/lib/develop/store.ts", import.meta.url), "utf8");
     const compiled = new Bun.Transpiler({ loader: "ts", target: "browser" })
       .transformSync(source.replace(/import\.meta\.hot/g, "hot"))
       .replace(/^import[\s\S]*?from\s+["'][^"']+["'];\s*/gm, "")
+      .replace(/^export\s*\{[^}]*\}\s*from\s+["'][^"']+["'];\s*/gm, "")
       .replace(/^export\s+(?=(?:async\s+)?function|const|class)/gm, "");
     const bindingNames = Object.keys(bindings).filter((name) => name !== "default");
     const evaluate = new Function(

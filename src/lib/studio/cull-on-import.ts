@@ -67,6 +67,15 @@ export function attachImportAnalysis(shot: Shot, result: ImportAnalysisReceipt):
  */
 export function mergePreservedImportAnalysis(projected: Shot, prior?: Shot): Shot {
   if (!prior || !isImportAnalyzed(prior) || isImportAnalyzed(projected)) return projected;
+  const before = prior.develop?.canonical;
+  const after = projected.develop?.canonical;
+  if (
+    prior.id !== projected.id ||
+    (prior.sourceDigest ?? null) !== (projected.sourceDigest ?? null) ||
+    before?.namespace !== after?.namespace ||
+    before?.photoId !== after?.photoId
+  )
+    return projected;
   return {
     ...projected,
     sharpness: prior.sharpness,

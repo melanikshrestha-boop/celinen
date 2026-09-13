@@ -146,15 +146,29 @@ describe("native burst framing", () => {
   test("people protocol never names anyone and requires 512-d embeddings", () => {
     const embedding = Array.from({ length: 512 }, (_, i) => (i === 0 ? 1 : 0));
     const output = peopleProtocol({
-      faces: [{ id: "obs-a", frameId: "frame-a", source: "local-descriptor", detScore: 0.5, embedding }],
+      faces: [
+        { id: "obs-a", frameId: "frame-a", source: "local-descriptor", detScore: 0.5, embedding },
+      ],
     });
     expect(output).toStartWith("LENSPPL1 1\n");
     expect(output).toContain("local-descriptor");
     expect(output).not.toContain("Jane");
-    expect(() => peopleProtocol({ faces: [{ id: "obs-a", frameId: "frame-a", source: "buffalo", detScore: 0.5, embedding }] })).toThrow();
     expect(() =>
       peopleProtocol({
-        faces: [{ id: "obs-a", frameId: "frame-a", source: "insightface", detScore: 0.5, embedding: [1, 0] }],
+        faces: [{ id: "obs-a", frameId: "frame-a", source: "buffalo", detScore: 0.5, embedding }],
+      }),
+    ).toThrow();
+    expect(() =>
+      peopleProtocol({
+        faces: [
+          {
+            id: "obs-a",
+            frameId: "frame-a",
+            source: "insightface",
+            detScore: 0.5,
+            embedding: [1, 0],
+          },
+        ],
       }),
     ).toThrow();
   });
@@ -557,6 +571,58 @@ describe.skipIf(!hasNative)("local HTTP bridge", () => {
       });
     });
     expect(status).toBe(413);
+  });
+  test("reserves before upload, consumes the token once, and enforces admission authorization", async () => {
+    const reserve = () =>
+      fetch(origin + "/__native/admission", {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: "{}",
+      });
+    expect(
+      (await fetch(origin + "/__native/admission", { method: "POST", body: "{}" })).status,
+    ).toBe(403);
+    expect(
+      (
+        await fetch(origin + "/__native/admission", {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json" },
+          body: '{"path":"/etc/passwd"}',
+        })
+      ).status,
+    ).toBe(400);
+    const response = await reserve();
+    expect(response.status).toBe(200);
+    const { admission } = (await response.json()) as { admission: string };
+    expect(admission).toMatch(/^[a-f0-9]{48}$/);
+    const bytes = await readFile(resolve("tests/fixtures/photos/basketball-action-usaf-pd.jpg"));
+    const upload = () =>
+      fetch(origin + "/__native/analyze", {
+        method: "POST",
+        headers: {
+          ...auth,
+          "content-type": "application/octet-stream",
+          "x-lenslabs-admission": admission,
+        },
+        body: bytes,
+      });
+    expect((await upload()).status).toBe(200);
+    expect((await upload()).status).toBe(410);
+    // An invalid image still releases its claimed lane for the next reservation.
+    const invalid = (await (await reserve()).json()) as { admission: string };
+    expect(
+      (
+        await fetch(origin + "/__native/analyze", {
+          method: "POST",
+          headers: {
+            ...auth,
+            "content-type": "application/octet-stream",
+            "x-lenslabs-admission": invalid.admission,
+          },
+          body: "not an image",
+        })
+      ).status,
+    ).toBe(422);
   });
   test("only uploaded bytes are processed, client paths ignored, repeated content is cached", async () => {
     const bytes = await readFile(good);

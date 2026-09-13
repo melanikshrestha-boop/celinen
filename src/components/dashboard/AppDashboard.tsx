@@ -23,6 +23,14 @@ import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
 import { onHapticPress } from "@/lib/haptic-press";
 import { PRODUCT_NAME } from "@/lib/product";
+import { getDevelopImportSession } from "@/lib/develop/import-session";
+import { supportedPhoto } from "@/lib/studio/ingest";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { dashboardGreetingFor } from "@/lib/photographer-work-roles";
 import { destinationPathFor } from "@/lib/workspace-routing";
 import { buildSocialPost, isPostIntent, writeSocialDraft } from "@/lib/social-post";
@@ -35,7 +43,12 @@ import "./social-accounts.css";
 const HOME_ACTIONS = [
   { label: "Open Pick", to: "/studio", icon: Aperture },
   { label: "Send a gallery", to: "/deliver", icon: Images },
-  { label: "Open calendar", to: "/dashboard", icon: CalendarDays, search: { view: "calendar" as const } },
+  {
+    label: "Open calendar",
+    to: "/dashboard",
+    icon: CalendarDays,
+    search: { view: "calendar" as const },
+  },
   { label: "Post", to: "/publish", icon: Share2 },
 ] as const;
 
@@ -99,7 +112,10 @@ function titleFrom(text: string) {
 function replyFor(text: string) {
   if (isPostIntent(text)) {
     writeSocialDraft(buildSocialPost({ idea: text }));
-    return { text: "Drafted the caption. Review it on Social, then post from a connected account.", href: "/publish" };
+    return {
+      text: "Drafted the caption. Review it on Social, then post from a connected account.",
+      href: "/publish",
+    };
   }
   const path = destinationPathFor(text);
   if (path === "/publish") {
@@ -245,6 +261,34 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   const loading = !account || account.status === "loading" || account.status === "out";
   const scope = account?.scope;
+  const photoPicker = useRef<HTMLInputElement>(null);
+  const folderPicker = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importing = useRef(false);
+  function importPhotos(input: File[] | DataTransfer) {
+    if (!scope || loading || importing.current) return;
+    if (Array.isArray(input) && !input.some(supportedPhoto)) {
+      if (input.length) setImportError("No supported photos in this selection.");
+      return;
+    }
+    setImportError(null);
+    const shoot = crypto.randomUUID();
+    const session = getDevelopImportSession({ scope, libraryId: `shoot:${shoot}` });
+    try {
+      // Capture drop handles synchronously. The session survives route changes.
+      const job = Array.isArray(input) ? session.startFiles(input) : session.startDrop(input);
+      importing.current = true;
+      void job
+        .catch((error) => setImportError(error instanceof Error ? error.message : "Import paused."))
+        .finally(() => {
+          importing.current = false;
+        });
+      void navigate({ to: "/studio", search: { shoot } });
+    } catch (error) {
+      importing.current = false;
+      setImportError(error instanceof Error ? error.message : "Import could not start.");
+    }
+  }
 
   useEffect(() => {
     if (!scope) return;
@@ -308,7 +352,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     if (reply.href) {
       const href = reply.href;
       window.setTimeout(() => {
-        if (href === "/dashboard") void navigate({ to: "/dashboard", search: { view: "calendar" } });
+        if (href === "/dashboard")
+          void navigate({ to: "/dashboard", search: { view: "calendar" } });
         else if (href === "/publish") void navigate({ to: "/publish" });
         else void navigate({ to: href as "/studio" });
       }, 280);
@@ -321,241 +366,292 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   return (
     <DashboardContext.Provider value={true}>
-    <div
-      className={`celinen-dash${visual === "mini" ? " is-mini" : ""}${liveWidth != null ? " is-resizing" : ""}`}
-      style={{ ["--rail" as string]: `${shown}px` }}
-      onPointerDown={onHapticPress}
-    >
-      <aside className="celinen-dash__rail">
-        <div className="celinen-dash__top">
-          {mobile ? (
-            <Link to="/dashboard" className="celinen-dash__brand" aria-label="Home">
-              <LogoMark size={28} />
-            </Link>
-          ) : visual === "mini" ? (
-            <button
-              type="button"
-              className="celinen-dash__brand"
-              aria-label="Expand sidebar"
-              onClick={() => setRail("open")}
-            >
-              <LogoMark size={28} />
-            </button>
-          ) : (
-            <>
-              <Link to="/dashboard" className="celinen-dash__brand">
+      <div
+        className={`celinen-dash${visual === "mini" ? " is-mini" : ""}${liveWidth != null ? " is-resizing" : ""}`}
+        style={{ ["--rail" as string]: `${shown}px` }}
+        onPointerDown={onHapticPress}
+      >
+        <aside className="celinen-dash__rail">
+          <div className="celinen-dash__top">
+            {mobile ? (
+              <Link to="/dashboard" className="celinen-dash__brand" aria-label="Home">
                 <LogoMark size={28} />
-                <span>{PRODUCT_NAME}</span>
               </Link>
+            ) : visual === "mini" ? (
               <button
                 type="button"
-                className="celinen-dash__close"
-                aria-label="Minimize sidebar"
-                onClick={() => setRail("mini")}
+                className="celinen-dash__brand"
+                aria-label="Expand sidebar"
+                onClick={() => setRail("open")}
               >
-                <PanelLeft size={18} strokeWidth={1.5} />
+                <LogoMark size={28} />
               </button>
-            </>
-          )}
-        </div>
-        <nav className="celinen-dash__nav" aria-label="Dashboard">
-          {MAIN.map((item) => {
-            const calendar = "view" in item;
-            const on = calendar
-              ? calendarOpen
-              : "end" in item && item.end
-                ? pathname === "/dashboard" && !calendarOpen
-                : pathname === item.to || pathname.startsWith(`${item.to}/`);
-            return (
-              <Link
-                key={item.label}
-                to={item.to}
-                title={item.label}
-                aria-label={item.label}
-                search={calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined}
-                activeOptions={"end" in item || calendar ? { exact: true } : undefined}
-                className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
-                activeProps={{
-                  className:
-                    "end" in item && item.end && calendarOpen
-                      ? "celinen-dash__link"
-                      : "celinen-dash__link is-active",
-                }}
-              >
-                <span className="celinen-dash__ico" aria-hidden="true">
-                  <item.icon size={20} strokeWidth={1.5} />
-                </span>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="celinen-dash__foot">
-          <Link
-            to="/pricing"
-            title="Upgrade"
-            aria-label="Upgrade"
-            className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
-          >
-            <span className="celinen-dash__ico" aria-hidden="true">
-              <Sparkles size={20} strokeWidth={1.5} />
-            </span>
-            <span>Upgrade</span>
-          </Link>
-          <div className="celinen-dash__social">
-            <SocialDock mini={visual === "mini"} />
-          </div>
-          <div className="celinen-dash__account">
-            <AccountMenu />
-          </div>
-        </div>
-      </aside>
-      {!mobile && <div
-        className="celinen-dash__resize"
-        data-no-press
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize sidebar"
-        aria-valuenow={shown}
-        aria-valuemin={MINI_W}
-        aria-valuemax={MAX_OPEN}
-        onPointerDown={onResizeDown}
-        onPointerMove={onResizeMove}
-        onPointerUp={onResizeUp}
-        onPointerCancel={onResizeUp}
-        onLostPointerCapture={onResizeUp}
-        onDoubleClick={() => setRail(visual === "mini" ? "open" : "mini")}
-      />}
-      <main
-        className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? " is-cal" : " is-chat"}`}
-      >
-        {account && account.status === "in" ? (
-          <div className="celinen-dash__theme" role="group" aria-label="Appearance">
-            <button
-              type="button"
-              aria-label="Light"
-              aria-pressed={account.preferences.theme === "light"}
-              onClick={() => account.savePreferences({ theme: "light" })}
-            >
-              <Sun size={14} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-label="Dark"
-              aria-pressed={account.preferences.theme === "dark"}
-              onClick={() => account.savePreferences({ theme: "dark" })}
-            >
-              <Moon size={14} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-          </div>
-        ) : null}
-        {loading ? (
-          <div className="celinen-dash__loading">
-            <span className="celinen-dash__spinner" aria-hidden="true" />
-            <p>Loading your workspace…</p>
-          </div>
-        ) : children ? (
-          children
-        ) : calendarOpen ? (
-          <IosCalendar />
-        ) : (
-          <div
-            className={`social-post${active?.messages.length ? " has-thread" : ""}`}
-            onPointerDown={onHapticPress}
-          >
-            <div className="social-post__stage">
-              {active?.messages.length ? (
-                <div className="celinen-dash__thread">
-                  {active.messages.map((message) => (
-                    <p key={message.id} data-role={message.role}>
-                      {message.text}
-                    </p>
-                  ))}
-                  <div ref={end} />
-                </div>
-              ) : (
-                <div className="social-post__hero">
-                  <h1>{dashboardGreetingFor(account?.workRole)}</h1>
-                </div>
-              )}
-              <form
-                className="social-post__composer celinen-dash__composer"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  send();
-                }}
-              >
+            ) : (
+              <>
+                <Link to="/dashboard" className="celinen-dash__brand">
+                  <LogoMark size={28} />
+                  <span>{PRODUCT_NAME}</span>
+                </Link>
                 <button
                   type="button"
-                  className="celinen-dash__plus"
-                  aria-label="Open Pick"
-                  onClick={() => void navigate({ to: "/studio" })}
+                  className="celinen-dash__close"
+                  aria-label="Minimize sidebar"
+                  onClick={() => setRail("mini")}
                 >
-                  <Plus size={20} strokeWidth={1.8} />
+                  <PanelLeft size={18} strokeWidth={1.5} />
                 </button>
-                <textarea
-                  ref={box}
-                  rows={1}
-                  value={draft}
-                  placeholder={`Ask ${PRODUCT_NAME}`}
-                  onChange={(event) => {
-                    setDraft(event.target.value);
-                    const el = event.currentTarget;
-                    el.style.height = "auto";
-                    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              </>
+            )}
+          </div>
+          <nav className="celinen-dash__nav" aria-label="Dashboard">
+            {MAIN.map((item) => {
+              const calendar = "view" in item;
+              const on = calendar
+                ? calendarOpen
+                : "end" in item && item.end
+                  ? pathname === "/dashboard" && !calendarOpen
+                  : pathname === item.to || pathname.startsWith(`${item.to}/`);
+              return (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  title={item.label}
+                  aria-label={item.label}
+                  search={
+                    calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined
+                  }
+                  activeOptions={"end" in item || calendar ? { exact: true } : undefined}
+                  className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
+                  activeProps={{
+                    className:
+                      "end" in item && item.end && calendarOpen
+                        ? "celinen-dash__link"
+                        : "celinen-dash__link is-active",
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      send();
-                    }
-                  }}
-                />
-                <VoiceMic
-                  value={draft}
-                  onChange={(next) => {
-                    setDraft(next);
-                    const el = box.current;
-                    if (!el) return;
-                    el.style.height = "auto";
-                    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-                  }}
-                  onSend={(text) => send(text)}
-                />
-                <button
-                  type="submit"
-                  className="social-post__send"
-                  disabled={!draft.trim()}
-                  aria-label="Send"
                 >
-                  <ArrowUp size={18} />
-                </button>
-              </form>
-              {active?.messages.length ? null : (
-                <div className="social-post__actions">
-                  {HOME_ACTIONS.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.label}
-                        to={item.to}
-                        search={"search" in item ? item.search : undefined}
-                        className="social-post__action"
-                      >
-                        <span className="social-post__action-mark" aria-hidden="true">
-                          <Icon size={18} strokeWidth={1.6} />
-                        </span>
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+                  <span className="celinen-dash__ico" aria-hidden="true">
+                    <item.icon size={20} strokeWidth={1.5} />
+                  </span>
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="celinen-dash__foot">
+            <Link
+              to="/pricing"
+              title="Upgrade"
+              aria-label="Upgrade"
+              className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
+            >
+              <span className="celinen-dash__ico" aria-hidden="true">
+                <Sparkles size={20} strokeWidth={1.5} />
+              </span>
+              <span>Upgrade</span>
+            </Link>
+            <div className="celinen-dash__social">
+              <SocialDock mini={visual === "mini"} />
+            </div>
+            <div className="celinen-dash__account">
+              <AccountMenu />
             </div>
           </div>
+        </aside>
+        {!mobile && (
+          <div
+            className="celinen-dash__resize"
+            data-no-press
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuenow={shown}
+            aria-valuemin={MINI_W}
+            aria-valuemax={MAX_OPEN}
+            onPointerDown={onResizeDown}
+            onPointerMove={onResizeMove}
+            onPointerUp={onResizeUp}
+            onPointerCancel={onResizeUp}
+            onLostPointerCapture={onResizeUp}
+            onDoubleClick={() => setRail(visual === "mini" ? "open" : "mini")}
+          />
         )}
-      </main>
-    </div>
+        <main
+          className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? " is-cal" : " is-chat"}`}
+        >
+          {account && account.status === "in" ? (
+            <div className="celinen-dash__theme" role="group" aria-label="Appearance">
+              <button
+                type="button"
+                aria-label="Light"
+                aria-pressed={account.preferences.theme === "light"}
+                onClick={() => account.savePreferences({ theme: "light" })}
+              >
+                <Sun size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Dark"
+                aria-pressed={account.preferences.theme === "dark"}
+                onClick={() => account.savePreferences({ theme: "dark" })}
+              >
+                <Moon size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+          {loading ? (
+            <div className="celinen-dash__loading">
+              <span className="celinen-dash__spinner" aria-hidden="true" />
+              <p>Loading your workspace…</p>
+            </div>
+          ) : children ? (
+            children
+          ) : calendarOpen ? (
+            <IosCalendar />
+          ) : (
+            <div
+              className={`social-post${active?.messages.length ? " has-thread" : ""}`}
+              onPointerDown={onHapticPress}
+              onDragOver={(event) => {
+                if (Array.from(event.dataTransfer.types).includes("Files")) {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "copy";
+                }
+              }}
+              onDrop={(event) => {
+                if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+                event.preventDefault();
+                event.stopPropagation();
+                importPhotos(event.dataTransfer);
+              }}
+            >
+              <div className="social-post__stage">
+                {active?.messages.length ? (
+                  <div className="celinen-dash__thread">
+                    {active.messages.map((message) => (
+                      <p key={message.id} data-role={message.role}>
+                        {message.text}
+                      </p>
+                    ))}
+                    <div ref={end} />
+                  </div>
+                ) : (
+                  <div className="social-post__hero">
+                    <h1>{dashboardGreetingFor(account?.workRole)}</h1>
+                  </div>
+                )}
+                <form
+                  className="social-post__composer celinen-dash__composer"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    send();
+                  }}
+                >
+                  <input
+                    ref={photoPicker}
+                    type="file"
+                    multiple
+                    hidden
+                    aria-label="Choose photos"
+                    onChange={(event) => {
+                      importPhotos(Array.from(event.currentTarget.files ?? []));
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <input
+                    ref={folderPicker}
+                    type="file"
+                    multiple
+                    hidden
+                    aria-label="Choose photo folder"
+                    {...{ webkitdirectory: "", directory: "" }}
+                    onChange={(event) => {
+                      importPhotos(Array.from(event.currentTarget.files ?? []));
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="celinen-dash__plus"
+                        aria-label="Add photos or folder"
+                      >
+                        <Plus size={20} strokeWidth={1.8} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" side="top">
+                      <DropdownMenuItem onSelect={() => photoPicker.current?.click()}>
+                        Photos
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => folderPicker.current?.click()}>
+                        Folder
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <textarea
+                    ref={box}
+                    rows={1}
+                    value={draft}
+                    placeholder={`Drop your photos or folder & ask ${PRODUCT_NAME}`}
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                      const el = event.currentTarget;
+                      el.style.height = "auto";
+                      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        send();
+                      }
+                    }}
+                  />
+                  <VoiceMic
+                    value={draft}
+                    onChange={(next) => {
+                      setDraft(next);
+                      const el = box.current;
+                      if (!el) return;
+                      el.style.height = "auto";
+                      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                    }}
+                    onSend={(text) => send(text)}
+                  />
+                  <button
+                    type="submit"
+                    className="social-post__send"
+                    disabled={!draft.trim()}
+                    aria-label="Send"
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                </form>
+                {importError ? <p role="alert">{importError}</p> : null}
+                {active?.messages.length ? null : (
+                  <div className="social-post__actions">
+                    {HOME_ACTIONS.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.label}
+                          to={item.to}
+                          search={"search" in item ? item.search : undefined}
+                          className="social-post__action"
+                        >
+                          <span className="social-post__action-mark" aria-hidden="true">
+                            <Icon size={18} strokeWidth={1.6} />
+                          </span>
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
     </DashboardContext.Provider>
   );
 }

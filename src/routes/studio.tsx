@@ -23,6 +23,7 @@ import {
   shootWorkspaceHref,
 } from "@/lib/workbench-projects";
 import { createShootRepository } from "@/lib/develop/shoot-repository";
+import type { DevelopStoreChange } from "@/lib/develop/store";
 import {
   applyCullReviewProposal,
   CullRefreshSuperseded,
@@ -262,6 +263,27 @@ type EditRecipe = {
   limitations?: string[];
 };
 
+// Call only after canonicalView validates legacy references, or with this
+// controller's current frames. People tags are compatibility metadata, never
+// authority to replace canonical originals, review, recipes or measurements.
+function mergeStudioSubjects(projected: Shot, prior: Shot | undefined): Shot {
+  if (
+    !prior ||
+    prior.subjects === undefined ||
+    prior.id !== projected.id ||
+    (prior.sourceDigest ?? null) !== (projected.sourceDigest ?? null)
+  )
+    return projected;
+  const source = prior.develop?.canonical;
+  const target = projected.develop?.canonical;
+  if (
+    !target ||
+    (source && (source.namespace !== target.namespace || source.photoId !== target.photoId))
+  )
+    return projected;
+  return { ...projected, subjects: structuredClone(prior.subjects) };
+}
+
 export function Studio({
   projectId,
   deliveryFocus,
@@ -293,8 +315,25 @@ export function Studio({
   const unanalyzedIds = useRef(new Set<string>());
   const nativeTreatmentIds = useRef(new Set<string>());
   const [catalogSignal, setCatalogSignal] = useState(0);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const catalogRefresh = useRef(false);
   const catalogRefreshAgain = useRef(false);
+  const catalogChanges = useRef<DevelopStoreChange[] | null>([]);
+  const canonicalReadView = useRef<{
+    shots: Shot[];
+    selectedId: string | null;
+    filter: StudioFilter;
+  } | null>(null);
+  const peopleEpoch = useRef(0);
+  const committedPeopleEpoch = useRef(0);
+  const compatibilitySequence = useRef(0);
+  const compatibilitySave = useRef<{
+    shots: Shot[];
+    selectedId: string | null;
+    filter: StudioFilter;
+    peopleEpoch: number;
+    sequence: number;
+  } | null>(null);
   const studioVisible = workbench?.studioVisible ?? true;
   // Studio is keyed by project. State retains the loaded controller during
   // Fast Refresh; a memo can be invalidated while the hydration guard survives.
@@ -308,6 +347,10 @@ export function Studio({
       : await readStudioSessionSnapshot(storageScope, shootId);
     try {
       const session = await canonicalView.read(legacy);
+      const legacyById = new Map(legacy?.shots.map((shot) => [shot.id, shot]) ?? []);
+      session.shots = session.shots.map((shot) =>
+        mergeStudioSubjects(shot, legacyById.get(shot.id)),
+      );
       unanalyzedIds.current = session.unanalyzedIds;
       nativeTreatmentIds.current = session.nativeTreatmentIds;
       for (const shot of session.shots) {
@@ -321,13 +364,38 @@ export function Studio({
   }, [projectSession, storageScope, shootId, canonicalView]);
   const saveStoredSession = useCallback(
     async (frames: Shot[], selected: string | null, scope: StudioFilter) => {
+      const view = { shots: frames, selectedId: selected, filter: scope };
+      const capturedPeopleEpoch = peopleEpoch.current;
+      const projected = canonicalReadView.current;
+      const compatible = compatibilitySave.current;
+      const sameView = (saved: typeof canonicalReadView.current) =>
+        saved?.shots === frames && saved.selectedId === selected && saved.filter === scope;
+      // A canonical projection proves photo durability, not people/tag durability.
+      // Only an unchanged projection or an acknowledged compatibility capture can
+      // skip the legacy mirror; a gesture racing an import still has to commit.
+      const mirrorLegacy =
+        !frames.length ||
+        capturedPeopleEpoch !== committedPeopleEpoch.current ||
+        (!sameView(projected) &&
+          !(sameView(compatible) && compatible?.peopleEpoch === capturedPeopleEpoch));
+      if (frames.length && !saveBoundary.pending(view) && !mirrorLegacy) return;
+      const sequence = ++compatibilitySequence.current;
       const acknowledge = saveBoundary.begin({
         shots: frames,
         selectedId: selected,
         filter: scope,
       });
       await canonicalView.save(frames, selected, scope);
-      await saveStudioSession(frames, selected, scope, storageScope, shootId);
+      // Import receipts already own their originals and documents. Rewriting all
+      // media into the legacy store on every arrival makes large jobs quadratic.
+      // Keep the compatibility snapshot for genuine Studio edits only.
+      if (mirrorLegacy) {
+        await saveStudioSession(frames, selected, scope, storageScope, shootId);
+        if (sequence > (compatibilitySave.current?.sequence ?? 0)) {
+          compatibilitySave.current = { ...view, peopleEpoch: capturedPeopleEpoch, sequence };
+          committedPeopleEpoch.current = capturedPeopleEpoch;
+        }
+      }
       if (!projectSession && frames.length)
         await rememberShoot(
           storageScope,
@@ -507,6 +575,7 @@ export function Studio({
       !recoveryReloadRef.current &&
       Boolean(
         sessionStatusRef.current === "conflicted" ||
+        peopleEpoch.current !== committedPeopleEpoch.current ||
         saveBoundary.pending({
           shots: latestShotsRef.current,
           selectedId: latestSelectedIdRef.current,
@@ -777,6 +846,7 @@ export function Studio({
         source: cluster.source,
         minSimilarity: cluster.minSimilarity,
       }));
+      peopleEpoch.current++;
       setEventPeople(people);
       setStudioEventPeople(people, storageScope, shootId);
       setSyncNote(
@@ -891,14 +961,26 @@ export function Studio({
     runImportCull,
   ]);
 
-  useEffect(
-    () =>
-      repository.subscribe((change) => {
-        if (change.kind !== "import-job" && change.kind !== "presets")
-          setCatalogSignal((value) => value + 1);
-      }),
-    [repository],
-  );
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = repository.subscribe((change) => {
+      if (change.kind !== "import-job" && change.kind !== "presets") {
+        if (catalogChanges.current !== null) {
+          if (catalogChanges.current.length < 256) catalogChanges.current.push(change);
+          else catalogChanges.current = null; // bounded; full validated read on overflow
+        }
+        if (timer === null)
+          timer = setTimeout(() => {
+            timer = null;
+            setCatalogSignal((value) => value + 1);
+          }, 100);
+      }
+    });
+    return () => {
+      unsubscribe();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [repository]);
   useEffect(() => {
     const update = () => {
       const job = importSession.getSnapshot();
@@ -958,6 +1040,8 @@ export function Studio({
         selectedId: latestSelectedIdRef.current,
         filter: latestFilterRef.current,
       };
+      const changes = catalogChanges.current;
+      catalogChanges.current = [];
       await saveStoredSession(before.shots, before.selectedId, before.filter);
       const current = await canonicalView.read(
         undefined,
@@ -967,6 +1051,7 @@ export function Studio({
           before.shots === latestShotsRef.current &&
           before.selectedId === latestSelectedIdRef.current &&
           before.filter === latestFilterRef.current,
+        changes ?? undefined,
       );
       if (cancelled || !mountedRef.current) return;
       nativeTreatmentIds.current = current.nativeTreatmentIds;
@@ -984,7 +1069,14 @@ export function Studio({
           previewUrlsRef.current.delete(prior.previewUrl);
         }
       }
-      const merged = current.shots.map((shot) => mergePreservedImportAnalysis(shot, old.get(shot.id)));
+      const merged = current.shots.map((shot) =>
+        mergeStudioSubjects(mergePreservedImportAnalysis(shot, old.get(shot.id)), old.get(shot.id)),
+      );
+      canonicalReadView.current = {
+        shots: merged,
+        selectedId: current.selectedId,
+        filter: current.filter,
+      };
       unanalyzedIds.current = new Set(
         merged.filter((shot) => !isImportAnalyzed(shot) && !shot.error).map((shot) => shot.id),
       );
@@ -994,8 +1086,10 @@ export function Studio({
       runImportCull();
     })()
       .catch((error) => {
-        if (error instanceof CullRefreshSuperseded) catalogRefreshAgain.current = true;
-        else if (!cancelled) pauseSaving(error);
+        if (error instanceof CullRefreshSuperseded) {
+          catalogChanges.current = null;
+          catalogRefreshAgain.current = true;
+        } else if (!cancelled) pauseSaving(error);
       })
       .finally(() => {
         catalogRefresh.current = false;
@@ -1027,7 +1121,16 @@ export function Studio({
         void saveStoredSession(shots, selectedId, filter).catch(pauseSaving);
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [filter, selectedId, sessionStatus, shots, roster, eventPeople, saveStoredSession, pauseSaving]);
+  }, [
+    filter,
+    selectedId,
+    sessionStatus,
+    shots,
+    roster,
+    eventPeople,
+    saveStoredSession,
+    pauseSaving,
+  ]);
 
   useEffect(() => {
     if (!canPersistStudioSession(sessionStatus)) return;
@@ -1570,9 +1673,7 @@ export function Studio({
     } catch (error) {
       setBusy(null);
       const note =
-        error instanceof Error
-          ? error.message
-          : "Gallery was not sent. Originals are unchanged.";
+        error instanceof Error ? error.message : "Gallery was not sent. Originals are unchanged.";
       setSyncNote(note);
       return `failed: ${note}`;
     }
@@ -1694,7 +1795,15 @@ export function Studio({
           return "failed: unknown tool";
       }
     },
-    [discardProposal, requestDevelopOutput, selectFilter, selectShot, sendKeepers, stageCull, undoLast],
+    [
+      discardProposal,
+      requestDevelopOutput,
+      selectFilter,
+      selectShot,
+      sendKeepers,
+      stageCull,
+      undoLast,
+    ],
   );
 
   /** Download one validated archive; never flatten folders or overwrite originals. */
@@ -1937,6 +2046,10 @@ export function Studio({
       return "Wait for the saved Studio session before opening this workflow.";
     if (proposalRef.current)
       return "Apply or discard the current preview first. Nothing was exported or reselected.";
+    if (intent.kind === "people") {
+      setPeopleOpen(true);
+      return "Opened people tools. No faces were grouped or tags changed.";
+    }
     if (intent.kind === "bursts") {
       if (importingRef.current || folderAbortRef.current)
         return "Finish or stop ingest before grouping the current shoot.";
@@ -2332,7 +2445,7 @@ export function Studio({
         <div className="mx-auto max-w-[1600px] px-6 pb-4">
           <div className="rounded-sm bg-paper2 p-4 shadow ring-1 ring-border">
             <div className="flex justify-between font-mono text-[11px]">
-              <span>Ingesting shoot… · review frames as they arrive</span>
+              <span>Saving photos</span>
               <span className="text-rust">
                 {progress.done} / {progress.total}
               </span>
@@ -2490,43 +2603,58 @@ export function Studio({
                       onClick={() => selectReviewIssue("duplicates")}
                     />
                   </div>
-                  <PeoplePanel
-                    roster={roster}
-                    eventPeople={eventPeople}
-                    shots={shots}
-                    selected={selected}
-                    personFilter={personFilter}
-                    clusterFilter={clusterFilter}
-                    grouping={peopleGrouping}
-                    packNote={INSIGHTFACE_WEIGHTS_NOTE}
-                    onRoster={(next) => {
-                      setRoster(next);
-                      setStudioRoster(next, storageScope, shootId);
-                    }}
-                    onTag={(shotId, subjects) =>
-                      updateShots((current) =>
-                        current.map((shot) => (shot.id === shotId ? { ...shot, subjects } : shot)),
-                      )
-                    }
-                    onFilter={setPersonFilter}
-                    onClusterFilter={setClusterFilter}
-                    onEventPeople={(next) => {
-                      setEventPeople(next);
-                      setStudioEventPeople(next, storageScope, shootId);
-                    }}
-                    onGroupFaces={() => void groupFaces()}
-                    onProposeGallery={() => {
-                      try {
-                        setSyncNote(proposeJobGallery());
-                      } catch (error) {
-                        setSyncNote(
-                          error instanceof Error
-                            ? error.message
-                            : "Gallery proposal failed. Your picks are unchanged.",
-                        );
-                      }
-                    }}
-                  />
+                  {peopleOpen && (
+                    <section aria-label="People tools">
+                      <button
+                        type="button"
+                        onClick={() => setPeopleOpen(false)}
+                        aria-label="Close people tools"
+                      >
+                        Close
+                      </button>
+                      <PeoplePanel
+                        roster={roster}
+                        eventPeople={eventPeople}
+                        shots={shots}
+                        selected={selected}
+                        personFilter={personFilter}
+                        clusterFilter={clusterFilter}
+                        grouping={peopleGrouping}
+                        packNote={INSIGHTFACE_WEIGHTS_NOTE}
+                        onRoster={(next) => {
+                          peopleEpoch.current++;
+                          setRoster(next);
+                          setStudioRoster(next, storageScope, shootId);
+                        }}
+                        onTag={(shotId, subjects) =>
+                          updateShots((current) =>
+                            current.map((shot) =>
+                              shot.id === shotId ? { ...shot, subjects } : shot,
+                            ),
+                          )
+                        }
+                        onFilter={setPersonFilter}
+                        onClusterFilter={setClusterFilter}
+                        onEventPeople={(next) => {
+                          peopleEpoch.current++;
+                          setEventPeople(next);
+                          setStudioEventPeople(next, storageScope, shootId);
+                        }}
+                        onGroupFaces={() => void groupFaces()}
+                        onProposeGallery={() => {
+                          try {
+                            setSyncNote(proposeJobGallery());
+                          } catch (error) {
+                            setSyncNote(
+                              error instanceof Error
+                                ? error.message
+                                : "Gallery proposal failed. Your picks are unchanged.",
+                            );
+                          }
+                        }}
+                      />
+                    </section>
+                  )}
                 </div>
 
                 {/* loupe */}

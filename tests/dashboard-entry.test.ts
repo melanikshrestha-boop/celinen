@@ -88,7 +88,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("social-post__mark");
   expect(source).not.toContain("Browse templates");
   expect(source).not.toContain("Planning a shoot week");
-  expect(source).toContain("Ask ${PRODUCT_NAME}");
+  expect(source).toContain("Drop your photos or folder & ask ${PRODUCT_NAME}");
   expect(source).toContain("Open Pick");
   expect(source).toContain("Send a gallery");
   expect(source).toContain("Open calendar");

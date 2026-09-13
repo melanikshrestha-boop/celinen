@@ -4,10 +4,14 @@ import { applyProposal, sameEdits, type StudioProposal } from "../studio/proposa
 import type { HydratedStudioSession, StudioFilter } from "../studio/session";
 import {
   developPhotosFromStudio,
+  DevelopSaveConflict,
+  mergeDevelopImportCommit,
   type DevelopDocument,
   type DevelopLibrary,
+  type DevelopStoreChange,
   type ShootManifest,
 } from "./store";
+import { developAnalysisFromShot, readDevelopPhotoAnalysis } from "./analysis";
 import { projectDevelopPhotoToStudio, type ShootRepository } from "./shoot-repository";
 
 type Review = DevelopDocument["metadata"];
@@ -167,6 +171,7 @@ export function createCullShootView(repository: ShootRepository) {
     async read(
       legacy?: HydratedStudioSession | null,
       mayAdopt: () => boolean = () => true,
+      changes?: readonly DevelopStoreChange[],
     ): Promise<
       HydratedStudioSession & {
         unanalyzedIds: Set<string>;
@@ -174,7 +179,55 @@ export function createCullShootView(repository: ShootRepository) {
       }
     > {
       await queue;
-      const prior = await repository.read();
+      let prior: Snapshot;
+      if (
+        !legacy?.shots.length &&
+        loaded &&
+        changes?.length &&
+        changes.every((change) => change.kind === "photos" && change.commit)
+      ) {
+        // Combine an import burst once, preserving the latest receipt per photo.
+        // Cross-tab/missing receipts keep the full-read fallback below.
+        const photos = new Map<string, DevelopLibrary["photos"][number]>();
+        const documents: DevelopLibrary["documents"] = Object.create(null);
+        for (const change of changes) {
+          const receipt = change.commit!;
+          if (receipt.photos.length !== Object.keys(receipt.documents).length)
+            throw new Error("The committed photo and edit receipt does not match.");
+          for (const photo of receipt.photos) {
+            const document = receipt.documents[photo.id];
+            if (
+              !document ||
+              document.photoId !== photo.id ||
+              (documents[photo.id] && documents[photo.id]!.revision > document.revision)
+            )
+              throw new Error("The committed photo and edit receipt does not match.");
+            photos.set(photo.id, photo);
+            documents[photo.id] = document;
+          }
+        }
+        let merged: DevelopLibrary | null = null;
+        try {
+          merged = mergeDevelopImportCommit(loaded, {
+            photos: [...photos.values()],
+            documents,
+          });
+        } catch (error) {
+          if (!(error instanceof DevelopSaveConflict)) throw error;
+          // The route flushes gestures before replaying buffered import events.
+          // An older receipt is no longer a usable optimization, not a failed
+          // save. Discard that fast path and validate the durable library below.
+        }
+        if (merged) {
+          const manifest = await repository.readManifest();
+          const indexed = new Map(merged.photos.map((photo) => [photo.id, photo]));
+          prior =
+            manifest.photoIds.length === indexed.size &&
+            manifest.photoIds.every((id) => indexed.has(id))
+              ? { ...merged, photos: manifest.photoIds.map((id) => indexed.get(id)!), manifest }
+              : await repository.read();
+        } else prior = await repository.read();
+      } else prior = await repository.read();
       if (legacy?.shots.length) {
         // This is merge-only: existing Develop history wins and legacy records remain archived.
         await repository.store.addPhotosWithDocuments(
@@ -247,12 +300,13 @@ export function createCullShootView(repository: ShootRepository) {
         ...shot,
         edits: { ...shot.edits },
         ...(shot.develop ? { develop: { ...shot.develop } } : {}),
+        ...(shot.tone ? { tone: { ...shot.tone } } : {}),
+        ...(shot.faces ? { faces: structuredClone(shot.faces) } : {}),
       }));
       const task = queue.then(async () => {
         if (!loaded || !adoptedView) throw new Error("Open this shoot before saving its review.");
-        const current = await repository.read();
-        const updates: { document: DevelopDocument; expectedRevision: number }[] = [];
-        const reviewed: { shotId: string; value: Review }[] = [];
+        const indexed = new Map(loaded.photos.map((photo) => [photo.id, photo]));
+        const pending = [];
         for (const shot of captured) {
           const before = baseline.get(shot.id);
           if (!before) throw new Error("Import new photos in Develop before reviewing them.");
@@ -261,21 +315,32 @@ export function createCullShootView(repository: ShootRepository) {
               "Photo treatments are edited in Develop. The preserved legacy settings were not overwritten.",
             );
           const next = reviewFromShot(shot, before.review);
-          if (same(next, before.review)) continue;
-          const saved = current.documents[before.photoId];
-          if (!saved || !same(saved.metadata, before.review))
-            throw new Error(
-              "This photo's review changed elsewhere. Reload before saving your review.",
-            );
-          updates.push({
-            document: { ...saved, metadata: next },
-            expectedRevision: saved.revision,
-          });
-          reviewed.push({ shotId: shot.id, value: next });
-        }
-        if (updates.length) {
-          await repository.store.saveDocuments(updates);
-          for (const entry of reviewed) baseline.get(entry.shotId)!.review = { ...entry.value };
+          const photo = indexed.get(before.photoId);
+          if (!photo) throw new Error("The reviewed photo is not in this shoot.");
+          const oldAnalysis = readDevelopPhotoAnalysis(
+            photo,
+            loaded.documents[photo.id],
+            repository.namespace,
+          );
+          const analysis = developAnalysisFromShot(
+            shot,
+            photo,
+            repository.namespace,
+            oldAnalysis ?? undefined,
+          );
+          const reviewChanged = !same(next, before.review);
+          const analysisChanged = analysis !== null && !same(analysis, oldAnalysis);
+          if (reviewChanged || analysisChanged)
+            pending.push({
+              shot,
+              before,
+              next,
+              photo,
+              oldAnalysis,
+              analysis,
+              reviewChanged,
+              analysisChanged,
+            });
         }
         const nextSelected = selectedId ? view.photoId(selectedId) : null;
         if (selectedId && !nextSelected)
@@ -283,28 +348,78 @@ export function createCullShootView(repository: ShootRepository) {
         const loadedFilter = filters.has(adoptedView.filter as StudioFilter)
           ? adoptedView.filter
           : "all";
-        if (nextSelected !== adoptedView.selectedId || filter !== loadedFilter) {
+        const viewChanged = nextSelected !== adoptedView.selectedId || filter !== loadedFilter;
+        // Canonical refreshes and flush fences are not new review gestures.
+        if (!pending.length && !viewChanged) return;
+        const currentDocuments = pending.length
+          ? repository.store.readDocuments
+            ? await repository.store.readDocuments(pending.map((entry) => entry.photo.id))
+            : (await repository.read()).documents
+          : {};
+        const updates: { document: DevelopDocument; expectedRevision: number }[] = [];
+        for (const entry of pending) {
+          const { shot, before, next, photo, oldAnalysis, reviewChanged, analysisChanged } = entry;
+          const saved = currentDocuments[photo.id];
+          if (!saved || (reviewChanged && !same(saved.metadata, before.review)))
+            throw new Error(
+              "This photo's review changed elsewhere. Reload before saving your review.",
+            );
+          const currentAnalysis = readDevelopPhotoAnalysis(photo, saved, repository.namespace);
+          const analysis = analysisChanged
+            ? developAnalysisFromShot(
+                shot,
+                photo,
+                repository.namespace,
+                currentAnalysis ?? undefined,
+              )
+            : currentAnalysis;
           if (
-            current.manifest.selectedId !== adoptedView.selectedId ||
-            current.manifest.filter !== adoptedView.filter
+            analysisChanged &&
+            !same(currentAnalysis, oldAnalysis) &&
+            !same(analysis, currentAnalysis)
+          )
+            throw new Error(
+              "This photo's analysis changed elsewhere. Reload before saving its measurements.",
+            );
+          updates.push({
+            document: {
+              ...saved,
+              metadata: reviewChanged ? next : saved.metadata,
+              ...(analysis ? { analysis } : {}),
+            },
+            expectedRevision: saved.revision,
+          });
+        }
+        if (updates.length) {
+          const saved = await repository.store.saveDocuments(updates);
+          for (const document of saved) loaded.documents[document.photoId] = document;
+          for (const entry of pending)
+            if (entry.reviewChanged) baseline.get(entry.shot.id)!.review = { ...entry.next };
+        }
+        if (viewChanged) {
+          const manifest = repository.readManifest
+            ? await repository.readManifest()
+            : (await repository.read()).manifest;
+          if (
+            manifest.selectedId !== adoptedView.selectedId ||
+            manifest.filter !== adoptedView.filter
           )
             throw new Error(
               "This shoot's selection changed elsewhere. Reload before saving this view.",
             );
-          await repository.saveManifest(
+          loaded.manifest = await repository.saveManifest(
             {
-              photoIds: current.manifest.photoIds,
+              photoIds: manifest.photoIds,
               selectedId: nextSelected,
-              filter: filter === loadedFilter ? current.manifest.filter : filter,
+              filter: filter === loadedFilter ? manifest.filter : filter,
             },
-            current.manifest.revision,
+            manifest.revision,
           );
           adoptedView = {
             selectedId: nextSelected,
-            filter: filter === loadedFilter ? current.manifest.filter : filter,
+            filter: filter === loadedFilter ? manifest.filter : filter,
           };
         }
-        loaded = await repository.read();
       });
       queue = task.catch(() => {});
       return task;

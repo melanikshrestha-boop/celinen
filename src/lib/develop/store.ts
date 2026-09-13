@@ -11,6 +11,13 @@ import {
 } from "./photo-management";
 import { presetPackageMetadataSchema } from "./preset-package";
 import {
+  assertDevelopPhotoAnalysis,
+  developAnalysisReceiptSchema,
+  type DevelopAnalysisReceipt,
+} from "./analysis";
+export { developAnalysisReceiptSchema, readDevelopPhotoAnalysis } from "./analysis";
+export type { DevelopAnalysisReceipt } from "./analysis";
+import {
   cloneDevelopSettings,
   defaultDevelopSettings,
   developSettingsSchema,
@@ -215,6 +222,7 @@ const initialStateSchema = z
 export const developDocumentSchema = z
   .object({
     photoId: developPhotoIdSchema,
+    analysis: developAnalysisReceiptSchema.optional(),
     revision: revisionSchema,
     history: z
       .array(historySchema)
@@ -227,6 +235,11 @@ export const developDocumentSchema = z
   })
   .strict()
   .superRefine((doc, context) => {
+    if (doc.analysis && doc.analysis.photoId !== doc.photoId)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Analysis belongs to another photo.",
+      });
     if (doc.cursor >= doc.history.length)
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -278,6 +291,8 @@ export type DevelopPhotoInput = {
   sidecar?: DevelopSidecar;
   /** Consumed only when the photo is first inserted; never stored alongside its media. */
   initialState?: z.infer<typeof initialStateSchema>;
+  /** Consumed into the edit document atomically, never stored with the original media. */
+  analysis?: DevelopAnalysisReceipt;
   /** Explicit source-attachment operation; never emitted by ordinary Studio imports. */
   reconnectOriginal?: true;
   /** Scan-time identity guard; consumed by attachment, never persisted. */
@@ -285,7 +300,7 @@ export type DevelopPhotoInput = {
 };
 export type DevelopPhoto = Omit<
   DevelopPhotoInput,
-  "initialState" | "reconnectOriginal" | "reconnectExpected"
+  "initialState" | "analysis" | "reconnectOriginal" | "reconnectExpected"
 > & {
   sourceAvailable: boolean;
   createdAt: number;
@@ -391,6 +406,7 @@ export function createVirtualCopyDocument(
     ...document,
     photoId,
     revision: 1,
+    ...(document.analysis ? { analysis: { ...document.analysis, photoId } } : {}),
     updatedAt: now,
     history: document.history.map((entry) => ({ ...entry, id: uniqueId() })),
     snapshots: document.snapshots.map((entry) => ({ ...entry, id: uniqueId() })),
@@ -399,6 +415,7 @@ export function createVirtualCopyDocument(
 /** A transferred Studio treatment is undoable back to the untouched source. */
 export function developDocumentForImport(input: DevelopPhotoInput): DevelopDocument {
   const original = createDevelopDocument(input.id);
+  if (input.analysis) original.analysis = assertDevelopPhotoAnalysis(input.analysis, input);
   if (!input.initialState) return original;
   const initial = initialStateSchema.parse(input.initialState);
   return documentCopy({
@@ -721,6 +738,7 @@ function checkedPhoto(input: DevelopPhotoInput): DevelopPhotoInput {
     previewOrigin: input.previewOrigin ?? "unknown",
     ...(reconnectExpected ? { reconnectExpected } : {}),
     ...(initialState ? { initialState } : {}),
+    ...(input.analysis ? { analysis: assertDevelopPhotoAnalysis(input.analysis, input) } : {}),
     ...(input.legacy ? { legacy: copyLegacy(input.legacy) } : {}),
     ...(input.sidecar ? { sidecar: sidecarSchema.parse(input.sidecar) } : {}),
   };
@@ -1511,6 +1529,53 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         db.close();
       }
     },
+    /** Narrow review/analysis reads never hydrate unrelated original media or history. */
+    async readDocuments(photoIds: readonly string[]): Promise<Record<string, DevelopDocument>> {
+      const ids = [...new Set(photoIds.map((id) => developPhotoIdSchema.parse(id)))];
+      if (!ids.length) return Object.create(null);
+      const db = await database();
+      try {
+        return await transaction(db, [STORES.documents], "readonly", async (tx) => {
+          const records = await Promise.all(
+            ids.map(async (id) => ({
+              id,
+              record: (await requestResult(tx.objectStore(STORES.documents).get(key(id)))) as
+                DocumentRecord | undefined,
+            })),
+          );
+          const documents: Record<string, DevelopDocument> = Object.create(null);
+          for (const { id, record } of records) {
+            if (!record || record.key !== key(id) || record.namespace !== namespace)
+              throw new Error("The saved Develop edit index is invalid.");
+            const document = documentCopy(record.value);
+            if (document.photoId !== id)
+              throw new Error("The saved Develop edit index is invalid.");
+            documents[id] = document;
+          }
+          return documents;
+        });
+      } finally {
+        db.close();
+      }
+    },
+    /** Acknowledged measurements only; media, recipes, picks and history are retained. */
+    async savePhotoAnalyses(
+      receipts: readonly DevelopAnalysisReceipt[],
+    ): Promise<DevelopDocument[]> {
+      const checked = receipts.map((receipt) => developAnalysisReceiptSchema.parse(receipt));
+      if (checked.some((receipt) => receipt.namespace !== namespace))
+        throw new Error("This analysis receipt belongs to another source or shoot.");
+      if (new Set(checked.map((receipt) => receipt.photoId)).size !== checked.length)
+        throw new Error("A photo appears twice in this analysis batch.");
+      const documents = await store.readDocuments(checked.map((receipt) => receipt.photoId));
+      return store.saveDocuments(
+        checked.flatMap((analysis) => {
+          const document = documents[analysis.photoId]!;
+          if (JSON.stringify(document.analysis) === JSON.stringify(analysis)) return [];
+          return [{ document: { ...document, analysis }, expectedRevision: document.revision }];
+        }),
+      );
+    },
     /** Atomic media-only attachment. Never inserts a target or writes its current treatment. */
     async attachMissingOriginal(
       input: DevelopPhotoInput,
@@ -1670,6 +1735,8 @@ export function createDevelopStore(options: DevelopStoreOptions) {
     /** Progressive import receipt; no full-library read or fabricated local history is needed. */
     async addPhotosWithDocuments(inputs: DevelopPhotoInput[]): Promise<DevelopImportCommit> {
       const checked = inputs.map(checkedPhoto);
+      for (const input of checked)
+        if (input.analysis) assertDevelopPhotoAnalysis(input.analysis, input, namespace);
       if (new Set(checked.map((photo) => photo.id)).size !== checked.length)
         throw new Error("The import contains duplicate photo IDs.");
       if (!checked.length) return { photos: [], documents: Object.create(null) };
@@ -1699,6 +1766,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
             for (const { input, photo, document } of existing) {
               const {
                 initialState: _initialState,
+                analysis: _analysis,
                 reconnectOriginal: _reconnectOriginal,
                 reconnectExpected: _reconnectExpected,
                 ...media
@@ -1715,7 +1783,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 throw new Error(
                   "A saved photo or its Develop edits are missing. Importing is paused to protect your library.",
                 );
-              const savedDocument = document
+              let savedDocument = document
                 ? documentCopy(document.value)
                 : developDocumentForImport(input);
               if (
@@ -1723,6 +1791,25 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 (document && (document.key !== key(input.id) || document.namespace !== namespace))
               )
                 throw new Error("The saved Develop edit index is invalid.");
+              // Import retries may enrich missing analysis, never replace a newer receipt.
+              if (
+                previous &&
+                !savedDocument.analysis &&
+                input.analysis &&
+                previous.sourceDigest === input.sourceDigest
+              ) {
+                savedDocument = documentCopy({
+                  ...savedDocument,
+                  analysis: input.analysis,
+                  revision: savedDocument.revision + 1,
+                  updatedAt: timestamp(),
+                });
+                documentsStore.put({
+                  key: key(input.id),
+                  namespace,
+                  value: savedDocument,
+                } satisfies DocumentRecord);
+              }
               documents[input.id] = savedDocument;
               if (input.reconnectOriginal && (!previous || !input.sourceBlob || !input.previewBlob))
                 throw new Error(
@@ -2032,7 +2119,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                   requestResult(store.get(key(update.document.photoId))) as Promise<
                     DocumentRecord | undefined
                   >,
-                  requestResult(tx.objectStore(STORES.photos).getKey(key(update.document.photoId))),
+                  requestResult(
+                    tx.objectStore(STORES.photos).get(key(update.document.photoId)),
+                  ) as Promise<PhotoRecord | undefined>,
                 ]);
                 return { ...update, record, photo };
               }),
@@ -2041,10 +2130,37 @@ export function createDevelopStore(options: DevelopStoreOptions) {
               if (photo === undefined || !record)
                 throw new Error("Import this photo before saving its Develop edits.");
               const previous = documentCopy(record.value);
+              if (
+                record.key !== key(document.photoId) ||
+                record.namespace !== namespace ||
+                previous.photoId !== document.photoId ||
+                photo.key !== key(document.photoId) ||
+                photo.namespace !== namespace ||
+                photo.value.id !== document.photoId
+              )
+                throw new Error("The saved Develop edit index is invalid.");
               if (previous.revision !== expectedRevision)
                 throw new DevelopSaveConflict(document.photoId);
+              const analysis = document.analysis ?? previous.analysis;
+              if (analysis) {
+                // Reconnect is media-only. Keep an already saved unbound preview
+                // receipt as inert history, never relabel it with the new hash.
+                // Only the exact persisted receipt gets this exception; reads
+                // still require a matching current digest before reusing it.
+                const preservedUnbound =
+                  analysis.sourceDigest === null &&
+                  photo.value.sourceDigest !== null &&
+                  previous.analysis?.sourceDigest === null &&
+                  JSON.stringify(analysis) === JSON.stringify(previous.analysis);
+                assertDevelopPhotoAnalysis(
+                  analysis,
+                  preservedUnbound ? { id: photo.value.id, sourceDigest: null } : photo.value,
+                  namespace,
+                );
+              }
               return documentCopy({
                 ...document,
+                ...(analysis ? { analysis } : {}),
                 revision: expectedRevision + 1,
                 updatedAt: timestamp(),
               });

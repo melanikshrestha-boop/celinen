@@ -11,6 +11,7 @@ import { join, resolve } from "node:path";
 import type { Plugin } from "vite";
 import { socialFrameSchema } from "../lib/social-frame";
 import { runNativeSocial } from "./native-social";
+import { NativeAdmissionError, NativeAdmissionPool } from "./native-admission";
 
 export const MAX_NATIVE_FILE_BYTES = 128 * 1024 * 1024;
 const MAX_FRAME_BYTES = 16 * 1024 * 1024;
@@ -292,7 +293,8 @@ export function insightfacePackFromEnv(): {
   recognizer: boolean;
   complete: boolean;
 } {
-  const dir = (process.env.FOTO_INSIGHTFACE_DIR ?? "").trim() || join(homedir(), ".foto/insightface");
+  const dir =
+    (process.env.FOTO_INSIGHTFACE_DIR ?? "").trim() || join(homedir(), ".foto/insightface");
   const detector = existsSync(join(dir, "det_10g.onnx"));
   const recognizer = existsSync(join(dir, "w600k_r50.onnx"));
   return { dir, detector, recognizer, complete: detector && recognizer };
@@ -452,14 +454,15 @@ export function nativeStudioPlugin(): Plugin {
       const token = randomBytes(32).toString("hex");
       const workers = Array.from({ length: 4 }, () => ({
         process: new NativeWorkerProcess(binary),
-        busy: false,
         binaryIdentity: "",
       }));
+      const admission = new NativeAdmissionPool(workers.length);
       const cache = new NativeFrameCache();
       let burstBusy = false;
       let peopleBusy = false;
       let socialBusy = false;
       cleanup = () => {
+        admission.close();
         for (const worker of workers) worker.process.close();
         cache.clear();
       };
@@ -507,6 +510,7 @@ export function nativeStudioPlugin(): Plugin {
               token: ready ? token : null,
               engine: "lenslabs-cpp-0.1",
               maxFileBytes: MAX_NATIVE_FILE_BYTES,
+              admission: "reservation-v1",
             });
             return;
           }
@@ -516,6 +520,16 @@ export function nativeStudioPlugin(): Plugin {
               "Build the local C++ engine with make -C native first.",
             );
           if (req.method !== "POST") throw new NativeBridgeError(405, "POST required.");
+          if (route === "/__native/admission") {
+            if (req.headers["content-type"] !== "application/json")
+              throw new NativeBridgeError(415, "JSON admission request required.");
+            const body = await readBounded(req, 256, signal);
+            if (body.toString("utf8").trim() !== "{}")
+              throw new NativeBridgeError(400, "Admission accepts an empty request only.");
+            const reservation = await admission.reserve(signal);
+            sendJson(res, 200, { admission: reservation });
+            return;
+          }
           if (route === "/__native/social-frame") {
             if (req.headers["content-type"] !== "application/octet-stream")
               throw new NativeBridgeError(415, "Photo bytes required.");
@@ -637,10 +651,14 @@ export function nativeStudioPlugin(): Plugin {
           const declared = Number(req.headers["content-length"]);
           if (Number.isFinite(declared) && declared > MAX_NATIVE_FILE_BYTES)
             throw new NativeBridgeError(413, "Native source limit is 128 MiB per photo.");
-          const lane = workers.find((worker) => !worker.busy);
-          if (!lane)
-            throw new NativeBridgeError(429, "Native workers are busy. Try again shortly.");
-          lane.busy = true;
+          const reservation = req.headers["x-lenslabs-admission"];
+          if (
+            reservation !== undefined &&
+            (typeof reservation !== "string" || !/^[a-f0-9]{48}$/.test(reservation))
+          )
+            throw new NativeBridgeError(400, "Invalid native reservation.");
+          const laneIndex = admission.claim(reservation);
+          const lane = workers[laneIndex]!;
           let directory: string | null = null;
           let path: string | null = null;
           try {
@@ -701,15 +719,21 @@ export function nativeStudioPlugin(): Plugin {
             // Remove only the two exact disposable paths created by this request.
             if (path) await unlink(path).catch(() => {});
             if (directory) await rmdir(directory).catch(() => {});
-            lane.busy = false;
+            admission.release(laneIndex);
           }
         })().catch((error: unknown) => {
-          sendJson(res, error instanceof NativeBridgeError ? error.status : 500, {
-            error:
-              error instanceof NativeBridgeError
-                ? error.message
-                : "Native processing failed; retry the job. Originals remain unchanged.",
-          });
+          sendJson(
+            res,
+            error instanceof NativeBridgeError || error instanceof NativeAdmissionError
+              ? error.status
+              : 500,
+            {
+              error:
+                error instanceof NativeBridgeError || error instanceof NativeAdmissionError
+                  ? error.message
+                  : "Native processing failed; retry the job. Originals remain unchanged.",
+            },
+          );
         });
       });
     },

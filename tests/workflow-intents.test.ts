@@ -1,5 +1,83 @@
 import { describe, expect, test } from "bun:test";
 import { parseStudioWorkflowIntent } from "../src/lib/studio/workflow-intents";
+import { readFileSync } from "node:fs";
+
+test("people tools are opt-in, with no automatic tagging or face grouping", () => {
+  for (const command of [
+    "show people",
+    "open jersey tools",
+    "tag jerseys",
+    "tag bib",
+    "group faces",
+  ])
+    expect(parseStudioWorkflowIntent(command)).toEqual({ kind: "people" });
+  expect(parseStudioWorkflowIntent("delete people")).toBeNull();
+  const source = readFileSync(new URL("../src/routes/studio.tsx", import.meta.url), "utf8");
+  expect(source).toContain("const [peopleOpen, setPeopleOpen] = useState(false)");
+  expect(source).toMatch(/\{peopleOpen\s*&&\s*\(?\s*<section aria-label="People tools">/);
+  expect(source).toContain('aria-label="Close people tools"');
+  const handler = source.slice(
+    source.indexOf('if (intent.kind === "people")'),
+    source.indexOf('if (intent.kind === "bursts")'),
+  );
+  expect(handler).toContain("setPeopleOpen(true)");
+  expect(handler).not.toContain("groupFaces()");
+});
+
+test("import notifications coalesce without losing the last refresh or firing after unmount", () => {
+  const source = readFileSync(new URL("../src/routes/studio.tsx", import.meta.url), "utf8");
+  const subscription = source.indexOf("const unsubscribe = repository.subscribe");
+  const start = source.lastIndexOf("useEffect(() => {", subscription) + "useEffect(() => {".length;
+  const body = source.slice(start, source.indexOf("}, [repository]);", subscription));
+  const js = new Bun.Transpiler({ loader: "ts" }).transformSync(`function effect() {${body}}`);
+  let listener: (change: { kind: string }) => void = () => {};
+  let scheduled: (() => void) | null = null;
+  let refreshes = 0,
+    unsubscribed = false;
+  const catalogChanges = { current: [] as unknown[] | null };
+  const cleanup = new Function(
+    "repository",
+    "setTimeout",
+    "clearTimeout",
+    "setCatalogSignal",
+    "catalogChanges",
+    `${js}; return effect();`,
+  )(
+    {
+      subscribe: (callback: typeof listener) => {
+        listener = callback;
+        return () => {
+          unsubscribed = true;
+        };
+      },
+    },
+    (callback: () => void, ms: number) => {
+      expect(ms).toBe(100);
+      expect(scheduled).toBeNull();
+      scheduled = callback;
+      return 1;
+    },
+    () => {
+      scheduled = null;
+    },
+    () => {
+      refreshes++;
+    },
+    catalogChanges,
+  );
+  for (let i = 0; i < 10000; i++) listener({ kind: "photos" });
+  expect(refreshes).toBe(0);
+  expect(catalogChanges.current).toBeNull(); // bounded fallback, not 10k retained receipts
+  const flush = scheduled! as () => void;
+  scheduled = null;
+  flush();
+  expect(refreshes).toBe(1);
+  listener({ kind: "photos" });
+  expect(scheduled).not.toBeNull();
+  cleanup();
+  expect(scheduled).toBeNull();
+  expect(unsubscribed).toBe(true);
+});
 
 describe("bounded Studio workflow intents", () => {
   test("exact burst commands open only the review workflow", () => {

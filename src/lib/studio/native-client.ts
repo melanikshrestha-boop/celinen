@@ -48,6 +48,18 @@ export async function nativeStudioRequest(
   path: "/__native/bursts" | "/__native/analyze" | "/__native/people",
   init: RequestInit,
 ): Promise<Response> {
+  const checked = async (response: Response) => {
+    if (response.ok) return response;
+    let message = `Native processing failed (${response.status}).`;
+    try {
+      const body: unknown = await response.json();
+      if (body && typeof body === "object" && "error" in body && typeof body.error === "string")
+        message = body.error;
+    } catch {
+      /* Keep the status when an upstream response is not JSON. */
+    }
+    throw new Error(message);
+  };
   for (let attempt = 0; attempt < NATIVE_REQUEST_POLICY.maxAttempts; attempt++) {
     if (init.signal?.aborted) throw new DOMException("Native job cancelled.", "AbortError");
     const status = await nativeEngineStatus();
@@ -58,28 +70,55 @@ export async function nativeStudioRequest(
     const headers = new Headers(init.headers);
     headers.set("x-lenslabs-request", "studio");
     headers.set("x-lenslabs-token", status.token);
+    if (path === "/__native/analyze") {
+      // Wait for a bounded server slot before transferring any original bytes.
+      const admissionHeaders = new Headers(headers);
+      admissionHeaders.set("content-type", "application/json");
+      admissionHeaders.delete("x-lenslabs-admission");
+      admissionHeaders.delete("content-length");
+      const response = await fetch("/__native/admission", {
+        method: "POST",
+        headers: admissionHeaders,
+        body: "{}",
+        cache: "no-store",
+        ...(init.signal ? { signal: init.signal } : {}),
+      });
+      if (response.status === 403 && attempt === 0) {
+        statusPromise = null;
+        continue;
+      }
+      await checked(response);
+      const receipt = z
+        .object({ admission: z.string().regex(/^[0-9a-f]{48}$/) })
+        .parse(await response.json());
+      init.signal?.throwIfAborted();
+      headers.set("x-lenslabs-admission", receipt.admission);
+    }
+    init.signal?.throwIfAborted();
     const response = await fetch(path, { ...init, headers, cache: "no-store" });
-    if (response.status === 403 && attempt === 0) {
+    if (response.status === 403 && attempt === 0 && path !== "/__native/analyze") {
       statusPromise = null;
       continue;
     }
-    if (!response.ok) {
-      let message = `Native processing failed (${response.status}).`;
-      try {
-        const body: unknown = await response.json();
-        if (body && typeof body === "object" && "error" in body && typeof body.error === "string")
-          message = body.error;
-      } catch {
-        /* Keep the status when an upstream response is not JSON. */
-      }
-      throw new Error(message);
-    }
-    return response;
+    // An admitted original is sent once. In particular, 429 never resends its body.
+    return checked(response);
   }
   throw new Error("Native session could not be renewed.");
 }
 
 const channel = z.number().finite().min(0).max(255);
+const milliseconds = z.number().finite().nonnegative();
+const nativeTimingsSchema = z.object({
+  decode_total: milliseconds,
+  source_open: milliseconds,
+  raw_extract: milliseconds,
+  imageio_decode_resize: milliseconds,
+  rgba: milliseconds,
+  analysis_resize: milliseconds,
+  analysis: milliseconds,
+  metadata: milliseconds,
+  jpeg_encode: milliseconds,
+});
 const nativeFrameSchema = z.object({
   ok: z.literal(true),
   engine: z.string(),
@@ -87,6 +126,10 @@ const nativeFrameSchema = z.object({
   height: z.number().int().min(1).max(2048),
   source_width: z.number().int().positive(),
   source_height: z.number().int().positive(),
+  analysis_width: z.number().int().min(1).max(2048).optional(),
+  analysis_height: z.number().int().min(1).max(2048).optional(),
+  preview_origin: z.enum(["embedded_raw_jpeg", "raster_decode"]).optional(),
+  timings_ms: nativeTimingsSchema.optional(),
   preview_bytes: z
     .number()
     .int()
@@ -115,6 +158,13 @@ const nativeFrameSchema = z.object({
 export type NativeAnalysisPreview = FileAnalysisPreview & {
   backend: "native-cpp";
   nativeCached: boolean;
+  nativeEngineVersion: string;
+  previewOrigin: "embedded_raw_jpeg" | "raster_decode" | "unknown";
+  sourceWidth: number;
+  sourceHeight: number;
+  analysisWidth?: number | undefined;
+  analysisHeight?: number | undefined;
+  nativeTimingsMs?: z.infer<typeof nativeTimingsSchema> | undefined;
   captureTimeMs?: number | undefined;
   cameraKey?: string | undefined;
   captureTimeBasis?: "utc" | "camera_clock" | undefined;
@@ -144,6 +194,13 @@ export function decodeNativeFrame(buffer: ArrayBuffer): NativeAnalysisPreview {
     faceDetectionAvailable: false,
     backend: "native-cpp",
     nativeCached: frame.cached,
+    nativeEngineVersion: frame.engine,
+    previewOrigin: frame.preview_origin ?? "unknown",
+    sourceWidth: frame.source_width,
+    sourceHeight: frame.source_height,
+    analysisWidth: frame.analysis_width,
+    analysisHeight: frame.analysis_height,
+    nativeTimingsMs: frame.timings_ms,
     captureTimeMs: frame.captured_at_ms ?? undefined,
     cameraKey: frame.camera_key || undefined,
     captureTimeBasis: frame.capture_time_basis ?? undefined,
@@ -182,5 +239,7 @@ export async function analyseFileNative(
     response.headers.get("content-type") !== "application/x-lenslabs-frame"
   )
     throw new Error("Invalid native preview response.");
-  return decodeNativeFrame(await response.arrayBuffer());
+  const bytes = await response.arrayBuffer();
+  signal?.throwIfAborted();
+  return decodeNativeFrame(bytes);
 }

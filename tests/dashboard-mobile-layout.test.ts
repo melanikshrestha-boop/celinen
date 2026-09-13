@@ -40,12 +40,36 @@ function shell(mode: "open" | "mini" | null, width = 248) {
   let effects: Array<() => void> = [];
   let cursor = 0;
   let mobile = false;
+  const navigations: unknown[] = [];
+  const imports: Array<{ options: unknown; input: unknown; kind: string }> = [];
   const context = {
     jsx,
     Fragment: "Fragment",
     useAccount: () => ({ status: "in", scope: "synthetic-owner", preferences: { theme: "light" } }),
     useIsMobile: () => mobile,
-    useNavigate: () => () => {},
+    useNavigate: () => (target: unknown) => {
+      navigations.push(target);
+    },
+    getDevelopImportSession: (options: unknown) => ({
+      startFiles: (input: unknown) => {
+        imports.push({ options, input, kind: "files" });
+        return Promise.resolve();
+      },
+      startDrop: (input: unknown) => {
+        imports.push({ options, input, kind: "drop" });
+        return Promise.resolve();
+      },
+    }),
+    supportedPhoto: (file: File) => /\.(jpg|arw)$/i.test(file.name),
+    crypto,
+    dashboardGreetingFor: () => "Hello",
+    DropdownMenu: "DropdownMenu",
+    DropdownMenuTrigger: "DropdownMenuTrigger",
+    DropdownMenuContent: "DropdownMenuContent",
+    DropdownMenuItem: "DropdownMenuItem",
+    VoiceMic: "VoiceMic",
+    Plus: "Plus",
+    ArrowUp: "ArrowUp",
     useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
       select({ location: { searchStr: "", pathname: "/earnings" } }),
     useState: (initial: unknown) => {
@@ -118,16 +142,73 @@ function shell(mode: "open" | "mini" | null, width = 248) {
   return {
     writes,
     listeners,
-    render(narrow: boolean) {
+    imports,
+    navigations,
+    render(narrow: boolean, home = false) {
       cursor = 0;
       effects = [];
       mobile = narrow;
-      const tree = component({ children: jsx("SyntheticEarnings", {}) });
+      const tree = component({
+        children: home ? undefined : jsx("SyntheticEarnings", {}),
+      } as never);
       effects.forEach((effect) => effect());
       return tree;
     },
   };
 }
+test("dashboard plus opens attachment choices, never restores the old shoot", () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const plus = find(tree, (node) => node.props["aria-label"] === "Add photos or folder")!;
+  expect(plus).toBeTruthy();
+  expect(plus.props.onClick).toBeUndefined();
+  expect(
+    find(tree, (node) => node.props["aria-label"] === "Choose photo folder")?.props.webkitdirectory,
+  ).toBe("");
+  expect(app.navigations).toEqual([]);
+  expect(app.imports).toEqual([]);
+});
+
+test("picker cancel stays home; actual photos start a fresh owner-scoped import", async () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const picker = find(tree, (node) => node.props["aria-label"] === "Choose photos")!;
+  const change = picker.props.onChange as (event: unknown) => void;
+  change({ currentTarget: { files: [], value: "" } });
+  expect(app.navigations).toEqual([]);
+  const file = new File(["synthetic"], "frame.jpg");
+  const target = { files: [file], value: "frame.jpg" };
+  change({ currentTarget: target });
+  expect(target.value).toBe("");
+  expect(app.imports[0]?.input).toEqual([file]);
+  const options = app.imports[0]?.options as { scope: string; libraryId: string };
+  expect(options.scope).toBe("synthetic-owner");
+  expect(options.libraryId).toMatch(/^shoot:[a-f0-9-]{36}$/);
+  expect(app.navigations).toEqual([
+    { to: "/studio", search: { shoot: options.libraryId.slice(6) } },
+  ]);
+  await Promise.resolve();
+});
+
+test("drop captures handles before navigating and does not write old library storage", () => {
+  const app = shell("open");
+  const tree = app.render(false, true);
+  const drop = find(tree, (node) => typeof node.props.onDrop === "function")!;
+  const transfer = { types: ["Files"] };
+  let prevented = false;
+  (drop.props.onDrop as (event: unknown) => void)({
+    dataTransfer: transfer,
+    preventDefault: () => {
+      prevented = true;
+    },
+    stopPropagation: () => {},
+  });
+  expect(prevented).toBe(true);
+  expect(app.imports[0]?.kind).toBe("drop");
+  expect(app.imports[0]?.input).toBe(transfer);
+  expect(app.navigations).toHaveLength(1);
+  expect(app.writes).toEqual([]);
+});
 function dashboard(tree: Element) {
   return find(tree, (node) => String(node.props.className).startsWith("celinen-dash"))!;
 }

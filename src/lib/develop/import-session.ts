@@ -1,9 +1,12 @@
 import { collectDroppedFiles, type DroppedFilesResult } from "../studio/drop-import";
 import { readImportSidecars, sidecarKey, supportedPhoto } from "../studio/ingest";
+import { analyseFileNative } from "../studio/native-client";
 import { prepareDevelopPreview } from "./preview";
 import { completeDevelopImportIds, runDevelopImport, type DevelopImportProgress } from "./import";
 import {
   createDevelopStore,
+  developAnalysisReceiptSchema,
+  readDevelopPhotoAnalysis,
   type DevelopImportJob,
   type DevelopPhotoInput,
   type DevelopStore,
@@ -20,6 +23,8 @@ export type DevelopImportSnapshot = Omit<DevelopImportJob, "id" | "version" | "r
     registeredMs: number | null;
     firstPreviewMs: number | null;
     previewsMs: number | null;
+    /** Latest durable analysis receipt ACK, not a claim that every found photo was analyzed. */
+    analyzedMs: number | null;
     savedMs: number | null;
   };
 };
@@ -27,7 +32,8 @@ export type DevelopImportSnapshot = Omit<DevelopImportJob, "id" | "version" | "r
 type SessionStore = Pick<
   DevelopStore,
   "loadLibrary" | "addPhotosWithDocuments" | "readImportJob" | "saveImportJob"
->;
+> &
+  Partial<Pick<DevelopStore, "namespace">>;
 type ImportSessionDependencies = {
   store: SessionStore;
   preparePreview?: (
@@ -57,19 +63,72 @@ const emptySnapshot = (): DevelopImportSnapshot => ({
   error: null,
   failures: [],
   selectedId: null,
-  timing: { registeredMs: null, firstPreviewMs: null, previewsMs: null, savedMs: null },
+  timing: {
+    registeredMs: null,
+    firstPreviewMs: null,
+    previewsMs: null,
+    analyzedMs: null,
+    savedMs: null,
+  },
 });
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Import could not continue.";
 const terminal = (phase: DevelopImportJob["phase"]) =>
   ["complete", "cancelled", "paused", "interrupted"].includes(phase);
 
-/** Native admission remains bounded by the engine; RAW fallback never changes original bytes. */
+/** Import evidence only: reuse native embedded previews, never replace full Develop/export proof. */
 export async function prepareDevelopImportPreview(
   file: File,
   input: DevelopPhotoInput,
   signal: AbortSignal,
+  context?: { namespace: string },
 ): Promise<DevelopPhotoInput> {
+  signal.throwIfAborted();
+  const native = await analyseFileNative(file, signal);
+  signal.throwIfAborted();
+  if (native) {
+    const previewOrigin =
+      native.previewOrigin === "embedded_raw_jpeg"
+        ? "embedded"
+        : native.previewOrigin === "raster_decode" && !input.isRaw
+          ? "raster"
+          : "unknown";
+    const analysis =
+      context && input.sourceDigest && native.nativeEngineVersion.trim()
+        ? developAnalysisReceiptSchema.parse({
+            version: 1,
+            kind: "mechanical",
+            namespace: context.namespace,
+            photoId: input.id,
+            sourceDigest: input.sourceDigest,
+            engine: { name: "native-cpp", version: native.nativeEngineVersion },
+            representation:
+              native.previewOrigin === "unknown"
+                ? "unknown-preview"
+                : native.previewOrigin === "embedded_raw_jpeg"
+                  ? "embedded-preview"
+                  : input.isRaw
+                    ? "rendered-preview"
+                    : "source",
+            width: native.analysisWidth ?? native.width,
+            height: native.analysisHeight ?? native.height,
+            analysis: native.analysis,
+            ...(native.captureTimeMs !== undefined ? { captureTimeMs: native.captureTimeMs } : {}),
+            ...(native.cameraKey !== undefined ? { cameraKey: native.cameraKey } : {}),
+            ...(native.captureTimeBasis !== undefined
+              ? { captureTimeBasis: native.captureTimeBasis }
+              : {}),
+          })
+        : undefined;
+    return {
+      ...input,
+      previewBlob: native.previewBlob,
+      previewOrigin,
+      width: native.width,
+      height: native.height,
+      ...(analysis ? { analysis } : {}),
+    };
+  }
   const preview = await prepareDevelopPreview(file, input, signal, { priority: "background" });
   return { ...input, ...preview };
 }
@@ -99,6 +158,8 @@ export function createDevelopImportSession(
   dependencies: ImportSessionDependencies,
 ) {
   const { store } = dependencies;
+  const namespace =
+    store.namespace ?? JSON.stringify([options.scope.trim(), options.libraryId.trim()]);
   const now = dependencies.now ?? (() => performance.now());
   const listeners = new Set<() => void>();
   let state = emptySnapshot();
@@ -322,13 +383,11 @@ export function createDevelopImportSession(
               existingIds: completeDevelopImportIds(library.photos),
               signal: owner.signal,
               preparationConcurrency: 4,
-              rawPreparationConcurrency: 1,
+              rawPreparationConcurrency: 2,
               preparePreview: async (file, input, signal) => {
-                const prepared = await (dependencies.preparePreview ?? prepareDevelopImportPreview)(
-                  file,
-                  input,
-                  signal,
-                );
+                const prepared = dependencies.preparePreview
+                  ? await dependencies.preparePreview(file, input, signal)
+                  : await prepareDevelopImportPreview(file, input, signal, { namespace });
                 const key = sidecarKey(file),
                   text = sidecars.values.get(key);
                 if (text !== undefined && targets.get(key) === 1) {
@@ -385,6 +444,10 @@ export function createDevelopImportSession(
                   row.photoId = photo.id;
                 }
                 state.saved++;
+                if (readDevelopPhotoAnalysis(photo, receipt.documents[photo.id]!, namespace)) {
+                  state.analyzed++;
+                  state.timing.analyzedMs = now() - eventStart;
+                }
                 state.selectedId ??= photo.id;
                 changed();
               },

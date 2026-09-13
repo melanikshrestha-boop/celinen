@@ -1,4 +1,5 @@
 import { DEFAULT_EDITS, type Shot } from "../imaging";
+import { projectDevelopAnalysis, readDevelopPhotoAnalysis } from "./analysis";
 import {
   createDevelopStore,
   developDocumentSchema,
@@ -142,12 +143,34 @@ export function projectDevelopPhotoToStudio(
         );
   const oldEdits = metadata["edits"] as Shot["edits"] | undefined;
   const oldDevelop = metadata["develop"] as Shot["develop"];
-  const needsAnalysis = !(
-    typeof metadata["hash"] === "string" &&
-    metadata["hash"].length > 0 &&
-    typeof metadata["sharpness"] === "number" &&
-    !metadata["error"]
-  );
+  const analysis = readDevelopPhotoAnalysis(photo, saved, namespace);
+  if (saved.analysis && !analysis) {
+    // A source change can leave a preserved unbound receipt in the document.
+    // Its archived legacy measurements are not evidence for the new original.
+    // Strip only the runtime projection; the document/archive remain unchanged.
+    for (const field of [
+      "sharpness",
+      "brightness",
+      "clippedHighlights",
+      "clippedShadows",
+      "hash",
+      "score",
+      "flags",
+      "tone",
+      "faces",
+      "analysisBackend",
+      "error",
+    ])
+      delete metadata[field];
+  }
+  const needsAnalysis =
+    !analysis &&
+    !(
+      typeof metadata["hash"] === "string" &&
+      metadata["hash"].length > 0 &&
+      typeof metadata["sharpness"] === "number" &&
+      !metadata["error"]
+    );
   const shot: Shot = {
     sharpness: 0,
     brightness: 0,
@@ -188,5 +211,10 @@ export function projectDevelopPhotoToStudio(
       label: saved.metadata.colorLabel,
     },
   };
-  return { shot, treatment: "native", legacyAvailable: Boolean(legacy), needsAnalysis };
+  return {
+    shot: analysis ? projectDevelopAnalysis(shot, analysis) : shot,
+    treatment: "native",
+    legacyAvailable: Boolean(legacy),
+    needsAnalysis,
+  };
 }
