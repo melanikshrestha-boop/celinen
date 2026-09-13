@@ -1,5 +1,8 @@
 # FOTO local C++ engines
 
+See [streaming analysis measurements and regression checks](ANALYSIS-PERFORMANCE.md)
+for the backend-only grayscale memory optimization and its deployment limits.
+
 The current FOTO workspace shares canonical, account-and-shoot-scoped photo and
 review records between Cull and Develop. Develop uses `lenslabs-develop` for
 editing and JPEG export; legacy Studio renderer descriptions later in this file

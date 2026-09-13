@@ -7,7 +7,7 @@ All notable LensLabs changes are documented here.
 ### Changed
 
 - Stream native analysis through three grayscale rows instead of a full-image scratch buffer, preserving histogram and sharpness arithmetic and existing scoring rules. No interface or delivery behavior changes.
-- Add exact-parity and scratch-allocation regression tests plus a repeatable synthetic analysis benchmark. See `native/ANALYSIS-PERFORMANCE.md` for measurements and limits.
+- Add exact-parity and scratch-allocation regression tests plus a repeatable synthetic analysis benchmark. See [analysis performance](native/ANALYSIS-PERFORMANCE.md) for measurements and limits.
 
 ## [0.1.0.0] - 2026-09-07
 
