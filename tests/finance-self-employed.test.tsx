@@ -118,6 +118,29 @@ test("record checklist is usable native form controls without persistence or fil
   }
 });
 
+test("estimated tax explains both conditions and the prior-return qualification", () => {
+  const html = renderToStaticMarkup(createElement(FinanceTaxHub));
+  for (const text of [
+    "both conditions",
+    "withholding and refundable credits",
+    "smaller of",
+    "all 12 months",
+    "USD 150,000",
+    "USD 75,000",
+    "married filing separately",
+    "not your payment calculation",
+  ])
+    expect(html).toContain(text);
+});
+
+test("retirement worksheet references warn against carrying forward an older tax year's limits", () => {
+  const html = renderToStaticMarkup(createElement(RetirementPathways));
+  expect(html).toContain("worksheet edition");
+  expect(html).toContain("2026 limits");
+  expect(html).toContain("prior-year dollar limits");
+  expect(html).toContain(TAX_SOURCES.retirementLimits);
+});
+
 test("retirement pathways describe plan limits, not personal investment balances or contribution advice", () => {
   const html = renderToStaticMarkup(createElement(RetirementPathways));
   expect((html.match(/<summary>/g) ?? []).length).toBe(4);
