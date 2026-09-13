@@ -2,6 +2,7 @@ import {
   createFileRoute,
   Link,
   useBlocker,
+  useLocation,
   useNavigate,
   defaultStringifySearch,
 } from "@tanstack/react-router";
@@ -17,6 +18,7 @@ import {
 } from "@/components/studio/DeliveryReference";
 import {
   developWorkspaceHref,
+  explicitWorkspaceBinding,
   resolveWorkspaceBinding,
   shootWorkspaceHref,
 } from "@/lib/workbench-projects";
@@ -211,33 +213,22 @@ export const Route = createFileRoute("/studio")({
 
 function StudioRoute() {
   const workbench = useWorkbench();
-  const { project, shoot, deliveryFrame, deliveryVersion, deliveryHandoff } = Route.useSearch();
-  const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
+  const account = useAccount();
+  const href = useLocation({ select: (location) => location.href });
+  const binding = explicitWorkspaceBinding(href, isLocalSingleUserMode);
   // The root workspace owns one persistent controller across tool navigation.
   if (workbench) return null;
-  if (project && !ready) return <p className="p-8">Opening project…</p>;
-  if (project && !isLocalSingleUserMode)
-    return (
-      <p className="p-8">
-        Named projects are currently available only in the local development workspace. No private
-        project data was loaded.
-      </p>
-    );
+  if (binding?.kind === "blocked") return <p role="alert">{binding.reason}</p>;
+  if (!account?.scope || !binding) return <p role="status">Opening your workspace…</p>;
+  // Dashboard routes have no Workbench controller. Bind their import and Cull
+  // stores to the same verified owner that canonical Develop will use.
   return (
     <Studio
-      key={JSON.stringify([project, shoot, deliveryFrame, deliveryVersion, deliveryHandoff])}
-      projectId={project ?? null}
-      {...(shoot ? { shootId: shoot } : {})}
-      {...(deliveryFrame && deliveryVersion
-        ? {
-            deliveryFocus: {
-              frameId: deliveryFrame,
-              versionId: deliveryVersion,
-              ...(deliveryHandoff ? { handoffId: deliveryHandoff } : {}),
-            },
-          }
-        : {})}
+      key={JSON.stringify([account.scope, binding])}
+      storageScope={account.scope}
+      projectId={binding.projectId}
+      {...(binding.shootId ? { shootId: binding.shootId } : {})}
+      {...(binding.deliveryFocus ? { deliveryFocus: binding.deliveryFocus } : {})}
     />
   );
 }
@@ -274,12 +265,12 @@ type EditRecipe = {
 export function Studio({
   projectId,
   deliveryFocus,
-  storageScope = "device-local",
+  storageScope,
   shootId,
 }: {
   projectId: string | null;
   deliveryFocus?: DeliveryFocus;
-  storageScope?: string;
+  storageScope: string;
   shootId?: string;
 }) {
   const workbench = useWorkbench();
