@@ -975,10 +975,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   function updateDoc(next: DevelopDocument, internal = false): Promise<boolean> {
     if (failed.current || (!internal && editsLocked())) return Promise.resolve(false);
-    const recipe = currentRecipe(next);
-    draftRef.current = recipe;
-    setDraft(recipe);
-    markDraftDirty(false);
+    // A background document belongs to its photo, not whichever photo a later
+    // route hydration selected while its save was pending.
+    if (next.photoId === selectedRef.current) {
+      const recipe = currentRecipe(next);
+      draftRef.current = recipe;
+      setDraft(recipe);
+      markDraftDirty(false);
+    }
     return persistBatch([next], internal);
   }
   function change(next: DevelopSettings, label: string, commit = true) {
@@ -1417,6 +1421,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   async function previewExport() {
     if (dialog !== "export" || editsLocked() || !exportRequest) return;
+    const owner = hydration.current;
+    const current = () => alive.current && hydration.current === owner;
     const recipe = cloneDevelopSettings(draftRef.current);
     const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
     operationLock.current = "dialog";
@@ -1428,6 +1434,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     try {
       if (!(await flush()))
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
+      if (!current()) return;
       controller.signal.throwIfAborted();
       const cached = currentDevelopExportProof(editorProof.current, request)
         ? editorProof.current
@@ -1442,13 +1449,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         }));
       const bitmap = await createImageBitmap(blob);
       try {
-        if (alive.current && !controller.signal.aborted)
+        if (current() && !controller.signal.aborted)
           setExportProof({ ...request, blob, width: bitmap.width, height: bitmap.height });
       } finally {
         bitmap.close();
       }
     } catch (e) {
-      if (alive.current)
+      if (current())
         setDialogError(controller.signal.aborted ? "Export preview cancelled." : errorMessage(e));
     } finally {
       operationLock.current = null;
@@ -1458,6 +1465,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   async function confirmDialog() {
     if (!dialog || editsLocked()) return;
+    const owner = hydration.current;
+    const current = () => alive.current && hydration.current === owner;
     const action = dialog,
       activeId = selectedRef.current,
       recipe = cloneDevelopSettings(draftRef.current);
@@ -1469,10 +1478,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     try {
       if (!(await flush()))
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
+      if (!current()) return;
       controller.signal.throwIfAborted();
       if (action === "preset") {
         const preset = await store.savePreset(createDevelopPreset(name, recipe));
-        if (alive.current) {
+        if (current()) {
           setLibrary((old) => ({ ...old, presets: [...old.presets, preset] }));
           setNotice("Preset saved");
         }
@@ -1481,7 +1491,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         if (!photo || activeId !== photo.id)
           throw new Error("Choose the photo again before renaming.");
         const renamed = await store.renamePhoto(photo.id, name, photo.name);
-        if (alive.current) {
+        if (current()) {
           setLibrary((old) => ({
             ...old,
             photos: old.photos.map((item) => (item.id === renamed.id ? renamed : item)),
@@ -1490,13 +1500,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         }
       }
       if (action === "snapshot") {
-        const current = activeId ? docs.current[activeId] : undefined;
-        if (!current) throw new Error("Choose a photo first.");
-        if (!(await updateDoc(addSnapshot(current, name), true)))
+        const document = activeId ? docs.current[activeId] : undefined;
+        if (!document) throw new Error("Choose a photo first.");
+        if (!(await updateDoc(addSnapshot(document, name), true)))
           throw new Error(
             "The snapshot was not saved. Your edits remain available in the recovery file.",
           );
-        if (alive.current) setNotice("Snapshot saved");
+        if (current()) setNotice("Snapshot saved");
       }
       if (action === "sync") {
         if (!activeId) throw new Error("Choose a source photo first.");
@@ -1524,7 +1534,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           throw new Error(
             "Settings were not synced. Your edits remain available in the recovery file.",
           );
-        if (alive.current) setNotice(`Settings synced to ${updates.length} photos`);
+        if (current()) setNotice(`Settings synced to ${updates.length} photos`);
       }
       if (action === "export") {
         if (!photo || !exportRequest) throw new Error("Choose a photo with a source first.");
@@ -1546,19 +1556,19 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         const bitmap = await createImageBitmap(blob);
         const size = `${bitmap.width} × ${bitmap.height}`;
         bitmap.close();
-        if (alive.current && !controller.signal.aborted) {
+        if (current() && !controller.signal.aborted) {
           download(blob, photoExportFilename(photo.name));
           setNotice(
             `Exported ${size} JPEG${photo.isRaw ? (sourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}`,
           );
         }
       }
-      if (alive.current) {
+      if (current()) {
         setDialog(null);
         setName("");
       }
     } catch (e) {
-      if (alive.current) setDialogError(errorMessage(e));
+      if (current()) setDialogError(errorMessage(e));
     } finally {
       operationLock.current = null;
       exportAbort.current = null;
