@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { productCapture } from "@/lib/product-lifecycle";
 import { ChevronLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import {
   Dialog,
@@ -241,8 +242,12 @@ export function BurstReview({
   onOpenChange,
   shots,
   onCull,
+  analyticsScope,
+  analyticsShootId,
 }: {
   open: boolean;
+  analyticsScope?: string | undefined;
+  analyticsShootId?: string | undefined;
   onOpenChange: (open: boolean) => void;
   shots: readonly BurstFrame[];
   onCull: (keepId: string, groupIds: readonly string[]) => void;
@@ -301,6 +306,12 @@ export function BurstReview({
     return () => controller.abort();
   }, [open, membership, retry]);
   const group = result?.groups[Math.min(page, result.groups.length - 1)];
+  useEffect(() => {
+    if (open && group && !loading && !error)
+      productCapture(analyticsScope, analyticsShootId)("burst_opened", {
+        photo_count: group.frameIds.length,
+      });
+  }, [open, group, loading, error, analyticsScope, analyticsShootId]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[94dvh] w-[calc(100%-2rem)] max-w-5xl overflow-y-auto border-0 bg-paper p-5 text-ink shadow-none sm:p-7">

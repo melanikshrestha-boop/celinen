@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { workspaceStorageKey } from "../workspace-storage";
+import { prepareShootCreation } from "../product-lifecycle";
 export const shootIdSchema = z.union([z.string().uuid(), z.literal("legacy")]);
 export const shootTitleSchema = z.string().trim().min(1, "Give this shoot a name.").max(200);
 const rowSchema = z
@@ -183,6 +184,7 @@ async function update(
 ) {
   shootIdSchema.parse(id);
   if (patch.name !== undefined) shootTitleSchema.parse(patch.name);
+  const reportCreation = prepareShootCreation(scope, id);
   const db = await open(scope);
   try {
     const tx = db.transaction("shoots", "readwrite");
@@ -213,6 +215,15 @@ async function update(
     );
     await done;
     window.dispatchEvent(new Event("lenslabs:shoots-changed"));
+    if (
+      (!existing || (!before.named && before.count === 0)) &&
+      !patch.recovered &&
+      !patch.recoveryPending &&
+      !("recoveredFromDevice" in before && before.recoveredFromDevice) &&
+      !("recoveryPending" in before && before.recoveryPending) &&
+      (patch.name !== undefined || (patch.count ?? 0) > 0)
+    )
+      void reportCreation();
   } finally {
     db.close();
   }

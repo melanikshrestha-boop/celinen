@@ -14,6 +14,7 @@ import { PRODUCT_HEADLINE } from "@/lib/product";
 import { LensProvider } from "@/lib/lensos-store";
 import { WorkbenchBoundary } from "@/components/workbench/Workbench";
 import { AccountProvider, useAccount } from "@/components/account/AccountProvider";
+import { ProductAnalytics } from "@/components/account/ProductAnalytics";
 
 function NotFoundComponent() {
   return (
@@ -133,6 +134,7 @@ function AccountContent() {
   const account = useAccount();
   return (
     <LensProvider key={account?.scope ?? "signed-out"}>
+      <ProductAnalytics />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <WorkbenchBoundary>
         <Outlet />

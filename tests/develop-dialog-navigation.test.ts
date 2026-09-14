@@ -17,6 +17,8 @@ import {
   type DevelopExportProof,
 } from "../src/components/develop/develop-state";
 import { photoExportFilename } from "../src/lib/develop/photo-management";
+import { productOperation, connectProductAnalytics } from "../src/lib/product-lifecycle";
+import { createProductAnalytics } from "../src/lib/product-analytics";
 
 // Execute the actual editor actions, draft update, navigation fence, and leave guard.
 // Only React setters and persistence I/O are replaced with instance-local doubles.
@@ -129,6 +131,10 @@ function fixture(delayFirstFlush = false, action: "snapshot" | "export" = "snaps
     return true;
   };
   const context = {
+    productOperation,
+    scope: "12345678-1234-4123-a123-123456789012",
+    shootId: "12345678-1234-4123-a123-123456789014",
+    projectId: null,
     useCallback: (fn: unknown) => fn,
     hydration,
     failed: { current: false },
@@ -253,6 +259,45 @@ function fixture(delayFirstFlush = false, action: "snapshot" | "export" = "snaps
 }
 
 describe("Develop dialog actions stay with their navigation owner", () => {
+  for (const outcome of ["success", "failure", "navigation", "preview"] as const) {
+    test(`actual export analytics: ${outcome}`, async () => {
+      const events: string[] = [];
+      const close = connectProductAnalytics(
+        "12345678-1234-4123-a123-123456789012",
+        createProductAnalytics({
+          config: { enabled: "true", host: "https://us.i.posthog.com", key: "phc_TESTNOTAREALKEY" },
+          accountId: "12345678-1234-4123-a123-123456789012",
+          cookie: () => "foto_consent=accepted",
+          fetch: async (_url, init) => {
+            events.push(JSON.parse(String(init.body)).event);
+            return { ok: true };
+          },
+        }),
+        () => true,
+      );
+      try {
+        const f = fixture(false, "export");
+        const pending =
+          outcome === "preview" ? f.actions.previewExport() : f.actions.confirmDialog();
+        await f.renderEntered;
+        expect(events).toEqual(outcome === "preview" ? [] : ["export_started"]);
+        if (outcome === "navigation") await f.navigateToB();
+        if (outcome === "failure") f.rejectRender(new Error("Private failure"));
+        else f.releaseRender();
+        await pending;
+        expect(events).toEqual(
+          outcome === "success"
+            ? ["export_started", "export_completed"]
+            : outcome === "preview"
+              ? []
+              : ["export_started"],
+        );
+        expect(f.state.downloads.length).toBe(outcome === "success" ? 1 : 0);
+      } finally {
+        close();
+      }
+    });
+  }
   test("an old snapshot awaiting flush cannot change the newly hydrated photo or its next save", async () => {
     const f = fixture(true);
     const pending = f.actions.confirmDialog();

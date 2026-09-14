@@ -1,3 +1,4 @@
+import { productOperation } from "@/lib/product-lifecycle";
 import {
   useCallback,
   useEffect,
@@ -1486,6 +1487,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     setBusy(action === "export" ? "Rendering export" : "Saving…");
     const controller = new AbortController();
     exportAbort.current = controller;
+    const telemetry =
+      action === "export"
+        ? productOperation(scope, shootId ?? projectId ?? undefined, "export", { photo_count: 1 })
+        : undefined;
     try {
       if (!(await flush()))
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
@@ -1569,6 +1574,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         bitmap.close();
         if (current() && !controller.signal.aborted) {
           download(blob, photoExportFilename(photo.name));
+          telemetry?.finish();
           setNotice(
             `Exported ${size} JPEG${photo.isRaw ? (sourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}`,
           );

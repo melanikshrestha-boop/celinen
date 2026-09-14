@@ -16,6 +16,7 @@ import { profileInputSchema, readAccountProfile, type ProfileInput } from "@/lib
 import { avatarStorageKey, readLocalAvatar, writeLocalAvatar } from "@/lib/account-avatar";
 import type { PhotographerWorkRole } from "@/lib/photographer-work-roles";
 import { applyAppearance } from "@/lib/appearance";
+import { disconnectProductAnalytics } from "@/lib/product-lifecycle";
 import {
   accountName,
   DEFAULT_PREFERENCES,
@@ -90,6 +91,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return data.user;
       },
       (verified) => {
+        // Fence pending analytics before React installs a new verified account.
+        disconnectProductAnalytics(verified?.id);
         if (confirmedProfile.current?.owner !== verified?.id) confirmedProfile.current = null;
         identityEpoch.current++;
         setUser(verified);

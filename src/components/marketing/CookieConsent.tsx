@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { consentCookie, consentFromCookie, type Consent } from "@/lib/marketing-consent";
+import { revokeProductAnalytics } from "@/lib/product-lifecycle";
 import "./cookie-consent.css";
 
 function readConsent(): Consent | null {
@@ -10,6 +11,15 @@ function readConsent(): Consent | null {
 
 function writeConsent(value: Consent) {
   document.cookie = consentCookie(value);
+  if (value === "rejected") revokeProductAnalytics();
+  window.dispatchEvent(new Event("foto-consent-changed"));
+  try {
+    const channel = new BroadcastChannel("foto-analytics-consent");
+    channel.postMessage("changed");
+    channel.close();
+  } catch {
+    /* Unsupported browsers still check the cookie on every capture. */
+  }
 }
 
 async function track(path: string) {

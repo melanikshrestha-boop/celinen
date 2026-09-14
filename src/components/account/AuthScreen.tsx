@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { authReturnUrl, isLocalAuthOrigin, type AuthSearch } from "@/lib/auth-flow";
 import { safeSignInPath } from "@/lib/workbench";
 import { PRODUCT_NAME } from "@/lib/product";
+import { noteCompletedSignup } from "@/lib/product-lifecycle";
+import { consentFromCookie } from "@/lib/marketing-consent";
 import "./auth-screen.css";
 
 type Props = AuthSearch & { onAuthenticated: () => void };
@@ -129,6 +131,11 @@ export function AuthScreen({ next, mode, source, google, onAuthenticated }: Prop
           },
         });
         if (result.error) return providerError(result.error.message);
+        if (result.data.user?.identities?.length)
+          noteCompletedSignup(
+            result.data.user.id,
+            consentFromCookie(document.cookie) === "accepted",
+          );
         if (!mounted.current) return;
         setPassword("");
         setShowPassword(false);
