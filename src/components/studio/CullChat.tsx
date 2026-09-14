@@ -21,7 +21,6 @@ import { workspaceStorageKey } from "@/lib/workspace-storage";
 import { parseWorkspaceRequest } from "@/lib/workbench-projects";
 import { dispatchClientCommand, parseClientCommand } from "@/lib/clients/sheet";
 import {
-  LOCAL_COMMAND_HELP,
   STUDIO_TOOL_DEFINITIONS,
   isToolName,
   parseLocalCommand,
@@ -29,6 +28,11 @@ import {
 } from "@/lib/studio/commands";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import { PRODUCT_NAME } from "@/lib/product";
+import {
+  assistantUnavailable,
+  isPhotographyConversation,
+  requireAssistantMessage,
+} from "@/lib/photography-assistant";
 import { parseCreativeEdit, type CreativeEditPlan } from "@/lib/studio/creative-edits";
 import { studioCommandRefusal, studioToolBoundary } from "@/lib/studio/command-safety";
 import type { EditTarget, StudioProposal } from "@/lib/studio/proposals";
@@ -274,11 +278,12 @@ function CullChatSession({
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
+      const adobe = parseAdobeSettingsPaste(trimmed);
+      const conversationOnly = !adobe && isPhotographyConversation(trimmed);
       if (
         !trimmed ||
         sendingRef.current ||
-        importing ||
-        paused ||
+        ((importing || paused) && !conversationOnly) ||
         history?.blocked ||
         history?.switching
       )
@@ -293,7 +298,6 @@ function CullChatSession({
         checkActive();
         return result;
       };
-      const adobe = parseAdobeSettingsPaste(trimmed);
       if (adobe?.kind === "plan" && onImportFolder && !frameCount) {
         setInput(trimmed);
         setMsgs((messages) => [
@@ -315,7 +319,8 @@ function CullChatSession({
           : adobe
             ? "Pasted Adobe settings"
             : trimmed;
-      const workspaceRequest = onWorkspaceRequest && parseWorkspaceRequest(trimmed);
+      const workspaceRequest =
+        !conversationOnly && onWorkspaceRequest && parseWorkspaceRequest(trimmed);
       setMsgs((m) => [
         ...m,
         {
@@ -344,121 +349,123 @@ function CullChatSession({
           ]);
           return;
         }
-        const clientCommand = parseClientCommand(trimmed);
-        if (clientCommand && onNavigate) {
-          const opened = await onNavigate("/clients");
-          dispatchClientCommand(clientCommand);
-          const reply =
-            clientCommand.kind === "add"
-              ? `Added ${clientCommand.name} to Clients.`
-              : clientCommand.kind === "open"
-                ? `Opened ${clientCommand.name}.`
-                : clientCommand.kind === "quiet"
-                  ? "Showing quiet names."
-                  : clientCommand.kind === "unopened"
-                    ? "Showing names whose gallery is still closed."
-                    : `Attached ${clientCommand.name} to a new project.`;
-          const text = opened ? reply : "Kept your current tool open.";
-          historyRef.current.push({ role: "assistant", content: text });
-          setMsgs((messages) => [...messages, { role: "assistant", text }]);
-          return;
-        }
-        const destination = onNavigate && workbenchNavigation(trimmed);
-        if (destination) {
-          const opened = await onNavigate!(destination);
-          const reply = opened
-            ? "Opened alongside this chat. No photos were sent or changed."
-            : "Kept your current tool open. No photos were sent or changed.";
-          historyRef.current.push({ role: "assistant", content: reply });
-          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
-          return;
-        }
-        if (adobe) {
-          const reply = adobe.kind === "refusal" ? adobe.reason : stageAdobeSettings(adobe);
-          historyRef.current.push({ role: "assistant", content: reply });
-          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
-          return;
-        }
-        const refusal = studioCommandRefusal(trimmed);
-        if (refusal) {
-          historyRef.current.push({ role: "assistant", content: refusal });
-          setMsgs((messages) => [...messages, { role: "assistant", text: refusal }]);
-          return;
-        }
-        const workflow = parseStudioWorkflowIntent(trimmed);
-        if (workflow) {
-          const reply =
-            workflow.kind === "refusal"
-              ? workflow.reason
-              : onWorkflow
-                ? onWorkflow(workflow)
-                : "Open Studio to review bursts or prepare a deadline export.";
-          historyRef.current.push({ role: "assistant", content: reply });
-          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
-          return;
-        }
-        if (
-          /^(?:apply(?: it| that| the edit)?|accept(?: suggestions)?|use this(?: look)?)\.?$/i.test(
-            trimmed,
-          )
-        ) {
-          proposalAction(onApply);
-          return;
-        }
-        if (
-          /^(?:discard(?: it| that| the preview)?|cancel(?: it| that| the preview)?)\.?$/i.test(
-            trimmed,
-          )
-        ) {
-          proposalAction(onDiscard);
-          return;
-        }
-        const creative = parseCreativeEdit(trimmed);
-        if (creative) {
-          const reply = creative.kind === "plan" ? stageEdit(creative) : creative.reason;
-          historyRef.current.push({ role: "assistant", content: reply });
-          setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
-          return;
-        }
-        const local = parseLocalCommand(trimmed);
-        if (local) {
-          const calls = local.calls.some((call) => call.name === "keep_top")
-            ? local.calls.filter((call) => call.name !== "cull")
-            : local.calls;
-          let preview = false;
-          for (const call of calls) {
-            const label = call.name.replace(/_/g, " ");
-            setRunning(label);
-            let result: string;
-            try {
-              result = await safeExecute(call);
-            } catch (err) {
-              result = `failed: ${(err as Error).message}`;
-            }
-            used.push({ name: label, result });
-            checkActive();
-            if (studioToolBoundary(result) === "preview") {
-              preview = true;
-              break;
-            }
-            if (studioToolBoundary(result) === "failed") break;
+        if (!conversationOnly) {
+          const clientCommand = parseClientCommand(trimmed);
+          if (clientCommand && onNavigate) {
+            const opened = await onNavigate("/clients");
+            dispatchClientCommand(clientCommand);
+            const reply =
+              clientCommand.kind === "add"
+                ? `Added ${clientCommand.name} to Clients.`
+                : clientCommand.kind === "open"
+                  ? `Opened ${clientCommand.name}.`
+                  : clientCommand.kind === "quiet"
+                    ? "Showing quiet names."
+                    : clientCommand.kind === "unopened"
+                      ? "Showing names whose gallery is still closed."
+                      : `Attached ${clientCommand.name} to a new project.`;
+            const text = opened ? reply : "Kept your current tool open.";
+            historyRef.current.push({ role: "assistant", content: text });
+            setMsgs((messages) => [...messages, { role: "assistant", text }]);
+            return;
           }
-          const reply = preview
-            ? "Review the proposal below. No edits or selections are saved until you accept; any export or later steps wait for your approval."
-            : used.some((tool) => studioToolBoundary(tool.result) === "failed")
-              ? "That step could not be completed. Later steps were not run."
-              : "The results are shown above.";
-          const receipt = used.map((tool) => `${tool.name}: ${tool.result}`).join("; ");
-          historyRef.current.push({
-            role: "assistant",
-            content: `${reply} ${receipt}`.trim(),
-          });
-          setMsgs((messages) => [...messages, { role: "assistant", text: reply, tools: used }]);
-          return;
+          const destination = onNavigate && workbenchNavigation(trimmed);
+          if (destination) {
+            const opened = await onNavigate!(destination);
+            const reply = opened
+              ? "Opened alongside this chat. No photos were sent or changed."
+              : "Kept your current tool open. No photos were sent or changed.";
+            historyRef.current.push({ role: "assistant", content: reply });
+            setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+            return;
+          }
+          if (adobe) {
+            const reply = adobe.kind === "refusal" ? adobe.reason : stageAdobeSettings(adobe);
+            historyRef.current.push({ role: "assistant", content: reply });
+            setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+            return;
+          }
+          const refusal = studioCommandRefusal(trimmed);
+          if (refusal) {
+            historyRef.current.push({ role: "assistant", content: refusal });
+            setMsgs((messages) => [...messages, { role: "assistant", text: refusal }]);
+            return;
+          }
+          const workflow = parseStudioWorkflowIntent(trimmed);
+          if (workflow) {
+            const reply =
+              workflow.kind === "refusal"
+                ? workflow.reason
+                : onWorkflow
+                  ? onWorkflow(workflow)
+                  : "Open Studio to review bursts or prepare a deadline export.";
+            historyRef.current.push({ role: "assistant", content: reply });
+            setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+            return;
+          }
+          if (
+            /^(?:apply(?: it| that| the edit)?|accept(?: suggestions)?|use this(?: look)?)\.?$/i.test(
+              trimmed,
+            )
+          ) {
+            proposalAction(onApply);
+            return;
+          }
+          if (
+            /^(?:discard(?: it| that| the preview)?|cancel(?: it| that| the preview)?)\.?$/i.test(
+              trimmed,
+            )
+          ) {
+            proposalAction(onDiscard);
+            return;
+          }
+          const creative = parseCreativeEdit(trimmed);
+          if (creative) {
+            const reply = creative.kind === "plan" ? stageEdit(creative) : creative.reason;
+            historyRef.current.push({ role: "assistant", content: reply });
+            setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
+            return;
+          }
+          const local = parseLocalCommand(trimmed);
+          if (local) {
+            const calls = local.calls.some((call) => call.name === "keep_top")
+              ? local.calls.filter((call) => call.name !== "cull")
+              : local.calls;
+            let preview = false;
+            for (const call of calls) {
+              const label = call.name.replace(/_/g, " ");
+              setRunning(label);
+              let result: string;
+              try {
+                result = await safeExecute(call);
+              } catch (err) {
+                result = `failed: ${(err as Error).message}`;
+              }
+              used.push({ name: label, result });
+              checkActive();
+              if (studioToolBoundary(result) === "preview") {
+                preview = true;
+                break;
+              }
+              if (studioToolBoundary(result) === "failed") break;
+            }
+            const reply = preview
+              ? "Review the proposal below. No edits or selections are saved until you accept; any export or later steps wait for your approval."
+              : used.some((tool) => studioToolBoundary(tool.result) === "failed")
+                ? "That step could not be completed. Later steps were not run."
+                : "The results are shown above.";
+            const receipt = used.map((tool) => `${tool.name}: ${tool.result}`).join("; ");
+            historyRef.current.push({
+              role: "assistant",
+              content: `${reply} ${receipt}`.trim(),
+            });
+            setMsgs((messages) => [...messages, { role: "assistant", text: reply, tools: used }]);
+            return;
+          }
         }
 
         if (isLocalSingleUserMode || account?.preferences.cloudAssistant === false) {
-          const reply = `i couldn't match that locally yet. ${LOCAL_COMMAND_HELP}`;
+          const reply = assistantUnavailable(isLocalSingleUserMode ? "local" : "disabled");
           historyRef.current.push({ role: "assistant", content: reply });
           setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
           return;
@@ -479,7 +486,7 @@ function CullChatSession({
           }
         }
         if (!accessToken) {
-          const reply = `i couldn't match that locally yet. ${LOCAL_COMMAND_HELP}`;
+          const reply = assistantUnavailable("session");
           historyRef.current.push({ role: "assistant", content: reply });
           setMsgs((messages) => [...messages, { role: "assistant", text: reply }]);
           return;
@@ -496,6 +503,7 @@ function CullChatSession({
             },
 
             body: JSON.stringify({
+              mode: conversationOnly ? "conversation" : "studio",
               messages: [
                 {
                   role: "system",
@@ -511,7 +519,7 @@ function CullChatSession({
                   : []),
                 ...historyRef.current,
               ],
-              tools: STUDIO_TOOL_DEFINITIONS,
+              tools: conversationOnly ? [] : STUDIO_TOOL_DEFINITIONS,
             }),
           });
           const data = (await res.json()) as {
@@ -526,16 +534,21 @@ function CullChatSession({
           };
           checkActive();
           if (!res.ok || data.error) throw new Error(data.error ?? "Assistant unavailable.");
-          const message = data.message ?? {};
-          historyRef.current.push(message as ApiMsg);
+          const message = requireAssistantMessage(data.message);
 
           const calls = message.tool_calls ?? [];
+          if (conversationOnly && calls.length) {
+            throw new Error(
+              "The assistant proposed an action during a conversation. Nothing was run. Please try again.",
+            );
+          }
+          historyRef.current.push(message as ApiMsg);
           if (!calls.length) {
             setMsgs((m) => [
               ...m,
               {
                 role: "assistant",
-                text: message.content?.trim() || "done.",
+                text: message.content!.trim(),
                 ...(used.length ? { tools: [...used] } : {}),
               },
             ]);
@@ -950,8 +963,7 @@ function CullChatSession({
               disabled={
                 thinking ||
                 !!running ||
-                importing ||
-                paused ||
+                ((importing || paused) && !isPhotographyConversation(input)) ||
                 !input.trim() ||
                 history?.blocked ||
                 history?.switching

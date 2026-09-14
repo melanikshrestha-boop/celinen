@@ -1,4 +1,5 @@
 .celinen-ios-cal {
+  container-type: inline-size;
   --ios-red: #ff3b30;
   --ios-ink: #1d1d1f;
   --ios-muted: #86868b;
@@ -347,6 +348,7 @@ html.dark .celinen-dash__cal {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow-x: auto;
 }
 .celinen-ios-cal__lanes {
   display: grid;
@@ -435,5 +437,24 @@ html.dark .celinen-dash__cal {
   }
   .celinen-ios-cal__side {
     display: none;
+  }
+}
+
+/* The sidebar can make the calendar narrow even on a wide browser window. */
+@container (max-width: 700px) {
+  .celinen-ios-cal__shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .celinen-ios-cal__side {
+    display: none;
+  }
+  .celinen-ios-cal__bar {
+    flex-wrap: wrap;
+  }
+  .celinen-ios-cal__views {
+    order: 1;
+    flex-basis: 100%;
+    margin-left: 0;
+    overflow-x: auto;
   }
 }

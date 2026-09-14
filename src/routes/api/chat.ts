@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PHOTOGRAPHY_ASSISTANT_POLICY } from "@/lib/photography-assistant";
 
 type Body = {
   messages?: unknown;
   tools?: unknown;
+  mode?: unknown;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -34,14 +36,13 @@ export const Route = createFileRoute("/api/chat")({
         const { data: claims, error: claimsError } = await authClient.auth.getClaims(token);
         if (claimsError || !claims?.claims?.sub) return unauthorized();
 
-        const { messages, tools } = (await request.json()) as Body;
+        const { messages, tools, mode } = (await request.json()) as Body;
         if (!Array.isArray(messages)) {
           return new Response(JSON.stringify({ error: "messages required" }), {
             status: 400,
             headers: { "content-type": "application/json" },
           });
         }
-
 
         const key = process.env["LOVABLE_API_KEY"];
         if (!key) {
@@ -59,8 +60,11 @@ export const Route = createFileRoute("/api/chat")({
           },
           body: JSON.stringify({
             model: "google/gemini-3.7-flash",
-            messages,
-            ...(Array.isArray(tools) && tools.length ? { tools, tool_choice: "auto" } : {}),
+            messages: [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages],
+            // Conversation mode cannot acquire tools through a client payload.
+            ...(mode !== "conversation" && Array.isArray(tools) && tools.length
+              ? { tools, tool_choice: "auto" }
+              : {}),
           }),
         });
 
