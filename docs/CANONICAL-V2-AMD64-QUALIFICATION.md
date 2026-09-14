@@ -51,3 +51,9 @@ Existing decoder source, contract, dependency pins, reference manifests, V1 code
 Instrumented probe SHA-256: `0596d04b52703d03fddcefb54f22f3a8d05cd6317a5d8f723309c71087564af6`. The native AMD64 gate passed in both build modes (normal 7m14s; instrumented 22m29s, including dependency builds). These are CI job durations, not decode throughput benchmarks.
 
 This qualifies the retained fixture corpus on native AMD64, **not** container packaging, broad camera compatibility or customer activation. Container construction may proceed; authenticated product testing remains required before owner activation. CI artifacts contain hash receipts only and expire after seven days; retain the reviewed receipts with any release evidence.
+
+The complete original normal/instrumented JSON receipts are now retained losslessly
+as gzip in `docs/evidence/canonical-v2-amd64-20260914/`. The manifest records both
+compressed and original SHA-256 values, candidate/probe/reference identities.
+`tests/canonical-v2-evidence.test.ts` verifies integrity and all 510/1950 counts.
+These archives contain no photographs or rendered pixels.
