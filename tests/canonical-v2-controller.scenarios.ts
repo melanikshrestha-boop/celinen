@@ -35,8 +35,11 @@ const check=(actual:any,expected:any)=>{assert.deepEqual(actual,expected);checks
   const {service,env}=await controller();let calls=0;service.responder=async()=>{calls++;return receipt();};
   check((await service.fetch(request('/health','GET',{Authorization:''}))).status,401);
   env.LENSLABS_CANONICAL_V2_ENABLED='false';check((await service.fetch(request())).status,503);
-  env.LENSLABS_CANONICAL_V2_ENABLED='true';env.LENSLABS_V2_OWNER_IDS='';check((await service.fetch(request())).status,403);
-  check(calls,0);
+  env.LENSLABS_CANONICAL_V2_ENABLED='true';env.LENSLABS_V2_OWNER_IDS='99999999-9999-4999-8999-999999999999';
+  check((await service.fetch(request())).status,403);check(calls,0);
+  env.LENSLABS_V2_OWNER_IDS='';
+  const open=await service.fetch(request());check(open.status,200);
+  check((await open.json()).customer_authority,true);check(calls,1);
 }
 {
   const {service,store}=await controller();let release!:(r:Response)=>void;
