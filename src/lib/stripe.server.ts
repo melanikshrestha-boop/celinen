@@ -1,4 +1,4 @@
-import Stripe from 'stripe';
+import Stripe from "stripe";
 
 const getEnv = (key: string): string => {
   const value = process.env[key];
@@ -6,43 +6,23 @@ const getEnv = (key: string): string => {
   return value;
 };
 
-export type StripeEnv = 'sandbox' | 'live';
-
-const GATEWAY_STRIPE_BASE = 'https://connector-gateway.lovable.dev/stripe';
+export type StripeEnv = "sandbox" | "live";
 
 export function getConnectionApiKey(env: StripeEnv): string {
-  return env === 'sandbox'
-    ? getEnv('STRIPE_SANDBOX_API_KEY')
-    : getEnv('STRIPE_LIVE_API_KEY');
+  return env === "sandbox"
+    ? getEnv("STRIPE_SANDBOX_API_KEY")
+    : getEnv("STRIPE_LIVE_API_KEY");
 }
 
+/** Direct Stripe API. */
 export function createStripeClient(env: StripeEnv): Stripe {
-  const connectionApiKey = getConnectionApiKey(env);
-  const lovableApiKey = getEnv('LOVABLE_API_KEY');
-
-  return new Stripe(connectionApiKey, {
-    apiVersion: '2026-03-25.dahlia',
-    httpClient: Stripe.createFetchHttpClient((input, init) => {
-      const stripeUrl = input instanceof Request ? input.url : input.toString();
-      const gatewayUrl = stripeUrl.replace('https://api.stripe.com', GATEWAY_STRIPE_BASE);
-      return fetch(gatewayUrl, {
-        ...init,
-        headers: {
-          ...Object.fromEntries(
-            new Headers(
-              init?.headers ?? (input instanceof Request ? input.headers : undefined),
-            ).entries(),
-          ),
-          'X-Connection-Api-Key': connectionApiKey,
-          'Lovable-API-Key': lovableApiKey,
-        },
-      });
-    }),
+  return new Stripe(getConnectionApiKey(env), {
+    apiVersion: "2026-03-25.dahlia",
   });
 }
 
 export function getStripeErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object') {
+  if (error && typeof error === "object") {
     const stripeError = error as {
       message?: string;
       type?: string;
@@ -69,9 +49,9 @@ export function getStripeErrorMessage(error: unknown): string {
         stripeError.raw?.param ?? stripeError.param,
         stripeError.raw?.requestId ?? stripeError.requestId,
       ].filter(Boolean);
-      return details.length ? `${message} (${details.join(', ')})` : message;
+      return details.length ? `${message} (${details.join(", ")})` : message;
     }
   }
 
-  return 'Stripe request failed';
+  return "Stripe request failed";
 }

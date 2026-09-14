@@ -8,6 +8,82 @@ import {
 } from "../src/lib/photography-assistant";
 import { studioCommandRefusal, studioToolBoundary } from "../src/lib/studio/command-safety";
 import { parseLocalCommand } from "../src/lib/studio/commands";
+import { requestCloudflareChat } from "../src/lib/cloudflare-ai.server";
+
+describe("direct Cloudflare AI transport", () => {
+  const config = {
+    CLOUDFLARE_AI_ENABLED: "true",
+    CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    CLOUDFLARE_AI_API_TOKEN: "synthetic-secret",
+  };
+  test("disabled or missing credentials never sends", async () => {
+    for (const env of [
+      {},
+      { ...config, CLOUDFLARE_AI_ENABLED: "false" },
+      { ...config, CLOUDFLARE_AI_API_TOKEN: "" },
+    ]) {
+      let calls = 0;
+      const result = await requestCloudflareChat({ messages: [] }, env, (async () => {
+        calls++;
+        throw Error("must not send");
+      }) as typeof fetch);
+      expect(result.status).toBe(503);
+      expect(calls).toBe(0);
+    }
+  });
+  test("uses only Cloudflare and caps output; preserves tool proposals", async () => {
+    const result = await requestCloudflareChat(
+      { messages: [{ role: "user", content: "hello" }], max_tokens: 9999 },
+      config,
+      (async (url, init) => {
+        expect(String(url)).toBe(
+          `https://api.cloudflare.com/client/v4/accounts/${config.CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions`,
+        );
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer synthetic-secret");
+        const body = JSON.parse(String(init?.body));
+        expect(body.max_tokens).toBe(2048);
+        expect(body.model).toBe("@cf/meta/llama-3.1-8b-instruct");
+        return Response.json({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [{ function: { name: "cull", arguments: "{}" } }],
+              },
+            },
+          ],
+        });
+      }) as typeof fetch,
+    );
+    expect(result.status).toBe(200);
+  });
+  test("provider errors and network exceptions never expose secrets", async () => {
+    for (const status of [401, 403, 429, 500]) {
+      const result = await requestCloudflareChat(
+        { messages: [] },
+        config,
+        (async () => new Response("synthetic-secret", { status })) as typeof fetch,
+      );
+      expect(result.status).toBe(status === 429 ? 429 : 502);
+      expect(await result.text()).not.toContain("synthetic-secret");
+    }
+    const result = await requestCloudflareChat({ messages: [] }, config, (async () => {
+      throw Error("synthetic-secret");
+    }) as typeof fetch);
+    expect(result.status).toBe(502);
+    expect(await result.text()).not.toContain("synthetic-secret");
+  });
+  test("empty and invalid JSON are failures", async () => {
+    for (const payload of ["{}", "not-json"]) {
+      const result = await requestCloudflareChat(
+        { messages: [] },
+        config,
+        (async () => new Response(payload)) as typeof fetch,
+      );
+      expect(result.status).toBe(502);
+    }
+  });
+});
 
 describe("photographer conversation, not command fragments", () => {
   for (const text of [
@@ -258,8 +334,14 @@ test("actual server route removes tools in conversation mode and installs the ph
     tool_choice?: unknown;
     messages: Array<{ content: string }>;
   }> = [];
+  let upstreamFailure: Response | undefined;
   const env = {
     createFileRoute: () => (config: unknown) => config,
+    requestCloudflareChat: async (input: Parameters<typeof requestCloudflareChat>[0]) => {
+      sent.push(input as (typeof sent)[number]);
+      if (upstreamFailure) return upstreamFailure;
+      return Response.json({ choices: [{ message: { content: "Let's brainstorm." } }] });
+    },
     PHOTOGRAPHY_ASSISTANT_POLICY,
     fixtureAuth: {
       createClient: () => ({
@@ -269,7 +351,6 @@ test("actual server route removes tools in conversation mode and installs the ph
     fixtureEnv: {
       SUPABASE_URL: "https://test.invalid",
       SUPABASE_PUBLISHABLE_KEY: "synthetic",
-      LOVABLE_API_KEY: "synthetic",
     },
     fetch: async (_url: string, init: RequestInit) => {
       sent.push(JSON.parse(String(init.body)));
@@ -301,4 +382,19 @@ test("actual server route removes tools in conversation mode and installs the ph
   expect(sent[0].messages[0].content).toBe(PHOTOGRAPHY_ASSISTANT_POLICY);
   await route.server.handlers.POST({ request: request(true, "studio") });
   expect(sent[1].tools).toEqual(tools);
+  upstreamFailure = Response.json({ error: "Cloudflare AI is not configured yet." }, { status: 503 });
+  const unavailable = await route.server.handlers.POST({ request: request(true, "conversation") });
+  expect(unavailable.status).toBe(503);
+  expect(await unavailable.json()).toEqual({ error: "Cloudflare AI is not configured yet." });
+  env.fixtureAuth.createClient = () => ({
+    auth: {
+      getClaims: async () => {
+        throw new Error("Malformed token");
+      },
+    },
+  });
+  expect(
+    (await route.server.handlers.POST({ request: request(true, "conversation") })).status,
+  ).toBe(401);
+  expect(sent).toHaveLength(3);
 });

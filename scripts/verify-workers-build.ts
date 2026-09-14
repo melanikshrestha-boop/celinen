@@ -10,6 +10,8 @@ if (config.assets?.binding !== "ASSETS" || !existsSync(resolve(root, config.asse
   throw new Error("Workers static assets are missing.");
 if (!config.compatibility_flags?.includes("nodejs_compat"))
   throw new Error("This server requires nodejs_compat.");
+if (config.name !== "lenslab-web" || config.keep_vars !== true)
+  throw new Error("Production Worker identity and runtime-variable preservation are required.");
 if (config.routes?.length || config.route)
   throw new Error("Temporary deployment must not contain custom-domain routes.");
 if (Object.keys(config.vars ?? {}).length)
