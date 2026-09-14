@@ -93,7 +93,10 @@ export default viteDefineConfig(async (env) => {
       nitro({
         defaultPreset: "cloudflare-module",
         cloudflare: {
-          wrangler: { name: "lenslab-web", keep_vars: true, workers_dev: true },
+          wrangler: {
+            name: "lenslab-web", keep_vars: true, workers_dev: true,
+            services: [{ binding: "CANONICAL_V2", service: "lenslab-canonical-v2-private" }],
+          },
         },
         ...userNitroOpts,
       }),
@@ -112,6 +115,7 @@ export default viteDefineConfig(async (env) => {
   }
 
   let config: UserConfig = {
+    build: { rolldownOptions: { external: ["cloudflare:workers"] } },
     define: envDefine,
     css: { transformer: "lightningcss" },
     resolve: {

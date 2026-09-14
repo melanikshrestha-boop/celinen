@@ -12,6 +12,9 @@ if (!config.compatibility_flags?.includes("nodejs_compat"))
   throw new Error("This server requires nodejs_compat.");
 if (config.name !== "lenslab-web" || config.keep_vars !== true)
   throw new Error("Production Worker identity and runtime-variable preservation are required.");
+if (!config.services?.some((item: { binding: string; service: string }) =>
+  item.binding === "CANONICAL_V2" && item.service === "lenslab-canonical-v2-private"))
+  throw new Error("Private V2 service binding is missing. This binding does not enable V2.");
 if (config.routes?.length || config.route)
   throw new Error("Temporary deployment must not contain custom-domain routes.");
 if (Object.keys(config.vars ?? {}).length)
