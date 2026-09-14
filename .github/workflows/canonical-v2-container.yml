@@ -1,0 +1,76 @@
+name: Canonical V2 native container qualification
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/canonical-v2-amd64-qualification]
+    paths:
+      - '.github/workflows/canonical-v2-container.yml'
+      - 'native/service_v2/**'
+      - 'native/service-v2.mk'
+      - 'native/bootstrap-service-v2.sh'
+      - 'native/Dockerfile.v2*'
+      - 'tests/canonical-v2-service.mjs'
+      - 'tests/canonical-v2-container-probe.sh'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Require native AMD64
+        run: |
+          test "$(uname -m)" = x86_64
+          test "$RUNNER_ARCH" = X64
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18
+      - name: Build exact runtime image and native tests
+        run: docker build --platform linux/amd64 -f native/Dockerfile.v2 -t lenslab-v2:${{ github.sha }} .
+      - name: Download approved CC0 regression inputs
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2-raw"
+          curl --fail --location --max-time 120 --max-filesize 27000000 'https://raw.pixls.us/getfile.php/1971/nice/Sony%20-%20ILCE-6000%20-%2012bit%2012bit%20compressed%20(3:2).ARW' -o "$RUNNER_TEMP/v2-raw/sony-a6000.ARW"
+          curl --fail --location --max-time 120 --max-filesize 25000000 'https://raw.pixls.us/getfile.php/6931/nice/Sony%20-%20ILCE-7M4%20-%204:3.ARW' -o "$RUNNER_TEMP/v2-raw/sony-a7iv-small.ARW"
+      - name: Exact packaged-binary stage matrix in native AMD64 containers
+        run: |
+          docker run -d --name lenslab-v2-parity --network none --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --memory 4g --cpus 2 --read-only --user "$(id -u):$(id -g)" --mount "type=bind,src=$GITHUB_WORKSPACE,dst=$GITHUB_WORKSPACE,readonly" --mount type=bind,src=/tmp,dst=/tmp,readonly --entrypoint /bin/sleep lenslab-v2:${{ github.sha }} infinity
+          mkdir -p native/build-v2/downloads
+          docker cp lenslab-v2-parity:/opt/lenslab/notices/source/. native/build-v2/downloads/
+          docker cp lenslab-v2-parity:/opt/lenslab/sRGB2014.icc native/build-v2/downloads/
+          chmod +x tests/canonical-v2-container-probe.sh
+          node tests/canonical-v2-target-parity.mjs --require-amd64 --raw-root "$RUNNER_TEMP/v2-raw" --probe tests/canonical-v2-container-probe.sh --report /tmp/lenslab-v2-container-parity.json
+          docker stop lenslab-v2-parity
+      - name: Dark service and actual HTTP output, auth, validation and cleanup
+        run: |
+          docker run -d --name lenslab-v2-dark --read-only --tmpfs /tmp:rw,noexec,nosuid,size=96m --memory 4g --cpus 0.5 --pids-limit 32 --cap-drop ALL --security-opt no-new-privileges -p 127.0.0.1:18488:8080 -e LENSLABS_NATIVE_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa lenslab-v2:${{ github.sha }}
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:18488/health && break || sleep 1; done
+          node tests/canonical-v2-service.mjs --dark --origin http://127.0.0.1:18488 --raw-root "$RUNNER_TEMP/v2-raw" --container lenslab-v2-dark
+          docker stop lenslab-v2-dark
+          docker run -d --name lenslab-v2-http --read-only --tmpfs /tmp:rw,noexec,nosuid,size=96m --memory 4g --cpus 0.5 --pids-limit 32 --cap-drop ALL --security-opt no-new-privileges -p 127.0.0.1:18489:8080 -e LENSLABS_NATIVE_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -e LENSLABS_CANONICAL_V2_ENABLED=true lenslab-v2:${{ github.sha }}
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:18489/health && break || sleep 1; done
+          node tests/canonical-v2-service.mjs --origin http://127.0.0.1:18489 --raw-root "$RUNNER_TEMP/v2-raw" --container lenslab-v2-http
+          docker logs lenslab-v2-http
+          docker stop lenslab-v2-http
+      - name: Archive qualified image, identity and receipts, no photographs
+        run: |
+          docker image inspect lenslab-v2:${{ github.sha }} > /tmp/lenslab-v2-image.json
+          docker save lenslab-v2:${{ github.sha }} | gzip > /tmp/lenslab-v2-image.tar.gz
+          sha256sum /tmp/lenslab-v2-image.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: canonical-v2-container-receipts
+          path: |
+            /tmp/lenslab-v2-container-parity.json
+            /tmp/lenslab-v2-http-receipts.json
+            /tmp/lenslab-v2-image.json
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: canonical-v2-container-image
+          path: /tmp/lenslab-v2-image.tar.gz
+          compression-level: 0
+          retention-days: 3
