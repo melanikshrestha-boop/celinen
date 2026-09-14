@@ -32,8 +32,15 @@ selection qualification.
 
 ## Runtime configuration
 
-Both Workers: `LENSLABS_CANONICAL_V2_ENABLED=false`, empty
-`LENSLABS_V2_OWNER_IDS`, encrypted `LENSLABS_V2_BRIDGE_TOKEN`.
+Both Workers: encrypted `LENSLABS_V2_BRIDGE_TOKEN`.
+Production global activation: `LENSLABS_CANONICAL_V2_ENABLED=true` on **both**
+Workers. Empty `LENSLABS_V2_OWNER_IDS` means **all authenticated users with
+verified shoot ownership**. A non-empty comma-separated UUID list remains an
+emergency restrict. The container stays private (service binding only);
+anonymous stays 401. PostHog `canonical_decoder_v2` cannot bypass the server
+kill switch.
+Dark/default deploy configs may still render `ENABLED=false` until explicitly
+flipped for production.
 The web Worker additionally needs its existing Supabase URL/publishable key and
 the service binding. Do not put any secret in Vite build variables.
 PostHog cannot authorize native processing. Existing consent/revocation and
@@ -54,16 +61,18 @@ but does not activate processing. Verify the web version endpoint separately.
 
 ## API
 
-- `GET /api/native/v2`: authenticated allowlisted-owner health.
+- `GET /api/native/v2`: authenticated owner health (empty allowlist = all owners).
 - `POST /api/native/v2`: original bytes, `Content-Type: application/octet-stream`,
   bounded Content-Length, `X-Shoot-Id`, `X-Source-Sha256`. Server generates job ID.
 - `GET /api/native/v2?job=<id>`: same-owner/same-shoot hash receipt.
 - `DELETE /api/native/v2?job=<id>`: same-owner cancellation (202 while stopping).
 
 All responses are no-store. Each V2 response identifies
-`sports-canonical-rgba256-v2` and `customer_authority:false`.
-Unknown ownership returns 404; missing authentication 401; non-allowlisted users
-403; disabled processing 503; busy/rate-limited 429. Native errors do not invoke V1.
+`sports-canonical-rgba256-v2`. Errors and unvalidated native output keep
+`customer_authority:false`. After hosted validation succeeds for an eligible
+owner, responses set `customer_authority:true`.
+Unknown ownership returns 404; missing authentication 401; emergency-restricted
+users 403; disabled processing 503; busy/rate-limited 429. Native errors do not invoke V1.
 
 ## Emergency stop and rollback
 
