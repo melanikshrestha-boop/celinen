@@ -42,7 +42,7 @@ describe("direct Cloudflare AI transport", () => {
         expect(new Headers(init?.headers).get("authorization")).toBe("Bearer synthetic-secret");
         const body = JSON.parse(String(init?.body));
         expect(body.max_tokens).toBe(2048);
-        expect(body.model).toBe("@cf/meta/llama-3.1-8b-instruct");
+        expect(body.model).toBe("@cf/meta/llama-3.1-8b-instruct-fast");
         return Response.json({
           choices: [
             {
@@ -82,6 +82,224 @@ describe("direct Cloudflare AI transport", () => {
       );
       expect(result.status).toBe(502);
     }
+  });
+});
+
+describe("production Workers AI binding", () => {
+  test("production build includes AI and preserves the native service binding", () => {
+    const config = readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
+    expect(config).toMatch(/ai:\s*\{\s*binding:\s*"AI"\s*\}/);
+    expect(config).toContain('binding: "CANONICAL_V2", service: "lenslab-canonical-v2-private"');
+    expect(config).toContain("keep_vars: true");
+  });
+  test("production missing AI binding fails closed even with REST credentials configured", async () => {
+    const source = readFileSync(
+      new URL("../src/lib/cloudflare-ai.server.ts", import.meta.url),
+      "utf8",
+    )
+      .replace('import("cloudflare:workers")', "Promise.resolve({ env: fixtureEnv })")
+      .replaceAll("export ", "");
+    const code = new Bun.Transpiler({ loader: "ts" }).transformSync(source);
+    const request = new Function("fixtureEnv", `${code}; return requestCloudflareChat;`)({
+      CLOUDFLARE_AI_ENABLED: "true",
+      CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+      CLOUDFLARE_AI_API_TOKEN: "synthetic-secret",
+    });
+    let restCalls = 0;
+    const logs: unknown[] = [];
+    const result = await request(
+      { messages: [] },
+      undefined,
+      async () => {
+        restCalls++;
+      },
+      (entry: unknown) => logs.push(entry),
+    );
+    expect(result.status).toBe(503);
+    expect(restCalls).toBe(0);
+    expect(logs[0]).toMatchObject({ transport: "binding", category: "missing_binding" });
+  });
+  test("native binding needs no REST secret and normalizes its reply", async () => {
+    let calls = 0;
+    const result = await requestCloudflareChat(
+      { messages: [{ role: "user", content: "hi" }] },
+      {
+        CLOUDFLARE_AI_ENABLED: "true",
+        AI: {
+          run: async (model, input, options) => {
+            calls++;
+            expect(model).toBe("@cf/meta/llama-3.1-8b-instruct-fast");
+            expect(input.messages).toEqual([{ role: "user", content: "hi" }]);
+            expect(options.returnRawResponse).toBe(true);
+            expect(options.signal).toBeInstanceOf(AbortSignal);
+            return Response.json({ response: "Hello!" });
+          },
+        },
+      },
+      (async () => {
+        throw Error("REST must not be called");
+      }) as typeof fetch,
+    );
+    expect(calls).toBe(1);
+    expect(result.status).toBe(200);
+    expect((await result.json()).choices[0].message.content).toBe("Hello!");
+    expect(result.headers.get("x-chat-request-id")).toBeTruthy();
+  });
+
+  test("normalizes native tool proposals, without executing them", async () => {
+    const result = await requestCloudflareChat(
+      {
+        messages: [{ role: "user", content: "show keepers" }],
+        tools: [
+          { type: "function", function: { name: "set_filter", parameters: { type: "object" } } },
+        ],
+      },
+      {
+        CLOUDFLARE_AI_ENABLED: "true",
+        AI: {
+          run: async (_model, input) => {
+            expect(input.tools).toEqual([{ name: "set_filter", parameters: { type: "object" } }]);
+            return Response.json({
+              tool_calls: [{ name: "set_filter", arguments: { filter: "keepers" } }],
+            });
+          },
+        },
+      },
+    );
+    expect(result.status).toBe(200);
+    const call = (await result.json()).choices[0].message.tool_calls[0];
+    expect(call.function).toEqual({ name: "set_filter", arguments: '{"filter":"keepers"}' });
+    expect(call.id).toBeTruthy();
+    expect(call.type).toBe("function");
+  });
+
+  test("logs retired-model status/code without leaking input or secrets", async () => {
+    const entries: unknown[] = [];
+    const result = await requestCloudflareChat(
+      { messages: [{ role: "user", content: "private client caption" }] },
+      {
+        CLOUDFLARE_AI_ENABLED: "true",
+        AI: {
+          run: async () =>
+            Response.json(
+              {
+                errors: [
+                  {
+                    code: 5028,
+                    message: "Model deprecated private client caption synthetic-secret",
+                  },
+                ],
+              },
+              { status: 410 },
+            ),
+        },
+      },
+      fetch,
+      (entry) => entries.push(entry),
+    );
+    expect(result.status).toBe(502);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      category: "model_unavailable",
+      upstream_status: 410,
+      provider_code: 5028,
+    });
+    expect(JSON.stringify(entries)).not.toContain("private client caption");
+    expect(JSON.stringify(entries)).not.toContain("synthetic-secret");
+  });
+
+  test("binding failures are categorized and never fall back to REST", async () => {
+    for (const [status, category] of [
+      [403, "provider_authorization"],
+      [429, "rate_limit"],
+      [422, "provider_schema"],
+      [500, "provider_error"],
+    ] as const) {
+      let restCalls = 0;
+      const logs: unknown[] = [];
+      const result = await requestCloudflareChat(
+        { messages: [] },
+        {
+          CLOUDFLARE_AI_ENABLED: "true",
+          CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+          CLOUDFLARE_AI_API_TOKEN: "synthetic-secret",
+          AI: { run: async () => new Response("private text must not leak", { status }) },
+        },
+        (async () => {
+          restCalls++;
+          throw Error("No fallback");
+        }) as typeof fetch,
+        (entry) => logs.push(entry),
+      );
+      expect(result.status).toBe(status === 429 ? 429 : 502);
+      expect(restCalls).toBe(0);
+      expect(logs[0]).toMatchObject({ category, upstream_status: status });
+      expect(JSON.stringify(logs)).not.toContain("private text");
+      expect(await result.text()).not.toContain("private text");
+    }
+  });
+
+  test("invalid native responses fail closed with correlation IDs", async () => {
+    for (const body of [
+      "not-json",
+      "{}",
+      JSON.stringify({ response: "a".repeat(65536) }),
+      JSON.stringify({ tool_calls: [{ name: "set_filter", arguments: "not-json" }] }),
+    ]) {
+      const logs: unknown[] = [];
+      const result = await requestCloudflareChat(
+        { messages: [] },
+        {
+          CLOUDFLARE_AI_ENABLED: "true",
+          AI: { run: async () => new Response(body) },
+        },
+        fetch,
+        (entry) => logs.push(entry),
+      );
+      expect(result.status).toBe(502);
+      expect(logs[0]).toMatchObject({
+        category: "invalid_response",
+        request_id: result.headers.get("x-chat-request-id"),
+      });
+      expect(result.headers.get("cache-control")).toBe("no-store");
+    }
+  });
+
+  test("timeouts and binding exceptions are distinguished; logging failures do not break chat", async () => {
+    for (const [error, category] of [
+      [new DOMException("private prompt", "TimeoutError"), "timeout"],
+      [Error("synthetic-secret"), "network_or_binding_error"],
+    ] as const) {
+      const logs: unknown[] = [];
+      const result = await requestCloudflareChat(
+        { messages: [] },
+        {
+          CLOUDFLARE_AI_ENABLED: "true",
+          AI: {
+            run: async () => {
+              throw error;
+            },
+          },
+        },
+        fetch,
+        (entry) => logs.push(entry),
+      );
+      expect(result.status).toBe(502);
+      expect(logs[0]).toMatchObject({ category });
+      expect(JSON.stringify(logs)).not.toContain(error.message);
+    }
+    const result = await requestCloudflareChat(
+      { messages: [] },
+      {
+        CLOUDFLARE_AI_ENABLED: "true",
+        AI: { run: async () => Response.json({ response: "Hello" }) },
+      },
+      fetch,
+      () => {
+        throw Error("logger unavailable");
+      },
+    );
+    expect(result.status).toBe(200);
   });
 });
 
@@ -382,9 +600,14 @@ test("actual server route removes tools in conversation mode and installs the ph
   expect(sent[0].messages[0].content).toBe(PHOTOGRAPHY_ASSISTANT_POLICY);
   await route.server.handlers.POST({ request: request(true, "studio") });
   expect(sent[1].tools).toEqual(tools);
-  upstreamFailure = Response.json({ error: "Cloudflare AI is not configured yet." }, { status: 503 });
+  upstreamFailure = Response.json(
+    { error: "Cloudflare AI is not configured yet." },
+    { status: 503, headers: { "x-chat-request-id": "synthetic-request-id" } },
+  );
   const unavailable = await route.server.handlers.POST({ request: request(true, "conversation") });
   expect(unavailable.status).toBe(503);
+  expect(unavailable.headers.get("x-chat-request-id")).toBe("synthetic-request-id");
+  expect(unavailable.headers.get("cache-control")).toBe("no-store");
   expect(await unavailable.json()).toEqual({ error: "Cloudflare AI is not configured yet." });
   env.fixtureAuth.createClient = () => ({
     auth: {

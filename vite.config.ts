@@ -95,6 +95,7 @@ export default viteDefineConfig(async (env) => {
         cloudflare: {
           wrangler: {
             name: "lenslab-web", keep_vars: true, workers_dev: true,
+            ai: { binding: "AI" },
             services: [{ binding: "CANONICAL_V2", service: "lenslab-canonical-v2-private" }],
           },
         },

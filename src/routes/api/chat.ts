@@ -54,13 +54,20 @@ export const Route = createFileRoute("/api/chat")({
             ? { tools, tool_choice: "auto" }
             : {}),
         });
+        const responseHeaders = {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+          ...(upstream.headers.get("x-chat-request-id")
+            ? { "x-chat-request-id": upstream.headers.get("x-chat-request-id")! }
+            : {}),
+        };
 
         if (!upstream.ok) {
           const text = await upstream.text();
           let message = text;
           try {
             const error = JSON.parse(text)?.error;
-            message = typeof error === "string" ? error : error?.message ?? text;
+            message = typeof error === "string" ? error : (error?.message ?? text);
           } catch {
             /* raw text */
           }
@@ -68,7 +75,7 @@ export const Route = createFileRoute("/api/chat")({
           if (upstream.status === 402) message = message || "AI credits exhausted.";
           return new Response(JSON.stringify({ error: message }), {
             status: upstream.status,
-            headers: { "content-type": "application/json" },
+            headers: responseHeaders,
           });
         }
 
@@ -76,7 +83,7 @@ export const Route = createFileRoute("/api/chat")({
           choices?: Array<{ message?: unknown }>;
         };
         return new Response(JSON.stringify({ message: data.choices?.[0]?.message ?? null }), {
-          headers: { "content-type": "application/json" },
+          headers: responseHeaders,
         });
       },
     },
