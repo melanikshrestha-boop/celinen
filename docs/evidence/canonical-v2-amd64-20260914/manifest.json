@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "receipts": [
+    {
+      "file": "normal.json.gz",
+      "json_sha256": "8a8440b0f4f9be9823b9514aa809a1d77f9b282749831eca7d69cb55761242d3",
+      "gzip_sha256": "7b29e4f6f29304bfb9ebc64998c77e37fc17beff23a469c1c432c3ca7a9adaca",
+      "git_sha": "b607651f08d5a3af987e8b3e09e46560296a47a6",
+      "probe_sha256": "dee6504a8b1e1fa1a62cf06258eeec422fb465be261541fa6106ca10564a51c0",
+      "reference_sha256": "bf343be2f3537d372d61495aa14f32969e8208ff61d2cab52334c847c7d72986",
+      "cases": 510,
+      "exact_stage_hashes": 1950
+    },
+    {
+      "file": "asan-ubsan.json.gz",
+      "json_sha256": "1ab13af89736354c7c647f2a45699d519339f329f5d1dbf3037c687fb17449b4",
+      "gzip_sha256": "70d0a3b5a3f4dd15531396a3d71f48f1ee5ab471ada575be0b9e65fa61c1833f",
+      "git_sha": "b607651f08d5a3af987e8b3e09e46560296a47a6",
+      "probe_sha256": "0596d04b52703d03fddcefb54f22f3a8d05cd6317a5d8f723309c71087564af6",
+      "reference_sha256": "bf343be2f3537d372d61495aa14f32969e8208ff61d2cab52334c847c7d72986",
+      "cases": 510,
+      "exact_stage_hashes": 1950
+    }
+  ]
+}
