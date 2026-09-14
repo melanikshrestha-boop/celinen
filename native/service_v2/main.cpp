@@ -94,7 +94,12 @@ static int decode(const char* source_path, const char* profile_path, const std::
       limit(RLIMIT_CPU, 30); limit(RLIMIT_AS, 3ULL * 1024 * 1024 * 1024);
       limit(RLIMIT_FSIZE, response_limit); limit(RLIMIT_NOFILE, 32); limit(RLIMIT_CORE, 0);
 #ifdef __linux__
-      if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() == 1) return 1;
+      // PID 1 is the legitimate supervisor inside our container. Detect a
+      // changed parent across prctl instead of rejecting namespace PID 1.
+      const pid_t parent = getppid();
+      if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != parent) {
+        std::cout << failure("supervisor_unavailable") << '\n'; return 1;
+      }
 #endif
     }
     v2::Control control(true);

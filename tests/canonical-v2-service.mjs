@@ -31,7 +31,8 @@ if (args.includes('--dark')) {
   for (const fixture of reference.fixtures) {
     const data = bytes.get(fixture.id), before = sha(data);
     const response = await post(data), receipt = await response.json();
-    assert.equal(response.status,fixture.receipt.status === 'ok' ? 200 : 422, fixture.id);
+    assert.equal(response.status,fixture.receipt.status === 'ok' ? 200 : 422,
+      `${fixture.id}: ${receipt.code ?? receipt.status}`);
     assert.deepEqual(differences(fixture.receipt,receipt,response.status === 200 ? 0 : 1),[],fixture.id);
     assert.equal(receipt.decoder_domain,'sports-canonical-rgba256-v2');
     assert.equal(receipt.customer_authority,false);
