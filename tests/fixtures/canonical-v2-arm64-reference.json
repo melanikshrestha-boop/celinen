@@ -1,0 +1,833 @@
+{
+  "schema": 1,
+  "origin": "Retained 2026-09-13 Mac ARM64/Linux ARM64 run wNPGQR; no decoder output regenerated",
+  "originReportSha256": "bf343be2f3537d372d61495aa14f32969e8208ff61d2cab52334c847c7d72986",
+  "domain": "sports-canonical-rgba256-v2",
+  "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+  "implementationHashes": {
+    "native/include/lenslabs/canonical_v2.hpp": "53117a909231754f470556b2661ae96152b1aa304def36b1f3ba53a157cde736",
+    "native/src/canonical_v2/decode.cpp": "548f34cdfba5aee7170862122a94101b6a82edcc4d32821676c032a5640a8009",
+    "native/src/canonical_v2/primitives.cpp": "bd5f84b957b288156e3380a1f0ee7d848a6a9b17f65080f11d4d3c82b3dd2b80",
+    "native/src/canonical_v2/source.cpp": "3edb6a6018c10ee7e6feea1c3378569f5fe54b01cb9766faa88f37aa9c717f1b",
+    "native/src/canonical_v2/sha256.cpp": "57959e5d4ec011823915a5f861752b7fd3a9e699d5b38fa5cbe95181f271731a",
+    "native/bootstrap-canonical-v2.sh": "722e5c41ea7866dfb29ccd81cec3a3d6c2f4cbceb56f6cd21f7afaaafb4062a9",
+    "native/v2.mk": "64573e087bafe814d1a511f6f28f1130192afa6590556c47c6d487004e632176"
+  },
+  "fixtures": [
+    {
+      "id": "basketball-action",
+      "name": "basketball-action-usaf-pd.jpg",
+      "sha256": "716ebc16299ef61adf2e73ad798505d67fc4dfa0dfab0bed228f13834d50ab5a",
+      "expected": "ok",
+      "orientation": 1,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "716ebc16299ef61adf2e73ad798505d67fc4dfa0dfab0bed228f13834d50ab5a",
+        "preview": "",
+        "jpeg": "716ebc16299ef61adf2e73ad798505d67fc4dfa0dfab0bed228f13834d50ab5a",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 1,
+        "canonical": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a",
+        "tensor": "9c89f8201f87e71d0cf45dd2a15834d5c5f5885ba1f7ea2222fadd8d9c006f97",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "716ebc16299ef61adf2e73ad798505d67fc4dfa0dfab0bed228f13834d50ab5a"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          }
+        ]
+      }
+    },
+    {
+      "id": "basketball-hangar",
+      "name": "basketball-hangar-usnavy-pd.jpg",
+      "sha256": "cb8e1799a10fc4d315f7f80628f552a95c75296db1c37473839d380b42d9c80d",
+      "expected": "ok",
+      "orientation": 1,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "cb8e1799a10fc4d315f7f80628f552a95c75296db1c37473839d380b42d9c80d",
+        "preview": "",
+        "jpeg": "cb8e1799a10fc4d315f7f80628f552a95c75296db1c37473839d380b42d9c80d",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 1,
+        "canonical": "43bf1f71ce069c19655a30c311bad32e1680854094f76c15dedda9c82be9727b",
+        "tensor": "344986ef66b5878b3c0ec8dbac799865d97c9fdbc78caa94ee4f524cede41b2b",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "cb8e1799a10fc4d315f7f80628f552a95c75296db1c37473839d380b42d9c80d"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 4256,
+            "height": 2832,
+            "sha256": "a358fef4f1d3a2596373ee2d2f91d9e4102b7be601574e7e6b08f0c1aa19ec68"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 4256,
+            "height": 2832,
+            "sha256": "593bc9a7f0e53418ffb26bda6661f4955befbf1c56f3a306b27b2b140950c23e"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 170,
+            "sha256": "43bf1f71ce069c19655a30c311bad32e1680854094f76c15dedda9c82be9727b"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 170,
+            "sha256": "43bf1f71ce069c19655a30c311bad32e1680854094f76c15dedda9c82be9727b"
+          }
+        ]
+      }
+    },
+    {
+      "id": "volleyball-portrait",
+      "name": "volleyball-portrait-cc0.jpg",
+      "sha256": "5685e8468969ca05da9de250f5848df5318e6b47b1a14d4aebd5c19675224fce",
+      "expected": "ok",
+      "orientation": 6,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "5685e8468969ca05da9de250f5848df5318e6b47b1a14d4aebd5c19675224fce",
+        "preview": "",
+        "jpeg": "5685e8468969ca05da9de250f5848df5318e6b47b1a14d4aebd5c19675224fce",
+        "input_profile": "d77bd8c4008f1813dca5e67762872667734f796a188b52123db65fd5fda262a9",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 6,
+        "canonical": "b9d9ddf5c2f077bd0ad56ee7ca56eb8b1fec701a7057d786d695d6addd1a9446",
+        "tensor": "44b7d0a531730fdf1f65d5261d011a3adb3cc234ac3eea664ee72eb3682f619a",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "5685e8468969ca05da9de250f5848df5318e6b47b1a14d4aebd5c19675224fce"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 4000,
+            "height": 3000,
+            "sha256": "4fba1ff91e368b1619c70978b2da15ef893e79706977ddb70c861e8a8ae934b2"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 4000,
+            "height": 3000,
+            "sha256": "5cf1df0affa3e86d5934f0af175957dc34fe2544622724001deacd73134f999c"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 192,
+            "sha256": "8ce41f9fbfab6f1892fc757426727bb8b274f07b2c3b9feac1175e36c154da3e"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 192,
+            "height": 256,
+            "sha256": "b9d9ddf5c2f077bd0ad56ee7ca56eb8b1fec701a7057d786d695d6addd1a9446"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sony-a6000",
+      "name": "sony-a6000.ARW",
+      "sha256": "ce8b4957281a817d52a07a691e2468567b6c78223bd0b514ffc1c65b002b8d89",
+      "expected": "ok",
+      "orientation": 1,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "ce8b4957281a817d52a07a691e2468567b6c78223bd0b514ffc1c65b002b8d89",
+        "preview": "e15e796010641f428dcba22d076a9e2d9a649d75e1480581dc700887bd92e414",
+        "jpeg": "e15e796010641f428dcba22d076a9e2d9a649d75e1480581dc700887bd92e414",
+        "input_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "assumed_srgb_missing_icc",
+        "orientation": 1,
+        "canonical": "88a4340a1cba6b93d797c7156293c46292f95bd5cde68775e18672cb8874275e",
+        "tensor": "f56c7972da2dbdfe587611fd70b51b40c058938bc02dd1d684784eace1cde098",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "libraw-0.22.2-preview-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "e15e796010641f428dcba22d076a9e2d9a649d75e1480581dc700887bd92e414"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 1616,
+            "height": 1080,
+            "sha256": "b162e1bf9079a3f0f3b5d7ad2827647bd3209a90c8bd98951cc44d388e7c24cc"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 1616,
+            "height": 1080,
+            "sha256": "917457c4cce3d80ed8ba8d109ac53ccc3e23d819a4a5da349bcab9bf0cba1ba0"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 171,
+            "sha256": "88a4340a1cba6b93d797c7156293c46292f95bd5cde68775e18672cb8874275e"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 171,
+            "sha256": "88a4340a1cba6b93d797c7156293c46292f95bd5cde68775e18672cb8874275e"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sony-a7iv-small",
+      "name": "sony-a7iv-small.ARW",
+      "sha256": "cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223",
+      "expected": "ok",
+      "orientation": 1,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223",
+        "preview": "200c1e5d9da99c9092ff28308a36c768186897b70a589c87794173d7442b546b",
+        "jpeg": "200c1e5d9da99c9092ff28308a36c768186897b70a589c87794173d7442b546b",
+        "input_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "assumed_srgb_missing_icc",
+        "orientation": 1,
+        "canonical": "de1b08ba7508bd1e49d77bfe999d52db22be65821a9f78b9d85f89b499e4cc3d",
+        "tensor": "925cf0a53fc065705101f8349da79f79aa7948b25ac7ce1c40a609493ab14888",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "libraw-0.22.2-preview-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "200c1e5d9da99c9092ff28308a36c768186897b70a589c87794173d7442b546b"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 3504,
+            "height": 2336,
+            "sha256": "9cd3596ec0c47a23e0ee55d6dfd953d8b419e811a2e374a5da4d5ffc858b9baf"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 3504,
+            "height": 2336,
+            "sha256": "26c71b5237d7a835b69864219b25ab5b81d81d480ee8dc2516177bc022bc470d"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 171,
+            "sha256": "de1b08ba7508bd1e49d77bfe999d52db22be65821a9f78b9d85f89b499e4cc3d"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 171,
+            "sha256": "de1b08ba7508bd1e49d77bfe999d52db22be65821a9f78b9d85f89b499e4cc3d"
+          }
+        ]
+      }
+    },
+    {
+      "id": "truncated-jpeg",
+      "name": "truncated-jpeg.jpg",
+      "sha256": "5382e9a86f9c212998af2745362e06bb97d525c0e8959b3b8bedd9387955d11d",
+      "expected": "INVALID_JPEG",
+      "receipt": {
+        "status": "error",
+        "code": "INVALID_JPEG",
+        "stage": "metadata",
+        "message": "Incomplete JPEG"
+      }
+    },
+    {
+      "id": "unsupported-bytes",
+      "name": "unsupported-bytes.jpg",
+      "sha256": "5464533c9647b67eb320c40ccc5959537c09102ae75388f6a7675b433e745c9d",
+      "expected": "UNSUPPORTED_SOURCE",
+      "receipt": {
+        "status": "error",
+        "code": "UNSUPPORTED_SOURCE",
+        "stage": "extract",
+        "message": "Only JPEG and qualified Sony TIFF/ARW supported"
+      }
+    },
+    {
+      "id": "malformed-icc",
+      "name": "malformed-icc.jpg",
+      "sha256": "afd2c71c18746ce62d0e5427e5e0b3accccda05998ba7eddeb532ebaa665a968",
+      "expected": "INVALID_ICC_PROFILE",
+      "receipt": {
+        "status": "error",
+        "code": "INVALID_ICC_PROFILE",
+        "stage": "metadata",
+        "message": "Conflicting ICC chunks"
+      }
+    },
+    {
+      "id": "conflicting-orientation",
+      "name": "conflicting-orientation.jpg",
+      "sha256": "9fc247ddc4a3a3ddbe53d34cff87ac85e80066d0371376a3c0bf949bd33127a6",
+      "expected": "INVALID_ORIENTATION",
+      "receipt": {
+        "status": "error",
+        "code": "INVALID_ORIENTATION",
+        "stage": "metadata",
+        "message": "Conflicting or invalid orientation"
+      }
+    },
+    {
+      "id": "exif-1",
+      "name": "exif-1.jpg",
+      "sha256": "16a41c33e48f6cabff8f5b1898b450398728611723f6c2bcbe6c21cfd4ae0315",
+      "expected": "ok",
+      "orientation": 1,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "16a41c33e48f6cabff8f5b1898b450398728611723f6c2bcbe6c21cfd4ae0315",
+        "preview": "",
+        "jpeg": "16a41c33e48f6cabff8f5b1898b450398728611723f6c2bcbe6c21cfd4ae0315",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 1,
+        "canonical": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a",
+        "tensor": "9c89f8201f87e71d0cf45dd2a15834d5c5f5885ba1f7ea2222fadd8d9c006f97",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "16a41c33e48f6cabff8f5b1898b450398728611723f6c2bcbe6c21cfd4ae0315"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-2",
+      "name": "exif-2.jpg",
+      "sha256": "99015a6067844c40fe56c87b821bd6f4becfcf82c9797452c51b6f7ae9c113d4",
+      "expected": "ok",
+      "orientation": 2,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "99015a6067844c40fe56c87b821bd6f4becfcf82c9797452c51b6f7ae9c113d4",
+        "preview": "",
+        "jpeg": "99015a6067844c40fe56c87b821bd6f4becfcf82c9797452c51b6f7ae9c113d4",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 2,
+        "canonical": "59c4df0a0ac6edaa7c01d3ccef8e1f5e10e40418f998e4234522ea47d2bed728",
+        "tensor": "09b89884c47774b464422eb52b733d8d80187b7d1157852c944b34e0081e95fc",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "99015a6067844c40fe56c87b821bd6f4becfcf82c9797452c51b6f7ae9c113d4"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "59c4df0a0ac6edaa7c01d3ccef8e1f5e10e40418f998e4234522ea47d2bed728"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-3",
+      "name": "exif-3.jpg",
+      "sha256": "78b4faea05669d84b37b2bea98ae182435935a3f1c1f547010ac8ec031358e46",
+      "expected": "ok",
+      "orientation": 3,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "78b4faea05669d84b37b2bea98ae182435935a3f1c1f547010ac8ec031358e46",
+        "preview": "",
+        "jpeg": "78b4faea05669d84b37b2bea98ae182435935a3f1c1f547010ac8ec031358e46",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 3,
+        "canonical": "efcb92363dd195cc26118d2456a6855d0d91fadbcdd9ce7789e56bd741a7d8ab",
+        "tensor": "1d69b9c1223a924a2fb442612168b61a2aca053a5362e6abd9169f442934fff8",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "78b4faea05669d84b37b2bea98ae182435935a3f1c1f547010ac8ec031358e46"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "efcb92363dd195cc26118d2456a6855d0d91fadbcdd9ce7789e56bd741a7d8ab"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-4",
+      "name": "exif-4.jpg",
+      "sha256": "71ee6559151e99f11c658f8ef59cfad0e44b53303f738a932c6133ce05198702",
+      "expected": "ok",
+      "orientation": 4,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "71ee6559151e99f11c658f8ef59cfad0e44b53303f738a932c6133ce05198702",
+        "preview": "",
+        "jpeg": "71ee6559151e99f11c658f8ef59cfad0e44b53303f738a932c6133ce05198702",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 4,
+        "canonical": "6b8ff4c23c7a7515c89c355f2145db2623a42fca58e80acfdc4f6acdd768cb9f",
+        "tensor": "018e9d8cfe09207695f3e663033d33964880871fc848d3be7860c6d62c890055",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "71ee6559151e99f11c658f8ef59cfad0e44b53303f738a932c6133ce05198702"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "6b8ff4c23c7a7515c89c355f2145db2623a42fca58e80acfdc4f6acdd768cb9f"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-5",
+      "name": "exif-5.jpg",
+      "sha256": "f99f5149ab6d0b394924f22c246af8aba727da62e77185db891de2749e054b91",
+      "expected": "ok",
+      "orientation": 5,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "f99f5149ab6d0b394924f22c246af8aba727da62e77185db891de2749e054b91",
+        "preview": "",
+        "jpeg": "f99f5149ab6d0b394924f22c246af8aba727da62e77185db891de2749e054b91",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 5,
+        "canonical": "303b01a80ac373b2932de9a93077f9d42439ca37afead593f533b3eaf404fe28",
+        "tensor": "6405972b067f22339c6add80210cfb7624937f3652ad066f12947fcce1d223a5",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "f99f5149ab6d0b394924f22c246af8aba727da62e77185db891de2749e054b91"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 161,
+            "height": 256,
+            "sha256": "303b01a80ac373b2932de9a93077f9d42439ca37afead593f533b3eaf404fe28"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-6",
+      "name": "exif-6.jpg",
+      "sha256": "41b02d46e48108e321b42fef2cd19535a2210e6dd3475b11341869fe722318ee",
+      "expected": "ok",
+      "orientation": 6,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "41b02d46e48108e321b42fef2cd19535a2210e6dd3475b11341869fe722318ee",
+        "preview": "",
+        "jpeg": "41b02d46e48108e321b42fef2cd19535a2210e6dd3475b11341869fe722318ee",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 6,
+        "canonical": "a8dd0805c365d163b2a43aac4afd371cc65c005663cac9f800fdb2bd7d211892",
+        "tensor": "d592747413669a53d54b4aba5a70a883a556599cd2d5618b6eadc51513f1cc90",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "41b02d46e48108e321b42fef2cd19535a2210e6dd3475b11341869fe722318ee"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 161,
+            "height": 256,
+            "sha256": "a8dd0805c365d163b2a43aac4afd371cc65c005663cac9f800fdb2bd7d211892"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-7",
+      "name": "exif-7.jpg",
+      "sha256": "da9dfd81f5bbaa3a4201127714571dcc81b42255b70b6be10e83503f27dc7f99",
+      "expected": "ok",
+      "orientation": 7,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "da9dfd81f5bbaa3a4201127714571dcc81b42255b70b6be10e83503f27dc7f99",
+        "preview": "",
+        "jpeg": "da9dfd81f5bbaa3a4201127714571dcc81b42255b70b6be10e83503f27dc7f99",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 7,
+        "canonical": "9dfe58c3bd88f13bf9bcf2f15cfaf1952bf44c679d3c2ed09bd16fff8ad29e10",
+        "tensor": "114038e3852712b7f4eb915dd5c2bfa6771fa1fa27de95d8263dcf870655131d",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "da9dfd81f5bbaa3a4201127714571dcc81b42255b70b6be10e83503f27dc7f99"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 161,
+            "height": 256,
+            "sha256": "9dfe58c3bd88f13bf9bcf2f15cfaf1952bf44c679d3c2ed09bd16fff8ad29e10"
+          }
+        ]
+      }
+    },
+    {
+      "id": "exif-8",
+      "name": "exif-8.jpg",
+      "sha256": "bc60ecc6484a436fe80e7e04294b9b2bddb36b128e0131a22f3a268a31cc8f7a",
+      "expected": "ok",
+      "orientation": 8,
+      "receipt": {
+        "status": "ok",
+        "qualified": false,
+        "domain": "sports-canonical-rgba256-v2",
+        "contract": "b2192332fda7ee7c95761e9e6ec90f2091d4bbda7b2751f23a1d8768e2b6a6fb",
+        "source": "bc60ecc6484a436fe80e7e04294b9b2bddb36b128e0131a22f3a268a31cc8f7a",
+        "preview": "",
+        "jpeg": "bc60ecc6484a436fe80e7e04294b9b2bddb36b128e0131a22f3a268a31cc8f7a",
+        "input_profile": "2b3aa1645779a9e634744faf9b01e9102b0c9b88fd6deced7934df86b949af7e",
+        "output_profile": "384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a",
+        "profile_policy": "embedded_transform",
+        "orientation": 8,
+        "canonical": "ec3beb63ce50e8d3e31128ad294d353143d8a1aae2db6456adef9fe3dd499186",
+        "tensor": "a9f0aeab6161f21e49e9aa7a4cb0fe57a60679a5b6618384759059249e74684a",
+        "stages": [
+          {
+            "stage": "prepared-jpeg",
+            "version": "direct-v1",
+            "width": 0,
+            "height": 0,
+            "sha256": "bc60ecc6484a436fe80e7e04294b9b2bddb36b128e0131a22f3a268a31cc8f7a"
+          },
+          {
+            "stage": "decoded-rgb",
+            "version": "jpeg-3.1.4.1-islow-fancy",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "b2bb9278f40ea0eb09e4ee9f3e0b8f872e952c0361442f0b6f495d0ea9d7ad38"
+          },
+          {
+            "stage": "color-rgba",
+            "version": "lcms-2.19.1-relative-0x04000140",
+            "width": 2256,
+            "height": 1420,
+            "sha256": "d7f8ac364e3f92350e74139b6ae727d6619e49bbaad1890cedcb8103bc565143"
+          },
+          {
+            "stage": "resized-rgba",
+            "version": "integer-area-rgba8-v1",
+            "width": 256,
+            "height": 161,
+            "sha256": "8b3803cee8d7c076f330a8224efb2c8519f6e16eef54d93dc00cf6b954f8830a"
+          },
+          {
+            "stage": "oriented-rgba",
+            "version": "exif-permute-v1",
+            "width": 161,
+            "height": 256,
+            "sha256": "ec3beb63ce50e8d3e31128ad294d353143d8a1aae2db6456adef9fe3dd499186"
+          }
+        ]
+      }
+    }
+  ]
+}
