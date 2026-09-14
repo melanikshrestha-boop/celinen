@@ -40,7 +40,7 @@ async function read(path,collect){
 const rows=[],start=performance.now();let previous=0,first=null,networkBytes=0;
 for await(const path of files(root)){
   const before=await read(path,true),detected=performance.now(),row={source_sha256:before.sha,bytes:before.size};
-  if(!before.data || !before.size){row.code='file_size_not_supported';row.supported=false;}
+  if(!before.data || !before.size){row.code='file_size_not_supported';row.category='admission_rejected';row.supported=null;}
   else{
     await new Promise(r=>setTimeout(r,Math.max(0,2100-(performance.now()-previous))));previous=performance.now();
     let result;
@@ -48,7 +48,9 @@ for await(const path of files(root)){
       const response=await fetch(origin,{method:'POST',headers:{...auth,'Content-Type':'application/octet-stream',
         'X-Shoot-Id':shoot,'X-Source-Sha256':before.sha},body:before.data,signal:AbortSignal.timeout(90000)});
       networkBytes+=before.size;result=await response.json();
-      Object.assign(row,{http_status:response.status,code:result.code??result.status,supported:response.ok,
+      const unsupported=['UNSUPPORTED_SOURCE','UNSUPPORTED_ICC_PROFILE'].includes(result.code);
+      Object.assign(row,{http_status:response.status,code:result.code??result.status,
+        supported:response.ok?true:unsupported?false:null,category:response.ok?'decoded':unsupported?'unsupported':'decode_or_service_error',
         job_id:response.headers.get('X-Job-Id'),canonical:result.canonical,stages:result.stages,architecture:result.architecture,
         native_ms:Number(response.headers.get('X-Processing-Ms'))||null,peak_memory_kib:Number(response.headers.get('X-Peak-Memory-KiB'))||null});
       if(response.ok){
@@ -57,7 +59,7 @@ for await(const path of files(root)){
           throw Error('invalid_native_provenance');
         if(first===null) first=performance.now()-start;
       }
-    }catch(error){row.code=error instanceof Error&&error.message==='invalid_native_provenance'?'invalid_native_provenance':'request_failed';row.supported=false;}
+    }catch(error){row.code=error instanceof Error&&error.message==='invalid_native_provenance'?'invalid_native_provenance':'request_failed';row.category='request_failed';row.supported=null;}
   }
   const after=await read(path,false);row.after_sha256=after.sha;row.source_preserved=before.sha===after.sha;
   row.wall_ms=performance.now()-detected;rows.push(row);
@@ -65,7 +67,8 @@ for await(const path of files(root)){
 }
 const elapsed=performance.now()-start;
 await writeFile(report,JSON.stringify({schema:1,decoder_domain:'sports-canonical-rgba256-v2',rows,
-  files:rows.length,completed:rows.filter(r=>r.supported).length,total_ms:elapsed,images_per_second:rows.length/(elapsed/1000),
+  files:rows.length,completed:rows.filter(r=>r.supported===true).length,unsupported:rows.filter(r=>r.supported===false).length,
+  failures:rows.filter(r=>r.supported===null).length,total_ms:elapsed,images_per_second:rows.length/(elapsed/1000),
   time_to_first_result_ms:first,network_source_bytes:networkBytes,admission_spacing_ms:2100,
   source_preserved:rows.every(r=>r.source_preserved),mac_linux_equality:'not_measured',v1_comparison:'not_measured',
   sports_accuracy:'not_measured',initial_health_ms:healthMs,cold_start:'unknown_health_check_warms_container'},null,2)+'\n',{flag:'wx',mode:0o600});

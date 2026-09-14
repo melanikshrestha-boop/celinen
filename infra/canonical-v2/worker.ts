@@ -83,6 +83,7 @@ export class NativeV2 extends Container<Env> {
     this.active = {job:value.job,user:value.user,shoot:value.shoot};
     const started = Date.now();
     const record:Saved = {...this.active,status:'running',expires:started+86400000};
+    let timedOut = false;
     let result:Response;
     try {
       const existing = await this.ctx.storage.get<Saved>('result:'+value.job);
@@ -96,7 +97,7 @@ export class NativeV2 extends Container<Env> {
       const abort = new AbortController();
       const stop = () => { abort.abort(); };
       request.signal.addEventListener('abort',stop,{once:true});
-      const timer = setTimeout(stop,75000);
+      const timer = setTimeout(() => { timedOut = true; stop(); },75000);
       try {
         const upstream = await this.containerFetch('http://container/v2/decode',{
           method:'POST',body:request.body,signal:abort.signal,headers:{
@@ -123,8 +124,8 @@ export class NativeV2 extends Container<Env> {
     } catch {
       await this.destroy();
       const cancelled = request.signal.aborted || this.cancelled;
-      await this.ctx.storage.put('result:'+value.job,{...record,status:cancelled?'cancelled':'failed'});
-      result = error(cancelled?'cancelled':'native_failed',cancelled?499:502,value.job);
+      await this.ctx.storage.put('result:'+value.job,{...record,status:cancelled?'cancelled':timedOut?'timeout':'failed'});
+      result = error(cancelled?'cancelled':timedOut?'processing_timeout':'native_failed',cancelled?499:timedOut?504:502,value.job);
     } finally {
       await this.ctx.storage.delete('active'); this.active = undefined;
       // Separate V2 hash receipts only. No original bytes, V1 decisions or filenames.
