@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
 
 export type VibeMessage = { role: "assistant" | "user"; content: string };
 
@@ -17,17 +18,9 @@ Rules:
 Never promise pricing, dates, or deliverables on the photographer's behalf.`;
 
 async function askAI(messages: VibeMessage[]) {
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) return { error: "The assistant is not configured yet." };
-
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-3.7-flash",
-      messages: [{ role: "system", content: SYSTEM }, ...messages],
-      max_tokens: 400,
-    }),
+  const res = await requestCloudflareChat({
+    messages: [{ role: "system", content: SYSTEM }, ...messages],
+    max_tokens: 400,
   });
 
   if (res.status === 429) return { error: "Too many messages right now — try again in a moment." };
@@ -251,12 +244,7 @@ export const confirmVibeBooking = createServerFn({ method: "POST" })
       .maybeSingle();
 
     const tags = (session.vibe_tags ?? []).join(", ");
-    const message = [
-      session.summary ?? "",
-      tags ? `\nStyle tags: ${tags}` : "",
-    ]
-      .join("")
-      .trim();
+    const message = [session.summary ?? "", tags ? `\nStyle tags: ${tags}` : ""].join("").trim();
 
     const { data: booking, error } = await supabaseAdmin
       .from("booking_requests")

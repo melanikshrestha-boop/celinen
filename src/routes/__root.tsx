@@ -9,7 +9,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportAppError } from "../lib/app-error-reporting";
 import { PRODUCT_HEADLINE } from "@/lib/product";
 import { LensProvider } from "@/lib/lensos-store";
 import { WorkbenchBoundary } from "@/components/workbench/Workbench";
@@ -31,7 +31,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error }: { error: Error; reset: () => void }) {
   console.error(error);
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportAppError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
   // Soft reset() keeps a dead HMR module on screen. A missing-identifier crash
   // (the dashboard LayoutTemplate miss) only recovers on a full reload.

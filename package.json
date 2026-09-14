@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "dev:lab": "vite dev --config vite.lab.config.ts --mode lab --host 127.0.0.1 --port 8085 --strictPort",
     "build": "vite build",
-    "build:workers": "NITRO_PRESET=cloudflare_module vite build && bun scripts/verify-workers-build.ts",
+    "build:workers": "LENSLAB_PRODUCTION_BUILD=true NITRO_PRESET=cloudflare_module vite build && bun scripts/verify-workers-build.ts",
     "build:pages": "NITRO_PRESET=cloudflare_pages vite build && bun scripts/verify-pages-build.ts",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
@@ -20,7 +20,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
-    "@lovable.dev/cloud-auth-js": "^1.0.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -79,7 +78,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "^2.15.0",
+    "@tanstack/devtools-vite": "^0.8.5",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

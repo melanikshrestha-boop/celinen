@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PHOTOGRAPHY_ASSISTANT_POLICY } from "@/lib/photography-assistant";
+import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
 
 type Body = {
   messages?: unknown;
@@ -33,7 +34,9 @@ export const Route = createFileRoute("/api/chat")({
         const authClient = createClient(supabaseUrl, supabaseKey, {
           auth: { persistSession: false, autoRefreshToken: false },
         });
-        const { data: claims, error: claimsError } = await authClient.auth.getClaims(token);
+        const { data: claims, error: claimsError } = await authClient.auth
+          .getClaims(token)
+          .catch(() => ({ data: null, error: true }));
         if (claimsError || !claims?.claims?.sub) return unauthorized();
 
         const { messages, tools, mode } = (await request.json()) as Body;
@@ -44,35 +47,20 @@ export const Route = createFileRoute("/api/chat")({
           });
         }
 
-        const key = process.env["LOVABLE_API_KEY"];
-        if (!key) {
-          return new Response(JSON.stringify({ error: "AI is not configured." }), {
-            status: 500,
-            headers: { "content-type": "application/json" },
-          });
-        }
-
-        const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${key}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3.7-flash",
-            messages: [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages],
-            // Conversation mode cannot acquire tools through a client payload.
-            ...(mode !== "conversation" && Array.isArray(tools) && tools.length
-              ? { tools, tool_choice: "auto" }
-              : {}),
-          }),
+        const upstream = await requestCloudflareChat({
+          messages: [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages],
+          // Conversation mode cannot acquire tools through a client payload.
+          ...(mode !== "conversation" && Array.isArray(tools) && tools.length
+            ? { tools, tool_choice: "auto" }
+            : {}),
         });
 
         if (!upstream.ok) {
           const text = await upstream.text();
           let message = text;
           try {
-            message = JSON.parse(text)?.error?.message ?? text;
+            const error = JSON.parse(text)?.error;
+            message = typeof error === "string" ? error : error?.message ?? text;
           } catch {
             /* raw text */
           }
