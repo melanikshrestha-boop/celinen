@@ -1,0 +1,71 @@
+name: Canonical V2 native AMD64 qualification
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/canonical-v2-amd64-qualification]
+    paths:
+      - '.github/workflows/canonical-v2-amd64.yml'
+      - 'native/**'
+      - 'tests/canonical-v2-target-parity*'
+      - 'tests/fixtures/canonical-v2*'
+permissions:
+  contents: read
+concurrency:
+  group: canonical-v2-amd64-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        instrumented: ['0', '1']
+    env:
+      V2_BUILD_JOBS: '2'
+      V2_SANITIZE: ${{ matrix.instrumented }}
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-09-14
+        with:
+          persist-credentials: false
+      - name: Verify native runner and install build tools
+        run: |
+          test "$(uname -m)" = x86_64
+          test "$RUNNER_ARCH" = X64
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 libclang-rt-18-dev cmake make perl curl
+          clang++ --version
+          cmake --version
+          lscpu
+      - name: Download only the two approved public CC0 RAW fixtures
+        run: |
+          mkdir -p "$RUNNER_TEMP/v2-raw"
+          curl --fail --location --max-time 120 --max-filesize 27000000 'https://raw.pixls.us/getfile.php/1971/nice/Sony%20-%20ILCE-6000%20-%2012bit%2012bit%20compressed%20(3:2).ARW' -o "$RUNNER_TEMP/v2-raw/sony-a6000.ARW"
+          curl --fail --location --max-time 120 --max-filesize 25000000 'https://raw.pixls.us/getfile.php/6931/nice/Sony%20-%20ILCE-7M4%20-%204:3.ARW' -o "$RUNNER_TEMP/v2-raw/sony-a7iv-small.ARW"
+          cd "$RUNNER_TEMP/v2-raw"
+          echo 'ce8b4957281a817d52a07a691e2468567b6c78223bd0b514ffc1c65b002b8d89  sony-a6000.ARW' | sha256sum -c -
+          echo 'cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223  sony-a7iv-small.ARW' | sha256sum -c -
+      - name: Build exact pinned libraries and run primitives, decoder and 10000 mutations
+        run: |
+          sh native/bootstrap-canonical-v2.sh
+          if [ "$V2_SANITIZE" = 1 ]; then
+            make -C native -f v2.mk V2_DIR=build-v2/instrumented V2_DEPS_ROOT=build-v2/instrumented FLAGS='-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -Werror -pthread -fno-fast-math -ffp-contract=off -fsanitize=address,undefined -fno-omit-frame-pointer' all test decoder-test
+          else
+            make -C native -f v2.mk all test decoder-test
+          fi
+      - name: Exact stage parity against retained ARM64 outputs
+        run: |
+          probe=native/build-v2/v2-probe
+          if [ "$V2_SANITIZE" = 1 ]; then probe=native/build-v2/instrumented/v2-probe; fi
+          node tests/canonical-v2-target-parity.mjs --require-amd64 --raw-root "$RUNNER_TEMP/v2-raw" --probe "$probe" --report native/build-v2/qualification/amd64.json
+          git diff --exit-code
+      - name: Retain hash receipts only, never photographs or credentials
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: canonical-v2-amd64-${{ matrix.instrumented }}
+          path: native/build-v2/qualification/*.json
+          if-no-files-found: warn
+          retention-days: 7
