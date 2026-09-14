@@ -1,5 +1,29 @@
 # Active migration: Workers with static assets
 
+## Current external status
+
+- Application/build commit `7bfda4515a32490002a6294ab8440ec9e0a4a3c9` was pushed
+  normally to GitHub `main`. No history was rewritten.
+- Cloudflare CLI OAuth succeeded for the intended account.
+- The first temporary deploy stopped because this account has no `workers.dev`
+  subdomain and Wrangler's proposed `tanstack-start-ts` name was unavailable.
+  **No temporary URL is available and no successful deployment is claimed.**
+  Owner action: choose an account subdomain at
+  https://dash.cloudflare.com/126e9ae2c8ea356a21ca5f2cf95dd022/workers/onboarding.
+- Cloudflare's GitHub integration has not yet been linked. Repository access through
+  local Git is working; that is not evidence of Workers Builds linkage.
+- PostHog project 607971 was read back through its connected tool. Replay is off.
+  Its existing capture token was placed only in ignored `.env.local`; the Workers
+  build with that configuration passes. Cloudflare ingestion remains unverified.
+- `LOVABLE_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are unavailable locally and
+  still need secure runtime configuration. Supabase URL/publishable build settings
+  are available. No runtime-secret provisioning is claimed before the Worker exists.
+- Public DNS readback: authoritative NS are `ns1hwy.name.com`, `ns2fln.name.com`,
+  `ns3fqs.name.com`, `ns4jnz.name.com`; root A is `185.158.133.1`. Capture the full
+  zone including MX/TXT before any nameserver migration. No DNS records changed.
+- Hosted login, dashboard, signed-in chat and consented PostHog checks are blocked
+  until temporary deployment/configuration succeeds. Lovable remains live.
+
 The owner selected Workers on 2026-09-13. The default Nitro/TanStack Start build
 already supports Workers, so Pages is not materially simpler. No product rewrite
 or replacement of the C++ backend is required.
