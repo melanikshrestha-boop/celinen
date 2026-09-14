@@ -86,6 +86,7 @@ import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
 import { Route as ShootsIndexRouteImport } from './routes/shoots.index'
 import { Route as ShootsIdRouteImport } from './routes/shoots.$id'
+import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
 import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
@@ -483,6 +484,11 @@ const ShootsIdRoute = ShootsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ShootsRoute,
 } as any)
+const ApiNativeV2Route = ApiNativeV2RouteImport.update({
+  id: '/api/native/v2',
+  path: '/api/native/v2',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
@@ -620,6 +626,7 @@ export interface FileRoutesByFullPath {
   '/compare/': typeof CompareIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/shoots/': typeof ShootsIndexRoute
+  '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -706,6 +713,7 @@ export interface FileRoutesByTo {
   '/compare': typeof CompareIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
   '/shoots': typeof ShootsIndexRoute
+  '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -797,6 +805,7 @@ export interface FileRoutesById {
   '/compare/': typeof CompareIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/shoots/': typeof ShootsIndexRoute
+  '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -889,6 +898,7 @@ export interface FileRouteTypes {
     | '/compare/'
     | '/integrations/'
     | '/shoots/'
+    | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
     | '/shoots/$id/cull'
@@ -975,6 +985,7 @@ export interface FileRouteTypes {
     | '/compare'
     | '/integrations'
     | '/shoots'
+    | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
     | '/shoots/$id/cull'
@@ -1065,6 +1076,7 @@ export interface FileRouteTypes {
     | '/compare/'
     | '/integrations/'
     | '/shoots/'
+    | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
     | '/shoots/$id/cull'
@@ -1150,6 +1162,7 @@ export interface RootRouteChildren {
   STokenRoute: typeof STokenRoute
   SettingsSectionRoute: typeof SettingsSectionRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  ApiNativeV2Route: typeof ApiNativeV2Route
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
@@ -1698,6 +1711,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShootsIdRouteImport
       parentRoute: typeof ShootsRoute
     }
+    '/api/native/v2': {
+      id: '/api/native/v2'
+      path: '/api/native/v2'
+      fullPath: '/api/native/v2'
+      preLoaderRoute: typeof ApiNativeV2RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/lightroom': {
       id: '/api/public/lightroom'
       path: '/api/public/lightroom'
@@ -1912,6 +1932,7 @@ const rootRouteChildren: RootRouteChildren = {
   STokenRoute: STokenRoute,
   SettingsSectionRoute: SettingsSectionRoute,
   BlogIndexRoute: BlogIndexRoute,
+  ApiNativeV2Route: ApiNativeV2Route,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicTrafficRoute: ApiPublicTrafficRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
