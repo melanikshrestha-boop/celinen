@@ -1,0 +1,33 @@
+# Native x86-64 image manifest, not a mutable multi-architecture tag.
+FROM ubuntu@sha256:a61567bd31828687156d735ea8eb01ba4e37636e225dd6a48ba94136a70d9d61 AS build
+RUN test "$(uname -m)" = x86_64
+RUN apt-get update && apt-get install -y --no-install-recommends clang-18 cmake make perl curl ca-certificates
+WORKDIR /build
+COPY native/include/lenslabs/canonical_v2.hpp native/include/lenslabs/canonical_v2.hpp
+COPY native/src/canonical_v2/ native/src/canonical_v2/
+COPY native/tests/canonical_v2* native/tests/
+COPY native/canonical-v2.lock.json native/v2.mk native/service-v2.mk native/bootstrap-canonical-v2.sh native/bootstrap-service-v2.sh native/
+COPY native/service_v2/ native/service_v2/
+RUN sh native/bootstrap-canonical-v2.sh && sh native/bootstrap-service-v2.sh
+RUN make -C native -f v2.mk all test decoder-test && make -C native -f service-v2.mk service
+RUN mkdir -p /release/licenses /release/source && \
+    cp native/build-v2/service-deps/LICENSE /release/licenses/cpp-httplib-LICENSE && \
+    cp native/build-v2/deps/LibRaw-0.22.2/COPYRIGHT /release/licenses/LibRaw-COPYRIGHT && \
+    cp native/build-v2/deps/LibRaw-0.22.2/LICENSE* /release/licenses/ && \
+    cp native/build-v2/deps/lcms2-2.19.1/LICENSE /release/licenses/LCMS-LICENSE && \
+    cp native/build-v2/deps/libjpeg-turbo-3.1.4.1/LICENSE.md /release/licenses/JPEG-LICENSE.md && \
+    cp native/build-v2/deps/libjpeg-turbo-3.1.4.1/README.ijg /release/licenses/README.ijg && \
+    cp native/build-v2/downloads/*.tar.gz /release/source/ && \
+    cp native/service_v2/THIRD-PARTY.md /release/licenses/THIRD-PARTY.md
+FROM ubuntu@sha256:a61567bd31828687156d735ea8eb01ba4e37636e225dd6a48ba94136a70d9d61
+COPY --from=build /usr/lib/x86_64-linux-gnu/libstdc++.so.6* /usr/lib/x86_64-linux-gnu/
+COPY --from=build /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/
+COPY --from=build /build/native/build-v2/v2-native /opt/lenslab/v2-native
+COPY --from=build /build/native/build-v2/downloads/sRGB2014.icc /opt/lenslab/sRGB2014.icc
+COPY --from=build /release/ /opt/lenslab/notices/
+COPY native/canonical-v2.lock.json /opt/lenslab/canonical-v2.lock.json
+ENV LENSLABS_CANONICAL_V2_ENABLED=false LC_ALL=C LANG=C
+USER 10001:10001
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 CMD ["/opt/lenslab/v2-native", "--healthcheck"]
+ENTRYPOINT ["/opt/lenslab/v2-native"]

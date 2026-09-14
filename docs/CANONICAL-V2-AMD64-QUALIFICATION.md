@@ -24,3 +24,30 @@ node tests/canonical-v2-target-parity.mjs --raw-root /path/to/approved/raw-fixtu
 ```
 
 AMD64 mode additionally requires Linux x64 and GitHub's native X64 runner metadata. Emulation cannot substitute for target qualification. CI provenance, compiler versions and reports must be reviewed before claiming a pass. No result has been assumed in this document.
+
+## 2026-09-14 qualification evidence
+
+Candidate: `b607651f08d5a3af987e8b3e09e46560296a47a6`, development branch `codex/canonical-v2-amd64-qualification`.
+Private CI: [run 34838789271](https://github.com/melanikshrestha-boop/intelligent-image-aid/actions/runs/34838789271).
+Compiler: Ubuntu Clang 18.1.3 (1ubuntu1), native `x86_64-pc-linux-gnu`.
+
+| Check | Observed result |
+| --- | --- |
+| Normal AMD64 primitive tests | 38 pass |
+| Normal AMD64 decoder contract | 14 pass; 10,000 malformed-prefix mutations return typed errors, no complete outputs |
+| Normal AMD64 retained ARM64 comparison | 510/510 cases, 1,950/1,950 positive stage hashes exact; zero mismatches; sources preserved |
+| Fully instrumented AMD64 | 38 primitives, 14 decoder cases, 10,000 typed mutation errors; 510/510 cases and 1,950/1,950 stage hashes exact; no sanitizer findings; sources preserved |
+| Mac target-runner self-check | 510/510 cases, 1,950/1,950 stage hashes exact; sources preserved; not AMD64 evidence |
+| Target harness and isolation unit tests | 9 pass, 0 fail, 57 expectations |
+| Existing default V1 native regressions | Pass, unchanged source; includes JPEG, pipeline, worker, burst, develop and export-related suites |
+| Fresh main / candidate identical-input V1 control | Both: `brightness=128 sharpness=0 score=20 blur=true verdict=reject` |
+| Application suite with loopback server permission | 2,470 pass, same 5 pre-existing appearance failures, 21 existing skips, 1 existing todo |
+
+The restricted application-suite attempt additionally failed six loopback-server tests because it could not bind ephemeral ports. The authorized rerun resolves those failures without code changes. The remaining five match the previously isolated sidebar, connector marks, Develop light chrome, dark-default and shared-typography failures documented in `GROK-INFRASTRUCTURE-RECONCILIATION-2026-09-14.md`. No failing tests or UI behavior were changed; the owner explicitly excluded these unrelated appearance failures from the native deployment gate.
+
+Normal probe binary SHA-256: `dee6504a8b1e1fa1a62cf06258eeec422fb465be261541fa6106ca10564a51c0`.
+Existing decoder source, contract, dependency pins, reference manifests, V1 code, analytics and production configuration remain unchanged. The additional reference JSON copies retained evidence; it is not regenerated candidate output.
+
+Instrumented probe SHA-256: `0596d04b52703d03fddcefb54f22f3a8d05cd6317a5d8f723309c71087564af6`. The native AMD64 gate passed in both build modes (normal 7m14s; instrumented 22m29s, including dependency builds). These are CI job durations, not decode throughput benchmarks.
+
+This qualifies the retained fixture corpus on native AMD64, **not** container packaging, broad camera compatibility or customer activation. Container construction may proceed; authenticated product testing remains required before owner activation. CI artifacts contain hash receipts only and expire after seven days; retain the reviewed receipts with any release evidence.
