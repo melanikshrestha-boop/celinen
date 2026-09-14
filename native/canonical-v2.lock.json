@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "domain": "sports-canonical-rgba256-v2",
+  "qualified": false,
+  "revision": "stage-a-icc2014-lcms2191",
+  "jpeg": {"version":"3.1.4.1","file":"libjpeg-turbo-3.1.4.1.tar.gz","sha256":"ecae8008e2cc9ade2f2c1bb9d5e6d4fb73e7c433866a056bd82980741571a022","url":"https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.1.4.1/libjpeg-turbo-3.1.4.1.tar.gz","license":"IJG, BSD-3-Clause, Zlib; retain upstream LICENSE.md and README.ijg"},
+  "color": {"version":"2.19.1","file":"lcms2-2.19.1.tar.gz","sha256":"bfc54f7bab59fbc921012014a8032e4cba4abd46db47d46b76416a8c0b2815c8","url":"https://github.com/mm2/Little-CMS/releases/download/lcms2.19.1/lcms2-2.19.1.tar.gz","license":"MIT; retain upstream LICENSE"},
+  "raw": {"version":"0.22.2","file":"LibRaw-0.22.2.tar.gz","sha256":"de86b035655accff8d4010f1a221fdf50d353cb7b1422ba26f14a0db92612cfa","url":"https://www.libraw.org/data/LibRaw-0.22.2.tar.gz","license":"CDDL-1.0 or LGPL-2.1; retain all upstream notices/source; no distribution in this task"},
+  "profile": {"file":"sRGB2014.icc","sha256":"384b832de3412066743b52a75ee906b6fb9fb8d9e09e936fc2c43223815c6e0a","url":"https://registry.color.org/rgb-registry/profiles/sRGB2014.icc","license_url":"https://registry.color.org/profile-library/","copyright":"International Color Consortium","approval":"Owner approved replacement of unverified HP profile, 2026-09-13"},
+  "reference": {"simd":false,"idct":"ISLOW","fancy_upsampling":true,"block_smoothing":false,"scale":"1/1","output":"RGB8","lcms_flags":67109184,"intent":1,"resize":"integer-area-rgba8-v1","orientation":"exif-permute-v1"},
+  "deployment": {"allowed":false,"customer_authority":false,"export":false}
+}
