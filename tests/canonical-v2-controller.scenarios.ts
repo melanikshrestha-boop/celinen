@@ -82,4 +82,16 @@ const check=(actual:any,expected:any)=>{assert.deepEqual(actual,expected);checks
   check((await response.text()).includes('private upstream'),false);check(store.has('active'),false);
   check(service.destroyed,1);
 }
+{
+  const {service,store}=await controller();const originalTimer=globalThis.setTimeout;
+  globalThis.setTimeout=((callback:any,ms:any)=>{check(ms,75000);queueMicrotask(callback);return 0;}) as any;
+  service.responder=async(_url,init)=>new Promise((_resolve,reject)=>{
+    if(init.signal.aborted) reject(Error('aborted'));
+    else init.signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true});
+  });
+  try{
+    const r=await service.fetch(request());check(r.status,504);check((await r.json()).code,'processing_timeout');
+    check(store.get('result:'+job).status,'timeout');check(store.has('active'),false);
+  }finally{globalThis.setTimeout=originalTimer;}
+}
 console.log(JSON.stringify({controller_assertions:checks,failed:0}));
