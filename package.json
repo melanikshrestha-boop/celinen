@@ -7,6 +7,8 @@
     "dev": "vite dev",
     "dev:lab": "vite dev --config vite.lab.config.ts --mode lab --host 127.0.0.1 --port 8085 --strictPort",
     "build": "vite build",
+    "build:workers": "NITRO_PRESET=cloudflare_module vite build && bun scripts/verify-workers-build.ts",
+    "build:pages": "NITRO_PRESET=cloudflare_pages vite build && bun scripts/verify-pages-build.ts",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "test": "bun test",

@@ -99,9 +99,7 @@ function MiniMonth({
               onClick={() => onPick(cell.date)}
             >
               {cell.date.getDate()}
-              {hits.length ? (
-                <i style={{ background: eventColor(hits[0]!, accent) }} />
-              ) : null}
+              {hits.length ? <i style={{ background: eventColor(hits[0]!, accent) }} /> : null}
             </button>
           );
         })}
@@ -189,11 +187,20 @@ export function IosCalendar() {
     view === "year"
       ? Array.from({ length: 12 }, (_, i) => new Date(selected.getFullYear(), i, 1))
       : view === "quarter"
-        ? Array.from({ length: 3 }, (_, i) => new Date(selected.getFullYear(), Math.floor(selected.getMonth() / 3) * 3 + i, 1))
+        ? Array.from(
+            { length: 3 },
+            (_, i) =>
+              new Date(selected.getFullYear(), Math.floor(selected.getMonth() / 3) * 3 + i, 1),
+          )
         : [new Date(selected.getFullYear(), selected.getMonth(), 1)];
 
   const dayColumns = view === "day" ? [selected] : week;
-  const timedGrid = { gridTemplateColumns: `52px repeat(${dayColumns.length}, minmax(0, 1fr))` };
+  // A week must not compress seven date labels into sub-label-width columns.
+  // All three rows share one horizontal scroller and identical track widths.
+  const timedGrid = {
+    gridTemplateColumns: `52px repeat(${dayColumns.length}, minmax(48px, 1fr))`,
+    minWidth: 52 + dayColumns.length * 48,
+  };
 
   return (
     <section
@@ -238,7 +245,12 @@ export function IosCalendar() {
             setHexOpen(true);
           }}
         />
-        <button type="button" className="celinen-ios-cal__plus" aria-label="Add" onClick={() => askRef.current?.focus()}>
+        <button
+          type="button"
+          className="celinen-ios-cal__plus"
+          aria-label="Add"
+          onClick={() => askRef.current?.focus()}
+        >
           +
         </button>
       </div>
@@ -348,7 +360,10 @@ export function IosCalendar() {
                     >
                       <span className="celinen-ios-cal__num">{cell.date.getDate()}</span>
                       {onDay.slice(0, 4).map((event) => (
-                        <em key={event.id} style={{ borderLeftColor: eventColor(event, state.accent) }}>
+                        <em
+                          key={event.id}
+                          style={{ borderLeftColor: eventColor(event, state.accent) }}
+                        >
                           {event.title}
                         </em>
                       ))}
@@ -376,7 +391,10 @@ export function IosCalendar() {
             </div>
           ) : (
             <div className="celinen-ios-cal__weekview">
-              <div className="celinen-ios-cal__weekheads celinen-ios-cal__weekheads--timed" style={timedGrid}>
+              <div
+                className="celinen-ios-cal__weekheads celinen-ios-cal__weekheads--timed"
+                style={timedGrid}
+              >
                 <span />
                 {dayColumns.map((day) => {
                   const on = sameDay(day, today);
