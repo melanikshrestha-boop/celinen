@@ -1,0 +1,8 @@
+# Standalone local Stage B test toolchain. No V1 build, service or release target.
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates clang make perl libclang-rt-14-dev=1:14.0.6-12 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 10001 --create-home worker
+USER 10001:10001
+ENTRYPOINT ["/bin/false"]

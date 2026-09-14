@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "domain": "sports-canonical-rgba256-v2",
+  "notes": [
+    "Read-only checksum-pinned V2 fixtures. Not V1 references or a camera-wide qualification.",
+    "External ARW files require an explicitly approved --raw-root. No customer-library discovery or downloads."
+  ],
+  "requiredFormats": [
+    "jpeg",
+    "arw"
+  ],
+  "futureFormats": [
+    "cr3",
+    "nef",
+    "raf",
+    "dng"
+  ],
+  "fixtures": [
+    {
+      "id": "basketball-action",
+      "format": "jpeg",
+      "camera": "Nikon D3",
+      "file": "tests/fixtures/photos/basketball-action-usaf-pd.jpg",
+      "sha256": "716ebc16299ef61adf2e73ad798505d67fc4dfa0dfab0bed228f13834d50ab5a",
+      "orientation": 1
+    },
+    {
+      "id": "basketball-hangar",
+      "format": "jpeg",
+      "camera": "Nikon D700",
+      "file": "tests/fixtures/photos/basketball-hangar-usnavy-pd.jpg",
+      "sha256": "cb8e1799a10fc4d315f7f80628f552a95c75296db1c37473839d380b42d9c80d",
+      "orientation": 1
+    },
+    {
+      "id": "volleyball-portrait",
+      "format": "jpeg",
+      "camera": "Samsung Galaxy S23+",
+      "file": "tests/fixtures/photos/volleyball-portrait-cc0.jpg",
+      "sha256": "5685e8468969ca05da9de250f5848df5318e6b47b1a14d4aebd5c19675224fce",
+      "orientation": 6
+    },
+    {
+      "id": "sony-a6000",
+      "format": "arw",
+      "camera": "Sony ILCE-6000",
+      "externalFile": "sony-a6000.ARW",
+      "sha256": "ce8b4957281a817d52a07a691e2468567b6c78223bd0b514ffc1c65b002b8d89",
+      "orientation": 1
+    },
+    {
+      "id": "sony-a7iv-small",
+      "format": "arw",
+      "camera": "Sony ILCE-7M4",
+      "externalFile": "sony-a7iv-small.ARW",
+      "sha256": "cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223",
+      "orientation": 1
+    }
+  ]
+}
