@@ -2,6 +2,12 @@ export const DOMAIN = 'sports-canonical-rgba256-v2';
 export const MAX_BYTES = 64 * 1024 * 1024;
 export const uuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s);
 export const hex = (s: string, length: number) => s.length === length && /^[0-9a-f]+$/.test(s);
+/** Empty/whitespace OWNER_IDS means all authenticated owners; non-empty is emergency restrict. */
+export function ownerAllowed(user: string, ownerIds?: string) {
+  const raw = (ownerIds ?? '').trim();
+  if (!raw) return true;
+  return raw.split(',').map((s) => s.trim()).filter(Boolean).includes(user);
+}
 export function error(code: string, status: number, jobId?: string) {
   return Response.json({ status: 'error', code, decoder_domain: DOMAIN, customer_authority: false,
     ...(jobId ? {job_id: jobId} : {}) }, {status, headers: {'Cache-Control': 'no-store'}});

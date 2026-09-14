@@ -9,10 +9,11 @@ test('V2 gateway authenticates and authorizes before contacting native processin
   expect((await handleV2Gateway(request({Authorization:''}),e)).status).toBe(401);
   expect((await handleV2Gateway(request(),e,async()=>null)).status).toBe(401);
   expect((await handleV2Gateway(request(),e,async()=>({user,owns:false}))).status).toBe(404);
-  expect((await handleV2Gateway(request(),{...e,LENSLABS_V2_OWNER_IDS:''},async()=>({user,owns:true}))).status).toBe(403);
+  expect((await handleV2Gateway(request(),{...e,LENSLABS_V2_OWNER_IDS:''},async()=>({user,owns:true}))).status).toBe(200);
+  expect((await handleV2Gateway(request(),{...e,LENSLABS_V2_OWNER_IDS:'99999999-9999-4999-8999-999999999999'},async()=>({user,owns:true}))).status).toBe(403);
   expect((await handleV2Gateway(request(),{...e,LENSLABS_CANONICAL_V2_ENABLED:'false'},async()=>({user,owns:true}))).status).toBe(503);
   expect((await handleV2Gateway(request(),e,async()=>{throw Error('offline');})).status).toBe(503);
-  expect(calls).toBe(0);
+  expect(calls).toBe(1);
 });
 test('V2 gateway bounds upload and strips untrusted identity and private photo properties',async()=>{
   let calls=0;

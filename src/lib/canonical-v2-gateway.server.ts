@@ -1,6 +1,12 @@
 // Independent experimental route. Never writes photos, V1 decisions or sidecars.
 import {createClient} from '@supabase/supabase-js';
 const DOMAIN = 'sports-canonical-rgba256-v2';
+/** Empty OWNER_IDS = all authenticated shoot owners; non-empty is emergency restrict. */
+const ownerAllowed = (user:string, ownerIds?:string) => {
+  const raw = (ownerIds ?? '').trim();
+  if (!raw) return true;
+  return raw.split(',').map((s)=>s.trim()).filter(Boolean).includes(user);
+};
 const uuid = (s:string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(s);
 type Binding = {fetch(request:Request):Promise<Response>};
 export type V2GatewayEnv = {
@@ -40,7 +46,7 @@ export async function handleV2Gateway(request:Request,env:V2GatewayEnv,auth:V2Au
   catch { return error('authorization_unavailable',503); }
   if (!identity) return error('unauthorized',401);
   if (!health && !identity.owns) return error('shoot_not_found',404);
-  if (!env.LENSLABS_V2_OWNER_IDS?.split(',').includes(identity.user)) return error('not_enabled_for_user',403);
+  if (!ownerAllowed(identity.user, env.LENSLABS_V2_OWNER_IDS)) return error('not_enabled_for_user',403);
   // Cancellation and receipt access remain available after emergency shutdown.
   if (request.method==='POST' && env.LENSLABS_CANONICAL_V2_ENABLED!=='true') return error('disabled',503);
   if (!env.CANONICAL_V2 || !/^[a-f0-9]{64}$/.test(env.LENSLABS_V2_BRIDGE_TOKEN??'')) return error('native_not_configured',503);
@@ -48,6 +54,7 @@ export async function handleV2Gateway(request:Request,env:V2GatewayEnv,auth:V2Au
   let path = health?'/health':job?'/jobs/'+job:'/v2/decode';
   if (request.method==='POST') {
     if (job) return error('invalid_request',400);
+    console.log(JSON.stringify({event:'v2_job_started',decoder_domain:DOMAIN,photo_count:1}));
     const size = request.headers.get('Content-Length')??'',sha=request.headers.get('X-Source-Sha256')??'';
     if (!/^[1-9][0-9]{0,8}$/.test(size) || !/^[a-f0-9]{64}$/.test(sha) ||
       request.headers.get('Content-Type')!=='application/octet-stream' || request.headers.has('Content-Encoding')) return error('invalid_request',400);

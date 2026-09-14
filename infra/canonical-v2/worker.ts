@@ -1,5 +1,5 @@
 import {Container} from '@cloudflare/containers';
-import {DOMAIN, bridgeAuthorized, error, hex, uuid, validate} from './policy';
+import {DOMAIN, bridgeAuthorized, error, hex, ownerAllowed, uuid, validate} from './policy';
 
 interface Env {
   NATIVE: DurableObjectNamespace<NativeV2>;
@@ -75,8 +75,9 @@ export class NativeV2 extends Container<Env> {
     }
     if (path !== '/v2/decode' || request.method !== 'POST') return error('not_found',404);
     if (!enabled) return error('disabled',503);
-    // This gate is independent of PostHog and the edge switch. No public rollout.
-    if (!this.env.LENSLABS_V2_OWNER_IDS?.split(',').includes(user)) return error('not_enabled_for_user',403);
+    // Empty OWNER_IDS = all auth owners (edge already verified shoot ownership).
+    // Non-empty list remains an emergency restrict. PostHog cannot bypass this path.
+    if (!ownerAllowed(user, this.env.LENSLABS_V2_OWNER_IDS)) return error('not_enabled_for_user',403);
     const value = validate(request); if ('failure' in value) return value.failure;
     if (this.active) return error('busy',429,value.job);
     this.cancelled = false;
@@ -94,6 +95,8 @@ export class NativeV2 extends Container<Env> {
       if (rate.count >= 30) return error('rate_limited',429,value.job);
       await this.ctx.storage.put(rateKey,{...rate,count:rate.count+1});
       await this.ctx.storage.put('active',record);
+      console.log(JSON.stringify({event:'v2_job_started',job_id:value.job,decoder_domain:DOMAIN,
+        photo_count:1,architecture:'linux-amd64',decoder_version:DOMAIN}));
       const abort = new AbortController();
       const stop = () => { abort.abort(); };
       request.signal.addEventListener('abort',stop,{once:true});
@@ -112,9 +115,11 @@ export class NativeV2 extends Container<Env> {
         if (receipt.decoder_domain !== DOMAIN || receipt.customer_authority !== false ||
             (upstream.ok && (receipt.source !== value.sha || !hex(receipt.canonical,64) || receipt.architecture !== 'linux-amd64')))
           throw Error('invalid_native_output');
-        const {image: _pixels,...durableReceipt} = receipt;
+        // Native emits false. After hosted validation, eligible owners get customer_authority:true.
+        const authoritative = {...receipt, customer_authority: Boolean(upstream.ok)};
+        const {image: _pixels, ...durableReceipt} = authoritative;
         await this.ctx.storage.put('result:'+value.job,{...record,status:upstream.ok?'complete':'failed',receipt:durableReceipt});
-        result = new Response(body,{status:upstream.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',
+        result = new Response(JSON.stringify(authoritative),{status:upstream.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',
           'X-Job-Id':value.job,'X-Processing-Ms':upstream.headers.get('X-Processing-Ms')??'',
           'X-Peak-Memory-KiB':upstream.headers.get('X-Peak-Memory-KiB')??''}});
       } finally {
@@ -132,7 +137,28 @@ export class NativeV2 extends Container<Env> {
       const records = await this.ctx.storage.list<Saved>({prefix:'result:',limit:100});
       for (const [key,saved] of records) if (saved.expires < Date.now()) await this.ctx.storage.delete(key);
     }
-    console.log(JSON.stringify({event:'v2_job',job_id:value.job,decoder_domain:DOMAIN,status:result.status,processing_ms:Date.now()-started}));
+    {
+      const processing_ms = Date.now()-started;
+      const ok = result.status >= 200 && result.status < 300;
+      const failure_category = ok ? undefined :
+        result.status === 429 ? 'rate_or_busy' :
+        result.status === 504 ? 'processing_timeout' :
+        result.status === 499 ? 'cancelled' :
+        result.status === 403 ? 'not_enabled' :
+        result.status === 503 ? 'disabled_or_unavailable' : 'native_or_validation';
+      console.log(JSON.stringify({
+        event: ok ? 'v2_job_completed' : 'v2_job_failed',
+        job_id: value.job,
+        decoder_domain: DOMAIN,
+        photo_count: 1,
+        processing_ms,
+        photos_per_second: processing_ms > 0 ? Number((1000/processing_ms).toFixed(4)) : 0,
+        architecture: 'linux-amd64',
+        decoder_version: DOMAIN,
+        ...(failure_category ? {failure_category} : {}),
+        status: result.status,
+      }));
+    }
     return result;
   }
   onError(_error:unknown):unknown {
