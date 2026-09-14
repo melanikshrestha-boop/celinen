@@ -9,6 +9,7 @@ import { IntegrationsSection } from "@/components/marketing/IntegrationsSection"
 import { PublishEverywhere } from "@/components/marketing/PublishEverywhere";
 import { LivePhotographers } from "@/components/marketing/LivePhotographers";
 import { HomePricing } from "@/components/marketing/HomePricing";
+import { WaitlistCta } from "@/components/marketing/WaitlistCta";
 
 import { AffiliatesLanding } from "@/components/marketing/AffiliatesPage";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
@@ -96,6 +97,7 @@ function Index() {
           </span>
         </div>
         </div>
+        <WaitlistCta />
         <MarketingStats />
         <SectionGuard>
           <PublishEverywhere />
