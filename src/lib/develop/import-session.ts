@@ -1,4 +1,6 @@
 import { collectDroppedFiles, type DroppedFilesResult } from "../studio/drop-import";
+import { isRawFile } from "../imaging";
+import { productOperation } from "../product-lifecycle";
 import { readImportSidecars, sidecarKey, supportedPhoto } from "../studio/ingest";
 import { prepareDevelopPreview } from "./preview";
 import { completeDevelopImportIds, runDevelopImport, type DevelopImportProgress } from "./import";
@@ -112,6 +114,8 @@ export function createDevelopImportSession(
   let persistenceDirty = false;
   let persistence: Promise<void> | null = null;
   let eventStart = 0;
+  let telemetry: ReturnType<typeof productOperation> | undefined;
+  let decodeFailures = 0;
   let admittedJobId: string | null = null;
   let lastSettledOwnedJobId: string | null = null;
   const filesByHandle = new Map<File, number>();
@@ -217,6 +221,8 @@ export function createDevelopImportSession(
     admittedJobId = null;
     filesByHandle.clear();
     eventStart = now();
+    telemetry = productOperation(options.scope, options.libraryId, "import", {}, now);
+    decodeFailures = 0;
     state = {
       ...emptySnapshot(),
       jobId: crypto.randomUUID(),
@@ -243,12 +249,22 @@ export function createDevelopImportSession(
       try {
         await persistNow();
         // The final journal is part of durable completion, not merely the last photo write.
-        if (state.phase === "complete" && !owner.signal.aborted)
+        if (state.phase === "complete" && !owner.signal.aborted) {
           state.timing.savedMs = now() - eventStart;
+          const files = [...filesByHandle.keys()];
+          telemetry?.finish({
+            photo_count: state.found,
+            raw_count: files.filter(isRawFile).length,
+            jpeg_count: files.filter((file) => /\.jpe?g$/i.test(file.name)).length,
+            photos_per_second:
+              state.timing.savedMs > 0 ? (state.saved * 1000) / state.timing.savedMs : 0,
+          });
+        }
       } catch (error) {
         pause(error);
       }
       admitted = false;
+      if (decodeFailures) telemetry?.capture("decode_failed", { photo_count: decodeFailures });
       filesByHandle.clear();
       publish(true);
     }
@@ -324,11 +340,17 @@ export function createDevelopImportSession(
               preparationConcurrency: 4,
               rawPreparationConcurrency: 1,
               preparePreview: async (file, input, signal) => {
-                const prepared = await (dependencies.preparePreview ?? prepareDevelopImportPreview)(
-                  file,
-                  input,
-                  signal,
-                );
+                let prepared: DevelopPhotoInput;
+                try {
+                  prepared = await (dependencies.preparePreview ?? prepareDevelopImportPreview)(
+                    file,
+                    input,
+                    signal,
+                  );
+                } catch (error) {
+                  if (!signal.aborted) decodeFailures++;
+                  throw error;
+                }
                 const key = sidecarKey(file),
                   text = sidecars.values.get(key);
                 if (text !== undefined && targets.get(key) === 1) {

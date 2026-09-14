@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { createDevelopImportSession } from "../src/lib/develop/import-session";
+import { productOperation, connectProductAnalytics } from "../src/lib/product-lifecycle";
+import { createProductAnalytics } from "../src/lib/product-analytics";
 import {
   advanceDevelopImportJob,
   createDevelopDocument,
@@ -82,6 +84,76 @@ async function withoutWebLocks(work: () => Promise<void>) {
 }
 
 describe("route-independent Develop import", () => {
+  for (const outcome of [
+    "saved",
+    "decode-failed",
+    "save-failed",
+    "cancelled",
+    "revoked",
+    "network-failed",
+  ] as const) {
+    test(`actual import lifecycle producer: ${outcome}`, async () => {
+      const payloads: any[] = [];
+      let consent = true;
+      const scope = "12345678-1234-4123-a123-123456789012";
+      const close = connectProductAnalytics(
+        scope,
+        createProductAnalytics({
+          config: { enabled: "true", host: "https://us.i.posthog.com", key: "phc_TESTNOTAREALKEY" },
+          accountId: scope,
+          cookie: () => (consent ? "foto_consent=accepted" : "foto_consent=rejected"),
+          fetch: async (_url, init) => {
+            if (outcome === "network-failed") throw new Error("private network failure");
+            payloads.push(JSON.parse(String(init.body)));
+            return { ok: true };
+          },
+        }),
+        () => consent,
+      );
+      try {
+        const f = fixture();
+        const gate = deferred<void>();
+        let entered = false;
+        const session = createDevelopImportSession(
+          { scope, libraryId: "shoot:12345678-1234-4123-a123-123456789014" },
+          {
+            ...f.dependencies,
+            preparePreview: async (source, input) => {
+              entered = true;
+              await gate.promise;
+              if (outcome === "decode-failed") throw new Error("PRIVATE /Users/name/photo.jpg");
+              return f.dependencies.preparePreview(source, input);
+            },
+            store: {
+              ...f.dependencies.store,
+              saveImportJob: async (input, revision) => {
+                if (outcome === "save-failed" && input.phase === "complete")
+                  throw new Error("quota");
+                return f.dependencies.store.saveImportJob(input, revision);
+              },
+            },
+          },
+        );
+        const pending = session.startFiles([file("PRIVATE.jpg")]);
+        while (!entered) await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(payloads.some((p) => p.event === "import_completed")).toBe(false);
+        if (outcome === "revoked") consent = false;
+        if (outcome === "cancelled") session.cancel();
+        gate.resolve();
+        await pending;
+        const names = payloads.map((p) => p.event);
+        expect(names.includes("import_completed")).toBe(
+          outcome === "saved" || outcome === "decode-failed",
+        );
+        expect(names.includes("decode_failed")).toBe(outcome === "decode-failed");
+        expect(JSON.stringify(payloads)).not.toContain("PRIVATE");
+        if (outcome === "network-failed") expect(session.getSnapshot().saved).toBe(1);
+        if (outcome === "saved") expect(f.events.at(-1)).toBe("unlock");
+      } finally {
+        close();
+      }
+    });
+  }
   test("1000 metadata rows appear before decoding and remain separate from Saved", async () => {
     const f = fixture(),
       gate = deferred<void>();
@@ -293,6 +365,7 @@ describe("route-independent Develop import", () => {
         "hot",
         "createDevelopStore",
         "collectDroppedFiles",
+        "productOperation",
         `${compiled}\nreturn { getDevelopImportSession, cancelDevelopImportsOutsideScope };`,
       );
       const disposers: ((data: Record<string, unknown>) => void)[] = [];
@@ -311,12 +384,18 @@ describe("route-independent Develop import", () => {
         hot,
         () => f.dependencies.store,
         collect,
+        productOperation,
       ) as typeof import("../src/lib/develop/import-session");
       const session = first.getDevelopImportSession(owner);
       const task = session.startDrop({} as DataTransfer);
       try {
         for (const dispose of disposers) dispose(data);
-        const second = load(hot, () => f.dependencies.store, collect) as typeof first;
+        const second = load(
+          hot,
+          () => f.dependencies.store,
+          collect,
+          productOperation,
+        ) as typeof first;
         expect(second.getDevelopImportSession(owner)).toBe(session);
         second.cancelDevelopImportsOutsideScope("different-account");
         expect(signal?.aborted).toBe(true);

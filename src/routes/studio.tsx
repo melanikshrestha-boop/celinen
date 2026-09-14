@@ -8,6 +8,11 @@ import {
 } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  analysisDecoderDomain,
+  cullReviewTelemetry,
+  productOperation,
+} from "@/lib/product-lifecycle";
 import { useWorkbench } from "@/components/workbench/context";
 import { useDashboard } from "@/components/dashboard/context";
 import { isWorkbenchRoute, studioBindingKey } from "@/lib/workbench";
@@ -435,6 +440,7 @@ export function Studio({
   const preferences = identity?.preferences ?? DEFAULT_PREFERENCES;
   useProcessingWakeLock(preferences.keepAwake, Boolean(progress || busy));
   const [burstOpen, setBurstOpen] = useState(false);
+  const reviewTelemetry = useRef<ReturnType<typeof cullReviewTelemetry> | null>(null);
   const folderAbortRef = useRef<AbortController | null>(null);
   useBlocker({
     shouldBlockFn: async ({ next }) => {
@@ -544,6 +550,7 @@ export function Studio({
     const token = ++importCullRef.current.token;
     importCullRef.current.running = true;
     void (async () => {
+      let telemetry: ReturnType<typeof productOperation> | undefined;
       try {
         const pending = latestShotsRef.current.filter(
           (shot) =>
@@ -552,6 +559,11 @@ export function Studio({
             Boolean(shot.file?.size),
         );
         const analyzedIds = new Set<string>();
+        if (pending.length || !importCullRef.current.applied)
+          telemetry = productOperation(storageScope, shootId ?? projectId ?? undefined, "cull", {
+            photo_count: latestShotsRef.current.length,
+          });
+        let failures = 0;
         await Promise.all(
           pending.map(async (shot) => {
             try {
@@ -565,6 +577,7 @@ export function Studio({
                 ),
               );
             } catch {
+              if (token === importCullRef.current.token) failures++;
               /* Leave unanalyzed; never invent a quality score. */
             }
           }),
@@ -577,9 +590,23 @@ export function Studio({
         )
           return;
         const onlyIds = importCullRef.current.applied ? analyzedIds : undefined;
+        if (failures) telemetry?.capture("cull_failed", { photo_count: failures });
         if (importCullRef.current.applied && !analyzedIds.size) return;
         const current = latestShotsRef.current;
         const result = applyImportCull(current, onlyIds ? { onlyIds } : {});
+        if (telemetry) {
+          const review = cullReviewTelemetry(telemetry);
+          // Unchanged/restored manual decisions are not AI recommendations.
+          const before = new Map(current.map((shot) => [shot.id, shot.verdict]));
+          const suggestions = result.shots.filter((shot) => before.get(shot.id) !== shot.verdict);
+          review.suggest(suggestions);
+          reviewTelemetry.current?.invalidate();
+          reviewTelemetry.current = review;
+          telemetry.finish({
+            keepers_suggested: suggestions.filter((shot) => shot.verdict === "keep").length,
+            decoder_domain: analysisDecoderDomain(current.map((shot) => shot.analysisBackend)),
+          });
+        }
         importCullRef.current.applied = true;
         if (!result.changed) return;
         undoRef.current.push({
@@ -598,11 +625,14 @@ export function Studio({
         setSyncNote(
           `Cull on import · ${decided} decided · ${result.flagged} near-dupes flagged. Originals were not changed.`,
         );
+      } catch (error) {
+        telemetry?.fail();
+        throw error;
       } finally {
         if (token === importCullRef.current.token) importCullRef.current.running = false;
       }
     })();
-  }, [updateShots]);
+  }, [updateShots, storageScope, shootId, projectId]);
 
   const selectShot = useCallback((id: string | null) => {
     if (id !== latestSelectedIdRef.current) {
@@ -693,7 +723,11 @@ export function Studio({
     [selectFilter, selectShot],
   );
 
-  const discardProposal = useCallback(() => {
+  const discardProposal = useCallback((retainAcceptedTelemetry = false) => {
+    if (retainAcceptedTelemetry !== true) {
+      reviewTelemetry.current?.invalidate();
+      reviewTelemetry.current = null;
+    }
     renderedProposalRef.current = null;
     proposalRef.current = null;
     recipeRef.current = null;
@@ -746,9 +780,32 @@ export function Studio({
           "Let ingest finish before suggesting changes to the whole shoot. You can keep reviewing arriving frames.",
         );
       recipeRef.current = null;
-      return showProposal(proposeCull(latestShotsRef.current, decide, { title, description }));
+      const telemetry = productOperation(storageScope, shootId ?? projectId ?? undefined, "cull", {
+        photo_count: latestShotsRef.current.length,
+      });
+      try {
+        const proposal = proposeCull(latestShotsRef.current, decide, { title, description });
+        const receipt = showProposal(proposal);
+        const review = cullReviewTelemetry(telemetry);
+        review.suggest(
+          proposal.frames.map((frame) => ({ id: frame.id, verdict: frame.afterVerdict })),
+        );
+        reviewTelemetry.current?.invalidate();
+        reviewTelemetry.current = review;
+        telemetry.finish({
+          keepers_suggested: proposal.frames.filter((frame) => frame.afterVerdict === "keep")
+            .length,
+          decoder_domain: analysisDecoderDomain(
+            latestShotsRef.current.map((shot) => shot.analysisBackend),
+          ),
+        });
+        return receipt;
+      } catch (error) {
+        telemetry.fail();
+        throw error;
+      }
     },
-    [showProposal],
+    [showProposal, storageScope, shootId, projectId],
   );
 
   const groupFaces = useCallback(async () => {
@@ -1122,7 +1179,10 @@ export function Studio({
     const next = applyCullReviewProposal(latestShotsRef.current, pending);
     checkpoint();
     updateShots(() => next);
-    discardProposal();
+    reviewTelemetry.current?.reviewBatch(
+      pending.frames.map((frame) => ({ id: frame.id, verdict: frame.afterVerdict })),
+    );
+    discardProposal(true);
     const receipt = `Accepted suggestions for ${pending.frames.length.toLocaleString()} photo${pending.frames.length === 1 ? "" : "s"}. Undo is available; originals are untouched.`;
     setSyncNote(receipt);
     return receipt;
@@ -1357,6 +1417,7 @@ export function Studio({
     }
     setLoupeStatus("loading");
     canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    const displayedReview = reviewTelemetry.current;
     (async () => {
       try {
         const bmp = await getBitmap(selected);
@@ -1367,6 +1428,7 @@ export function Studio({
         setBins(histogram(canvas));
         if (proposal && preview) renderedProposalRef.current = { proposal, shotId: selected.id };
         setLoupeStatus("ready");
+        if (!compareBefore && !showBefore) displayedReview?.shown(selected.id);
       } catch {
         if (!cancelled) {
           canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
@@ -1386,6 +1448,7 @@ export function Studio({
       if (!canPersistStudioSession(sessionStatusRef.current)) return;
       checkpoint();
       updateShots((prev) => prev.map((s) => (s.id === id ? { ...s, verdict } : s)));
+      reviewTelemetry.current?.review(id, verdict);
       if (!advance) return;
       const idx = visible.findIndex((s) => s.id === id);
       const next = visible[idx + 1];
@@ -1405,6 +1468,7 @@ export function Studio({
           return verdict && shot.verdict !== verdict ? { ...shot, verdict } : shot;
         }),
       );
+      reviewTelemetry.current?.reviewBatch(changes);
     },
     [checkpoint, updateShots],
   );
@@ -1493,6 +1557,9 @@ export function Studio({
       return;
     }
     setBusy("Packing keepers…");
+    const telemetry = productOperation(storageScope, shootId ?? projectId ?? undefined, "export", {
+      photo_count: latestShotsRef.current.filter((shot) => shot.verdict === "keep").length,
+    });
     try {
       const pack = await createOriginalKeeperZip(
         latestShotsRef.current,
@@ -1505,6 +1572,7 @@ export function Studio({
       document.body.appendChild(a);
       try {
         a.click();
+        telemetry.finish();
       } finally {
         a.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -2742,6 +2810,8 @@ export function Studio({
       </main>
       <BurstReview
         open={burstOpen}
+        analyticsScope={storageScope}
+        analyticsShootId={shootId ?? projectId ?? undefined}
         onOpenChange={setBurstOpen}
         shots={shots}
         onCull={(id, groupIds) => {
