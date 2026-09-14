@@ -2,6 +2,10 @@
 FROM ubuntu@sha256:a61567bd31828687156d735ea8eb01ba4e37636e225dd6a48ba94136a70d9d61 AS build
 RUN test "$(uname -m)" = x86_64
 RUN apt-get update && apt-get install -y --no-install-recommends clang-18 cmake make perl curl ca-certificates
+# clang-18 does not create /usr/bin/clang on a clean Ubuntu image.
+# Resolve the frozen bootstrap's unversioned compiler names to LLVM 18 explicitly.
+ENV PATH=/usr/lib/llvm-18/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN clang --version && clang++ --version
 WORKDIR /build
 COPY native/include/lenslabs/canonical_v2.hpp native/include/lenslabs/canonical_v2.hpp
 COPY native/src/canonical_v2/ native/src/canonical_v2/
