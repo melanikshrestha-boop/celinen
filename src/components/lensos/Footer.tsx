@@ -107,7 +107,7 @@ export function Footer() {
           <span>DPA</span>
           <span>AUP</span>
           <span className="ml-auto font-mono text-[12px] text-current/35">
-            LensLabs · originals read-only · nothing sends without approval
+            celinen · originals read-only · nothing sends without approval
           </span>
         </div>
       </div>

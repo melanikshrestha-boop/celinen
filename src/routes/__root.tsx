@@ -75,7 +75,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "LensLabs scores, flags and culls a full RAW shoot in your browser, then develops the keepers.",
+          "Celinen scores, flags and culls a full RAW shoot in your browser, then develops the keepers.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       {
