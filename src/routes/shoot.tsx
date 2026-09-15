@@ -26,7 +26,7 @@ import {
 export const Route = createFileRoute("/shoot")({
   head: () => ({
     meta: [
-      { title: "Shoot bar — drop, cull, send to Lightroom | LensLabs" },
+      { title: "Shoot bar — drop, cull, send to Lightroom | Celinen" },
       {
         name: "description",
         content:

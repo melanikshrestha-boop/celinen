@@ -4,7 +4,7 @@ import "@/components/business/business.css";
 export const Route = createFileRoute("/photographer/$ownerId")({
   loader: ({ params }) => readPublicPortfolio({ data: { owner: params.ownerId } }),
   head: () => ({
-    meta: [{ title: "Recent work — LensLabs" }, { name: "referrer", content: "no-referrer" }],
+    meta: [{ title: "Recent work — Celinen" }, { name: "referrer", content: "no-referrer" }],
   }),
   errorComponent: () => (
     <main className="portfolio-story">

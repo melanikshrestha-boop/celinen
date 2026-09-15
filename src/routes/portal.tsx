@@ -21,13 +21,13 @@ export const Route = createFileRoute("/portal")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Client portal — LensLabs" },
+      { title: "Client portal — Celinen" },
       {
         name: "description",
         content:
           "Sign in to your LensLabs client portal to see your shoots, galleries and invoices in one place.",
       },
-      { property: "og:title", content: "Client portal — LensLabs" },
+      { property: "og:title", content: "Client portal — Celinen" },
       {
         property: "og:description",
         content: "Your shoots, your galleries, your invoices — one login.",

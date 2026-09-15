@@ -5,12 +5,12 @@ import { useLens } from "@/lib/lensos-store";
 export const Route = createFileRoute("/pick")({
   head: () => ({
     meta: [
-      { title: "Pick — LensLabs Cull Queue" },
+      { title: "Pick — Celinen Cull Queue" },
       {
         name: "description",
         content: "Cull the card dump before a client ever sees a file.",
       },
-      { property: "og:title", content: "Pick — LensLabs Cull Queue" },
+      { property: "og:title", content: "Pick — Celinen Cull Queue" },
       { property: "og:description", content: "Keep, reject, then send keepers only." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

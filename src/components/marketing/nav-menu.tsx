@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,16 @@ const NavMenuContext = createContext<{
 
 export function NavMenuProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<NavMenuId | null>(null);
+  useEffect(() => {
+    const close = () => setOpen(null);
+    const query = window.matchMedia("(max-width: 900px)");
+    query.addEventListener("change", close);
+    window.addEventListener("orientationchange", close);
+    return () => {
+      query.removeEventListener("change", close);
+      window.removeEventListener("orientationchange", close);
+    };
+  }, []);
   const value = useMemo(() => ({ open, setOpen }), [open]);
   return <NavMenuContext.Provider value={value}>{children}</NavMenuContext.Provider>;
 }

@@ -12,7 +12,7 @@ export const Route = createFileRoute("/photographers")({
   loaderDeps: ({ search }) => ({ creator: search.creator }),
   loader: ({ deps }) =>
     deps.creator ? readPublicPhotographer({ data: { owner: deps.creator } }) : null,
-  head: () => ({ meta: [{ title: "Find a photographer — LensLabs" }] }),
+  head: () => ({ meta: [{ title: "Find a photographer — Celinen" }] }),
   component: PublicDirectory,
   errorComponent: () => (
     <main className="commerce-desk">
@@ -30,7 +30,7 @@ function PublicDirectory() {
       <nav className="commerce-row">
         <Link to="/" className="flex items-center gap-2">
           <LogoMark size={28} />
-          LensLabs
+          celinen
         </Link>
         <Link to="/network">Your profile & inbox</Link>
       </nav>

@@ -9,18 +9,18 @@ export function TermsPage() {
       <article className="legal-doc">
         <p className="legal-doc__updated">Last updated 9 September 2026</p>
         <p>
-          These terms are the agreement for using FOTO at lenslab.dev (the “Services”). If you do
+          These terms are the agreement for using Celinen at lenslab.dev (the “Services”). If you do
           not accept them, do not create an account or use the workspace. Questions: {CONTACT}.
         </p>
 
         <h2>1. Who this is for</h2>
         <p>
-          FOTO is a photography workspace: import a shoot, pick keepers, and send a gallery. It does
+          Celinen is a photography workspace: import a shoot, pick keepers, and send a gallery. It does
           not post your work to social networks for you.
         </p>
         <p>
           You must be 18 or the age of majority where you live, whichever is higher. If you use
-          FOTO for a studio, you confirm you can bind that studio.
+          Celinen for a studio, you confirm you can bind that studio.
         </p>
 
         <h2>2. Your account</h2>
@@ -42,7 +42,7 @@ export function TermsPage() {
           use unless you choose to publish a gallery or connect a service that sends copies.
         </p>
         <p>
-          You grant FOTO only the licence needed to operate the workspace for you: display, transcode,
+          You grant Celinen only the licence needed to operate the workspace for you: display, transcode,
           and deliver files you ask us to process. That licence ends when you delete the material or
           close the account, except for copies you already sent to a client or a third party.
         </p>
@@ -66,14 +66,14 @@ export function TermsPage() {
         <h2>5. AI in the workspace</h2>
         <p>
           Some pick and edit suggestions use machine learning. Outputs can be wrong. You review
-          keepers before a gallery goes out. FOTO does not use your originals to train a shared
+          keepers before a gallery goes out. Celinen does not use your originals to train a shared
           model for other photographers.
         </p>
 
         <h2>6. Acceptable use</h2>
         <p>
           Do not break the law, attack the service, scrape accounts, try to obtain another person’s
-          password or credentials, or use FOTO to infringe someone else’s copyright or publicity
+          password or credentials, or use Celinen to infringe someone else’s copyright or publicity
           rights. We may suspend an account that does.
         </p>
 
@@ -93,12 +93,12 @@ export function TermsPage() {
         <h2>9. Changes</h2>
         <p>
           If these terms change in a way that matters, we will post the new version on this page.
-          Stop using FOTO if you do not accept the update.
+          Stop using Celinen if you do not accept the update.
         </p>
 
         <h2>10. Contact</h2>
         <p>
-          FOTO · lenslab.dev · {CONTACT}
+          Celinen · lenslab.dev · {CONTACT}
         </p>
       </article>
     </PublicPage>
@@ -111,7 +111,7 @@ export function PrivacyPage() {
       <article className="legal-doc">
         <p className="legal-doc__updated">Last updated 9 September 2026</p>
         <p>
-          This policy explains how FOTO (lenslab.dev) handles personal data for photographers and
+          This policy explains how Celinen (lenslab.dev) handles personal data for photographers and
           the people who appear in their work. It is written for use in the EEA, UK, Switzerland,
           and elsewhere. It is not legal advice. Contact {CONTACT}.
         </p>
@@ -165,7 +165,7 @@ export function PrivacyPage() {
 
         <h2>3. Photographs and learning</h2>
         <p>
-          Original files remain read-only in your workspace. FOTO can learn from photos you import
+          Original files remain read-only in your workspace. Celinen can learn from photos you import
           and edits you keep so the tool is more useful <em>for you</em>. That learning stays in
           your workspace. We do not use originals to train a shared model for other photographers.
           Turn this off in Settings → Privacy.
@@ -187,7 +187,7 @@ export function PrivacyPage() {
           data.
         </p>
         <p>
-          FOTO is operated from outside the EEA. When we transfer personal data from the EEA, UK, or
+          Celinen is operated from outside the EEA. When we transfer personal data from the EEA, UK, or
           Switzerland we use appropriate safeguards such as Standard Contractual Clauses. Ask{" "}
           {CONTACT} for a copy.
         </p>
@@ -208,14 +208,14 @@ export function PrivacyPage() {
         </p>
 
         <h2>7. Children</h2>
-        <p>FOTO is not for anyone under 18. We delete an under-18 account if we learn of one.</p>
+        <p>Celinen is not for anyone under 18. We delete an under-18 account if we learn of one.</p>
 
         <h2>8. Changes</h2>
         <p>Material changes will be posted on this page before they take effect.</p>
 
         <h2>9. Contact</h2>
         <p>
-          FOTO · lenslab.dev · {CONTACT}
+          Celinen · lenslab.dev · {CONTACT}
         </p>
       </article>
     </PublicPage>

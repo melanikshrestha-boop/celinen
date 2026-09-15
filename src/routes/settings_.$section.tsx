@@ -9,7 +9,7 @@ export const Route = createFileRoute("/settings_/$section")({
   head: ({ params }) => ({
     meta: [
       {
-        title: `${SETTINGS_SECTIONS.find((entry) => entry.id === settingsSection(params.section))!.label} — LensLabs Settings`,
+        title: `${SETTINGS_SECTIONS.find((entry) => entry.id === settingsSection(params.section))!.label} — Celinen Settings`,
       },
     ],
   }),

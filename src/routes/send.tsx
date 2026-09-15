@@ -7,13 +7,13 @@ import { packageFill } from "@/lib/lensos";
 export const Route = createFileRoute("/send")({
   head: () => ({
     meta: [
-      { title: "Send & Delivery — LensLabs" },
+      { title: "Send & Delivery — Celinen" },
       {
         name: "description",
         content:
           "Preview exactly what will send, approve explicitly, emit one delivery receipt and create a new revision for corrections.",
       },
-      { property: "og:title", content: "Send & Delivery — LensLabs" },
+      { property: "og:title", content: "Send & Delivery — Celinen" },
       {
         property: "og:description",
         content: "Nothing sends without approval. Every send emits a receipt.",

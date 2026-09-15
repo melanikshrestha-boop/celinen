@@ -8,13 +8,13 @@ import { bridgeCredentials } from "@/lib/bridge-client";
 export const Route = createFileRoute("/adobe")({
   head: () => ({
     meta: [
-      { title: "Adobe Handoff — LensLabs" },
+      { title: "Adobe Handoff — Celinen" },
       {
         name: "description",
         content:
           "Write XMP and a manifest, describe the Lightroom collection set, import edited returns and resolve field-level conflicts without silent overwrite.",
       },
-      { property: "og:title", content: "Adobe Handoff — LensLabs" },
+      { property: "og:title", content: "Adobe Handoff — Celinen" },
       {
         property: "og:description",
         content: "Honest Lightroom and Photoshop handoff. Lightroom stays the develop authority.",
@@ -133,7 +133,7 @@ function Adobe() {
               ["XMP sidecars", `ratings, labels, IPTC, caption, copyright, keywords for ${picks.length} picks`],
               ["Manifest", "asset id, pick/reject, source path, package membership"],
               ["Collection set", `${active.name} → one collection per package`],
-              ["Develop authority", "Lightroom after handoff — LensLabs never rewrites develop settings"],
+              ["Develop authority", "Lightroom after handoff — Celinen never rewrites develop settings"],
             ].map(([k, v]) => (
               <div key={k} className="border-b border-border pb-3 last:border-0 last:pb-0">
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-moss">{k}</p>

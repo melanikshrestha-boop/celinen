@@ -23,7 +23,7 @@ export const Route = createFileRoute("/projects")({
   validateSearch: (search: Record<string, unknown>): { id?: string } =>
     typeof search["id"] === "string" ? { id: search["id"] } : {},
   head: () => ({
-    meta: [{ title: "Shoots — LensLabs" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Shoots — Celinen" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: Projects,
 });

@@ -147,7 +147,7 @@ export function SettingsWorkspace({
   const menuButton = useRef<HTMLButtonElement>(null);
   const previousSection = useRef(section);
   useEffect(() => {
-    document.title = `${SETTINGS_SECTIONS.find((entry) => entry.id === section)!.label} — LensLabs Settings`;
+    document.title = `${SETTINGS_SECTIONS.find((entry) => entry.id === section)!.label} — Celinen Settings`;
     content.current?.scrollTo({ top: 0 });
     setNotice("");
     setFailure("");

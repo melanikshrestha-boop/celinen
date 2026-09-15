@@ -130,7 +130,7 @@ export function AffiliatesPage() {
         <h2>Switch sides. Join us.</h2>
         <p>Import. Pick. Send tonight. Then get paid when the photographers you send stay.</p>
         <div className="foto-affiliates__actions">
-          <Link to="/auth" search={{ next: "/dashboard", mode: "signin", google: true }}>
+          <Link to="/auth" search={{ next: "/dashboard", mode: "signin" }}>
             Get started
           </Link>
           <a href={APPLY}>Start earning</a>

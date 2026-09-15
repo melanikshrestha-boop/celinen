@@ -10,7 +10,7 @@ import "@/components/marketing/public-details.css";
 import "@/components/marketing/public-editorial.css";
 
 export const Route = createFileRoute("/blog/")({
-  head: () => publicContentHead("The foto blog", "Notes on editing, delivery, and the work.", "/blog"),
+  head: () => publicContentHead("The celinen blog", "Notes on editing, delivery, and the work.", "/blog"),
   component: BlogPage,
 });
 

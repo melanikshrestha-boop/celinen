@@ -14,7 +14,7 @@ export function IntegrationsMenu() {
   const menu = useNavMenuHover("integrations");
   const trigger = hoverMenuTrigger(menu);
   return (
-    <DropdownMenu modal open={menu.open} onOpenChange={menu.onOpenChange}>
+    <DropdownMenu modal={false} open={menu.open} onOpenChange={menu.onOpenChange}>
       <DropdownMenuTrigger className="marketing-nav__link" {...trigger}>
         Integrations
         <ChevronDown size={14} aria-hidden="true" />

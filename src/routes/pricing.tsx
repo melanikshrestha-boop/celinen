@@ -15,17 +15,17 @@ import "@/components/marketing/pricing-page.css";
 export const Route = createFileRoute("/pricing")({
   head: () => ({
     meta: [
-      { title: "FOTO Pricing — Plans for Photographers" },
+      { title: "Celinen Pricing — Plans for Photographers" },
       {
         name: "description",
         content:
-          "Explore FOTO plans: Pro from USD 16 per month billed yearly, Teams per user, and custom Enterprise options. Compare pricing and choose your next step.",
+          "Explore Celinen plans: Hobby from USD 16 per month billed yearly, Creator, Arena, and custom Enterprise. Compare pricing and choose your next step.",
       },
-      { property: "og:title", content: "FOTO Pricing — Plans for Photographers" },
+      { property: "og:title", content: "Celinen Pricing — Plans for Photographers" },
       {
         property: "og:description",
         content:
-          "A free account entry, Pro and Teams plan options, and Enterprise enquiries for photographers.",
+          "A free account entry, Hobby, Creator, and Arena plans, and Enterprise enquiries for photographers.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

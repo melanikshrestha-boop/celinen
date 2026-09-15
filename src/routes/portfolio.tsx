@@ -9,13 +9,13 @@ import { fillEmptyPortfolioFields, type PortfolioImportContent } from "@/lib/por
 export const Route = createFileRoute("/portfolio")({
   head: () => ({
     meta: [
-      { title: "Portfolio Import — FOTO" },
+      { title: "Portfolio Import — Celinen" },
       {
         name: "description",
         content:
           "Review saved website text and Pixieset collection metadata before adding content to a FOTO portfolio preview. Your existing website stays untouched.",
       },
-      { property: "og:title", content: "Bring your website content — FOTO" },
+      { property: "og:title", content: "Bring your website content — Celinen" },
       {
         property: "og:description",
         content: "File-based content review. No automatic domain transfer or website publishing.",

@@ -50,7 +50,7 @@ const COLUMNS: { title: string; links: { label: string; to?: string; href?: stri
   {
     title: "Connect",
     links: [
-      { label: "Contact sales", href: "mailto:hello@tryiris.ai" },
+      { label: "Contact sales", href: "mailto:hello@lenslab.dev" },
       { label: "Contact us" },
       { label: "Community" },
       { label: "X (Twitter)" },

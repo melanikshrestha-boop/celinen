@@ -6,7 +6,7 @@ import { OutboundPage } from "@/components/outbound/OutboundPage";
 
 export const Route = createFileRoute("/outbound")({
   head: () => ({
-    meta: [{ title: "Outbound — FOTO" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Outbound — Celinen" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: LegacyWorkbenchRedirect,
 });

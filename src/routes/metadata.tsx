@@ -7,13 +7,13 @@ import { METADATA_FIELDS, SOURCE_LABELS } from "@/lib/lensos";
 export const Route = createFileRoute("/metadata")({
   head: () => ({
     meta: [
-      { title: "Metadata Desk — LensLabs" },
+      { title: "Metadata Desk — Celinen" },
       {
         name: "description",
         content:
           "Caption, IPTC, copyright, keywords and jersey data on your picks, with the origin of every field and explicit approval before write.",
       },
-      { property: "og:title", content: "Metadata Desk — LensLabs" },
+      { property: "og:title", content: "Metadata Desk — Celinen" },
       {
         property: "og:description",
         content: "Field-level provenance, batch apply with conflicts, approve, then write XMP.",

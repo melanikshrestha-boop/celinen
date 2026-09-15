@@ -266,7 +266,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     if (account?.status === "out")
       void navigate({
         to: "/auth",
-        search: { next: "/dashboard", mode: "signin", google: true },
+        search: { next: "/dashboard", mode: "signin" },
         replace: true,
       });
   }, [account?.status, navigate]);

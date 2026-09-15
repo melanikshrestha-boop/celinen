@@ -152,7 +152,7 @@ export function SavingsSection({ children }: { children: ReactNode }) {
         </div>
         <p className="marketing-value__disclaimer">
           A planning estimate, not an earnings promise. Time value is not cash income. Only count
-          tools you can actually cancel; your LensLabs budget is an input, not a price quote.
+          tools you can actually cancel; your Celinen budget is an input, not a price quote.
         </p>
         <details className="marketing-value__math">
           <summary>See the calculation</summary>
@@ -165,7 +165,7 @@ export function SavingsSection({ children }: { children: ReactNode }) {
               </p>
               <p>
                 ({savingsDollars(result.replacedMonthlyCost)} in canceled tools −{" "}
-                {savingsDollars(result.lensMonthlyBudget)} LensLabs budget) × 12 months ={" "}
+                {savingsDollars(result.lensMonthlyBudget)} Celinen budget) × 12 months ={" "}
                 {savingsDollars(result.annualNetSoftware)} net software savings.
               </p>
               <p>

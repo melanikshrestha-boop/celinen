@@ -33,9 +33,7 @@ export function StripeEmbeddedCheckout({ priceId, quantity, customerEmail, retur
         window.location.assign(result.url);
       } catch (caught) {
         const message = caught instanceof Error ? caught.message : "Checkout failed";
-        setError(
-          /not configured/i.test(message) ? "Checkout is not live on this machine." : message,
-        );
+        setError(/not configured/i.test(message) ? "Checkout isn’t live yet." : message);
       }
     })();
   }, [priceId, quantity, customerEmail, returnUrl]);

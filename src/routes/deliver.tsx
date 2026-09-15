@@ -39,13 +39,13 @@ export const Route = createFileRoute("/deliver")({
   validateSearch: (search: Record<string, unknown>) => search,
   head: () => ({
     meta: [
-      { title: "Deliver — FOTO" },
+      { title: "Deliver — Celinen" },
       {
         name: "description",
         content:
           "Send keepers after you cull. Clients favorite from that set — they never see the card dump.",
       },
-      { property: "og:title", content: "Delivery — LensLabs client galleries" },
+      { property: "og:title", content: "Delivery — Celinen client galleries" },
       {
         property: "og:description",
         content: "Keepers-only galleries, client favorites, downloads, expiry.",

@@ -14,13 +14,13 @@ export const Route = createFileRoute("/rates")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Rates and packages — LensLabs" },
+      { title: "Rates and packages — Celinen" },
       {
         name: "description",
         content:
           "Set your own shoot rates and packages once. Clients see the same card in their portal before they book.",
       },
-      { property: "og:title", content: "Rates and packages — LensLabs" },
+      { property: "og:title", content: "Rates and packages — Celinen" },
       {
         property: "og:description",
         content: "Your prices, published to every client portal in one place.",

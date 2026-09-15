@@ -17,7 +17,7 @@ export function ProductPage() {
         <section id="why-foto" className="public-editorial__purpose" data-reveal>
           <h2>Keep the whole shoot in view.</h2>
           <p>
-            Making photographs is only part of a photographer’s day. FOTO brings the work around
+            Making photographs is only part of a photographer’s day. Celinen brings the work around
             them into view too: choosing a set, developing an edit, and keeping the client’s next
             step clear. You stay in charge of the creative decisions.
           </p>
@@ -27,7 +27,7 @@ export function ProductPage() {
             <span className="public-editorial__label">Smart Cull</span>
             <h2>See the keepers before you burn the night.</h2>
             <p>
-              FOTO reads focus, blinks, exposure, and near-duplicates, then ranks each burst so
+              Celinen reads focus, blinks, exposure, and near-duplicates, then ranks each burst so
               the sharp open-eyed frame is the suggestion — not a silent delete. Existing picks
               never get overwritten.
             </p>
@@ -79,7 +79,7 @@ export function ProductPage() {
             </p>
             <p>
               <Link to="/galleries">
-                FOTO Galleries <span aria-hidden="true">↗</span>
+                Celinen Galleries <span aria-hidden="true">↗</span>
               </Link>
             </p>
           </section>
@@ -92,7 +92,7 @@ export function ProductPage() {
         >
           <h2 id="product-availability">Clear about what is ready.</h2>
           <p>
-            FOTO is actively developing. Experimental removal is labeled as such; a complete
+            Celinen is actively developing. Experimental removal is labeled as such; a complete
             Lightroom replacement, high-bit-depth color workflow, and bulk RAW speed guarantee are
             not promised. A preview is not a backup, and a saved local library is not a cloud copy
             of your originals.

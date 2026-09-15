@@ -20,7 +20,7 @@ import { commentDraftScope } from "@/lib/delivery/comment-drafts";
 export const Route = createFileRoute("/review/$id")({
   head: () => ({
     meta: [
-      { title: "Your private gallery — LensLabs" },
+      { title: "Your private gallery — Celinen" },
       { name: "robots", content: "noindex, nofollow, noarchive" },
       { name: "referrer", content: "no-referrer" },
       {

@@ -44,7 +44,7 @@ export function ComparePage() {
         <h2>Or just try it.</h2>
         <p>The whole product. Faster than reading every comparison page here.</p>
         <div className="foto-compare__actions">
-          <Link to="/auth" search={{ next: "/dashboard", mode: "signin", google: true }}>
+          <Link to="/auth" search={{ next: "/dashboard", mode: "signin" }}>
             Get started
           </Link>
           <Link to="/pricing">See pricing</Link>

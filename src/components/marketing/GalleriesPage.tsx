@@ -12,12 +12,12 @@ const PILLARS = [
   {
     label: "One path",
     title: "Pick, then publish.",
-    body: "Same-night delivery fails when you polish before the set exists. Mark keepers first. Then send. FOTO is built for that order.",
+    body: "Same-night delivery fails when you polish before the set exists. Mark keepers first. Then send. Celinen is built for that order.",
   },
   {
     label: "The client side",
     title: "Favourites and downloads.",
-    body: "Clients open a private link, favourite frames, and download when you allow it. They do not need a FOTO account to look.",
+    body: "Clients open a private link, favourite frames, and download when you allow it. They do not need a Celinen account to look.",
   },
 ] as const;
 
@@ -46,7 +46,7 @@ const CLIENT = [
 
 const FAQ: [string, string][] = [
   [
-    "What is a FOTO gallery?",
+    "What is a Celinen gallery?",
     "A published copy of the keepers you chose. Masters stay with you. The client gets a link, not your archive.",
   ],
   [
@@ -71,7 +71,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "Is storage unlimited?",
-    "No. A FOTO plan lists photo credits. Confirm the amount at checkout. Do not treat a gallery as cloud backup of your originals.",
+    "No. A Celinen plan lists photo credits. Confirm the amount at checkout. Do not treat a gallery as cloud backup of your originals.",
   ],
   [
     "Can I post the gallery to every social at once?",
@@ -164,7 +164,7 @@ export function GalleriesPage() {
             <p>In the workspace now</p>
             <h3>Roster, jersey, bib.</h3>
             <p>
-              Type #23 and FOTO maps it to the roster name — the Photo Mechanic caption habit, on
+              Type #23 and Celinen maps it to the roster name — the Photo Mechanic caption habit, on
               the shoot. Filter the filmstrip to one athlete. You can also group faces in this job
               as unlabeled Person 12 and name them yourself. Matching stays on this wedding or
               game. Faces are not named automatically. InsightFace buffalo weights are not shipped.

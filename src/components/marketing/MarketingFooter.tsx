@@ -91,7 +91,7 @@ export function MarketingFooter() {
               <a href="mailto:hello@lenslab.dev">Contact</a>
             </li>
             <li>
-              <Link to="/auth" search={{ mode: "signin", google: true }}>
+              <Link to="/auth" search={{ mode: "signin" }}>
                 Sign in
               </Link>
             </li>

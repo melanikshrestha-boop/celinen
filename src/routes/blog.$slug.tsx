@@ -19,7 +19,7 @@ export const Route = createFileRoute("/blog/$slug")({
     loaderData
       ? publicContentHead(loaderData.title, loaderData.description, `/blog/${loaderData.slug}`)
       : {
-          meta: [{ title: "Article not found — FOTO" }, { name: "robots", content: "noindex" }],
+          meta: [{ title: "Article not found — celinen" }, { name: "robots", content: "noindex" }],
         },
   notFoundComponent: ArticleNotFound,
   component: BlogArticleRoute,
@@ -57,7 +57,7 @@ export function BlogArticle({ article }: { article: FotoArticle }) {
           </section>
         ))}
         <Link to="/product">
-          Explore FOTO <span aria-hidden="true">↗</span>
+          Explore celinen <span aria-hidden="true">↗</span>
         </Link>
         <BlogComments slug={article.slug} />
       </article>

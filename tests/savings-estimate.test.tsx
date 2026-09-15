@@ -11,7 +11,7 @@ import { SavingsSection } from "../src/components/marketing/SavingsSection";
 import { WorkflowSection } from "../src/components/marketing/WorkflowSection";
 
 describe("public savings calculator", () => {
-  test("the example separates time value, canceled costs, and the LensLabs budget", () => {
+  test("the example separates time value, canceled costs, and the Celinen budget", () => {
     expect(estimateSavings({ ...EXAMPLE_SAVINGS }).result).toMatchObject({
       hoursPerWeek: 10,
       annualHours: 480,

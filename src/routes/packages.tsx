@@ -7,13 +7,13 @@ import { PACKAGE_STATES, packageFill } from "@/lib/lensos";
 export const Route = createFileRoute("/packages")({
   head: () => ({
     meta: [
-      { title: "Packages — LensLabs Deadline Sets" },
+      { title: "Packages — Celinen Deadline Sets" },
       {
         name: "description",
         content:
           "A package is a deadline set: target count, caption rules, export preset, destination and state from planned to delivered.",
       },
-      { property: "og:title", content: "Packages — LensLabs Deadline Sets" },
+      { property: "og:title", content: "Packages — Celinen Deadline Sets" },
       {
         property: "og:description",
         content: "Assign picks, see shortfall vs target, validate before send.",

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { LogoMark } from "@/components/lensos/Logo";
+import { PRODUCT_NAME } from "@/lib/product";
 import {
   BLOG_CATEGORIES,
   articlesInCategory,
@@ -23,7 +24,7 @@ export function BlogIndex() {
     <div className="public-editorial public-editorial--wide blog-index">
       <header className="blog-index__intro">
         <h1>
-          The <em>foto</em> blog
+          The <em>{PRODUCT_NAME}</em> blog
         </h1>
         <p>Honest comparisons, guides, and insights for photographers.</p>
       </header>
@@ -51,7 +52,7 @@ export function BlogIndex() {
             <div className="blog-index__body">
               <p className="blog-index__byline">
                 <LogoMark size={24} />
-                foto
+                {PRODUCT_NAME}
               </p>
               <h2>{article.title}</h2>
               <p className="blog-index__meta">

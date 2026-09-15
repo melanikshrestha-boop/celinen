@@ -4,11 +4,11 @@ import { PrivacyPage } from "@/components/marketing/LegalPage";
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Privacy Policy — FOTO" },
+      { title: "Privacy Policy — Celinen" },
       {
         name: "description",
         content:
-          "How FOTO handles photographer data, including GDPR rights for the EEA, UK, and Switzerland.",
+          "How Celinen handles photographer data, including GDPR rights for the EEA, UK, and Switzerland.",
       },
     ],
   }),

@@ -8,12 +8,12 @@ import { makeZip } from "@/lib/zip";
 export const Route = createFileRoute("/g/$slug")({
   head: () => ({
     meta: [
-      { title: "Your gallery — LensLabs" },
+      { title: "Your gallery — Celinen" },
       {
         name: "description",
         content: "Your photographer delivered your shoot. Browse, favourite the frames you want, and download them.",
       },
-      { property: "og:title", content: "Your gallery — LensLabs" },
+      { property: "og:title", content: "Your gallery — Celinen" },
       { property: "og:description", content: "Browse, favourite and download your delivered photos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

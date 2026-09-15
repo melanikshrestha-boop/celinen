@@ -95,7 +95,7 @@ export function UseCasesMenu() {
   const [openConference, setOpenConference] = useState<string | null>(null);
   return (
     <DropdownMenu
-      modal
+      modal={false}
       open={menu.open}
       onOpenChange={(next) => {
         menu.onOpenChange?.(next);

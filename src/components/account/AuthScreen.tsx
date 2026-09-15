@@ -89,6 +89,17 @@ export function AuthScreen({ next, mode, source, google, onAuthenticated }: Prop
   useEffect(() => {
     if (!ready || !google || googleStarted.current) return;
     if (typeof window !== "undefined" && isLocalAuthOrigin(window.location.origin)) return;
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+    // Returning from Google: let Supabase restore the session. Do not start another chooser.
+    if (
+      params.has("code") ||
+      params.has("error") ||
+      hash.includes("access_token") ||
+      hash.includes("refresh_token") ||
+      hash.includes("error")
+    )
+      return;
     googleStarted.current = true;
     googleSignIn();
   }, [ready, google]);
@@ -178,7 +189,7 @@ export function AuthScreen({ next, mode, source, google, onAuthenticated }: Prop
         <h1>
           Send the gallery <em>tonight</em>
         </h1>
-        <p className="auth-scene-plan">Pro · USD 16 / mo billed yearly · 1,000 photo credits / mo</p>
+        <p className="auth-scene-plan">Hobby · USD 16 / mo billed yearly · 1,000 photo credits / mo</p>
         <ul className="auth-scene-points">
           <li>
             <Camera size={18} strokeWidth={1.8} aria-hidden="true" />
@@ -240,7 +251,7 @@ export function AuthScreen({ next, mode, source, google, onAuthenticated }: Prop
                   maxLength={100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Pablo Picasso"
+                  placeholder="Jordan Hale"
                 />
               </label>
             )}
@@ -258,7 +269,7 @@ export function AuthScreen({ next, mode, source, google, onAuthenticated }: Prop
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="picasso@studio.com"
+                placeholder="jordan@studio.com"
               />
             </label>
             <label htmlFor="auth-password">Password</label>

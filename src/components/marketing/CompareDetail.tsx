@@ -21,7 +21,7 @@ export function CompareDetail({ item }: { item: CompareEntry }) {
       </h1>
       <p className="foto-compare-detail__lede">{item.blurb}</p>
       <div className="foto-compare-detail__actions">
-        <Link to="/auth" search={{ next: "/dashboard", mode: "signin", google: true }}>
+        <Link to="/auth" search={{ next: "/dashboard", mode: "signin" }}>
           Try {PRODUCT_NAME} free
         </Link>
         <Link to="/compare">All comparisons</Link>
@@ -104,7 +104,7 @@ export function CompareDetail({ item }: { item: CompareEntry }) {
         <h2>Switching from {item.name}?</h2>
         <p>Import the card. Pick. Send tonight.</p>
         <div className="foto-compare__actions">
-          <Link to="/auth" search={{ next: "/dashboard", mode: "signin", google: true }}>
+          <Link to="/auth" search={{ next: "/dashboard", mode: "signin" }}>
             Get started
           </Link>
           <Link to="/pricing">See pricing</Link>

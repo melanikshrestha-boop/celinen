@@ -128,7 +128,7 @@
   background: none;
   color: #142a36;
 }
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .marketing-page .marketing-nav__more {
     display: inline-flex;
   }
@@ -403,7 +403,7 @@
   color: #006eaa;
   text-underline-offset: 4px;
 }
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .marketing-page .marketing-nav__links {
     display: none;
   }

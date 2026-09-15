@@ -14,13 +14,13 @@ export const Route = createFileRoute("/s/$token")({
   remountDeps: ({ params }) => params.token,
   head: () => ({
     meta: [
-      { title: "Your shoot — LensLabs" },
+      { title: "Your shoot — Celinen" },
       {
         name: "description",
         content:
           "Your private LensLabs shoot space: references, notes with your photographer, and the final gallery.",
       },
-      { property: "og:title", content: "Your shoot — LensLabs" },
+      { property: "og:title", content: "Your shoot — Celinen" },
       {
         property: "og:description",
         content: "References, notes and final photos — one private link.",

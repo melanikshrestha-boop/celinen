@@ -18,7 +18,7 @@ export const SAVINGS_FIELDS = [
   },
   {
     key: "lensMonthlyBudget",
-    label: "Your LensLabs budget / month",
+    label: "Your Celinen budget / month",
     max: 100000,
     step: "0.01",
     unit: "USD",

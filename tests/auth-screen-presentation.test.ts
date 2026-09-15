@@ -88,7 +88,8 @@ if (!process.argv.includes("--auth-presentation-fixture")) {
     );
     assert.ok(html.includes("Send the gallery"));
     assert.ok(html.includes("1,000 photo credits / mo"));
-    assert.ok(html.includes("USD 16 / mo"));
+    assert.ok(html.includes("Hobby · USD 16 / mo"));
+    assert.ok(!html.includes("Pro ·"));
     assert.ok(!html.includes("viral"));
     assert.ok(!html.includes("Clip your first"));
     assert.ok(!html.toLowerCase().includes(">or<"));
@@ -114,10 +115,10 @@ if (!process.argv.includes("--auth-presentation-fixture")) {
       html.includes(encodeURIComponent(next)),
       "switching mode preserves exact safe return",
     );
-    assert.ok(html.includes('placeholder="picasso@studio.com"'));
+    assert.ok(html.includes('placeholder="jordan@studio.com"'));
     if (mode === "signup") {
       assert.ok(html.includes('<label for="auth-name">'));
-      assert.ok(html.includes('placeholder="Pablo Picasso"'));
+      assert.ok(html.includes('placeholder="Jordan Hale"'));
       assert.ok(html.includes('autoComplete="new-password"'));
       assert.match(html, /min[Ll]ength="8"/);
     } else {

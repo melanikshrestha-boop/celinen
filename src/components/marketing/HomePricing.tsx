@@ -20,7 +20,7 @@ type HomePlan = {
 
 const FAQ: [string, string][] = [
   [
-    "How does FOTO work?",
+    "How does Celinen work?",
     "Import a shoot, pick the keepers, and send a gallery. Original files stay on your machine unless you publish.",
   ],
   [
@@ -40,7 +40,7 @@ const FAQ: [string, string][] = [
     "Yes. Cancel before the next renewal. Unused credits do not convert to cash.",
   ],
   [
-    "How much does FOTO cost?",
+    "How much does Celinen cost?",
     "Hobby is USD 20 / month. Creator is USD 30 / month. Arena is USD 200 / month. Enterprise is set around your book.",
   ],
   [

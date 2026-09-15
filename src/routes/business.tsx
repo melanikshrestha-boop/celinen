@@ -6,13 +6,13 @@ import { useLens } from "@/lib/lensos-store";
 export const Route = createFileRoute("/business")({
   head: () => ({
     meta: [
-      { title: "Business — LensLabs Job Economics" },
+      { title: "Business — Celinen Job Economics" },
       {
         name: "description",
         content:
           "Production facts LensLabs can actually know, plus manual money fields. Unknown values stay blank — never a fake $0 profit.",
       },
-      { property: "og:title", content: "Business — LensLabs Job Economics" },
+      { property: "og:title", content: "Business — Celinen Job Economics" },
       {
         property: "og:description",
         content: "Selection rate, turnaround, work time, and profit per hour only when revenue and costs exist.",

@@ -48,7 +48,7 @@ for (const [width, height] of [
     check(
       `${width}: ${entry.label} route, title, refresh, scope, overflow and IDs`,
       state.heading === entry.label &&
-        state.title === `${entry.label} — LensLabs Settings` &&
+        state.title === `${entry.label} — Celinen Settings` &&
         state.path === settingsPath(entry.id) &&
         state.shoot === shoot &&
         !state.overflow &&

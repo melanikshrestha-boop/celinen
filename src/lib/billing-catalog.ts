@@ -45,6 +45,6 @@ export function quoteForLookup(key: string): {
     billing,
     unitAmountCents,
     interval: billing === "yearly" ? "year" : "month",
-    productName: `LensLabs ${plan.label}`,
+    productName: `Celinen ${plan.label}`,
   };
 }

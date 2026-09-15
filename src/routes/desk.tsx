@@ -9,13 +9,13 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/desk")({
   head: () => ({
     meta: [
-      { title: "Event Desk — LensLabs Production" },
+      { title: "Event Desk — Celinen Production" },
       {
         name: "description",
         content:
           "One screen for the shoot: sources ingesting, keepers picked, packages due. Private to your studio.",
       },
-      { property: "og:title", content: "Event Desk — LensLabs Production" },
+      { property: "og:title", content: "Event Desk — Celinen Production" },
       {
         property: "og:description",
         content: "Sources, picks and deadlines for the current event.",

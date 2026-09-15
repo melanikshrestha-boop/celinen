@@ -242,7 +242,7 @@ if (!process.argv.includes(fixtureFlag)) {
         assert.equal(url.searchParams.get("next"), "/dashboard");
         const signingIn = text(entry[2]!).startsWith("Sign In");
         assert.equal(url.searchParams.get("mode"), signingIn ? "signin" : "signup");
-        if (signingIn) assert.ok(url.searchParams.get("google"));
+        if (signingIn) assert.equal(url.searchParams.get("google"), null);
       }
     }
     assert.ok(!html.includes('id="features"'));

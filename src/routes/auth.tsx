@@ -3,16 +3,17 @@ import { useEffect } from "react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AuthScreen } from "@/components/account/AuthScreen";
 import { parseAuthSearch } from "@/lib/auth-flow";
+import { PRODUCT_TITLE } from "@/lib/product";
 import { safeSignInPath } from "@/lib/workbench";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Your LensLabs account" },
+      { title: `Your ${PRODUCT_TITLE} account` },
       {
         name: "description",
         content:
-          "Sign in or create your LensLabs account. Your shoots, galleries, and storefronts in one place.",
+          `Sign in or create your ${PRODUCT_TITLE} account. Your shoots, galleries, and storefronts in one place.`,
       },
       { name: "robots", content: "noindex, nofollow" },
     ],

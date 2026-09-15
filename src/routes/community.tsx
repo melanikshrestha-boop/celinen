@@ -24,13 +24,13 @@ export const Route = createFileRoute("/community")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Photographers' room — FOTO" },
+      { title: "Photographers' room — Celinen" },
       {
         name: "description",
         content:
           "A private room for working photographers: pricing, clients, boundaries and critique. No clients, no lurkers.",
       },
-      { property: "og:title", content: "Photographers' room — FOTO" },
+      { property: "og:title", content: "Photographers' room — Celinen" },
       {
         property: "og:description",
         content: "Talk rates, clients and boundaries with photographers who actually shoot.",
@@ -183,7 +183,7 @@ function Community() {
           </p>
           <Link
             to="/auth"
-            search={{ next: "/community", mode: "signin", google: true }}
+            search={{ next: "/community", mode: "signin" }}
             className="community-cta"
           >
             Sign in to join

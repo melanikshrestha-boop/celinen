@@ -41,7 +41,7 @@ if (process.env["FOTO_BLOG_INDEX_TEST_PROCESS"] !== "1") {
   test("blog is a category index with example photography posts", () => {
     const html = renderToStaticMarkup(<BlogIndex />);
     expect(html).toContain("The ");
-    expect(html).toContain("foto");
+    expect(html).toContain("celinen");
     expect(html).toContain("blog");
     for (const category of BLOG_CATEGORIES) expect(html).toContain(category);
     expect(fotoArticles).toHaveLength(5);

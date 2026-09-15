@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { publicEntry } from "@/lib/public-entry";
 import { Link } from "@tanstack/react-router";
@@ -31,6 +32,17 @@ const LINKS: { to: string; label: string; exact?: boolean }[] = [
 export function Nav({ landing = false }: { landing?: boolean }) {
   const account = useAccount();
   const entry = publicEntry(account?.status);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    const close = () => setMobileOpen(false);
+    const query = window.matchMedia("(max-width: 900px)");
+    query.addEventListener("change", close);
+    window.addEventListener("orientationchange", close);
+    return () => {
+      query.removeEventListener("change", close);
+      window.removeEventListener("orientationchange", close);
+    };
+  }, []);
 
   if (landing) {
     const signedIn = account?.status === "in";
@@ -54,14 +66,14 @@ export function Nav({ landing = false }: { landing?: boolean }) {
             <Link
               to={signedIn ? entry.to : "/auth"}
               search={
-                signedIn ? entry.search : { next: "/dashboard", mode: "signin", google: true }
+                signedIn ? entry.search : { next: "/dashboard", mode: "signin" }
               }
               className="marketing-nav-cta"
             >
               {signedIn ? entry.label : "Sign In"}
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
-            <DropdownMenu>
+            <DropdownMenu modal={false} open={mobileOpen} onOpenChange={setMobileOpen}>
               <DropdownMenuTrigger aria-label="Open menu" className="marketing-nav__more">
                 <Menu size={20} aria-hidden="true" />
               </DropdownMenuTrigger>

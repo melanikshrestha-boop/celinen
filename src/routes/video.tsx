@@ -39,7 +39,7 @@ import {
 export const Route = createFileRoute("/video")({
   head: () => ({
     meta: [
-      { title: "Video Review — LensLabs" },
+      { title: "Video Review — Celinen" },
       {
         name: "description",
         content:

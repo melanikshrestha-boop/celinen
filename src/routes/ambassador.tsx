@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/ambassador")({
   head: () => ({
     meta: [
-      { title: "Campus ambassadors — LensLabs for sports photographers" },
+      { title: "Campus ambassadors — Celinen for sports photographers" },
       {
         name: "description",
         content:
