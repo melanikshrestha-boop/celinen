@@ -163,8 +163,8 @@ export function IosCalendar() {
   const week = weekDays(selected);
   const dayColumns = view === "day" ? [selected] : week;
   const timedGrid = {
-    gridTemplateColumns: `48px repeat(${dayColumns.length}, minmax(48px, 1fr)) 48px`,
-    minWidth: 96 + dayColumns.length * 48,
+    gridTemplateColumns: `48px repeat(${dayColumns.length}, minmax(48px, 1fr))`,
+    minWidth: 48 + dayColumns.length * 48,
   };
   const preview = ask.trim() ? parseShootNote(ask, { now: new Date(), selected, accent: "#2f6fed" }) : null;
   const inspected = events.find((event) => event.id === inspect) ?? null;
@@ -559,7 +559,6 @@ export function IosCalendar() {
                     </button>
                   );
                 })}
-                <span />
               </div>
               <div className="celinen-ios-cal__lanes" style={timedGrid}>
                 <span />
@@ -574,7 +573,6 @@ export function IosCalendar() {
                       ))}
                   </div>
                 ))}
-                <span />
               </div>
               <div className="celinen-ios-cal__gridscroll" style={timedGrid}>
                 <div className="celinen-ios-cal__hours">
@@ -618,11 +616,6 @@ export function IosCalendar() {
                       ))}
                   </div>
                 ))}
-                <div className="celinen-ios-cal__hours">
-                  {HOURS.map((hour) => (
-                    <span key={`r-${hour}`}>{hourLabel(hour)}</span>
-                  ))}
-                </div>
               </div>
             </div>
           )}
