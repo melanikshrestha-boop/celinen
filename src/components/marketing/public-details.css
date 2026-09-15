@@ -152,10 +152,10 @@
   flex-wrap: nowrap;
   gap: 8px 24px;
   box-sizing: border-box;
-  width: calc(100% + 80px);
+  width: 100%;
   max-width: none;
-  margin: 48px -40px 0;
-  padding: 22px 24px 8px;
+  margin: 48px 0 0;
+  padding: 22px 0 8px;
   border-top: 1px solid #eceff2;
   color: #9aa3ad;
   font-size: 14px;
@@ -186,11 +186,12 @@
 }
 .marketing-footer--directory nav.marketing-footer__directory {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  column-gap: 48px;
-  row-gap: 28px;
-  width: min(100%, 1120px);
-  margin: 0 auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: 32px;
+  row-gap: 32px;
+  width: 100%;
+  margin: 0;
+  justify-items: start;
 }
 .marketing-footer--directory .marketing-footer__column h2 {
   font-family: var(--font-sans);
