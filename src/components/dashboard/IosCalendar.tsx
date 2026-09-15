@@ -137,6 +137,7 @@ export function IosCalendar() {
   const [selected, setSelected] = useState(today);
   const [state, setState] = useState(emptyCalendarState);
   const [ask, setAsk] = useState("");
+  const [composing, setComposing] = useState(false);
   const [open, setOpen] = useState(true);
   const [inspect, setInspect] = useState<string | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
@@ -163,7 +164,11 @@ export function IosCalendar() {
 
   useEffect(() => {
     if (!scope) return;
-    setState(readCalendarState(scope));
+    const loaded = readCalendarState(scope);
+    const localEvents = loaded.localEvents.filter((event) => !/usc vs ucla/i.test(event.title));
+    const next = { ...loaded, localEvents };
+    setState(next);
+    if (localEvents.length !== loaded.localEvents.length) writeCalendarState(scope, next);
   }, [scope]);
 
   function persist(next: typeof state) {
@@ -194,6 +199,7 @@ export function IosCalendar() {
     if (!event) return;
     persist({ ...state, localEvents: [...state.localEvents, event] });
     setAsk("");
+    setComposing(false);
     setSelected(new Date(event.start));
     setInspect(event.id);
   }
@@ -226,7 +232,8 @@ export function IosCalendar() {
       jumpToday();
     } else if (event.key === "n" || event.key === "N") {
       event.preventDefault();
-      askRef.current?.focus();
+      setComposing(true);
+      requestAnimationFrame(() => askRef.current?.focus());
     } else if (event.key === "d" || event.key === "D") setView("day");
     else if (event.key === "3") setView("three");
     else if (event.key === "w" || event.key === "W") setView("week");
@@ -312,8 +319,11 @@ export function IosCalendar() {
                 if (view === "month") setView("week");
               }}
             />
+            <label className="celinen-ios-cal__search">
+              <span className="sr-only">Search</span>
+              <input type="search" placeholder="Search" aria-label="Search" />
+            </label>
             <div className="celinen-ios-cal__agenda">
-              <p>Upcoming</p>
               {agenda.length ? (
                 <ul className="celinen-ios-cal__list">
                   {agenda.map((event) => (
@@ -342,9 +352,23 @@ export function IosCalendar() {
                   ))}
                 </ul>
               ) : (
-                <p className="celinen-ios-cal__empty">No shoots {selected.toLocaleString("en-US", { weekday: "long" })}.</p>
+                null
               )}
             </div>
+            <ul className="celinen-ios-cal__cals">
+              {SETS.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    aria-pressed={setName === item.id}
+                    onClick={() => setSetName(item.id)}
+                  >
+                    <i data-set={item.id} />
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </aside>
       ) : null}
       <div className="celinen-ios-cal__main">
@@ -377,22 +401,19 @@ export function IosCalendar() {
             </button>
           ))}
         </div>
-        <div className="celinen-ios-cal__sets" role="tablist" aria-label="Set">
-          {SETS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={setName === item.id}
-              onClick={() => setSetName(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <button type="button" className="celinen-ios-cal__plus" aria-label="Add" onClick={() => askRef.current?.focus()}>
-          New
+        <button
+          type="button"
+          className="celinen-ios-cal__plus"
+          aria-label="Add"
+          onClick={() => {
+            setComposing(true);
+            requestAnimationFrame(() => askRef.current?.focus());
+          }}
+        >
+          +
         </button>
       </div>
+      {composing ? (
       <form
         className="celinen-ios-cal__ask"
         onSubmit={(event) => {
@@ -404,8 +425,14 @@ export function IosCalendar() {
           ref={askRef}
           value={ask}
           onChange={(event) => setAsk(event.target.value)}
-          aria-label="What are you doing?"
-          placeholder="USC vs UCLA soccer Friday 7pm at Coliseum /shoot"
+          aria-label="Add event"
+          placeholder="Add event"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setComposing(false);
+              setAsk("");
+            }
+          }}
         />
         {preview ? (
           <p className="celinen-ios-cal__preview">
@@ -422,6 +449,7 @@ export function IosCalendar() {
           </p>
         ) : null}
       </form>
+      ) : null}
         <div className="celinen-ios-cal__board">
           {view === "month" ? (
             <>
