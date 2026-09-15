@@ -27,9 +27,9 @@ import "./ios-calendar.css";
 
 const VIEWS = [
   { id: "day", label: "Day" },
-  { id: "three", label: "3 Day" },
   { id: "week", label: "Week" },
   { id: "month", label: "Month" },
+  { id: "year", label: "Year" },
 ] as const;
 type CalView = (typeof VIEWS)[number]["id"];
 const SETS: { id: ViewSet; label: string }[] = [
@@ -89,17 +89,19 @@ function MiniMonth({
   selected,
   events,
   onPick,
+  heading = true,
 }: {
   month: Date;
   today: Date;
   selected: Date;
   events: CalendarEvent[];
   onPick: (day: Date) => void;
+  heading?: boolean;
 }) {
   const cells = monthGrid(month.getFullYear(), month.getMonth());
   return (
     <div className="celinen-ios-cal__mini">
-      <p>{month.toLocaleString("en-US", { month: "long", year: "numeric" })}</p>
+      {heading ? <p>{month.toLocaleString("en-US", { month: "long", year: "numeric" })}</p> : null}
       <div className="celinen-ios-cal__mini-week">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <span key={`${d}-${i}`}>{d}</span>
@@ -154,10 +156,10 @@ export function IosCalendar() {
   const raw = allCalendarEvents(state);
   const events = raw.filter((event) => kindInViewSet(eventKind(event), setName));
   const week = weekDays(selected);
-  const dayColumns = view === "day" ? [selected] : view === "three" ? threeDays(selected) : week;
+  const dayColumns = view === "day" ? [selected] : week;
   const timedGrid = {
-    gridTemplateColumns: `52px repeat(${dayColumns.length}, minmax(48px, 1fr))`,
-    minWidth: 52 + dayColumns.length * 48,
+    gridTemplateColumns: `48px repeat(${dayColumns.length}, minmax(48px, 1fr)) 48px`,
+    minWidth: 96 + dayColumns.length * 48,
   };
   const preview = ask.trim() ? parseShootNote(ask, { now: new Date(), selected, accent: "#2f6fed" }) : null;
   const inspected = events.find((event) => event.id === inspect) ?? null;
@@ -189,8 +191,8 @@ export function IosCalendar() {
 
   function step(dir: number) {
     if (view === "day") setSelected(addCalendarDays(selected, dir));
-    else if (view === "three") setSelected(addCalendarDays(selected, dir * 3));
     else if (view === "week") setSelected(addCalendarDays(selected, dir * 7));
+    else if (view === "year") setSelected(new Date(selected.getFullYear() + dir, selected.getMonth(), 1));
     else setSelected(new Date(selected.getFullYear(), selected.getMonth() + dir, 1));
   }
 
@@ -209,14 +211,34 @@ export function IosCalendar() {
     setInspect(null);
   }
 
-  const title =
-    view === "day"
-      ? selected.toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric" })
-      : view === "three"
-        ? `${dayColumns[0]!.toLocaleString("en-US", { month: "short", day: "numeric" })} – ${dayColumns[2]!.toLocaleString("en-US", { month: "short", day: "numeric" })}`
-        : view === "week"
-          ? `${week[0]!.toLocaleString("en-US", { month: "short", day: "numeric" })} – ${week[6]!.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-          : selected.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const title = selected.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const monthName = selected.toLocaleString("en-US", { month: "long" });
+  const yearName = String(selected.getFullYear());
+  const tz =
+    Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
+      .formatToParts(today)
+      .find((part) => part.type === "timeZoneName")?.value ?? "";
+
+  const agendaGroups = useMemo(() => {
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const tomorrow = addCalendarDays(today, 1);
+    const buckets = new Map<string, { label: string; items: CalendarEvent[] }>();
+    for (const event of events.filter((item) => item.end >= start).slice(0, 40)) {
+      const day = new Date(event.start);
+      const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+      let label = day
+        .toLocaleString("en-US", { weekday: "long", month: "numeric", day: "numeric", year: "numeric" })
+        .toUpperCase();
+      if (sameDay(day, today))
+        label = `TODAY  ${day.toLocaleDateString("en-US")}`;
+      else if (sameDay(day, tomorrow))
+        label = `TOMORROW  ${day.toLocaleDateString("en-US")}`;
+      const bucket = buckets.get(key) ?? { label, items: [] };
+      bucket.items.push(event);
+      buckets.set(key, bucket);
+    }
+    return [...buckets.values()];
+  }, [events, today]);
 
   const agenda = events
     .filter((event) => event.end >= new Date(selected.getFullYear(), selected.getMonth(), selected.getDate()).getTime())
@@ -235,9 +257,9 @@ export function IosCalendar() {
       setComposing(true);
       requestAnimationFrame(() => askRef.current?.focus());
     } else if (event.key === "d" || event.key === "D") setView("day");
-    else if (event.key === "3") setView("three");
     else if (event.key === "w" || event.key === "W") setView("week");
     else if (event.key === "m" || event.key === "M") setView("month");
+    else if (event.key === "y" || event.key === "Y") setView("year");
     else if (event.key === "ArrowLeft") {
       event.preventDefault();
       step(-1);
@@ -309,51 +331,54 @@ export function IosCalendar() {
     >
       {open ? (
         <aside className="celinen-ios-cal__side">
+            <div className="celinen-ios-cal__brand">
+              <h2>
+                {monthName} <span>{yearName}</span>
+              </h2>
+            </div>
             <MiniMonth
               month={new Date(selected.getFullYear(), selected.getMonth(), 1)}
               today={today}
               selected={selected}
               events={events}
+              heading={false}
               onPick={(day) => {
                 setSelected(day);
-                if (view === "month") setView("week");
+                if (view === "month" || view === "year") setView("week");
               }}
             />
-            <label className="celinen-ios-cal__search">
-              <span className="sr-only">Search</span>
-              <input type="search" placeholder="Search" aria-label="Search" />
-            </label>
             <div className="celinen-ios-cal__agenda">
-              {agenda.length ? (
-                <ul className="celinen-ios-cal__list">
-                  {agenda.map((event) => (
+              {agendaGroups.map((group) => (
+                <div key={group.label}>
+                  <p>{group.label}</p>
+                  <ul className="celinen-ios-cal__list">
+                    {group.items.map((event) => (
                     <li key={event.id}>
                       <button
                         type="button"
                         onClick={() => {
                           setSelected(new Date(event.start));
                           setInspect(event.id);
-                          if (view === "month") setView("week");
+                          if (view === "month" || view === "year") setView("week");
                         }}
                       >
                         <i style={{ background: eventColor(event) }} />
-                        <b>
+                        <strong>{event.title}</strong>
+                        <span>
                           {event.allDay
                             ? "All day"
                             : new Date(event.start).toLocaleTimeString("en-US", {
                                 hour: "numeric",
                                 minute: "2-digit",
                               })}
-                        </b>
-                        <strong>{event.title}</strong>
-                        <span>{event.location || KIND_LABEL[eventKind(event)]}</span>
+                          {event.location ? `  ${event.location}` : ""}
+                        </span>
                       </button>
                     </li>
-                  ))}
-                </ul>
-              ) : (
-                null
-              )}
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
             <ul className="celinen-ios-cal__cals">
               {SETS.map((item) => (
@@ -376,17 +401,14 @@ export function IosCalendar() {
         <button type="button" className="celinen-ios-cal__rail" aria-label={open ? "Hide sidebar" : "Show sidebar"} onClick={() => setOpen((value) => !value)}>
           <PanelLeft size={16} />
         </button>
-        <div className="celinen-ios-cal__title">
-          <button type="button" aria-label="Previous" onClick={() => step(-1)}>
-            <ChevronLeft size={18} strokeWidth={1.75} />
-          </button>
-          <h1>{title}</h1>
-          <button type="button" aria-label="Next" onClick={() => step(1)}>
-            <ChevronRight size={18} strokeWidth={1.75} />
-          </button>
-        </div>
+        <button type="button" aria-label="Previous" onClick={() => step(-1)}>
+          <ChevronLeft size={16} strokeWidth={1.75} />
+        </button>
         <button type="button" className="celinen-ios-cal__today" onClick={jumpToday}>
           Today
+        </button>
+        <button type="button" aria-label="Next" onClick={() => step(1)}>
+          <ChevronRight size={16} strokeWidth={1.75} />
         </button>
         <div className="celinen-ios-cal__views" role="tablist" aria-label="View">
           {VIEWS.map((item) => (
@@ -401,6 +423,11 @@ export function IosCalendar() {
             </button>
           ))}
         </div>
+        <label className="celinen-ios-cal__find">
+          <span className="sr-only">Search</span>
+          <input type="search" placeholder="Search" />
+        </label>
+        <span className="celinen-ios-cal__tz">{tz}</span>
         <button
           type="button"
           className="celinen-ios-cal__plus"
@@ -451,7 +478,23 @@ export function IosCalendar() {
       </form>
       ) : null}
         <div className="celinen-ios-cal__board">
-          {view === "month" ? (
+          {view === "year" ? (
+            <div className="celinen-ios-cal__year">
+              {Array.from({ length: 12 }, (_, index) => new Date(selected.getFullYear(), index, 1)).map((month) => (
+                <MiniMonth
+                  key={month.toISOString()}
+                  month={month}
+                  today={today}
+                  selected={selected}
+                  events={events}
+                  onPick={(day) => {
+                    setSelected(day);
+                    setView("week");
+                  }}
+                />
+              ))}
+            </div>
+          ) : view === "month" ? (
             <>
               <div className="celinen-ios-cal__weekheads">
                 {WEEK.map((d) => (
@@ -503,6 +546,7 @@ export function IosCalendar() {
                     </button>
                   );
                 })}
+                <span />
               </div>
               <div className="celinen-ios-cal__lanes" style={timedGrid}>
                 <span />
@@ -517,6 +561,7 @@ export function IosCalendar() {
                       ))}
                   </div>
                 ))}
+                <span />
               </div>
               <div className="celinen-ios-cal__gridscroll" style={timedGrid}>
                 <div className="celinen-ios-cal__hours">
@@ -554,12 +599,17 @@ export function IosCalendar() {
                             setInspect(event.id);
                           }}
                         >
-                          <strong>{event.title}</strong>
                           <span>{timeLabel(event)}</span>
+                          <strong>{event.title}</strong>
                         </button>
                       ))}
                   </div>
                 ))}
+                <div className="celinen-ios-cal__hours">
+                  {HOURS.map((hour) => (
+                    <span key={`r-${hour}`}>{hourLabel(hour)}</span>
+                  ))}
+                </div>
               </div>
             </div>
           )}

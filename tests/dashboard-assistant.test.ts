@@ -200,7 +200,7 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
     "utf8",
   );
   expect(source).toContain("minmax(48px, 1fr)");
-  expect(source).toContain("minWidth: 52 + dayColumns.length * 48");
+  expect(source).toContain("minWidth: 96 + dayColumns.length * 48");
   expect(source.match(/style=\{timedGrid\}/g)?.length).toBeGreaterThanOrEqual(3);
   expect(css).toContain("@container (max-width: 700px)");
   expect(css).toContain("overflow-x: auto");
