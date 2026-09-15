@@ -72,8 +72,10 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__bar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
-  flex: 0 0 52px;
+  flex: 0 0 auto;
+  min-height: 52px;
   height: 52px;
   padding: 0 16px;
   border-bottom: 1px solid var(--ios-line);
@@ -120,19 +122,25 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__views {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 0;
+  width: max-content;
+  max-width: 100%;
   margin-left: auto;
   padding: 2px;
   border-radius: 999px;
+  overflow: visible;
   background: #f0f0f2;
 }
 .celinen-ios-cal__views button {
+  flex: 0 0 auto;
   min-height: 26px;
   padding: 0 12px;
   border-radius: 999px;
   color: #6b6b70;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 .celinen-ios-cal__views button[aria-selected="true"] {
   background: #e24b4b;
@@ -577,6 +585,9 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__hours {
   display: grid;
   grid-template-rows: repeat(16, minmax(48px, 1fr));
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
   color: var(--ios-muted);
   font-size: 11px;
   text-align: right;
@@ -683,6 +694,12 @@ html.dark .celinen-dash__cal {
     display: none;
   }
 }
+@container (max-width: 960px) {
+  .celinen-ios-cal__find,
+  .celinen-ios-cal__tz {
+    display: none;
+  }
+}
 @container (max-width: 700px) {
   .celinen-ios-cal__shell {
     grid-template-columns: minmax(0, 1fr);
@@ -694,11 +711,14 @@ html.dark .celinen-dash__cal {
     flex-wrap: wrap;
     height: auto;
     min-height: 52px;
+    row-gap: 8px;
+    padding-block: 8px;
   }
   .celinen-ios-cal__views {
     order: 1;
-    flex-basis: 100%;
+    flex-basis: auto;
+    width: max-content;
     margin-left: 0;
-    overflow-x: auto;
+    overflow: visible;
   }
 }

@@ -206,5 +206,6 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
   expect(source.match(/className="celinen-ios-cal__hours"/g)?.length).toBe(1);
   expect(source.match(/style=\{timedGrid\}/g)?.length).toBeGreaterThanOrEqual(3);
   expect(css).toContain("@container (max-width: 700px)");
-  expect(css).toContain("overflow-x: auto");
+  expect(css).toContain("width: max-content");
+  expect(css).not.toContain("flex-basis: 100%");
 });
