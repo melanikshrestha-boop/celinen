@@ -29,6 +29,7 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DevelopRouteImport } from './routes/develop'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as EarningsRouteImport } from './routes/earnings'
+import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as GalleriesRouteImport } from './routes/galleries'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
@@ -86,6 +87,7 @@ import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
 import { Route as ShootsIndexRouteImport } from './routes/shoots.index'
 import { Route as ShootsIdRouteImport } from './routes/shoots.$id'
+import { Route as VsSlugRouteImport } from './routes/vs.$slug'
 import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
@@ -197,6 +199,11 @@ const DocsRoute = DocsRouteImport.update({
 const EarningsRoute = EarningsRouteImport.update({
   id: '/earnings',
   path: '/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GalleriesRoute = GalleriesRouteImport.update({
@@ -484,6 +491,11 @@ const ShootsIdRoute = ShootsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ShootsRoute,
 } as any)
+const VsSlugRoute = VsSlugRouteImport.update({
+  id: '/vs/$slug',
+  path: '/vs/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNativeV2Route = ApiNativeV2RouteImport.update({
   id: '/api/native/v2',
   path: '/api/native/v2',
@@ -569,6 +581,7 @@ export interface FileRoutesByFullPath {
   '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/features': typeof FeaturesRoute
   '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
   '/integrations': typeof IntegrationsRouteWithChildren
@@ -622,6 +635,7 @@ export interface FileRoutesByFullPath {
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/vs/$slug': typeof VsSlugRoute
   '/blog/': typeof BlogIndexRoute
   '/compare/': typeof CompareIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
@@ -659,6 +673,7 @@ export interface FileRoutesByTo {
   '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/features': typeof FeaturesRoute
   '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
   '/jobs': typeof JobsRoute
@@ -709,6 +724,7 @@ export interface FileRoutesByTo {
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
+  '/vs/$slug': typeof VsSlugRoute
   '/blog': typeof BlogIndexRoute
   '/compare': typeof CompareIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
@@ -748,6 +764,7 @@ export interface FileRoutesById {
   '/develop': typeof DevelopRoute
   '/docs': typeof DocsRoute
   '/earnings': typeof EarningsRoute
+  '/features': typeof FeaturesRoute
   '/galleries': typeof GalleriesRoute
   '/help': typeof HelpRoute
   '/integrations': typeof IntegrationsRouteWithChildren
@@ -801,6 +818,7 @@ export interface FileRoutesById {
   '/s/$token': typeof STokenRoute
   '/settings_/$section': typeof SettingsSectionRoute
   '/shoots/$id': typeof ShootsIdRouteWithChildren
+  '/vs/$slug': typeof VsSlugRoute
   '/blog/': typeof BlogIndexRoute
   '/compare/': typeof CompareIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
@@ -841,6 +859,7 @@ export interface FileRouteTypes {
     | '/develop'
     | '/docs'
     | '/earnings'
+    | '/features'
     | '/galleries'
     | '/help'
     | '/integrations'
@@ -894,6 +913,7 @@ export interface FileRouteTypes {
     | '/s/$token'
     | '/settings/$section'
     | '/shoots/$id'
+    | '/vs/$slug'
     | '/blog/'
     | '/compare/'
     | '/integrations/'
@@ -931,6 +951,7 @@ export interface FileRouteTypes {
     | '/develop'
     | '/docs'
     | '/earnings'
+    | '/features'
     | '/galleries'
     | '/help'
     | '/jobs'
@@ -981,6 +1002,7 @@ export interface FileRouteTypes {
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
+    | '/vs/$slug'
     | '/blog'
     | '/compare'
     | '/integrations'
@@ -1019,6 +1041,7 @@ export interface FileRouteTypes {
     | '/develop'
     | '/docs'
     | '/earnings'
+    | '/features'
     | '/galleries'
     | '/help'
     | '/integrations'
@@ -1072,6 +1095,7 @@ export interface FileRouteTypes {
     | '/s/$token'
     | '/settings_/$section'
     | '/shoots/$id'
+    | '/vs/$slug'
     | '/blog/'
     | '/compare/'
     | '/integrations/'
@@ -1111,6 +1135,7 @@ export interface RootRouteChildren {
   DevelopRoute: typeof DevelopRoute
   DocsRoute: typeof DocsRoute
   EarningsRoute: typeof EarningsRoute
+  FeaturesRoute: typeof FeaturesRoute
   GalleriesRoute: typeof GalleriesRoute
   HelpRoute: typeof HelpRoute
   IntegrationsRoute: typeof IntegrationsRouteWithChildren
@@ -1161,6 +1186,7 @@ export interface RootRouteChildren {
   ReviewIdRoute: typeof ReviewIdRoute
   STokenRoute: typeof STokenRoute
   SettingsSectionRoute: typeof SettingsSectionRoute
+  VsSlugRoute: typeof VsSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiNativeV2Route: typeof ApiNativeV2Route
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
@@ -1310,6 +1336,13 @@ declare module '@tanstack/react-router' {
       path: '/earnings'
       fullPath: '/earnings'
       preLoaderRoute: typeof EarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/galleries': {
@@ -1711,6 +1744,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShootsIdRouteImport
       parentRoute: typeof ShootsRoute
     }
+    '/vs/$slug': {
+      id: '/vs/$slug'
+      path: '/vs/$slug'
+      fullPath: '/vs/$slug'
+      preLoaderRoute: typeof VsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/native/v2': {
       id: '/api/native/v2'
       path: '/api/native/v2'
@@ -1881,6 +1921,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevelopRoute: DevelopRoute,
   DocsRoute: DocsRoute,
   EarningsRoute: EarningsRoute,
+  FeaturesRoute: FeaturesRoute,
   GalleriesRoute: GalleriesRoute,
   HelpRoute: HelpRoute,
   IntegrationsRoute: IntegrationsRouteWithChildren,
@@ -1931,6 +1972,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewIdRoute: ReviewIdRoute,
   STokenRoute: STokenRoute,
   SettingsSectionRoute: SettingsSectionRoute,
+  VsSlugRoute: VsSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiNativeV2Route: ApiNativeV2Route,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,

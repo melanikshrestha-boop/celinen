@@ -21,3 +21,12 @@ test("vs pages are empty stubs", () => {
   expect(source).not.toContain("CompareDetail");
   expect(source).not.toContain("lede");
 });
+
+test("footer columns are five equal tracks", () => {
+  const css = readFileSync(
+    new URL("../src/components/marketing/public-details.css", import.meta.url),
+    "utf8",
+  );
+  expect(css).toContain("grid-template-columns: repeat(5, minmax(0, 1fr))");
+  expect(css).toContain("justify-content: space-between");
+});
