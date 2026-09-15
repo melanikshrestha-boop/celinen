@@ -95,6 +95,10 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Planning a shoot week");
   expect(source).toContain("Ask ${PRODUCT_NAME}");
   expect(source).toContain("Open Pick");
+  expect(source).toContain('aria-label="Add photos"');
+  expect(source).toContain("queueStudioImport");
+  expect(source).toContain("collectDroppedFiles");
+  expect(source).not.toContain('aria-label="Open Pick"');
   expect(source).toContain('preloadRoute({ to: "/studio" })');
   expect(source).toContain('preload="intent"');
   expect(source).not.toContain("Send a gallery");
@@ -158,10 +162,12 @@ test("home canvas keeps a sky wash in dark, not a flat black field", () => {
   expect(css).toContain(".social-post__action");
 });
 
-test("Pick does not flash Drop the shoot while the session is still opening", () => {
+test("Pick has no Drop the shoot landing; Home plus and drop import photos", () => {
   const studio = readFileSync(new URL("../src/routes/studio.tsx", import.meta.url), "utf8");
-  expect(studio).toContain('sessionStatus === "loading" && !shots.length && !progress');
-  expect(studio).toContain('aria-label="Opening Pick"');
+  expect(studio).not.toContain("Drop the shoot");
+  expect(studio).not.toContain("Choose files");
+  expect(studio).not.toContain("Choose folder");
+  expect(studio).toContain("takeStudioImport");
   expect(studio).not.toContain('return <p role="status">Opening your workspace…</p>');
 });
 

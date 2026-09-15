@@ -49,6 +49,7 @@ import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
 import { describeShoot } from "@/lib/studio/shoot-brief";
 import { studioFrameHasVisiblePhoto } from "@/lib/studio/frame-availability";
+import { takeStudioImport } from "@/lib/studio/pending-import";
 import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
 import {
@@ -895,6 +896,17 @@ export function Studio({
   }, [eventPeople, stageCull]);
 
   useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
+
+  useEffect(() => {
+    if (sessionStatus !== "ready" && !(sessionStatus === "conflicted" && !shots.length)) return;
+    const files = takeStudioImport();
+    if (!files.length) return;
+    if (sessionStatus === "conflicted" && !shots.length) {
+      selectSessionStatus("ready");
+      setSaveFailure(null);
+    }
+    importFiles(files);
+  }, [sessionStatus, shots.length]);
 
   useEffect(() => {
     // Fast Refresh replays effects while preserving this live shoot and its refs.
@@ -2063,7 +2075,7 @@ export function Studio({
     () => ({ ...describeShoot(shots, selectedId), ...(shootTitle ? { title: shootTitle } : {}) }),
     [shots, selectedId, shootTitle],
   );
-  const recovery = saveFailure ? (
+  const recovery = saveFailure && shots.length ? (
     <SaveRecovery
       message={saveFailure}
       onDownload={async () => {
@@ -2195,17 +2207,7 @@ export function Studio({
         setDropActive(false);
       }}
     >
-      {dropActive && (
-        <div
-          className="pointer-events-none fixed inset-3 z-50 flex flex-col items-center justify-center gap-3 bg-paper/95 outline-2 outline-rust"
-          role="status"
-        >
-          <span className="font-display text-3xl tracking-tight">Drop the shoot</span>
-          <small className="text-sm text-moss">
-            Photos stay on this device. Originals stay untouched.
-          </small>
-        </div>
-      )}
+      {dropActive ? <div className="pointer-events-none fixed inset-0 z-50" aria-hidden="true" /> : null}
       <header className="sticky top-0 z-30 border-b border-border/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
@@ -2467,52 +2469,9 @@ export function Studio({
       >
         <div className={embedded ? "min-h-0 min-w-0" : "min-w-0 xl:order-2"}>
           {sessionStatus === "loading" && !shots.length && !progress ? (
-            <div className="mt-24 min-h-[320px]" aria-busy="true" aria-label="Opening Pick" />
+            <div className="min-h-[320px]" aria-busy="true" aria-label="Opening Pick" />
           ) : !shots.length && !progress ? (
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Import a shoot"
-              onClick={() => inputRef.current?.click()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  inputRef.current?.click();
-                }
-              }}
-              className={
-                embedded
-                  ? "workbench-empty-photos"
-                  : "mt-24 cursor-pointer rounded-xl border border-dashed border-border px-6 py-24 text-center transition-colors hover:border-ink/30 focus-visible:outline-2 focus-visible:outline-rust"
-              }
-            >
-              <h1 className="font-display text-3xl font-semibold tracking-tight">Drop the shoot</h1>
-              <p className="mt-2 font-mono text-[11px] text-moss">
-                Then K keep · R reject · ZIP keepers. Originals stay on this device.
-              </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-md bg-ink px-3 py-1.5 font-mono text-[11px] text-paper2"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    inputRef.current?.click();
-                  }}
-                >
-                  Choose files
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md px-3 py-1.5 font-mono text-[11px] text-ink ring-1 ring-border"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    folderRef.current?.click();
-                  }}
-                >
-                  Choose folder
-                </button>
-              </div>
-            </div>
+            <div className="min-h-[320px]" aria-label="Photos" />
           ) : (
             <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
               {/* toolbar */}

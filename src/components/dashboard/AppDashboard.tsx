@@ -31,6 +31,8 @@ import { IosCalendar } from "./IosCalendar";
 import { VoiceMic } from "./VoiceMic";
 import { requestDashboardReply } from "@/lib/dashboard-assistant";
 import { isPhotographyConversation } from "@/lib/photography-assistant";
+import { collectDroppedFiles } from "@/lib/studio/drop-import";
+import { queueStudioImport } from "@/lib/studio/pending-import";
 import "./dashboard.css";
 import "./social-accounts.css";
 
@@ -254,6 +256,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const currentScope = useRef(account?.scope);
   currentScope.current = account?.scope;
   const box = useRef<HTMLTextAreaElement>(null);
+  const photos = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const wasTool = useRef(false);
 
@@ -278,6 +281,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   const loading = !account || account.status === "loading" || account.status === "out";
   const scope = account?.scope;
+
+  function ingestPhotos(files: File[]) {
+    if (!files.length) return;
+    queueStudioImport(files);
+    void navigate({ to: "/studio" });
+  }
 
   useEffect(() => {
     if (!scope) return;
@@ -562,7 +571,29 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
             <div
               className={`social-post${active?.messages.length ? " has-thread" : ""}`}
               onPointerDown={onHapticPress}
+              onDragOver={(event) => {
+                if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "copy";
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                void collectDroppedFiles(event.dataTransfer).then((result) =>
+                  ingestPhotos(result.files),
+                );
+              }}
             >
+              <input
+                ref={photos}
+                type="file"
+                multiple
+                accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw,.xmp"
+                className="hidden"
+                onChange={(event) => {
+                  ingestPhotos(Array.from(event.target.files ?? []));
+                  event.target.value = "";
+                }}
+              />
               <div className="social-post__stage">
                 {active?.messages.length ? (
                   <div className="celinen-dash__thread">
@@ -588,8 +619,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   <button
                     type="button"
                     className="celinen-dash__plus"
-                    aria-label="Open Pick"
-                    onClick={() => void navigate({ to: "/studio" })}
+                    aria-label="Add photos"
+                    onClick={() => photos.current?.click()}
                   >
                     <Plus size={20} strokeWidth={1.8} />
                   </button>
