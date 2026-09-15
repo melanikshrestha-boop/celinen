@@ -224,6 +224,21 @@ test("night mode calendar does not reserve a black appearance gutter", () => {
   expect(cal).toContain("padding: 0 96px 0 16px");
 });
 
+test("now line shows the clock on hover and today is a blue dot", () => {
+  const source = readFileSync(
+    new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url),
+    "utf8",
+  );
+  const css = readFileSync(
+    new URL("../src/components/dashboard/ios-calendar.css", import.meta.url),
+    "utf8",
+  );
+  expect(source).toContain("clockLabel(clock)");
+  expect(source).toContain("celinen-ios-cal__now");
+  expect(css).toContain(".celinen-ios-cal__now:hover em");
+  expect(css).toMatch(/button\.is-today b\s*\{[^}]*background: #2f6fed/);
+});
+
 test("desktop calendar view switcher moves without a click", () => {
   const source = readFileSync(
     new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url),

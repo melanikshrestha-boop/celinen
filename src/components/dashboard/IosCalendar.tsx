@@ -56,6 +56,14 @@ function hourLabel(hour: number) {
   return `${hour - 12} PM`;
 }
 
+function clockLabel(clock: Date) {
+  return clock.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function nowTop(clock: Date) {
+  return `${((clock.getHours() * 60 + clock.getMinutes() - 360) / (16 * 60)) * 100}%`;
+}
+
 function eventKind(event: CalendarEvent) {
   return event.kind ?? inferCalendarKind(event.title);
 }
@@ -135,7 +143,8 @@ function MiniMonth({
 export function IosCalendar() {
   const account = useAccount();
   const scope = account?.scope;
-  const today = useMemo(() => new Date(), []);
+  const [clock, setClock] = useState(() => new Date());
+  const today = clock;
   const [view, setView] = useState<CalView>("week");
   const [setName, setSetName] = useState<ViewSet>("everything");
   const [selected, setSelected] = useState(today);
@@ -180,6 +189,11 @@ export function IosCalendar() {
     if (localEvents.length !== loaded.localEvents.length) writeCalendarState(scope, next);
     setTypes(readBookingTypes(scope));
   }, [scope]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClock(new Date()), 15000);
+    return () => window.clearInterval(id);
+  }, []);
 
   function stepView(dir: number) {
     const now = performance.now();
@@ -627,7 +641,11 @@ export function IosCalendar() {
                     {HOURS.map((hour) => (
                       <i key={hour} />
                     ))}
-                    {sameDay(day, today) ? <span className="celinen-ios-cal__now" style={{ top: `${((new Date().getHours() * 60 + new Date().getMinutes() - 360) / (16 * 60)) * 100}%` }} /> : null}
+                    {sameDay(day, today) ? (
+                      <span className="celinen-ios-cal__now" style={{ top: nowTop(clock) }}>
+                        <em>{clockLabel(clock)}</em>
+                      </span>
+                    ) : null}
                     {eventsOnDay(events, day)
                       .filter((event) => !event.allDay)
                       .map((event) => (
