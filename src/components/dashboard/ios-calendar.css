@@ -1,50 +1,72 @@
 .celinen-ios-cal {
   container-type: inline-size;
-  --ios-red: #ff3b30;
-  --ios-ink: #1d1d1f;
-  --ios-muted: #86868b;
-  --ios-line: #ececef;
-  --ios-side: #f5f5f7;
+  --ios-red: #5b8fd9;
+  --ios-ink: #1c1c1e;
+  --ios-muted: #8a8a8e;
+  --ios-line: rgba(0, 0, 0, 0.06);
+  --cal-side: #171717;
+  --cal-side-text: #f5f5f5;
+  --cal-side-muted: rgba(255, 255, 255, 0.55);
+  --cal-canvas: #fcfcfc;
   color-scheme: light;
   flex: 1;
   min-height: 0;
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
   overflow: hidden;
-  padding: 10px 16px 8px;
-  background: #fff;
+  padding: 0;
+  background: var(--cal-canvas);
   color: var(--ios-ink);
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
 }
+.celinen-ios-cal.is-slim,
+.celinen-ios-cal.celinen-ios-cal__shell.is-slim {
+  grid-template-columns: minmax(0, 1fr);
+}
+.celinen-ios-cal.celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
+  grid-template-columns: 268px minmax(0, 1fr) 260px;
+}
+.celinen-ios-cal.is-slim.celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
+  grid-template-columns: minmax(0, 1fr) 260px;
+}
 html.dark .celinen-ios-cal,
-html.dark .celinen-dash__cal {
-  --ios-ink: #f5f5f7;
-  --ios-muted: #a1a1a6;
-  --ios-line: #2c2c2e;
-  --ios-side: #1c1c1e;
-  background: #000;
+html.dark .celinen-dash__cal.celinen-ios-cal {
+  --ios-ink: #1c1c1e;
+  --ios-muted: #8a8a8e;
+  --ios-line: rgba(0, 0, 0, 0.06);
+  background: var(--cal-canvas);
   color: var(--ios-ink);
-  color-scheme: dark;
+  color-scheme: light;
+}
+.celinen-ios-cal__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--cal-canvas);
 }
 .celinen-ios-cal__bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 0 auto;
+  flex: 0 0 52px;
+  height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ios-line);
 }
 .celinen-ios-cal__title {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 .celinen-ios-cal .celinen-ios-cal__bar h1 {
   margin: 0;
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.04em;
-  line-height: 28px;
+  line-height: 32px;
   white-space: nowrap;
 }
 .celinen-ios-cal__bar button {
@@ -55,7 +77,13 @@ html.dark .celinen-dash__cal {
   background: transparent;
   color: var(--ios-ink);
   font: inherit;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 140ms ease-out;
+}
+.celinen-ios-cal__bar button:hover {
+  background: rgba(0, 0, 0, 0.035);
 }
 .celinen-ios-cal__title button[aria-label="Previous"],
 .celinen-ios-cal__title button[aria-label="Next"] {
@@ -64,11 +92,11 @@ html.dark .celinen-dash__cal {
   width: 28px;
   min-width: 28px;
   height: 28px;
-  color: var(--ios-red);
+  color: var(--ios-muted);
 }
 .celinen-ios-cal__views {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   margin-left: 12px;
 }
 .celinen-ios-cal__views button {
@@ -77,35 +105,29 @@ html.dark .celinen-dash__cal {
   min-height: 28px;
 }
 .celinen-ios-cal__views button[aria-selected="true"] {
-  color: var(--ios-red);
-  box-shadow: inset 0 -2px 0 var(--ios-red);
-}
-.celinen-ios-cal__week-count {
-  margin: 0 0 0 auto;
-  color: var(--ios-muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.celinen-ios-cal__bar .celinen-ios-cal__today-dot {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
-  min-height: 14px;
-  border-radius: 999px;
-  background: var(--ios-red);
+  color: var(--ios-ink);
+  box-shadow: inset 0 -1px 0 var(--ios-ink);
 }
 .celinen-ios-cal__plus {
-  min-width: 28px;
-  font-size: 22px;
+  min-width: 52px;
+  height: 28px;
+  margin-left: 8px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: #1c1c1e !important;
+  color: #f5f5f5 !important;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1;
 }
 .celinen-ios-cal__ask {
   flex: 0 0 auto;
-  margin: 6px 0 8px;
+  margin: 0;
+  padding: 8px 16px 12px;
 }
 .celinen-ios-cal__ask input {
   width: 100%;
-  min-height: 34px;
+  min-height: 32px;
   padding: 0;
   border: 0;
   border-bottom: 1px solid var(--ios-line);
@@ -113,144 +135,29 @@ html.dark .celinen-dash__cal {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 14px;
-}
-.celinen-ios-cal__hex {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 8px;
-}
-.celinen-ios-cal__hex input {
-  width: 8.5rem;
-  min-height: 28px;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid currentColor;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-}
-.celinen-ios-cal__hex-list {
-  display: flex;
-  gap: 8px;
-}
-.celinen-ios-cal__hex-list button {
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
+  font-size: 13px;
 }
 .celinen-ios-cal__shell {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  flex: 1;
   min-height: 0;
-}
-.celinen-ios-cal.is-slim .celinen-ios-cal__shell {
-  grid-template-columns: minmax(0, 1fr);
-}
-.celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
-  grid-template-columns: 280px minmax(0, 1fr) 260px;
-}
-.celinen-ios-cal.is-slim .celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
-  grid-template-columns: minmax(0, 1fr) 260px;
-}
-.celinen-ios-cal__rail,
-.celinen-ios-cal__today {
-  min-height: 28px;
-  padding: 0 10px;
-  color: var(--ios-muted);
-  font-size: 13px;
-}
-.celinen-ios-cal__sets {
-  display: flex;
-  gap: 10px;
-  margin-left: auto;
-}
-.celinen-ios-cal__sets button {
-  color: var(--ios-muted);
-  font-size: 12px;
-}
-.celinen-ios-cal__sets button[aria-pressed="true"] {
-  color: var(--ios-ink);
-}
-.celinen-ios-cal__preview {
-  margin: 6px 0 0;
-  color: var(--ios-muted);
-  font-size: 12px;
-}
-.celinen-ios-cal__agenda > p {
-  margin: 0 0 8px;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ios-muted);
-}
-.celinen-ios-cal__empty {
-  margin: 0;
-  color: var(--ios-muted);
-  font-size: 13px;
-}
-.celinen-ios-cal__block.is-on {
-  box-shadow:
-    inset 3px 0 0 var(--evt),
-    0 0 0 1px color-mix(in srgb, var(--evt) 40%, transparent);
-}
-.celinen-ios-cal__now {
-  position: absolute;
-  left: 0;
-  right: 0;
-  z-index: 2;
-  height: 1px;
-  background: #e25d5d;
-  pointer-events: none;
-}
-.celinen-ios-cal__inspect {
-  width: 260px;
-  min-width: 220px;
-  padding: 12px 14px;
-  border-left: 1px solid var(--ios-line);
-  overflow: auto;
-}
-.celinen-ios-cal__inspect h2 {
-  margin: 8px 0 6px;
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-}
-.celinen-ios-cal__inspect p {
-  margin: 0 0 6px;
-  font-size: 13px;
-  color: var(--ios-muted);
-}
-.celinen-ios-cal__kind {
-  color: var(--ios-ink) !important;
-}
-.celinen-ios-cal__dismiss {
-  font-size: 12px;
-  color: var(--ios-muted);
 }
 .celinen-ios-cal__side {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 0 12px 8px 0;
+  padding: 16px 12px 16px 16px;
   overflow: auto;
+  background: var(--cal-side);
+  color: var(--cal-side-text);
 }
 .celinen-ios-cal__mini {
   flex: 0 0 auto;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 .celinen-ios-cal__mini p {
-  margin: 0 0 6px;
-  font-size: 13px;
+  margin: 0 0 8px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--cal-side-text);
 }
 .celinen-ios-cal__mini-week,
 .celinen-ios-cal__mini-grid {
@@ -258,11 +165,12 @@ html.dark .celinen-dash__cal {
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 .celinen-ios-cal__mini-week {
-  color: var(--ios-muted);
+  color: var(--cal-side-muted);
   font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.08em;
   text-align: center;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 .celinen-ios-cal__mini-grid button {
   position: relative;
@@ -270,131 +178,184 @@ html.dark .celinen-dash__cal {
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--cal-side-text);
   font: inherit;
   font-size: 11px;
   cursor: pointer;
 }
 .celinen-ios-cal__mini-grid button.is-out {
-  color: #c7c7cc;
+  color: rgba(255, 255, 255, 0.28);
 }
 .celinen-ios-cal__mini-grid button.is-today {
-  color: #fff;
-  background: var(--ios-red);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
   border-radius: 999px;
 }
-.celinen-ios-cal__mini-grid button.is-selected:not(.is-today) {
-  background: #e8e8ed;
+.celinen-ios-cal__mini-grid button.is-selected {
+  color: #171717;
+  background: #f5f5f5;
   border-radius: 999px;
 }
-.celinen-ios-cal__mini-grid i {
+.celinen-ios-cal__mini-grid button i {
   position: absolute;
   left: 50%;
   bottom: 2px;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
+  width: 3px;
+  height: 3px;
   border-radius: 999px;
+  transform: translateX(-50%);
 }
 .celinen-ios-cal__list {
   margin: 0;
   padding: 0;
   list-style: none;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
 }
 .celinen-ios-cal__list button {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
+  grid-template-columns: 8px 56px minmax(0, 1fr);
   grid-template-rows: auto auto;
   column-gap: 8px;
+  row-gap: 0;
   width: 100%;
+  min-height: 48px;
+  margin: 0;
   padding: 8px 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--cal-side-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.celinen-ios-cal__list i {
+.celinen-ios-cal__list button i {
   grid-row: 1 / span 2;
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
+  width: 4px;
+  height: 4px;
+  margin-top: 6px;
   border-radius: 999px;
 }
-.celinen-ios-cal__list strong {
-  font-size: 13px;
+.celinen-ios-cal__list button b {
+  grid-column: 2;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cal-side-muted);
+}
+.celinen-ios-cal__list button strong {
+  grid-column: 3;
+  font-size: 12px;
   font-weight: 600;
 }
-.celinen-ios-cal__list span {
-  color: var(--ios-muted);
+.celinen-ios-cal__list button span {
+  grid-column: 3;
   font-size: 11px;
+  color: var(--cal-side-muted);
+}
+.celinen-ios-cal__rail,
+.celinen-ios-cal__today {
+  min-height: 28px;
+  padding: 0 8px;
+  color: var(--ios-muted);
+  font-size: 13px;
+}
+.celinen-ios-cal__sets {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+.celinen-ios-cal__sets button {
+  color: var(--ios-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.celinen-ios-cal__sets button[aria-pressed="true"] {
+  color: var(--ios-ink);
+}
+.celinen-ios-cal__preview {
+  margin: 8px 0 0;
+  color: var(--ios-muted);
+  font-size: 12px;
+}
+.celinen-ios-cal__agenda > p {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cal-side-muted);
+}
+.celinen-ios-cal__empty {
+  margin: 0;
+  color: var(--cal-side-muted);
+  font-size: 12px;
 }
 .celinen-ios-cal__board {
+  flex: 1;
   min-width: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: auto;
+  background: #fff;
 }
 .celinen-ios-cal__weekheads {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  flex: 0 0 auto;
   color: var(--ios-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  text-align: center;
 }
 .celinen-ios-cal__weekheads--timed {
-  grid-template-columns: 52px repeat(7, minmax(0, 1fr));
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
 }
-.celinen-ios-cal__weekheads--timed button {
+.celinen-ios-cal__weekheads button {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 4px 0 8px;
+  min-height: 40px;
+  padding: 8px 0 4px;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-.celinen-ios-cal__weekheads--timed small {
+.celinen-ios-cal__weekheads button small {
   font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.06em;
 }
-.celinen-ios-cal__weekheads--timed b {
+.celinen-ios-cal__weekheads button b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ios-ink);
+}
+.celinen-ios-cal__weekheads button.is-today b {
+  color: #fff;
+  background: #1c1c1e;
+  border-radius: 999px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  font-size: 16px;
-  font-weight: 600;
-}
-.celinen-ios-cal__weekheads--timed button.is-today b {
-  background: var(--ios-red);
-  color: #fff;
 }
 .celinen-ios-cal__month {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-template-rows: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(72px, 1fr));
+  min-height: 100%;
 }
 .celinen-ios-cal__mday {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
-  min-height: 0;
-  padding: 6px 8px;
+  gap: 2px;
+  min-height: 72px;
+  padding: 8px;
   border: 0;
+  border-top: 1px solid var(--ios-line);
+  border-left: 1px solid var(--ios-line);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -404,69 +365,56 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__mday.is-out {
   color: #c7c7cc;
 }
-.celinen-ios-cal__num {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  font-size: 13px;
+.celinen-ios-cal__mday.is-today {
+  background: rgba(47, 111, 237, 0.04);
 }
-.celinen-ios-cal__mday.is-today .celinen-ios-cal__num {
-  background: var(--ios-red);
-  color: #fff;
+.celinen-ios-cal__num {
+  align-self: flex-end;
+  font-size: 12px;
+  font-weight: 600;
 }
 .celinen-ios-cal__mday em {
   display: block;
   width: 100%;
   overflow: hidden;
-  padding-left: 6px;
-  border-left: 3px solid var(--ios-red);
-  font-style: normal;
+  padding: 1px 4px;
+  border-left: 2px solid currentColor;
   font-size: 11px;
-  font-weight: 500;
+  font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .celinen-ios-cal__weekview {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-x: auto;
+  min-height: 100%;
 }
 .celinen-ios-cal__lanes {
   display: grid;
-  grid-template-columns: 52px repeat(7, minmax(0, 1fr));
-  min-height: 22px;
-  flex: 0 0 auto;
+  min-height: 28px;
 }
 .celinen-ios-cal__lanes em {
   display: block;
-  margin: 1px 3px;
+  margin: 2px 4px;
   padding: 2px 6px;
-  border-radius: 4px;
-  color: #fff;
-  font-style: normal;
+  border-radius: 5px;
+  color: var(--ios-ink);
   font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-style: normal;
+  font-weight: 600;
 }
 .celinen-ios-cal__gridscroll {
   display: grid;
-  grid-template-columns: 52px repeat(7, minmax(0, 1fr));
   flex: 1;
-  min-height: 0;
   overflow: auto;
 }
 .celinen-ios-cal__hours {
   display: grid;
   grid-template-rows: repeat(16, minmax(48px, 1fr));
   color: var(--ios-muted);
-  font-size: 10px;
+  font-size: 11px;
   text-align: right;
-  padding-right: 6px;
+  padding-right: 8px;
 }
 .celinen-ios-cal__col {
   position: relative;
@@ -477,10 +425,10 @@ html.dark .celinen-dash__cal {
   border-top: 1px solid var(--ios-line);
 }
 .celinen-ios-cal__block {
-  --evt: var(--ios-red);
+  --evt: #5b8fd9;
   position: absolute;
-  left: 3px;
-  right: 3px;
+  left: 4px;
+  right: 4px;
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -489,43 +437,86 @@ html.dark .celinen-dash__cal {
   overflow: hidden;
   padding: 4px 8px;
   border: 0;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--evt) 16%, #fff);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--evt) 22%, #fff);
   color: var(--ios-ink);
   box-shadow: inset 3px 0 0 var(--evt);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background 140ms ease-out;
+}
+.celinen-ios-cal__block:hover {
+  background: color-mix(in srgb, var(--evt) 28%, #fff);
 }
 .celinen-ios-cal__block strong {
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 .celinen-ios-cal__block span {
-  font-size: 10px;
-  opacity: 0.9;
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.85;
 }
-.celinen-ios-cal__year,
-.celinen-ios-cal__quarter {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px 20px;
+.celinen-ios-cal__block.is-on {
+  box-shadow:
+    inset 3px 0 0 var(--evt),
+    0 0 0 1px color-mix(in srgb, var(--evt) 55%, #1c1c1e);
+}
+.celinen-ios-cal__now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 1px;
+  background: #c45c5c;
+  pointer-events: none;
+}
+.celinen-ios-cal__now::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #c45c5c;
+}
+.celinen-ios-cal__inspect {
+  width: 260px;
+  min-width: 220px;
+  padding: 16px;
+  border-left: 1px solid var(--ios-line);
   overflow: auto;
-  padding: 8px;
+  background: #fff;
 }
-.celinen-ios-cal__year {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.celinen-ios-cal__inspect h2 {
+  margin: 8px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.celinen-ios-cal__inspect p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ios-muted);
+}
+.celinen-ios-cal__kind {
+  color: var(--ios-ink) !important;
+}
+.celinen-ios-cal__dismiss {
+  font-size: 12px;
+  color: var(--ios-muted);
 }
 @media (max-width: 900px) {
-  .celinen-ios-cal__shell {
-    grid-template-columns: 1fr;
+  .celinen-ios-cal,
+  .celinen-ios-cal.celinen-ios-cal__shell {
+    grid-template-columns: minmax(0, 1fr);
   }
   .celinen-ios-cal__side {
     display: none;
   }
 }
-
-/* The sidebar can make the calendar narrow even on a wide browser window. */
 @container (max-width: 700px) {
   .celinen-ios-cal__shell {
     grid-template-columns: minmax(0, 1fr);
@@ -535,6 +526,8 @@ html.dark .celinen-dash__cal {
   }
   .celinen-ios-cal__bar {
     flex-wrap: wrap;
+    height: auto;
+    min-height: 52px;
   }
   .celinen-ios-cal__views {
     order: 1;

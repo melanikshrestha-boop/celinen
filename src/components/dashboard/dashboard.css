@@ -502,8 +502,8 @@ html:has(.celinen-dash) {
   color-scheme: light;
 }
 html.dark .celinen-dash__cal {
-  background: #000;
-  color: #ededed;
+  background: #fcfcfc;
+  color: #1c1c1e;
 }
 .celinen-dash__cal h1 {
   margin: 0;

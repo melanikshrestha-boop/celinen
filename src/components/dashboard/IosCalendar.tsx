@@ -295,11 +295,59 @@ export function IosCalendar() {
   return (
     <section
       ref={shellRef}
-      className={`celinen-dash__cal celinen-ios-cal${open ? "" : " is-slim"}`}
+      className={`celinen-dash__cal celinen-ios-cal celinen-ios-cal__shell${open ? "" : " is-slim"}`}
       aria-label="Calendar"
       tabIndex={0}
       onKeyDown={onKey}
     >
+      {open ? (
+        <aside className="celinen-ios-cal__side">
+            <MiniMonth
+              month={new Date(selected.getFullYear(), selected.getMonth(), 1)}
+              today={today}
+              selected={selected}
+              events={events}
+              onPick={(day) => {
+                setSelected(day);
+                if (view === "month") setView("week");
+              }}
+            />
+            <div className="celinen-ios-cal__agenda">
+              <p>Upcoming</p>
+              {agenda.length ? (
+                <ul className="celinen-ios-cal__list">
+                  {agenda.map((event) => (
+                    <li key={event.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelected(new Date(event.start));
+                          setInspect(event.id);
+                          if (view === "month") setView("week");
+                        }}
+                      >
+                        <i style={{ background: eventColor(event) }} />
+                        <b>
+                          {event.allDay
+                            ? "All day"
+                            : new Date(event.start).toLocaleTimeString("en-US", {
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}
+                        </b>
+                        <strong>{event.title}</strong>
+                        <span>{event.location || KIND_LABEL[eventKind(event)]}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="celinen-ios-cal__empty">No shoots {selected.toLocaleString("en-US", { weekday: "long" })}.</p>
+              )}
+            </div>
+          </aside>
+      ) : null}
+      <div className="celinen-ios-cal__main">
       <div className="celinen-ios-cal__bar">
         <button type="button" className="celinen-ios-cal__rail" aria-label={open ? "Hide sidebar" : "Show sidebar"} onClick={() => setOpen((value) => !value)}>
           <PanelLeft size={16} />
@@ -342,7 +390,7 @@ export function IosCalendar() {
           ))}
         </div>
         <button type="button" className="celinen-ios-cal__plus" aria-label="Add" onClick={() => askRef.current?.focus()}>
-          +
+          New
         </button>
       </div>
       <form
@@ -374,53 +422,6 @@ export function IosCalendar() {
           </p>
         ) : null}
       </form>
-      <div className="celinen-ios-cal__shell">
-        {open ? (
-          <aside className="celinen-ios-cal__side">
-            <MiniMonth
-              month={new Date(selected.getFullYear(), selected.getMonth(), 1)}
-              today={today}
-              selected={selected}
-              events={events}
-              onPick={(day) => {
-                setSelected(day);
-                if (view === "month") setView("week");
-              }}
-            />
-            <div className="celinen-ios-cal__agenda">
-              <p>Upcoming</p>
-              {agenda.length ? (
-                <ul className="celinen-ios-cal__list">
-                  {agenda.map((event) => (
-                    <li key={event.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelected(new Date(event.start));
-                          setInspect(event.id);
-                          if (view === "month") setView("week");
-                        }}
-                      >
-                        <i style={{ background: eventColor(event) }} />
-                        <strong>{event.title}</strong>
-                        <span>
-                          {new Date(event.start).toLocaleString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                            ...(event.allDay ? {} : { hour: "numeric", minute: "2-digit" }),
-                          })}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="celinen-ios-cal__empty">No shoots {selected.toLocaleString("en-US", { weekday: "long" })}.</p>
-              )}
-            </div>
-          </aside>
-        ) : null}
         <div className="celinen-ios-cal__board">
           {view === "month" ? (
             <>
