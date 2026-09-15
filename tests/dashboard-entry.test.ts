@@ -90,7 +90,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Planning a shoot week");
   expect(source).toContain("Ask ${PRODUCT_NAME}");
   expect(source).toContain("Open Pick");
-  expect(source).toContain("Send a gallery");
+  expect(source).not.toContain("Send a gallery");
   expect(source).toContain("Open calendar");
   expect(source).toContain("social-post__action");
   expect(source).toContain("dashboardGreetingFor");

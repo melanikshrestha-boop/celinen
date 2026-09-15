@@ -36,7 +36,6 @@ import "./social-accounts.css";
 
 const HOME_ACTIONS = [
   { label: "Open Pick", to: "/studio", icon: Aperture },
-  { label: "Send a gallery", to: "/deliver", icon: Images },
   {
     label: "Open calendar",
     to: "/dashboard",
