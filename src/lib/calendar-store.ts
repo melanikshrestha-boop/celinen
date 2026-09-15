@@ -1,4 +1,5 @@
 import { isCalendarColor, sortCalendarEvents, type CalendarEvent } from "./calendar-ics";
+import { isCalendarKind } from "./calendar-kinds";
 
 export type CalendarState = {
   feedUrl: string;
@@ -24,6 +25,7 @@ function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent
   const notes = typeof row.notes === "string" ? row.notes.slice(0, 2000) : "";
   const pose = typeof row.pose === "string" ? row.pose.slice(0, 80) : "";
   const color = typeof row.color === "string" && isCalendarColor(row.color) ? row.color : undefined;
+  const kind = typeof row.kind === "string" && isCalendarKind(row.kind) ? row.kind : undefined;
   return {
     id: row.id.slice(0, 200),
     title: row.title.slice(0, 200),
@@ -35,6 +37,7 @@ function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent
     ...(notes ? { notes } : {}),
     ...(pose ? { pose } : {}),
     ...(color ? { color } : {}),
+    ...(kind ? { kind } : {}),
   };
 }
 

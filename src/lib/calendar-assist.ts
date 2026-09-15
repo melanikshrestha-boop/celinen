@@ -1,4 +1,5 @@
 import type { CalendarEvent } from "./calendar-ics";
+import { inferCalendarKind, kindFromSlash, KIND_COLOR } from "./calendar-kinds";
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const MONTHS: Record<string, number> = {
@@ -151,7 +152,8 @@ export function parseShootNote(
 ): CalendarEvent | null {
   const text = input.trim().replace(/\s+/g, " ").slice(0, 400);
   if (!text) return null;
-  let rest = text;
+  const slashed = kindFromSlash(text);
+  let rest = slashed.rest;
   let location = "";
   const at = rest.match(/\s(?:at|@)\s+(.+)$/i);
   if (at && at.index !== undefined) {
@@ -163,6 +165,7 @@ export function parseShootNote(
   const dated = takeDate(rest, options.now, options.selected);
   rest = dated.rest.replace(/^[-–,]+|[-–,]+$/g, "").trim();
   const title = (rest || "Shoot").slice(0, 200);
+  const kind = slashed.kind ?? inferCalendarKind(title);
   const allDay = timed.allDay || !timed.start;
   const start = allDay
     ? stamp(dated.day, 0, 0)
@@ -177,7 +180,8 @@ export function parseShootNote(
     end: end > start ? end : start + 3600000,
     allDay,
     source: "local",
-    color: options.accent,
+    kind,
+    color: KIND_COLOR[kind] ?? options.accent,
     ...(location ? { location } : {}),
   };
 }

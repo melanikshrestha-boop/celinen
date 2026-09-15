@@ -1,5 +1,7 @@
 /** iCal (ICS) parse/build for Google Calendar and the iOS Calendar app. No OAuth. */
 
+import type { CalendarKind } from "./calendar-kinds";
+
 export type CalendarEvent = {
   id: string;
   title: string;
@@ -11,6 +13,7 @@ export type CalendarEvent = {
   notes?: string;
   pose?: string;
   color?: string;
+  kind?: CalendarKind;
 };
 
 export const CALENDAR_COLORS = [

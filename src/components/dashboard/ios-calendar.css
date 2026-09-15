@@ -147,9 +147,94 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__shell {
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
+}
+.celinen-ios-cal.is-slim .celinen-ios-cal__shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+.celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
+  grid-template-columns: 280px minmax(0, 1fr) 260px;
+}
+.celinen-ios-cal.is-slim .celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
+  grid-template-columns: minmax(0, 1fr) 260px;
+}
+.celinen-ios-cal__rail,
+.celinen-ios-cal__today {
+  min-height: 28px;
+  padding: 0 10px;
+  color: var(--ios-muted);
+  font-size: 13px;
+}
+.celinen-ios-cal__sets {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.celinen-ios-cal__sets button {
+  color: var(--ios-muted);
+  font-size: 12px;
+}
+.celinen-ios-cal__sets button[aria-pressed="true"] {
+  color: var(--ios-ink);
+}
+.celinen-ios-cal__preview {
+  margin: 6px 0 0;
+  color: var(--ios-muted);
+  font-size: 12px;
+}
+.celinen-ios-cal__agenda > p {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ios-muted);
+}
+.celinen-ios-cal__empty {
+  margin: 0;
+  color: var(--ios-muted);
+  font-size: 13px;
+}
+.celinen-ios-cal__block.is-on {
+  box-shadow:
+    inset 3px 0 0 var(--evt),
+    0 0 0 1px color-mix(in srgb, var(--evt) 40%, transparent);
+}
+.celinen-ios-cal__now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 1px;
+  background: #e25d5d;
+  pointer-events: none;
+}
+.celinen-ios-cal__inspect {
+  width: 260px;
+  min-width: 220px;
+  padding: 12px 14px;
+  border-left: 1px solid var(--ios-line);
+  overflow: auto;
+}
+.celinen-ios-cal__inspect h2 {
+  margin: 8px 0 6px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.celinen-ios-cal__inspect p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ios-muted);
+}
+.celinen-ios-cal__kind {
+  color: var(--ios-ink) !important;
+}
+.celinen-ios-cal__dismiss {
+  font-size: 12px;
+  color: var(--ios-muted);
 }
 .celinen-ios-cal__side {
   display: flex;

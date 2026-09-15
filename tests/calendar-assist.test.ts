@@ -44,6 +44,12 @@ test("blank notes do not invent a shoot", () => {
   expect(parseShootNote("   ", opts)).toBeNull();
 });
 
+test("slash targeting and photographer verbs set kind", () => {
+  expect(parseShootNote("USC vs UCLA Friday 7pm at Coliseum /shoot", opts)?.kind).toBe("shoot");
+  expect(parseShootNote("edit Lakers game tomorrow 10-12", opts)?.kind).toBe("edit");
+  expect(parseShootNote("deliver Jenna gallery Thursday 6pm", opts)?.kind).toBe("delivery");
+});
+
 test("hex accepts #RGB codes and rejects junk", () => {
   expect(parseCalendarHex("#007AFF")).toBe("#007aff");
   expect(parseCalendarHex("34c759")).toBe("#34c759");
