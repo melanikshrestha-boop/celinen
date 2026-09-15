@@ -220,7 +220,9 @@ test("desktop calendar view switcher moves without a click", () => {
     "utf8",
   );
   expect(source).toContain('event.pointerType !== "mouse"');
-  expect(source).toContain("celinen-ios-cal__views-thumb");
   expect(source).toContain("onViewsWheel");
-  expect(css).toContain(".celinen-ios-cal__views-thumb");
+  expect(source).not.toContain("celinen-ios-cal__views-thumb");
+  expect(css).not.toContain(".celinen-ios-cal__views-thumb");
+  expect(css).toContain(".celinen-ios-cal__views {\n  display: flex");
+  expect(css).toContain("background: none");
 });

@@ -46,8 +46,8 @@ html.dark .celinen-ios-cal__weekheads--timed,
 html.dark .celinen-ios-cal__inspect {
   background: #111111;
 }
-html.dark .celinen-ios-cal__views {
-  background: #1c1c1e;
+html.dark .celinen-ios-cal__views button[aria-selected="true"] {
+  color: #f2f2f2;
 }
 html.dark .celinen-ios-cal__find input {
   background-color: #1c1c1e;
@@ -120,48 +120,37 @@ html.dark .celinen-dash__cal {
   color: var(--ios-muted);
 }
 .celinen-ios-cal__views {
-  position: relative;
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  gap: 0;
+  gap: 4px;
   width: max-content;
   max-width: 100%;
   margin-left: auto;
-  padding: 2px;
-  border-radius: 999px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
   overflow: visible;
-  background: #f0f0f2;
-}
-.celinen-ios-cal__views-thumb {
-  position: absolute;
-  top: 2px;
-  left: 0;
-  height: calc(100% - 4px);
-  border-radius: 999px;
-  background: #e24b4b;
-  pointer-events: none;
-  transition: transform 180ms ease, width 180ms ease;
 }
 .celinen-ios-cal__views button {
-  position: relative;
-  z-index: 1;
   flex: 0 0 auto;
   min-height: 26px;
-  padding: 0 12px;
-  border-radius: 999px;
+  padding: 0 8px;
+  border-radius: 0;
   background: transparent;
-  color: #6b6b70;
+  color: var(--ios-muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
 }
 .celinen-ios-cal__bar .celinen-ios-cal__views button:hover {
   background: transparent;
+  color: var(--ios-ink);
 }
 .celinen-ios-cal__views button[aria-selected="true"] {
   background: transparent;
-  color: #fff;
+  color: var(--ios-ink);
+  font-weight: 600;
   box-shadow: none;
 }
 .celinen-ios-cal__find {

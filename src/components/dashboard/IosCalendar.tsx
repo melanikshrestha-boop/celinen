@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { parseShootNote } from "@/lib/calendar-assist";
@@ -151,7 +151,6 @@ export function IosCalendar() {
   const shellRef = useRef<HTMLElement>(null);
   const viewsRef = useRef<HTMLDivElement>(null);
   const zoomAt = useRef(0);
-  const [thumb, setThumb] = useState({ x: 2, w: 0 });
   const drag = useRef<{
     id: string;
     mode: "move" | "resize";
@@ -192,23 +191,10 @@ export function IosCalendar() {
     });
   }
 
-  function syncThumb() {
-    const root = viewsRef.current;
-    const on = root?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!root || !on) return;
-    setThumb({ x: on.offsetLeft, w: on.offsetWidth });
-  }
-
-  useLayoutEffect(() => {
-    syncThumb();
-  }, [view]);
-
   useEffect(() => {
     const root = viewsRef.current;
     const shell = shellRef.current;
     if (!root || !shell) return;
-    const ro = new ResizeObserver(syncThumb);
-    ro.observe(root);
     function onViewsWheel(event: WheelEvent) {
       event.preventDefault();
       stepView(event.deltaY > 0 || event.deltaX > 0 ? 1 : -1);
@@ -221,7 +207,6 @@ export function IosCalendar() {
     root.addEventListener("wheel", onViewsWheel, { passive: false });
     shell.addEventListener("wheel", onShellWheel, { passive: false });
     return () => {
-      ro.disconnect();
       root.removeEventListener("wheel", onViewsWheel);
       shell.removeEventListener("wheel", onShellWheel);
     };
@@ -469,11 +454,6 @@ export function IosCalendar() {
           <ChevronRight size={16} strokeWidth={1.75} />
         </button>
         <div className="celinen-ios-cal__views" role="tablist" aria-label="View" ref={viewsRef}>
-          <span
-            className="celinen-ios-cal__views-thumb"
-            style={{ width: thumb.w, transform: `translateX(${thumb.x}px)` }}
-            aria-hidden="true"
-          />
           {VIEWS.map((item) => (
             <button
               key={item.id}
