@@ -35,16 +35,6 @@ import { queueStudioImport } from "@/lib/studio/pending-import";
 import "./dashboard.css";
 import "./social-accounts.css";
 
-const HOME_ACTIONS = [
-  {
-    label: "Open calendar",
-    to: "/dashboard",
-    icon: CalendarDays,
-    search: { view: "calendar" as const },
-  },
-  { label: "Post", to: "/publish", icon: Share2 },
-] as const;
-
 const MAIN = [
   { to: "/dashboard", label: "Home", icon: House, end: true },
   { to: "/deliver", label: "Galleries", icon: Images },
@@ -628,7 +618,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     ref={box}
                     rows={1}
                     value={draft}
-                    placeholder={`Ask ${PRODUCT_NAME}`}
+                    placeholder="drop your game here"
                     onChange={(event) => {
                       setDraft(event.target.value);
                       const el = event.currentTarget;
@@ -664,28 +654,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                 </form>
                 {replying && <p role="status">Thinking…</p>}
                 {chatError && <p role="alert">{chatError}</p>}
-                {active?.messages.length ? null : (
-                  <div className="social-post__actions">
-                    {HOME_ACTIONS.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.label}
-                          to={item.to}
-                          search={"search" in item ? item.search : undefined}
-                          preload="intent"
-                          preloadDelay={0}
-                          className="social-post__action"
-                        >
-                          <span className="social-post__action-mark" aria-hidden="true">
-                            <Icon size={18} strokeWidth={1.6} />
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </div>
           )}

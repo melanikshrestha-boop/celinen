@@ -114,7 +114,7 @@ function shell(mode: "open" | "mini" | null, width = 248) {
       compilerOptions: { jsx: "react", jsxFactory: "jsx", jsxFragmentFactory: "Fragment" },
     },
   });
-  const code = source.slice(source.indexOf("const HOME_ACTIONS")).replace(/^export /gm, "");
+  const code = source.slice(source.indexOf("const MAIN")).replace(/^export /gm, "");
   const component = new Function(
     ...Object.keys(context),
     transpiler.transformSync(`${code}\nreturn AppDashboard;`),
