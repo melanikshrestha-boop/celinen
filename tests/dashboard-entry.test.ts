@@ -95,6 +95,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Planning a shoot week");
   expect(source).toContain("Ask ${PRODUCT_NAME}");
   expect(source).toContain("Open Pick");
+  expect(source).toContain('htmlFor="celinen-home-photos"');
   expect(source).toContain('aria-label="Add photos"');
   expect(source).toContain("queueStudioImport");
   expect(source).toContain("collectDroppedFiles");
@@ -168,6 +169,7 @@ test("Pick has no Drop the shoot landing; Home plus and drop import photos", () 
   expect(studio).not.toContain("Choose files");
   expect(studio).not.toContain("Choose folder");
   expect(studio).toContain("takeStudioImport");
+  expect(studio).toContain('navigate({ to: "/dashboard" })');
   expect(studio).not.toContain('return <p role="status">Opening your workspace…</p>');
 });
 

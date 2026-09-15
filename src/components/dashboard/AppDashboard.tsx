@@ -584,11 +584,13 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
               }}
             >
               <input
+                id="celinen-home-photos"
                 ref={photos}
                 type="file"
                 multiple
+                tabIndex={-1}
                 accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw,.xmp"
-                className="hidden"
+                className="absolute h-px w-px overflow-hidden opacity-0"
                 onChange={(event) => {
                   ingestPhotos(Array.from(event.target.files ?? []));
                   event.target.value = "";
@@ -616,14 +618,14 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     send();
                   }}
                 >
-                  <button
-                    type="button"
+                  <label
+                    htmlFor="celinen-home-photos"
                     className="celinen-dash__plus"
                     aria-label="Add photos"
-                    onClick={() => photos.current?.click()}
+                    onClick={(event) => event.stopPropagation()}
                   >
                     <Plus size={20} strokeWidth={1.8} />
-                  </button>
+                  </label>
                   <textarea
                     ref={box}
                     rows={1}

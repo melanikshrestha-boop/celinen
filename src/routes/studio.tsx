@@ -49,7 +49,7 @@ import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
 import { describeShoot } from "@/lib/studio/shoot-brief";
 import { studioFrameHasVisiblePhoto } from "@/lib/studio/frame-availability";
-import { takeStudioImport } from "@/lib/studio/pending-import";
+import { hasStudioImport, takeStudioImport } from "@/lib/studio/pending-import";
 import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
 import {
@@ -897,16 +897,36 @@ export function Studio({
 
   useEffect(() => setFaceEngine(faceDetectionAvailable()), []);
 
+  const chatIngest = useRef(hasStudioImport());
+
   useEffect(() => {
     if (sessionStatus !== "ready" && !(sessionStatus === "conflicted" && !shots.length)) return;
     const files = takeStudioImport();
     if (!files.length) return;
+    chatIngest.current = true;
     if (sessionStatus === "conflicted" && !shots.length) {
       selectSessionStatus("ready");
       setSaveFailure(null);
     }
     importFiles(files);
   }, [sessionStatus, shots.length]);
+
+  useEffect(() => {
+    if (shots.length || progress) chatIngest.current = false;
+  }, [shots.length, progress]);
+
+  useEffect(() => {
+    if (!dashboard) return;
+    if (
+      chatIngest.current ||
+      hasStudioImport() ||
+      shots.length ||
+      progress ||
+      sessionStatus === "loading"
+    )
+      return;
+    void navigate({ to: "/dashboard" });
+  }, [dashboard, shots.length, progress, sessionStatus, navigate]);
 
   useEffect(() => {
     // Fast Refresh replays effects while preserving this live shoot and its refs.
@@ -2208,6 +2228,10 @@ export function Studio({
       }}
     >
       {dropActive ? <div className="pointer-events-none fixed inset-0 z-50" aria-hidden="true" /> : null}
+      {dashboard && !shots.length && !progress ? (
+        <div className="min-h-full" aria-busy={sessionStatus === "loading"} />
+      ) : (
+        <>
       <header className="sticky top-0 z-30 border-b border-border/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
@@ -2817,6 +2841,8 @@ export function Studio({
           </aside>
         )}
       </main>
+        </>
+      )}
       <BurstReview
         open={burstOpen}
         analyticsScope={storageScope}
