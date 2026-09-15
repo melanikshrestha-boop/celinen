@@ -11,12 +11,13 @@ interface FilmstripProps {
   shots: Shot[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onDeadPreview?: (id: string) => void;
   compact?: boolean;
   numbered?: boolean;
 }
 
 /** Virtualized contact sheet, or a single-row-height rail below the image in compact mode. */
-export function Filmstrip({ shots, selectedId, onSelect, compact = false, numbered = false }: FilmstripProps) {
+export function Filmstrip({ shots, selectedId, onSelect, onDeadPreview, compact = false, numbered = false }: FilmstripProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 520, columns: 4 });
@@ -137,6 +138,7 @@ export function Filmstrip({ shots, selectedId, onSelect, compact = false, number
                   shot={shot}
                   selected={shot.id === selectedId}
                   onSelect={onSelect}
+                  onDeadPreview={onDeadPreview}
                   index={numbered ? index + 1 : null}
                 />
               </div>
@@ -153,11 +155,13 @@ const FrameButton = memo(function FrameButton({
   shot: s,
   selected,
   onSelect,
+  onDeadPreview,
   index,
 }: {
   shot: Shot;
   selected: boolean;
   onSelect: (id: string) => void;
+  onDeadPreview?: (id: string) => void;
   index: number | null;
 }) {
   const availability = frameAvailability(s);
@@ -180,6 +184,7 @@ const FrameButton = memo(function FrameButton({
           alt={s.name}
           loading="lazy"
           className={`size-full object-cover ${s.verdict === "reject" ? "opacity-30" : ""}`}
+          onError={() => onDeadPreview?.(s.id)}
         />
       ) : (
         <span

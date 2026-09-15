@@ -109,7 +109,7 @@ try {
     await seed(id, 5, 99, mode);
     let result, failed = null;
     try { result = await snapshot(id); } catch (error) { failed = error; }
-    check(`${mode} snapshot preserves existing validation`, mode === "missing" ? failed instanceof Error && failed.message.includes("missing frame records") : result === null && failed === null);
+    check(`${mode} snapshot preserves existing validation`, result === null && failed === null);
     check(`${mode} snapshot cannot rebase a stale Studio writer`, await staleSave(old, id) instanceof studio.StudioSaveConflict);
     const [after] = await saved(id);
     check(`${mode} snapshot/save leaves the external session untouched`, mode === "absent" ? after === undefined : after.revision === 5 && (mode !== "empty" || after.shotIds.length === 0));

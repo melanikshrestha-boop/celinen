@@ -279,18 +279,17 @@ async function hydrateStudioSession(
     ) {
       throw new Error("The saved Studio frame index is invalid.");
     }
-    const records = isLegacy
-      ? stored.shots
-      : await Promise.all(
-          stored.shotIds.map((id) =>
-            requestResult(
-              transaction.objectStore(SHOT_STORE).get(id) as IDBRequest<StoredShot | undefined>,
+    const records = (
+      isLegacy
+        ? stored.shots
+        : await Promise.all(
+            stored.shotIds.map((id) =>
+              requestResult(
+                transaction.objectStore(SHOT_STORE).get(id) as IDBRequest<StoredShot | undefined>,
+              ),
             ),
-          ),
-        ).then((items) => items.filter((item): item is StoredShot => Boolean(item)));
-    if (!isLegacy && records.length !== stored.shotIds.length) {
-      throw new Error("The saved Studio session is missing frame records.");
-    }
+          ).then((items) => items.filter((item): item is StoredShot => Boolean(item)))
+    ).filter((record) => (record.previewBlob?.size ?? 0) >= 32);
     if (!records.length) {
       if (state) {
         state.knownRevision = loadedRevision;
@@ -477,7 +476,7 @@ export function saveStudioSession(
   shootId?: string,
 ): Promise<void> {
   const state = sessionState(scope, shootId);
-  const snapshot = shots.map((shot) => ({
+  const snapshot = shots.filter((shot) => (shot.previewBlob?.size ?? 0) >= 32 || shot.file.size >= 32).map((shot) => ({
     ...shot,
     edits: { ...shot.edits },
     flags: [...shot.flags],

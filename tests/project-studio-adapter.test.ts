@@ -266,38 +266,28 @@ describe("project Studio adapter: source bytes and preview-only boundaries", () 
     expect(await captured.blobs.get(before.frames[0].originalBlobId!)!.text()).toBe("abc");
   });
 
-  test("a missing original or declared preview fails hydration instead of silently downgrading", async () => {
+  test("missing original or declared preview drops that ghost frame instead of blocking the shoot", async () => {
     const source = shot("camera-a", "source", { previewBlob: new Blob(["preview"]) });
     const captured = await captureProject(emptyProject(), [source], source.id, "all");
     const before = structuredClone(captured.project);
     for (const key of captured.blobs.keys()) {
       const incomplete = new Map(captured.blobs);
       incomplete.delete(key);
-      await expect(hydrateProject(captured.project, incomplete)).rejects.toThrow(
-        "Missing project media",
-      );
+      const session = await hydrateProject(captured.project, incomplete);
+      expect(session.shots).toEqual([]);
     }
     expect(captured.project).toEqual(before);
   });
 
-  test("hydration failure revokes preview URLs already allocated for earlier frames", async () => {
+  test("hydration keeps frames that still have pixels and drops the rest", async () => {
     const a = shot("camera-a", "source A", { previewBlob: new Blob(["preview A"]) });
     const b = shot("camera-b", "source B", { previewBlob: new Blob(["preview B"]) });
     const captured = await captureProject(emptyProject(), [a, b], null, "all");
     const incomplete = new Map(captured.blobs);
     incomplete.delete(captured.project.frames[1].originalBlobId!);
-    const created = spyOn(URL, "createObjectURL");
-    const revoked = spyOn(URL, "revokeObjectURL");
-    try {
-      await expect(hydrateProject(captured.project, incomplete)).rejects.toThrow(
-        "Missing project media",
-      );
-      expect(created).toHaveBeenCalledTimes(1);
-      expect(revoked).toHaveBeenCalledWith(created.mock.results[0].value);
-    } finally {
-      created.mockRestore();
-      revoked.mockRestore();
-    }
+    const session = await hydrateProject(captured.project, incomplete);
+    expect(session.shots.map((item) => item.id)).toEqual([a.id]);
+    for (const shot of session.shots) if (shot.previewUrl) URL.revokeObjectURL(shot.previewUrl);
   });
 });
 

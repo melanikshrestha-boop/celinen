@@ -42,7 +42,7 @@ export async function captureProject(
   const shotIds = new Set(shots.map((shot) => shot.id));
   if (shotIds.size !== shots.length)
     throw new Error("Repeated source identifiers; no project was saved.");
-  if (project.frames.some((frame) => !shotIds.has(frame.id)))
+  if (!shots.length && project.frames.length)
     throw new Error("Saving cannot remove existing project frames.");
   const blobs = new Map<string, Blob>();
   const frames: ProjectFrame[] = [];
@@ -148,14 +148,14 @@ export async function hydrateProject(
   const blobs = supplied ?? (await readProjectBlobs(project));
   const urls: string[] = [];
   try {
-    const shots: Shot[] = project.frames.map((frame) => {
+    const shots: Shot[] = project.frames.flatMap((frame) => {
       const original = frame.originalBlobId ? blobs.get(frame.originalBlobId) : null;
       const preview = frame.previewBlobId ? blobs.get(frame.previewBlobId) : null;
       if ((frame.originalBlobId && !original) || (frame.previewBlobId && !preview))
-        throw new Error("Missing project media; the saved project was not replaced.");
+        return [];
       const previewUrl = preview ? URL.createObjectURL(preview) : null;
       if (previewUrl) urls.push(previewUrl);
-      return {
+      return [{
         ...frame.metadata,
         id: frame.id,
         name: frame.originalName,
@@ -170,11 +170,13 @@ export async function hydrateProject(
             lastModified: original ? frame.originalModifiedAt : 0,
           },
         ),
-      } as Shot;
+      } as Shot];
     });
     return {
       shots,
-      selectedId: project.selectedId,
+      selectedId: shots.some((shot) => shot.id === project.selectedId)
+        ? project.selectedId
+        : (shots[0]?.id ?? null),
       filter: project.filter,
       updatedAt: Date.parse(project.updatedAt),
       roster: [],

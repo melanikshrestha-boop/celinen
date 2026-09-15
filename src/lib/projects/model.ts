@@ -397,10 +397,11 @@ export function assertProjectAdvance(current: Project, next: Project): void {
       "Project changed in another tab. Reload before saving; no changes were overwritten.",
     );
   const nextFrames = new Map(next.frames.map((frame) => [frame.id, frame]));
-  if (current.frames.some((frame) => !nextFrames.has(frame.id)))
-    throw new Error("Saving cannot remove existing project assets.");
+  // Photographers may drop frames that never showed a photo. Keep original
+  // bytes immutable for any frame that remains.
   for (const frame of current.frames) {
-    const replacement = nextFrames.get(frame.id)!;
+    const replacement = nextFrames.get(frame.id);
+    if (!replacement) continue;
     if (frame.originalBlobId && replacement.originalBlobId !== frame.originalBlobId)
       throw new Error("An original's bytes cannot change silently.");
     if (

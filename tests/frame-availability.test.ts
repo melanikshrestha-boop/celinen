@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { frameAvailability, frameAvailabilityLabel } from "../src/lib/studio/frame-availability";
+import {
+  frameAvailability,
+  frameAvailabilityLabel,
+  studioFrameHasVisiblePhoto,
+} from "../src/lib/studio/frame-availability";
 
 describe("culling frame availability", () => {
   test("keeps decode failure distinct from ready, pending, and disconnected previews", () => {
@@ -26,5 +30,28 @@ describe("culling frame availability", () => {
     const before = structuredClone(frame);
     expect(frameAvailability(frame)).toBe("unreadable");
     expect(frame).toEqual(before);
+  });
+
+  test("ghost frames without image bytes are not visible photos", () => {
+    expect(studioFrameHasVisiblePhoto({ previewUrl: "blob:stale", file: new File([], "empty.jpg") })).toBe(
+      false,
+    );
+    expect(
+      studioFrameHasVisiblePhoto({
+        previewUrl: null,
+        previewBlob: new Blob(["x"]),
+        file: new File([], "x.jpg"),
+      }),
+    ).toBe(false);
+    expect(
+      studioFrameHasVisiblePhoto({
+        previewUrl: null,
+        previewBlob: new Blob(["0123456789abcdef0123456789abcdef"]),
+        file: new File([], "ok.jpg"),
+      }),
+    ).toBe(true);
+    expect(studioFrameHasVisiblePhoto({ error: "decode failed", file: new File(["bytes-bytes-bytes-bytes"], "a.jpg") })).toBe(
+      false,
+    );
   });
 });

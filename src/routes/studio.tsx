@@ -48,6 +48,7 @@ import { PeoplePanel } from "@/components/studio/PeoplePanel";
 import { StudioFilterMenu } from "@/components/studio/StudioFilterMenu";
 import { SaveRecovery } from "@/components/studio/SaveRecovery";
 import { describeShoot } from "@/lib/studio/shoot-brief";
+import { studioFrameHasVisiblePhoto } from "@/lib/studio/frame-availability";
 import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
 import {
@@ -420,6 +421,7 @@ export function Studio({
   const importCullRef = useRef({ running: false, token: 0, applied: false });
   const importAbortRef = useRef<AbortController | null>(null);
   const previewUrlsRef = useRef(new Set<string>());
+  const remintedPreviewRef = useRef(new Set<string>());
   const inputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const [faceEngine, setFaceEngine] = useState(false);
@@ -542,6 +544,38 @@ export function Studio({
     latestShotsRef.current = next;
     setShots(next);
   }, []);
+
+  const dropDeadPreview = useCallback(
+    (id: string) => {
+      if (importingRef.current) return;
+      const shot = latestShotsRef.current.find((item) => item.id === id);
+      if (!shot) return;
+      if (!remintedPreviewRef.current.has(id) && (shot.previewBlob?.size ?? 0) >= 32) {
+        remintedPreviewRef.current.add(id);
+        if (shot.previewUrl) {
+          URL.revokeObjectURL(shot.previewUrl);
+          previewUrlsRef.current.delete(shot.previewUrl);
+        }
+        const url = URL.createObjectURL(shot.previewBlob!);
+        previewUrlsRef.current.add(url);
+        updateShots((current) =>
+          current.map((item) => (item.id === id ? { ...item, previewUrl: url } : item)),
+        );
+        return;
+      }
+      if (shot.previewUrl) {
+        URL.revokeObjectURL(shot.previewUrl);
+        previewUrlsRef.current.delete(shot.previewUrl);
+      }
+      updateShots((current) => current.filter((item) => item.id !== id));
+      if (latestSelectedIdRef.current === id) {
+        const next = latestShotsRef.current.find((item) => item.id !== id);
+        latestSelectedIdRef.current = next?.id ?? null;
+        setSelectedId(next?.id ?? null);
+      }
+    },
+    [updateShots],
+  );
 
   const runImportCull = useCallback(() => {
     if (importingRef.current || proposalRef.current) return;
@@ -896,9 +930,15 @@ export function Studio({
           selectSessionStatus("ready");
           return;
         }
+        const usable = session.shots.filter((shot) => studioFrameHasVisiblePhoto(shot));
         for (const shot of session.shots) {
-          if (shot.previewUrl) previewUrlsRef.current.add(shot.previewUrl);
+          if (!studioFrameHasVisiblePhoto(shot) && shot.previewUrl) {
+            URL.revokeObjectURL(shot.previewUrl);
+          } else if (shot.previewUrl) previewUrlsRef.current.add(shot.previewUrl);
         }
+        session.shots = usable;
+        if (session.selectedId && !usable.some((shot) => shot.id === session.selectedId))
+          session.selectedId = usable[0]?.id ?? null;
         const restored = restoreStudioRuntime(runtimeKey, session.shots);
         undoRef.current = restored.undo as UndoCheckpoint[];
         // Canonical review/edits win; the old runtime contributes only its undo record.
@@ -2530,7 +2570,12 @@ export function Studio({
                   <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-moss">
                     Filmstrip · {visible.length} frames
                   </div>
-                  <Filmstrip shots={visible} selectedId={selectedId} onSelect={selectShot} />
+                  <Filmstrip
+                    shots={visible}
+                    selectedId={selectedId}
+                    onSelect={selectShot}
+                    onDeadPreview={dropDeadPreview}
+                  />
                   <p className="mt-3 font-mono text-[10px] text-moss">
                     ← → browse · K keep · R/X reject · Space toggle · U clear · ⌘Z undo
                   </p>

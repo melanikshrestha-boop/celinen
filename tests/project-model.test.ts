@@ -457,11 +457,11 @@ describe("project advances preserve source assets and immutable history", () => 
     expect(() => assertProjectAdvance(current, next)).toThrow("another tab");
   });
 
-  test("cannot silently remove an existing frame or replace its original bytes", () => {
+  test("cannot replace original bytes of a frame that remains", () => {
     const current = fixture();
-    const next = copy(current);
-    next.frames.pop();
-    expect(() => assertProjectAdvance(current, next)).toThrow("remove existing");
+    const dropped = copy(current);
+    dropped.frames.pop();
+    expect(() => assertProjectAdvance(current, dropped)).not.toThrow();
     const replaced = copy(current);
     replaced.frames[0]!.originalBlobId = hashB;
     expect(() => assertProjectAdvance(current, replaced)).toThrow("bytes cannot change");
