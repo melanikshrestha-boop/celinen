@@ -210,6 +210,20 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
   expect(css).not.toContain("flex-basis: 100%");
 });
 
+test("night mode calendar does not reserve a black appearance gutter", () => {
+  const dash = readFileSync(
+    new URL("../src/components/dashboard/dashboard.css", import.meta.url),
+    "utf8",
+  );
+  const cal = readFileSync(
+    new URL("../src/components/dashboard/ios-calendar.css", import.meta.url),
+    "utf8",
+  );
+  expect(dash).toContain(".celinen-dash__body.is-cal {\n  padding-right: 0;");
+  expect(dash).toContain("html.dark .celinen-dash__body.is-cal {\n  background: #111111;");
+  expect(cal).toContain("padding: 0 96px 0 16px");
+});
+
 test("desktop calendar view switcher moves without a click", () => {
   const source = readFileSync(
     new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url),

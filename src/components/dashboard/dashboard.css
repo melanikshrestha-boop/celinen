@@ -310,9 +310,11 @@ html:has(.celinen-dash) {
   overflow: auto;
   min-height: 0;
 }
-.celinen-dash__body.is-tool:not(:has(.foto-develop)),
-.celinen-dash__body.is-cal {
+.celinen-dash__body.is-tool:not(:has(.foto-develop)) {
   padding-right: 92px;
+}
+.celinen-dash__body.is-cal {
+  padding-right: 0;
 }
 .celinen-dash__body:has(.foto-develop) {
   overflow: hidden;
@@ -602,6 +604,9 @@ html.dark .celinen-dash-tool,
 html.dark .celinen-embedded-studio {
   background: #000;
   color: #ededed;
+}
+html.dark .celinen-dash__body.is-cal {
+  background: #111111;
 }
 html.dark .celinen-dash__brand,
 html.dark .celinen-dash__brand svg,
