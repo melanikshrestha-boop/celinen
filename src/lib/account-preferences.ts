@@ -16,7 +16,7 @@ export const displayNameSchema = z
   );
 export const preferencesSchema = z
   .object({
-    theme: z.enum(["light", "dark", "system"]).default("light"),
+    theme: z.enum(["light", "dark", "system"]).default("dark"),
     language: z.enum(["en", "es", "auto"]).default("en"),
     fileDestination: z.enum(["studio", "adobe", "folder"]).default("studio"),
     appearance: appearanceSchema

@@ -74,8 +74,8 @@ describe("Neutral sidebar theme surfaces", () => {
     expect(header).toContain("--wb-bg: #000000;");
     expect(header).toContain("--wb-text: #f5f5f5;");
   });
-  test("new workspaces default to light with translucent navigation, not System or blue", () => {
-    expect(DEFAULT_PREFERENCES.theme).toBe("light");
+  test("new workspaces default to dark with translucent navigation, not System or blue", () => {
+    expect(DEFAULT_PREFERENCES.theme).toBe("dark");
     expect(DEFAULT_APPEARANCE.translucentSidebar).toBe(true);
     const tokens = sidebarSurfaceTokens(DEFAULT_APPEARANCE, true);
     expect(tokens["--foto-sidebar-material"]).toBe("#000000cc");

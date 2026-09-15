@@ -5,7 +5,7 @@ html:has(.photo-workbench, .workbench-lock) {
   --wb-surface: #f6f8fb;
   --wb-text: #142a36;
   --wb-muted: #516570;
-  --workspace-ui-font: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  --workspace-ui-font: var(--font-sans);
   --workspace-sidebar-width: 232px;
   --wb-sidebar-material: #ffffff;
   --wb-sidebar-solid: #ffffff;
@@ -263,11 +263,11 @@ html:not(.dark) [data-mobile="true"][data-sidebar="sidebar"] {
 }
 /* Shared neutral material in the full sidebar and compact rail. No colored underlay. */
 :is(.workbench-sidebar, .workbench-mobile-sidebar, .foto-mobile-rail) {
-  --foto-sidebar-row-height: 40px;
+  --foto-sidebar-row-height: 29px;
   --wb-text: var(--foto-sidebar-text, #142a36);
   --wb-muted: var(--foto-sidebar-muted, #516570);
   color: var(--wb-text);
-  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-family: var(--workspace-ui-font);
 }
 .workbench-brand-row .workbench-brand {
   display: inline-flex;
@@ -1536,7 +1536,7 @@ html.dark .workbench-header {
   gap: 20px;
   background: #fff;
   color: #142a36;
-  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-family: var(--workspace-ui-font);
 }
 html.dark .workbench-lock {
   background: #000;

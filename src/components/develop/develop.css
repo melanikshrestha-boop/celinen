@@ -49,28 +49,28 @@
   position: relative;
 }
 html.dark .foto-develop {
-  --dv-bg: #ffffff;
-  --dv-panel: #ffffff;
-  --dv-inset: #f5f5f5;
-  --dv-text: #171717;
-  --dv-muted: #6b6b6b;
-  --dv-line: #ececec;
-  --dv-hover: #f0f0f0;
-  --dv-press: #e8e8e8;
-  --dv-input: #ffffff;
-  --dv-input-line: #d4d4d4;
-  --dv-chrome: #ffffff;
-  --dv-status: #ffffff;
-  --dv-stage: #ffffff;
-  --dv-gutter: #ffffff;
-  --dv-well: #f3f3f3;
-  --dv-button: #f2f2f2;
-  --dv-button-line: #d8d8d8;
-  --dv-film: #ececec;
-  --dv-thumb: #f0f0f0;
-  --dv-thumb-on: #e2e2e2;
-  --dv-focus: #171717;
-  color-scheme: light;
+  --dv-bg: #202020;
+  --dv-panel: #292929;
+  --dv-inset: #242424;
+  --dv-text: #d4d4d4;
+  --dv-muted: #949494;
+  --dv-line: #191919;
+  --dv-hover: #424242;
+  --dv-press: #484848;
+  --dv-input: #252525;
+  --dv-input-line: #484848;
+  --dv-chrome: #161616;
+  --dv-status: #303030;
+  --dv-stage: #343434;
+  --dv-gutter: #171717;
+  --dv-well: #232323;
+  --dv-button: #3a3a3a;
+  --dv-button-line: #151515;
+  --dv-film: #444444;
+  --dv-thumb: #535353;
+  --dv-thumb-on: #858585;
+  --dv-focus: #d1d1d1;
+  color-scheme: dark;
 }
 .foto-develop * {
   box-sizing: border-box;

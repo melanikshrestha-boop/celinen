@@ -167,7 +167,7 @@ describe("Settings refinement: real routes and safe preferences", () => {
     const preview = previewSettingsImport(current, {
       ...DEFAULT_PREFERENCES,
       desktopNotifications: true,
-      theme: "dark",
+      theme: "light",
     });
     expect(preview.preferences.cloudAssistant).toBe(false);
     expect(preview.preferences.desktopNotifications).toBe(false);
@@ -179,13 +179,13 @@ describe("Settings refinement: real routes and safe preferences", () => {
   });
   test("concurrent edits merge unrelated fields and reject conflicting stale changes", () => {
     const base = DEFAULT_PREFERENCES;
-    const latest = { ...base, theme: "dark" as const };
+    const latest = { ...base, theme: "light" as const };
     expect(mergePreferencePatch(base, latest, { sendKey: "modifier-enter" })).toMatchObject({
-      theme: "dark",
+      theme: "light",
       sendKey: "modifier-enter",
     });
     expect(() => mergePreferencePatch(base, latest, { theme: "system" })).toThrow("another tab");
-    expect(mergePreferencePatch(base, latest, { theme: "dark" })).toEqual(latest);
+    expect(mergePreferencePatch(base, latest, { theme: "light" })).toEqual(latest);
     expect(() =>
       mergePreferencePatch(base, base, { appearance: { ...DEFAULT_APPEARANCE, uiSize: 99 } }),
     ).toThrow();
