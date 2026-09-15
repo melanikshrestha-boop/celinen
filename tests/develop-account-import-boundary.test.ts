@@ -195,12 +195,8 @@ describe("Develop import account lifetime across application shells", () => {
         expect(boundary.render(account("owner-a"), "/shoots/legacy/develop")).toMatchObject({
           type: "workbench",
         });
-        expect(boundary.render(account("owner-a"), "/develop")).toMatchObject({
-          type: "dashboard",
-        });
-        expect(boundary.render(account("owner-a"), "/earnings")).toMatchObject({
-          type: "dashboard",
-        });
+        expect(boundary.render(account("owner-a"), "/develop")).toBe("route");
+        expect(boundary.render(account("owner-a"), "/earnings")).toBe("route");
         expect(old.signal().aborted).toBe(false);
         if (current) {
           sessions.set(key(nextScope!), current.session);
@@ -208,8 +204,8 @@ describe("Develop import account lifetime across application shells", () => {
           await current.entered.promise;
         }
         const nextBranch = boundary.render(account(nextScope, setupComplete), path);
-        if (path === "/auth") expect(nextBranch).toBe("route");
-        else expect(nextBranch).toMatchObject({ type: setupComplete ? "dashboard" : "setup" });
+        if (path === "/auth" || setupComplete) expect(nextBranch).toBe("route");
+        else expect(nextBranch).toMatchObject({ type: "setup" });
         expect(old.signal().aborted).toBe(true);
         if (current) expect(current.signal().aborted).toBe(false);
         expect(boundary.cancellations).toEqual(["owner-a", nextScope ?? "signed-out"]);
@@ -241,8 +237,8 @@ describe("Develop import account lifetime across application shells", () => {
       expect(boundary.render(account("owner-a"), "/shoots/legacy/develop")).toMatchObject({
         type: "workbench",
       });
-      expect(boundary.render(account("owner-a"), "/earnings")).toMatchObject({ type: "dashboard" });
-      expect(boundary.render(account(null), "/earnings")).toMatchObject({ type: "dashboard" });
+      expect(boundary.render(account("owner-a"), "/earnings")).toBe("route");
+      expect(boundary.render(account(null), "/earnings")).toBe("route");
       expect(old.signal().aborted).toBe(true);
       old.release.resolve();
       await task;

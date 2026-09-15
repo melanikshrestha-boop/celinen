@@ -15,6 +15,13 @@ test("signed-in public CTA is Dashboard and opens the dashboard", () => {
   expect(isWorkbenchRoute(["__root__", "/studio"])).toBe(false);
   expect(isDashboardAppRoute(["__root__", "/studio"], "/studio")).toBe(true);
   expect(isPrivateAppRoute(["__root__", "/studio"], "/studio")).toBe(true);
+  const shell = readFileSync(
+    new URL("../src/components/workbench/Workbench.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(shell).not.toMatch(
+    /isDashboardAppRoute\([^)]*\)\s*return\s*<AppDashboard>\s*\{\s*children\s*\}/,
+  );
   expect(isPrivateAppRoute(["__root__", "/dashboard"], "/dashboard")).toBe(true);
   expect(isPrivateAppRoute(["__root__", "/"], "/")).toBe(false);
   expect(isPrivateAppRoute(["__root__", "/auth"], "/auth")).toBe(false);
