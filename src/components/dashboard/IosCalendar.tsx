@@ -23,6 +23,8 @@ import {
   readCalendarState,
   writeCalendarState,
 } from "@/lib/calendar-store";
+import { readBookingTypes, writeBookingTypes, type BookingType } from "@/lib/booking-types";
+import { BookingsPanel } from "./BookingsPanel";
 import "./ios-calendar.css";
 
 const VIEWS = [
@@ -142,6 +144,9 @@ export function IosCalendar() {
   const [composing, setComposing] = useState(false);
   const [open, setOpen] = useState(true);
   const [inspect, setInspect] = useState<string | null>(null);
+  const [bookOpen, setBookOpen] = useState(false);
+  const [types, setTypes] = useState<BookingType[]>([]);
+  const pendingType = useRef<BookingType | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLElement>(null);
   const drag = useRef<{
@@ -171,6 +176,7 @@ export function IosCalendar() {
     const next = { ...loaded, localEvents };
     setState(next);
     if (localEvents.length !== loaded.localEvents.length) writeCalendarState(scope, next);
+    setTypes(readBookingTypes(scope));
   }, [scope]);
 
   function persist(next: typeof state) {
@@ -307,16 +313,20 @@ export function IosCalendar() {
     const pct = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
     const startMin = 6 * 60 + Math.round((pct * 16 * 60) / 15) * 15;
     const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, startMin).getTime();
+    const session = pendingType.current;
+    const minutes = session?.durationMin ?? 60;
     const event: CalendarEvent = {
       id: `local-${start}-${Math.random().toString(36).slice(2, 8)}`,
-      title: "Shoot",
+      title: session?.title ?? "Shoot",
       start,
-      end: start + 60 * 60 * 1000,
+      end: start + minutes * 60 * 1000,
       allDay: false,
       source: "local",
-      kind: "shoot",
-      color: KIND_COLOR.shoot,
+      kind: session ? "meeting" : "shoot",
+      color: session ? KIND_COLOR.meeting : KIND_COLOR.shoot,
+      ...(session?.location ? { location: session.location } : {}),
     };
+    pendingType.current = null;
     persist({ ...state, localEvents: [...state.localEvents, event] });
     setInspect(event.id);
   }
@@ -428,6 +438,9 @@ export function IosCalendar() {
           <input type="search" placeholder="Search" />
         </label>
         <span className="celinen-ios-cal__tz">{tz}</span>
+        <button type="button" className="celinen-ios-cal__today" onClick={() => setBookOpen((value) => !value)}>
+          Book
+        </button>
         <button
           type="button"
           className="celinen-ios-cal__plus"
@@ -614,7 +627,19 @@ export function IosCalendar() {
             </div>
           )}
         </div>
-        {inspected ? (
+        {bookOpen ? (
+          <BookingsPanel
+            types={types}
+            onChange={(next) => {
+              setTypes(next);
+              if (scope) writeBookingTypes(scope, next);
+            }}
+            onBook={(type) => {
+              pendingType.current = type;
+              setBookOpen(false);
+            }}
+          />
+        ) : inspected ? (
           <aside className="celinen-ios-cal__inspect" aria-label="Event">
             <button type="button" className="celinen-ios-cal__dismiss" onClick={() => setInspect(null)}>
               Close

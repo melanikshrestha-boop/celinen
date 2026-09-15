@@ -292,6 +292,14 @@ function AccountDeliveryWorkspace({
         local: true,
       })),
   ];
+  useEffect(() => {
+    try {
+      localStorage.setItem("celinen.gallery.count.v1", String(allSummaries.length));
+      window.dispatchEvent(new Event("celinen-gallery-count"));
+    } catch {
+      /* ignore quota */
+    }
+  }, [allSummaries.length]);
   async function open(id: string) {
     if (busy) return;
     if (id === room?.id) return;
@@ -677,14 +685,8 @@ function AccountDeliveryWorkspace({
         }}
       >
         <div className="delivery-topline">
-          <div>
-            <p className="delivery-eyebrow">The client side of your craft</p>
-            <h1>Deliver.</h1>
-          </div>
+          <h1>{allSummaries.length > 1 ? "Galleries" : "Gallery"}</h1>
           <div className="delivery-inline-actions">
-            <a href="/deliver?legacy=1" className="delivery-quiet">
-              Previous galleries
-            </a>
             <button
               className="delivery-primary"
               disabled={busy}
@@ -694,12 +696,13 @@ function AccountDeliveryWorkspace({
               }}
             >
               <Plus size={16} />
-              New gallery
+              New
             </button>
           </div>
         </div>
-        <div className="delivery-layout">
-          <aside className="delivery-sidebar" aria-label="Your deliveries">
+        <div className={`delivery-layout${allSummaries.length ? "" : " is-empty"}`}>
+          {allSummaries.length ? (
+          <aside className="delivery-sidebar" aria-label="Galleries">
             {allSummaries.map((g) => (
               <button
                 key={g.id}
@@ -714,31 +717,11 @@ function AccountDeliveryWorkspace({
                 </small>
               </button>
             ))}
-            {!allSummaries.length && (
-              <p className="delivery-meta">Your galleries will live here.</p>
-            )}
           </aside>
+          ) : null}
           <div>
             {!room ? (
-              <div className="delivery-empty">
-                <p>
-                  A thoughtful handoff.
-                  <br />
-                  From first picks to final files.
-                </p>
-                <span>
-                  Give your client a private space to choose photos, leave notes, request changes,
-                  and approve the final edits.
-                </span>
-                <button className="delivery-primary mt-6" onClick={() => setNewOpen(true)}>
-                  Create your first gallery <ArrowRight size={16} />
-                </button>
-                {setupNote && (
-                  <p className="delivery-notice mt-6">
-                    {setupNote} Drafts can be prepared here now; they are not shared.
-                  </p>
-                )}
-              </div>
+              <div className="delivery-empty" aria-label="Gallery" />
             ) : (
               <>
                 <div className="delivery-room-heading">

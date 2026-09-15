@@ -4,9 +4,11 @@
 }
 .delivery-workspace {
   width: 100%;
-  max-width: 1480px;
-  margin: 0 auto;
-  padding: 16px 12px 64px;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 16px 24px 32px;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
 }
 .delivery-workspace button,
 .delivery-client button {
@@ -48,17 +50,24 @@
 }
 .delivery-topline h1,
 .delivery-client h1 {
-  font-family: var(--font-display);
-  font-size: clamp(28px, 3vw, 42px);
-  line-height: 1.1;
-  letter-spacing: -0.045em;
+  margin: 0;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-size: 26px;
+  line-height: 32px;
+  letter-spacing: -0.04em;
   font-weight: 600;
-  margin-top: 8px;
 }
 .delivery-layout {
   display: grid;
-  grid-template-columns: 186px minmax(0, 1fr);
-  gap: 44px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  min-height: 0;
+}
+.delivery-layout.is-empty {
+  grid-template-columns: minmax(0, 1fr);
+}
+.delivery-empty {
+  min-height: 60vh;
 }
 .delivery-sidebar {
   display: flex;
@@ -273,19 +282,14 @@
   flex-shrink: 0;
 }
 .delivery-empty {
-  padding: 64px 0;
-  max-width: 570px;
+  min-height: 60vh;
+  padding: 0;
 }
 .delivery-empty > p {
-  font: 500 clamp(22px, 2.5vw, 32px) var(--font-display);
-  letter-spacing: -0.035em;
+  display: none;
 }
 .delivery-empty > span {
-  display: block;
-  color: var(--color-moss);
-  font-size: 13px;
-  line-height: 1.7;
-  margin-top: 12px;
+  display: none;
   max-width: 430px;
 }
 .delivery-error {

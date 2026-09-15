@@ -39,7 +39,7 @@ export const Route = createFileRoute("/deliver")({
   validateSearch: (search: Record<string, unknown>) => search,
   head: () => ({
     meta: [
-      { title: "Deliver — Celinen" },
+      { title: "Gallery — Celinen" },
       {
         name: "description",
         content:

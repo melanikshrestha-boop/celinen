@@ -37,7 +37,7 @@ import "./social-accounts.css";
 
 const MAIN = [
   { to: "/dashboard", label: "Home", icon: House, end: true },
-  { to: "/deliver", label: "Galleries", icon: Images },
+  { to: "/deliver", label: "Gallery", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
   { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
   { to: "/earnings", label: "Analytics", icon: ChartNoAxesColumn },
@@ -454,6 +454,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
           <nav className="celinen-dash__nav" aria-label="Dashboard">
             {MAIN.map((item) => {
               const calendar = "view" in item;
+              const label =
+                item.to === "/deliver"
+                  ? Number(localStorage.getItem("celinen.gallery.count.v1") || "0") > 1
+                    ? "Galleries"
+                    : "Gallery"
+                  : item.label;
               const on = calendar
                 ? calendarOpen
                 : "end" in item && item.end
@@ -461,10 +467,10 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   : pathname === item.to || pathname.startsWith(`${item.to}/`);
               return (
                 <Link
-                  key={item.label}
+                  key={item.to}
                   to={item.to}
-                  title={item.label}
-                  aria-label={item.label}
+                  title={label}
+                  aria-label={label}
                   search={
                     calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined
                   }
@@ -480,7 +486,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   <span className="celinen-dash__ico" aria-hidden="true">
                     <item.icon size={20} strokeWidth={1.5} />
                   </span>
-                  <span>{item.label}</span>
+                  <span>{label}</span>
                 </Link>
               );
             })}
