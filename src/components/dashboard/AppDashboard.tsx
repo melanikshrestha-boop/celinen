@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUp,
-  Aperture,
   CalendarDays,
   ChartNoAxesColumn,
   House,
@@ -37,7 +36,6 @@ import "./dashboard.css";
 import "./social-accounts.css";
 
 const HOME_ACTIONS = [
-  { label: "Open Pick", to: "/studio", icon: Aperture },
   {
     label: "Open calendar",
     to: "/dashboard",

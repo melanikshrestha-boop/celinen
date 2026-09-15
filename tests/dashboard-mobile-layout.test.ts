@@ -46,6 +46,10 @@ function shell(mode: "open" | "mini" | null, width = 248) {
     useAccount: () => ({ status: "in", scope: "synthetic-owner", preferences: { theme: "light" } }),
     useIsMobile: () => mobile,
     useNavigate: () => () => {},
+    useRouter: () => ({ preloadRoute: async () => {} }),
+    queueStudioImport: () => {},
+    collectDroppedFiles: async () => ({ files: [] }),
+    Plus: "Plus",
     useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
       select({ location: { searchStr: "", pathname: "/earnings" } }),
     useState: (initial: unknown) => {

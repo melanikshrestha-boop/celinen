@@ -47,7 +47,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain('label: "Community"');
   expect(source).toContain("AccountMenu");
   expect(source).toContain("SocialDock");
-  expect(source).toContain("Aperture");
+  expect(source).toContain("Plus");
   expect(source).not.toContain("LayoutTemplate");
   const lucide = source.match(/import \{([\s\S]*?)\} from "lucide-react"/);
   expect(lucide).toBeTruthy();
@@ -94,7 +94,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Browse templates");
   expect(source).not.toContain("Planning a shoot week");
   expect(source).toContain("Ask ${PRODUCT_NAME}");
-  expect(source).toContain("Open Pick");
+  expect(source).not.toContain("Open Pick");
   expect(source).toContain('htmlFor="celinen-home-photos"');
   expect(source).toContain('aria-label="Add photos"');
   expect(source).toContain("queueStudioImport");
