@@ -97,6 +97,8 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Planning a shoot week");
   expect(source).toContain("Ask ${PRODUCT_NAME}");
   expect(source).toContain("Open Pick");
+  expect(source).toContain('preloadRoute({ to: "/studio" })');
+  expect(source).toContain('preload="intent"');
   expect(source).not.toContain("Send a gallery");
   expect(source).toContain("Open calendar");
   expect(source).toContain("social-post__action");
@@ -156,6 +158,13 @@ test("home canvas keeps a sky wash in dark, not a flat black field", () => {
   expect(css).toContain("home-composer-open");
   expect(css).toContain("home-open");
   expect(css).toContain(".social-post__action");
+});
+
+test("Pick does not flash Drop the shoot while the session is still opening", () => {
+  const studio = readFileSync(new URL("../src/routes/studio.tsx", import.meta.url), "utf8");
+  expect(studio).toContain('sessionStatus === "loading" && !shots.length && !progress');
+  expect(studio).toContain('aria-label="Opening Pick"');
+  expect(studio).not.toContain('return <p role="status">Opening your workspace…</p>');
 });
 
 test("develop rail mounts the Lightroom editor as the full page", () => {

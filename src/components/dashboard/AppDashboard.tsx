@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUp,
   Aperture,
@@ -144,6 +144,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const mobileRef = useRef(mobile);
   mobileRef.current = mobile;
   const navigate = useNavigate();
+  const router = useRouter();
+  useEffect(() => {
+    void router.preloadRoute({ to: "/studio" });
+    void router.preloadRoute({ to: "/publish" });
+    void router.preloadRoute({ to: "/develop" });
+  }, [router]);
   const search = useRouterState({ select: (state) => state.location.searchStr });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const calendarOpen =
@@ -636,6 +642,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                           key={item.label}
                           to={item.to}
                           search={"search" in item ? item.search : undefined}
+                          preload="intent"
+                          preloadDelay={0}
                           className="social-post__action"
                         >
                           <span className="social-post__action-mark" aria-hidden="true">

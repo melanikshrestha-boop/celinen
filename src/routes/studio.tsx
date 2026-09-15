@@ -225,7 +225,8 @@ function StudioRoute() {
   // The root workspace owns one persistent controller across tool navigation.
   if (workbench) return null;
   if (binding?.kind === "blocked") return <p role="alert">{binding.reason}</p>;
-  if (!account?.scope || !binding) return <p role="status">Opening your workspace…</p>;
+  if (!account?.scope || !binding)
+    return <div className="paper-tex min-h-screen bg-paper" aria-busy="true" />;
   // Dashboard routes have no Workbench controller. Bind their import and Cull
   // stores to the same verified owner that canonical Develop will use.
   return (
@@ -2219,11 +2220,13 @@ export function Studio({
               </Link>
             )}
             <span className="truncate font-mono text-[11px] text-moss">
-              {shots.length
-                ? `${counts.all} frames · ${counts.todo} to review · ${counts.keepers} keepers`
-                : embedded
-                  ? "Photos"
-                  : "no shoot loaded"}
+              {sessionStatus === "loading" && !shots.length
+                ? ""
+                : shots.length
+                  ? `${counts.all} frames · ${counts.todo} to review · ${counts.keepers} keepers`
+                  : embedded
+                    ? "Photos"
+                    : "no shoot loaded"}
             </span>
           </div>
 
@@ -2463,7 +2466,9 @@ export function Studio({
         }
       >
         <div className={embedded ? "min-h-0 min-w-0" : "min-w-0 xl:order-2"}>
-          {!shots.length && !progress ? (
+          {sessionStatus === "loading" && !shots.length && !progress ? (
+            <div className="mt-24 min-h-[320px]" aria-busy="true" aria-label="Opening Pick" />
+          ) : !shots.length && !progress ? (
             <div
               role="button"
               tabIndex={0}
