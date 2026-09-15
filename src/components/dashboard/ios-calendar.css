@@ -120,6 +120,7 @@ html.dark .celinen-dash__cal {
   color: var(--ios-muted);
 }
 .celinen-ios-cal__views {
+  position: relative;
   display: flex;
   align-items: center;
   flex: 0 0 auto;
@@ -132,18 +133,34 @@ html.dark .celinen-dash__cal {
   overflow: visible;
   background: #f0f0f2;
 }
+.celinen-ios-cal__views-thumb {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  height: calc(100% - 4px);
+  border-radius: 999px;
+  background: #e24b4b;
+  pointer-events: none;
+  transition: transform 180ms ease, width 180ms ease;
+}
 .celinen-ios-cal__views button {
+  position: relative;
+  z-index: 1;
   flex: 0 0 auto;
   min-height: 26px;
   padding: 0 12px;
   border-radius: 999px;
+  background: transparent;
   color: #6b6b70;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
+.celinen-ios-cal__bar .celinen-ios-cal__views button:hover {
+  background: transparent;
+}
 .celinen-ios-cal__views button[aria-selected="true"] {
-  background: #e24b4b;
+  background: transparent;
   color: #fff;
   box-shadow: none;
 }

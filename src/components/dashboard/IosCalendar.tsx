@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronLeft, ChevronRight, PanelLeft } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { parseShootNote } from "@/lib/calendar-assist";
@@ -149,6 +149,9 @@ export function IosCalendar() {
   const pendingType = useRef<BookingType | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLElement>(null);
+  const viewsRef = useRef<HTMLDivElement>(null);
+  const zoomAt = useRef(0);
+  const [thumb, setThumb] = useState({ x: 2, w: 0 });
   const drag = useRef<{
     id: string;
     mode: "move" | "resize";
@@ -178,6 +181,51 @@ export function IosCalendar() {
     if (localEvents.length !== loaded.localEvents.length) writeCalendarState(scope, next);
     setTypes(readBookingTypes(scope));
   }, [scope]);
+
+  function stepView(dir: number) {
+    const now = performance.now();
+    if (now - zoomAt.current < 140) return;
+    zoomAt.current = now;
+    setView((current) => {
+      const index = VIEWS.findIndex((item) => item.id === current);
+      return VIEWS[Math.max(0, Math.min(VIEWS.length - 1, index + dir))]?.id ?? current;
+    });
+  }
+
+  function syncThumb() {
+    const root = viewsRef.current;
+    const on = root?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!root || !on) return;
+    setThumb({ x: on.offsetLeft, w: on.offsetWidth });
+  }
+
+  useLayoutEffect(() => {
+    syncThumb();
+  }, [view]);
+
+  useEffect(() => {
+    const root = viewsRef.current;
+    const shell = shellRef.current;
+    if (!root || !shell) return;
+    const ro = new ResizeObserver(syncThumb);
+    ro.observe(root);
+    function onViewsWheel(event: WheelEvent) {
+      event.preventDefault();
+      stepView(event.deltaY > 0 || event.deltaX > 0 ? 1 : -1);
+    }
+    function onShellWheel(event: WheelEvent) {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      stepView(event.deltaY > 0 ? 1 : -1);
+    }
+    root.addEventListener("wheel", onViewsWheel, { passive: false });
+    shell.addEventListener("wheel", onShellWheel, { passive: false });
+    return () => {
+      ro.disconnect();
+      root.removeEventListener("wheel", onViewsWheel);
+      shell.removeEventListener("wheel", onShellWheel);
+    };
+  }, []);
 
   function persist(next: typeof state) {
     setState(next);
@@ -420,7 +468,12 @@ export function IosCalendar() {
         <button type="button" aria-label="Next" onClick={() => step(1)}>
           <ChevronRight size={16} strokeWidth={1.75} />
         </button>
-        <div className="celinen-ios-cal__views" role="tablist" aria-label="View">
+        <div className="celinen-ios-cal__views" role="tablist" aria-label="View" ref={viewsRef}>
+          <span
+            className="celinen-ios-cal__views-thumb"
+            style={{ width: thumb.w, transform: `translateX(${thumb.x}px)` }}
+            aria-hidden="true"
+          />
           {VIEWS.map((item) => (
             <button
               key={item.id}
@@ -428,6 +481,11 @@ export function IosCalendar() {
               role="tab"
               aria-selected={view === item.id}
               onClick={() => setView(item.id)}
+              onPointerEnter={(event) => {
+                // Desktop: hovering a view selects it. Touch still taps.
+                if (event.pointerType !== "mouse") return;
+                setView(item.id);
+              }}
             >
               {item.label}
             </button>

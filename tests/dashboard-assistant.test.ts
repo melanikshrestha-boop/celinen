@@ -209,3 +209,18 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
   expect(css).toContain("width: max-content");
   expect(css).not.toContain("flex-basis: 100%");
 });
+
+test("desktop calendar view switcher moves without a click", () => {
+  const source = readFileSync(
+    new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url),
+    "utf8",
+  );
+  const css = readFileSync(
+    new URL("../src/components/dashboard/ios-calendar.css", import.meta.url),
+    "utf8",
+  );
+  expect(source).toContain('event.pointerType !== "mouse"');
+  expect(source).toContain("celinen-ios-cal__views-thumb");
+  expect(source).toContain("onViewsWheel");
+  expect(css).toContain(".celinen-ios-cal__views-thumb");
+});
