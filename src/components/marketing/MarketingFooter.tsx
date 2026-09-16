@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
-import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/product";
+import { PRODUCT_TITLE, PRODUCT_TAGLINE } from "@/lib/product";
 import { COMPARE_ENTRIES } from "@/lib/public-compare";
 import { PUBLIC_SOCIALS } from "@/lib/public-socials";
 import "./public-details.css";
@@ -15,12 +15,12 @@ export function MarketingFooter() {
     <footer className="marketing-footer marketing-footer--directory">
       <nav className="marketing-footer__directory" aria-label="Footer">
         <div className="marketing-footer__column">
-          <h2>Why {PRODUCT_NAME}</h2>
+          <h2>Why {PRODUCT_TITLE}</h2>
           <ul>
             {COMPARE_ENTRIES.map((entry) => (
               <li key={entry.id}>
                 <Link to="/vs/$slug" params={{ slug: entry.id }}>
-                  {PRODUCT_NAME} vs. {entry.name}
+                  {PRODUCT_TITLE} vs. {entry.name}
                 </Link>
               </li>
             ))}
@@ -116,12 +116,12 @@ export function MarketingFooter() {
       </nav>
       <div className="marketing-footer__legal">
         <p>
-          © {year} {PRODUCT_NAME}. All rights reserved.
+          © {year} {PRODUCT_TITLE}. All rights reserved.
         </p>
         <p>{PRODUCT_TAGLINE}</p>
       </div>
       <p className="marketing-footer__giant" aria-hidden="true">
-        {PRODUCT_NAME}
+        {PRODUCT_TITLE}
       </p>
       <CookieConsent />
     </footer>

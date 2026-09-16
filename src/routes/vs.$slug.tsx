@@ -3,7 +3,7 @@ import { Nav } from "@/components/Nav";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { findCompare } from "@/lib/public-compare";
-import { PRODUCT_NAME } from "@/lib/product";
+import { PRODUCT_TITLE } from "@/lib/product";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
 import "@/components/marketing/public-details.css";
@@ -18,8 +18,8 @@ export const Route = createFileRoute("/vs/$slug")({
     meta: [
       {
         title: loaderData
-          ? `${PRODUCT_NAME} vs. ${loaderData.name}`
-          : "Comparison — celinen",
+          ? `${PRODUCT_TITLE} vs. ${loaderData.name}`
+          : "Comparison — Celinen",
       },
       { name: "robots", content: "noindex" },
     ],
@@ -39,7 +39,7 @@ function VsStubRoute() {
       <main id="main-content" tabIndex={-1} className="marketing-public-page">
         <header className="marketing-public-page__intro">
           <h1>
-            {PRODUCT_NAME} vs. {name}
+            {PRODUCT_TITLE} vs. {name}
           </h1>
         </header>
       </main>
