@@ -3,6 +3,8 @@ import { consentFromCookie } from "./marketing-consent";
 /** Event-only transport: no SDK, DOM collection, replay, identity persistence or retries. */
 export const PRODUCT_EVENTS = [
   "signup_completed",
+  "waitlist_joined",
+  "waitlist_cta_clicked",
   "app_opened",
   "shoot_created",
   "second_shoot_created",
