@@ -1,14 +1,11 @@
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
+import { paymentsAreConfigured } from "@/lib/payments-available";
 
 type Cycle = "monthly" | "yearly";
 
-function paymentsPublishable(): boolean {
-  const token = import.meta.env["VITE_PAYMENTS_CLIENT_TOKEN"] as string | undefined;
-  return Boolean(token?.startsWith("pk_"));
-}
-
-/** Stripe collects email and card. Do not add a second form in front of it. */
+/** Stripe collects email and card when configured; otherwise send people to auth. */
 export function PlanCheckout({
   plan,
   billing,
@@ -24,7 +21,21 @@ export function PlanCheckout({
   const priceId = `${plan}_${billing}`;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-  if (open && paymentsPublishable()) {
+  if (!paymentsAreConfigured()) {
+    return (
+      <div className="pricing-checkout">
+        <Link
+          to="/auth"
+          search={{ mode: "signup", next: "/studio" }}
+          className="pricing-pay inline-flex items-center justify-center"
+        >
+          Get started free
+        </Link>
+      </div>
+    );
+  }
+
+  if (open) {
     return (
       <div className="pricing-checkout">
         <StripeEmbeddedCheckout
