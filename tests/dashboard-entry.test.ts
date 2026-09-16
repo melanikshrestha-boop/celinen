@@ -127,6 +127,10 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain("padding-right: 92px");
   expect(css).toContain(".celinen-dash__composer");
   expect(css).toContain(".celinen-dash__body.is-chat");
+  expect(css).toContain(".celinen-dash .social-post.has-thread");
+  expect(css).toContain("overflow: hidden");
+  expect(css).toContain("white-space: pre-wrap");
+  expect(css).toContain("max-width: 52rem");
   expect(css).toContain(".social-post .celinen-dash__composer");
   expect(css).toContain("font-weight: 400");
   expect(css).toContain('font-family: var(--celinen-sans');

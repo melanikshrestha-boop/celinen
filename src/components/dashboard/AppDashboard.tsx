@@ -592,7 +592,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
               />
               <div className="social-post__stage">
                 {active?.messages.length ? (
-                  <div className="celinen-dash__thread">
+                  <div className="celinen-dash__thread" aria-label="Conversation">
                     {active.messages.map((message) => (
                       <p key={message.id} data-role={message.role}>
                         {message.text}
