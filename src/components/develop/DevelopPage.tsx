@@ -50,7 +50,11 @@ import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { prepareDevelopPreview } from "@/lib/develop/preview";
-import { asDevelopPreviewBlob, decodeDevelopPreview } from "@/lib/develop/decode-preview";
+import {
+  asDevelopViewBlob,
+  decodeDevelopPreview,
+  developPhotoViewBlob,
+} from "@/lib/develop/decode-preview";
 import { DevelopTutor } from "./DevelopTutor";
 import { canReuseNeutralDevelop, isNeutralDevelopRecipe } from "@/lib/develop/neutral";
 import { AutoCropDialog } from "./AutoCropDialog";
@@ -161,20 +165,21 @@ function useBlobUrl(blob: Blob | null | undefined) {
     }
     let cancelled = false;
     let url: string | null = null;
-    const publish = (typed: Blob) => {
-      if (cancelled) return;
-      url = URL.createObjectURL(typed);
-      if (cancelled) {
-        URL.revokeObjectURL(url);
-        return;
-      }
-      setValue({ blob, url });
-    };
-    if (blob.type.startsWith("image/")) publish(blob);
-    else
-      void asDevelopPreviewBlob(blob)
-        .catch(() => blob)
-        .then(publish);
+    void asDevelopViewBlob(blob)
+      .catch(() => null)
+      .then((typed) => {
+        if (cancelled) return;
+        if (!typed) {
+          setValue(null);
+          return;
+        }
+        url = URL.createObjectURL(typed);
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setValue({ blob, url });
+      });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
@@ -182,9 +187,27 @@ function useBlobUrl(blob: Blob | null | undefined) {
   }, [blob]);
   return value && value.blob === blob ? value.url : null;
 }
+function SafePreview({ src, className }: { src: string | null; className?: string }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [src]);
+  if (!src || broken) return null;
+  return <img className={className} src={src} alt="" onError={() => setBroken(true)} />;
+}
 function Thumb({ photo }: { photo: DevelopPhoto }) {
-  const url = useBlobUrl(photo.previewBlob ?? (!photo.isRaw ? photo.sourceBlob : null));
-  return url ? <img src={url} alt="" loading="lazy" /> : <ImagePlus size={18} />;
+  const [blob, setBlob] = useState<Blob | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void developPhotoViewBlob(photo).then((next) => {
+      if (!cancelled) setBlob(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [photo]);
+  const url = useBlobUrl(blob);
+  return url ? <SafePreview src={url} /> : null;
 }
 
 type DevelopPageProps = {
@@ -431,9 +454,23 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         ? neutralBlob
         : null,
     );
+  const [photoViewBlob, setPhotoViewBlob] = useState<Blob | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!photo) {
+      setPhotoViewBlob(null);
+      return;
+    }
+    void developPhotoViewBlob(photo).then((next) => {
+      if (!cancelled) setPhotoViewBlob(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [photo, photo?.id, photo?.previewBlob, photo?.sourceBlob, photo?.isRaw]);
   // A committed import is immediately viewable. Its camera preview is explicitly
   // temporary: it is never used as an export proof or a source-space editing surface.
-  const quickPreviewBlob = !url && !beforeUrl ? (photo?.previewBlob ?? null) : null;
+  const quickPreviewBlob = !url && !beforeUrl ? photoViewBlob : null;
   const quickPreviewUrl = useBlobUrl(quickPreviewBlob);
   const viewerUrl = url ?? beforeUrl ?? quickPreviewUrl;
   const viewerBlob = url ? renderBlob : beforeUrl ? neutralBlob : quickPreviewBlob;
@@ -1908,11 +1945,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           <aside className="develop-left">
             <Panel title="Navigator" open>
               <div className="develop-navigator">
-                {displayedUrl ? (
-                  <img src={displayedUrl} alt="" />
-                ) : (
-                  <ImagePlus size={24} />
-                )}
+                <SafePreview src={displayedUrl} />
               </div>
               <div className="develop-inline">
                 <button
@@ -2320,7 +2353,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   clipping={clipping}
                 />
               )}
-              {renderError && (
+              {renderError && !displayedUrl && (
                 <p className="develop-render-error" role="alert">
                   {renderError}
                 </p>

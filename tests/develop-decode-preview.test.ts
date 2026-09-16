@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   asDevelopPreviewBlob,
+  asDevelopViewBlob,
   cullBitmapStillCurrent,
   decodeDevelopPreview,
+  developPhotoViewBlob,
   sniffDevelopPreviewType,
 } from "../src/lib/develop/decode-preview";
 
@@ -26,6 +28,19 @@ describe("Develop preview MIME", () => {
       ),
     ).toBe("image/webp");
     expect(sniffDevelopPreviewType(Uint8Array.of(0, 1, 2, 3))).toBeNull();
+  });
+
+  test("view blobs never mint a URL for non-image bytes", async () => {
+    const jpegBlob = new Blob([jpeg]);
+    const view = await asDevelopViewBlob(jpegBlob);
+    expect(view?.type).toBe("image/jpeg");
+    expect(await asDevelopViewBlob(new Blob([new Uint8Array(16)]))).toBeNull();
+    const photo = await developPhotoViewBlob({
+      previewBlob: new Blob([new Uint8Array(8)]),
+      sourceBlob: new Blob([jpeg], { type: "image/jpeg" }),
+      isRaw: false,
+    });
+    expect(photo?.type).toBe("image/jpeg");
   });
 
   test("retags untyped JPEG bytes and leaves a typed JPEG identity alone", async () => {

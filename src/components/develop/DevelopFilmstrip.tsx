@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ImagePlus } from "lucide-react";
+import { Check } from "lucide-react";
 import type { DevelopDocument, DevelopPhoto } from "@/lib/develop/store";
 import {
   filmstripMountedIndices,
@@ -7,7 +7,7 @@ import {
   filmstripWindow,
   type FilmstripMetrics,
 } from "@/lib/develop/filmstrip-window";
-import { asDevelopPreviewBlob } from "@/lib/develop/decode-preview";
+import { asDevelopViewBlob } from "@/lib/develop/decode-preview";
 import "./develop-filmstrip.css";
 
 /** Blob ownership is local to a mounted thumbnail, never the whole logical library. */
@@ -16,39 +16,42 @@ export const DevelopFilmstripThumb = memo(function DevelopFilmstripThumb({
 }: {
   photo: DevelopPhoto;
 }) {
-  const blob = photo.previewBlob ?? (!photo.isRaw ? photo.sourceBlob : null);
-  const [owner, setOwner] = useState<{ blob: Blob; url: string } | null>(null);
+  const [owner, setOwner] = useState<{ url: string } | null>(null);
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
-    if (!blob?.size) {
-      setOwner(null);
-      return;
-    }
+    setBroken(false);
     let cancelled = false;
     let url: string | null = null;
-    const publish = (typed: Blob) => {
+    void (async () => {
+      const preview = await asDevelopViewBlob(photo.previewBlob);
+      const typed =
+        preview ?? (photo.isRaw ? null : await asDevelopViewBlob(photo.sourceBlob));
       if (cancelled) return;
+      if (!typed) {
+        setOwner(null);
+        return;
+      }
       url = URL.createObjectURL(typed);
       if (cancelled) {
         URL.revokeObjectURL(url);
         return;
       }
-      setOwner({ blob, url });
-    };
-    if (blob.type.startsWith("image/")) publish(blob);
-    else
-      void asDevelopPreviewBlob(blob)
-        .catch(() => blob)
-        .then(publish);
+      setOwner({ url });
+    })();
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [blob]);
-  return owner && owner.blob === blob ? (
-    <img src={owner.url} alt="" loading="lazy" decoding="async" />
-  ) : (
-    <ImagePlus size={18} />
-  );
+  }, [photo, photo.previewBlob, photo.sourceBlob, photo.isRaw]);
+  return owner && !broken ? (
+    <img
+      src={owner.url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setBroken(true)}
+    />
+  ) : null;
 });
 
 type FrameProps = {

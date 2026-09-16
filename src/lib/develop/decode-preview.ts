@@ -37,7 +37,29 @@ export async function asDevelopPreviewBlob(blob: Blob): Promise<Blob> {
   const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
   const type = sniffDevelopPreviewType(header);
   if (!type) return blob;
-  return new Blob([blob], { type });
+  return new Blob([await blob.arrayBuffer()], { type });
+}
+
+/** Null when the bytes are not a JPEG/PNG/WebP. Never hand a broken-image `?` a URL. */
+export async function asDevelopViewBlob(blob: Blob | null | undefined): Promise<Blob | null> {
+  if (!blob?.size) return null;
+  const typed = await asDevelopPreviewBlob(blob);
+  return typed.type.startsWith("image/") ? typed : null;
+}
+
+export async function developBlobIsViewable(blob: Blob | null | undefined): Promise<boolean> {
+  return Boolean(await asDevelopViewBlob(blob));
+}
+
+export async function developPhotoViewBlob(photo: {
+  previewBlob?: Blob | null;
+  sourceBlob?: Blob | null;
+  isRaw?: boolean;
+}): Promise<Blob | null> {
+  const preview = await asDevelopViewBlob(photo.previewBlob);
+  if (preview) return preview;
+  if (photo.isRaw) return null;
+  return asDevelopViewBlob(photo.sourceBlob);
 }
 
 async function bitmapFromImageUrl(url: string, revoke = false): Promise<ImageBitmap> {

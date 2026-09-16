@@ -323,8 +323,12 @@ export async function runDevelopImport(
       else {
         const input = identified.value;
         const existing = claims.get(input.id);
-        if (knownIds.has(input.id) || existing?.succeeded) complete(index, { kind: "duplicate" });
-        else if (existing) existing.waiting.push({ index, input });
+        if (existing?.succeeded) complete(index, { kind: "duplicate" });
+        else if (knownIds.has(input.id)) {
+          const claim: IdentityClaim = { succeeded: false, waiting: [] };
+          claims.set(input.id, claim);
+          queuePreview({ index, input, claim });
+        } else if (existing) existing.waiting.push({ index, input });
         else {
           const claim: IdentityClaim = { succeeded: false, waiting: [] };
           claims.set(input.id, claim);
@@ -374,7 +378,19 @@ export async function runDevelopImport(
         consumed(index);
         continue;
       }
-      if (outcome.kind === "duplicate" || knownIds.has(outcome.value.id)) {
+      if (outcome.kind === "duplicate") {
+        report.duplicates++;
+        observer(() => options.onDuplicate?.(progress(index)));
+        consumed(index);
+        continue;
+      }
+      if (knownIds.has(outcome.value.id)) {
+        try {
+          signal.throwIfAborted();
+          await options.save(outcome.value);
+        } catch {
+          /* Keep the stored row if the preview remint cannot commit. */
+        }
         report.duplicates++;
         observer(() => options.onDuplicate?.(progress(index)));
         consumed(index);

@@ -17,6 +17,7 @@ import {
   DEVELOP_ENGINE_LIMITS,
   type DevelopSettings,
 } from "./contract";
+import { developBlobIsViewable } from "./decode-preview";
 
 /** Deliberately separate from Studio's databases. Develop never writes a Studio session. */
 export const DEVELOP_DATABASE_NAME = "foto-develop-v1";
@@ -1748,6 +1749,9 @@ export function createDevelopStore(options: DevelopStoreOptions) {
               const refreshAttachedPreview = Boolean(
                 input.reconnectOriginal && previous && !previous.sourceBlob && input.sourceBlob,
               );
+              const previousPreviewOk = previous
+                ? await developBlobIsViewable(previous.previewBlob)
+                : true;
               if (previous && canPreserveDevelopOriginalOnRestore(previous, input)) {
                 output.push({ ...photo!.value, sourceAvailable: true });
                 continue;
@@ -1763,7 +1767,7 @@ export function createDevelopStore(options: DevelopStoreOptions) {
               if (
                 previous &&
                 !(!previous.sourceBlob && input.sourceBlob) &&
-                !(!previous.previewBlob && input.previewBlob) &&
+                !(!previousPreviewOk && input.previewBlob) &&
                 !(!previous.sourceBlob && !previous.sourceDigest && input.sourceDigest) &&
                 !(!previous.width && input.width) &&
                 !(!previous.height && input.height) &&
@@ -1778,9 +1782,10 @@ export function createDevelopStore(options: DevelopStoreOptions) {
                 ? {
                     ...photo!.value,
                     sourceBlob: previous.sourceBlob ?? input.sourceBlob,
-                    previewBlob: refreshAttachedPreview
-                      ? input.previewBlob
-                      : (previous.previewBlob ?? input.previewBlob),
+                    previewBlob:
+                      refreshAttachedPreview || !previousPreviewOk
+                        ? input.previewBlob
+                        : (previous.previewBlob ?? input.previewBlob),
                     previewOrigin:
                       !refreshAttachedPreview && previous.previewBlob
                         ? (previous.previewOrigin ?? "unknown")
