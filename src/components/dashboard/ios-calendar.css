@@ -292,6 +292,10 @@ html.dark .celinen-dash__cal {
   background: #2f6fed;
   color: #fff;
 }
+.celinen-ios-cal__qday em,
+.celinen-ios-cal__mday em {
+  cursor: pointer;
+}
 .celinen-ios-cal__qday em {
   display: block;
   width: 100%;
@@ -747,15 +751,25 @@ html.dark .celinen-dash__cal {
   display: grid;
   min-height: 28px;
 }
-.celinen-ios-cal__lanes em {
+.celinen-ios-cal__lanes em,
+.celinen-ios-cal__lane {
   display: block;
+  width: calc(100% - 8px);
   margin: 2px 4px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  color: var(--ios-ink);
-  font-size: 11px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #2f6fed;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
   font-style: normal;
   font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.celinen-ios-cal__lane.is-on {
+  box-shadow: 0 0 0 1px #1c1c1e;
 }
 .celinen-ios-cal__gridscroll {
   display: grid;

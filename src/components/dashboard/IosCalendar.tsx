@@ -180,6 +180,8 @@ export function IosCalendar() {
   const [taskDraft, setTaskDraft] = useState("");
   const [tasksOpen, setTasksOpen] = useState(false);
   const [viewsOpen, setViewsOpen] = useState(false);
+  const [viewsLocked, setViewsLocked] = useState(false);
+  const viewsLockedRef = useRef(false);
   const taskScope = scope ?? "local";
   const pendingType = useRef<BookingType | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
@@ -279,6 +281,7 @@ export function IosCalendar() {
     const shell = shellRef.current;
     if (!root || !shell) return;
     function onViewsWheel(event: WheelEvent) {
+      if (viewsLockedRef.current) return;
       event.preventDefault();
       stepView(event.deltaY > 0 || event.deltaX > 0 ? 1 : -1);
     }
@@ -369,6 +372,17 @@ export function IosCalendar() {
     writeCalendarTasks(taskScope, next);
   }
 
+  function lockView(next: CalView) {
+    setView(next);
+    setViewsLocked(true);
+    viewsLockedRef.current = true;
+  }
+
+  function unlockViews() {
+    setViewsLocked(false);
+    viewsLockedRef.current = false;
+  }
+
   function submitAsk() {
     const event = parseShootNote(ask, { now: new Date(), selected, accent: "#2f6fed" });
     if (!event) return;
@@ -380,7 +394,11 @@ export function IosCalendar() {
   }
 
   function removeEvent(id: string) {
-    persist({ ...state, localEvents: state.localEvents.filter((event) => event.id !== id) });
+    persist({
+      ...state,
+      localEvents: state.localEvents.filter((event) => event.id !== id),
+      feedEvents: state.feedEvents.filter((event) => event.id !== id),
+    });
     setInspect(null);
   }
 
@@ -426,11 +444,11 @@ export function IosCalendar() {
       event.preventDefault();
       setComposing(true);
       requestAnimationFrame(() => askRef.current?.focus());
-    } else if (event.key === "d" || event.key === "D") setView("day");
-    else if (event.key === "w" || event.key === "W") setView("week");
-    else if (event.key === "m" || event.key === "M") setView("month");
-    else if (event.key === "q" || event.key === "Q") setView("quarter");
-    else if (event.key === "y" || event.key === "Y") setView("year");
+    } else if (event.key === "d" || event.key === "D") lockView("day");
+    else if (event.key === "w" || event.key === "W") lockView("week");
+    else if (event.key === "m" || event.key === "M") lockView("month");
+    else if (event.key === "q" || event.key === "Q") lockView("quarter");
+    else if (event.key === "y" || event.key === "Y") lockView("year");
     else if (event.key === "ArrowLeft") {
       event.preventDefault();
       step(-1);
@@ -441,6 +459,7 @@ export function IosCalendar() {
       setInspect(null);
       setTasksOpen(false);
       setViewsOpen(false);
+      unlockViews();
     }
     else if (event.key === "Delete" || event.key === "Backspace") {
       if (inspected?.source === "local") removeEvent(inspected.id);
@@ -596,10 +615,10 @@ export function IosCalendar() {
               type="button"
               role="tab"
               aria-selected={view === item.id}
-              onClick={() => setView(item.id)}
+              onClick={() => lockView(item.id)}
               onPointerEnter={(event) => {
-                // Desktop: hovering a view selects it. Touch still taps.
-                if (event.pointerType !== "mouse") return;
+                // Hover moves the view; a click locks it until Escape.
+                if (event.pointerType !== "mouse" || viewsLocked) return;
                 setView(item.id);
               }}
             >
@@ -682,7 +701,7 @@ export function IosCalendar() {
                     role="option"
                     aria-selected={view === item.id}
                     onClick={() => {
-                      setView(item.id);
+                      lockView(item.id);
                       setViewsOpen(false);
                     }}
                   >
@@ -800,7 +819,15 @@ export function IosCalendar() {
                             {quarterLabel(day, today)}
                           </span>
                           {onDay.slice(0, 3).map((event) => (
-                            <em key={event.id} style={{ background: eventColor(event) }}>
+                            <em
+                              key={event.id}
+                              style={{ background: eventColor(event) }}
+                              onClick={(click) => {
+                                click.stopPropagation();
+                                setSelected(day);
+                                setInspect(event.id);
+                              }}
+                            >
                               {event.title}
                             </em>
                           ))}
@@ -833,7 +860,15 @@ export function IosCalendar() {
                     >
                       <span className="celinen-ios-cal__num">{cell.date.getDate()}</span>
                       {onDay.slice(0, 4).map((event) => (
-                        <em key={event.id} style={{ borderLeftColor: eventColor(event) }}>
+                        <em
+                          key={event.id}
+                          style={{ borderLeftColor: eventColor(event) }}
+                          onClick={(click) => {
+                            click.stopPropagation();
+                            setSelected(cell.date);
+                            setInspect(event.id);
+                          }}
+                        >
                           {event.title}
                         </em>
                       ))}
@@ -871,9 +906,18 @@ export function IosCalendar() {
                     {eventsOnDay(events, day)
                       .filter((event) => event.allDay)
                       .map((event) => (
-                        <em key={event.id} style={{ background: eventColor(event) }}>
+                        <button
+                          key={event.id}
+                          type="button"
+                          className={`celinen-ios-cal__lane${inspect === event.id ? " is-on" : ""}`}
+                          style={{ background: eventColor(event) }}
+                          onClick={() => {
+                            setSelected(day);
+                            setInspect(event.id);
+                          }}
+                        >
                           {event.title}
-                        </em>
+                        </button>
                       ))}
                   </div>
                 ))}
@@ -959,11 +1003,9 @@ export function IosCalendar() {
             </p>
             {inspected.location ? <p>{inspected.location}</p> : null}
             <p className="celinen-ios-cal__kind">{KIND_LABEL[eventKind(inspected)]}</p>
-            {inspected.source === "local" ? (
-              <button type="button" onClick={() => removeEvent(inspected.id)}>
-                Delete
-              </button>
-            ) : null}
+            <button type="button" onClick={() => removeEvent(inspected.id)}>
+              Delete
+            </button>
           </aside>
         ) : null}
       </div>
