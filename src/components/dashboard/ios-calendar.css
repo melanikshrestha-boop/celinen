@@ -1175,6 +1175,14 @@ html.dark .celinen-dash__cal {
   font-weight: 600;
   cursor: pointer;
 }
+.celinen-ios-cal__sheet-actions button.is-delete {
+  background: #3a1515;
+  color: #ff6b6b;
+}
+html.dark .celinen-ios-cal__sheet-actions button.is-delete {
+  background: #4a1b1b;
+  color: #ff7a7a;
+}
 html.dark .celinen-ios-cal__sheet {
   background: #1c1c1e;
   color: #f2f2f2;

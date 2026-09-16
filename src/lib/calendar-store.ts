@@ -17,6 +17,18 @@ export function isCalendarDeleteCommand(title: string) {
   return /^\s*delete\s*$/i.test(title);
 }
 
+export function isCalendarDeleteKey(key: string) {
+  return key === "Delete" || key === "Backspace";
+}
+
+export function dropCalendarEvent(state: CalendarState, id: string): CalendarState {
+  return {
+    ...state,
+    localEvents: state.localEvents.filter((event) => event.id !== id),
+    feedEvents: state.feedEvents.filter((event) => event.id !== id),
+  };
+}
+
 export function emptyCalendarState(): CalendarState {
   return { feedUrl: "", feedEvents: [], localEvents: [], accent: "#ff3b30" };
 }

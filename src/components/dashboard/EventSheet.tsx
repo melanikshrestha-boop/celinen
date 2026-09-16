@@ -93,7 +93,8 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
             onChange({ ...value, title });
           }}
           onKeyDown={(event) => {
-            if (event.key === "Delete" && onDelete && mode === "edit") {
+            if (!onDelete || mode !== "edit") return;
+            if (event.key === "Delete" || ((event.metaKey || event.ctrlKey) && event.key === "Backspace")) {
               event.preventDefault();
               event.stopPropagation();
               onDelete();
@@ -188,7 +189,20 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
         </label>
         <div className="celinen-ios-cal__sheet-actions">
           {onDelete ? (
-            <button type="button" onClick={onDelete}>
+            <button
+              type="button"
+              className="is-delete"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDelete();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDelete();
+              }}
+            >
               Delete
             </button>
           ) : null}

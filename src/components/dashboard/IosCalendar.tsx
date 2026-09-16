@@ -20,8 +20,10 @@ import {
 } from "@/lib/calendar-kinds";
 import {
   allCalendarEvents,
+  dropCalendarEvent,
   emptyCalendarState,
   isCalendarDeleteCommand,
+  isCalendarDeleteKey,
   readCalendarState,
   writeCalendarState,
 } from "@/lib/calendar-store";
@@ -208,9 +210,16 @@ export function IosCalendar() {
     end: number;
     y: number;
     shift: boolean;
+    moved: boolean;
   } | null>(null);
   const paint = useRef<{ day: Date; origin: number; col: HTMLElement } | null>(null);
   const [ghost, setGhost] = useState<{ start: number; end: number } | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const sheetRef = useRef(sheet);
+  sheetRef.current = sheet;
+  const inspectRef = useRef(inspect);
+  inspectRef.current = inspect;
 
   const raw = allCalendarEvents(state);
   const events = raw.filter((event) => kindInViewSet(eventKind(event), setName));
@@ -243,6 +252,26 @@ export function IosCalendar() {
     const id = window.setInterval(() => setClock(new Date()), 15000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    function onWindowKey(event: globalThis.KeyboardEvent) {
+      const target = event.target;
+      const inField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+      const selectedId = sheetRef.current?.value.id || inspectRef.current;
+      if (!selectedId) return;
+      if (event.key === "Backspace" && inField && !event.metaKey && !event.ctrlKey) return;
+      if (!isCalendarDeleteKey(event.key)) return;
+      event.preventDefault();
+      persist(dropCalendarEvent(stateRef.current, selectedId));
+      inspectRef.current = null;
+      sheetRef.current = null;
+      setInspect(null);
+      setSheet(null);
+      setGhost(null);
+    }
+    window.addEventListener("keydown", onWindowKey);
+    return () => window.removeEventListener("keydown", onWindowKey);
+  }, [scope]);
 
   function stepView(dir: number) {
     const now = performance.now();
@@ -277,6 +306,7 @@ export function IosCalendar() {
   }, []);
 
   function persist(next: typeof state) {
+    stateRef.current = next;
     setState(next);
     if (scope) writeCalendarState(scope, next);
   }
@@ -327,13 +357,12 @@ export function IosCalendar() {
   }
 
   function removeEvent(id: string) {
-    persist({
-      ...state,
-      localEvents: state.localEvents.filter((event) => event.id !== id),
-      feedEvents: state.feedEvents.filter((event) => event.id !== id),
-    });
+    persist(dropCalendarEvent(stateRef.current, id));
+    inspectRef.current = null;
+    sheetRef.current = null;
     setInspect(null);
     setSheet(null);
+    setGhost(null);
   }
 
   function valueFromEvent(event: CalendarEvent): EventSheetValue {
@@ -423,13 +452,13 @@ export function IosCalendar() {
   function onKey(event: KeyboardEvent) {
     const inField =
       event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
-    const selectedId = sheet?.value.id || inspect;
-    if (event.key === "Delete" && selectedId) {
+    const selectedId = sheetRef.current?.value.id || inspectRef.current;
+    if (isCalendarDeleteKey(event.key) && selectedId && !inField) {
       event.preventDefault();
       removeEvent(selectedId);
       return;
     }
-    if (event.key === "Backspace" && selectedId && !inField) {
+    if (event.key === "Delete" && selectedId && inField) {
       event.preventDefault();
       removeEvent(selectedId);
       return;
@@ -466,9 +495,9 @@ export function IosCalendar() {
   }
 
   function startMove(event: PointerEvent<HTMLButtonElement>, item: CalendarEvent) {
+    inspectRef.current = item.id;
+    setInspect(item.id);
     if (item.source !== "local") return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {
       id: item.id,
       mode: event.shiftKey ? "resize" : "move",
@@ -476,12 +505,18 @@ export function IosCalendar() {
       end: item.end,
       y: event.clientY,
       shift: event.shiftKey,
+      moved: false,
     };
   }
 
   function onMove(event: PointerEvent<HTMLButtonElement>) {
     const job = drag.current;
     if (!job) return;
+    if (!job.moved && Math.abs(event.clientY - job.y) < 8) return;
+    if (!job.moved) {
+      job.moved = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     const delta = ((event.clientY - job.y) / 48) * 60 * 60 * 1000;
     const next = snapMs(delta, event.shiftKey);
     if (job.mode === "resize") {

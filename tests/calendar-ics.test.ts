@@ -9,13 +9,45 @@ import {
   quarterWeeks,
   sameDay,
 } from "../src/lib/calendar-ics";
-import { isCalendarDeleteCommand } from "../src/lib/calendar-store";
+import {
+  dropCalendarEvent,
+  emptyCalendarState,
+  isCalendarDeleteCommand,
+  isCalendarDeleteKey,
+} from "../src/lib/calendar-store";
 
 test("typing Delete on a note is a delete command", () => {
   expect(isCalendarDeleteCommand("Delete")).toBe(true);
   expect(isCalendarDeleteCommand(" delete ")).toBe(true);
   expect(isCalendarDeleteCommand("dih")).toBe(false);
   expect(isCalendarDeleteCommand("Delete later")).toBe(false);
+  expect(isCalendarDeleteKey("Delete")).toBe(true);
+  expect(isCalendarDeleteKey("Backspace")).toBe(true);
+  expect(isCalendarDeleteKey("Enter")).toBe(false);
+});
+
+test("dropCalendarEvent removes local and feed rows by id", () => {
+  const state = emptyCalendarState();
+  const local = {
+    id: "local-1",
+    title: "clih",
+    start: 1,
+    end: 2,
+    allDay: false,
+    source: "local" as const,
+  };
+  const feed = {
+    id: "feed-1",
+    title: "dih",
+    start: 3,
+    end: 4,
+    allDay: false,
+    source: "google" as const,
+  };
+  const next = dropCalendarEvent({ ...state, localEvents: [local], feedEvents: [feed] }, "local-1");
+  expect(next.localEvents).toEqual([]);
+  expect(next.feedEvents).toEqual([feed]);
+  expect(dropCalendarEvent(next, "feed-1").feedEvents).toEqual([]);
 });
 
 test("Google and Calendar iCal hosts are accepted, junk is not", () => {
@@ -95,7 +127,13 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(cal).toContain("Quarter");
   expect(cal).toContain("All Tasks");
   expect(cal).toContain("onDoubleClick");
-  expect(cal).toContain('event.key === "Delete"');
+  expect(cal).toContain("isCalendarDeleteKey");
+  expect(cal).toContain("dropCalendarEvent");
+  expect(cal).toContain("inspectRef.current = item.id");
+  const sheet = readFileSync(new URL("../src/components/dashboard/EventSheet.tsx", import.meta.url), "utf8");
+  expect(sheet).toContain('className="is-delete"');
+  expect(sheet).toContain("onPointerDown");
+  expect(css).toContain("button.is-delete");
   expect(cal).toContain('"week"');
   expect(cal).toContain('"quarter"');
   expect(cal).toContain("Day");
