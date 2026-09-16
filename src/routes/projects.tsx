@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Heart } from "lucide-react";
 import { Shell, Btn } from "@/components/lensos/Shell";
 import { isLocalSingleUserMode } from "@/lib/app-mode";
 import {
@@ -12,7 +13,13 @@ import {
   type Project,
   type ProjectInput,
 } from "@/lib/projects/model";
-import { commitProject, listProjects, readProjectBlobs } from "@/lib/projects/repository";
+import { commitProject, listProjects, readBlob, readProjectBlobs } from "@/lib/projects/repository";
+import {
+  readProjectCollections,
+  writeProjectCollections,
+  type ProjectCollection,
+} from "@/lib/projects/collections";
+import "@/components/projects/projects-library.css";
 import { createProjectArchive, parseProjectArchive } from "@/lib/projects/archive";
 import { ProjectProofs } from "@/components/projects/ProjectProofs";
 import { loadClientWorkspace, type WorkspaceClient } from "@/lib/client-workspace";
@@ -23,7 +30,7 @@ export const Route = createFileRoute("/projects")({
   validateSearch: (search: Record<string, unknown>): { id?: string } =>
     typeof search["id"] === "string" ? { id: search["id"] } : {},
   head: () => ({
-    meta: [{ title: "Shoots — Celinen" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Projects — Celinen" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: Projects,
 });
@@ -62,6 +69,10 @@ function Projects() {
     project: Project;
     blobs: Map<string, Blob>;
   } | null>(null);
+  const [tab, setTab] = useState<"all" | "collections" | "projects">("all");
+  const [browse, setBrowse] = useState<"library" | "detail">("library");
+  const [collections, setCollections] = useState<ProjectCollection[]>(readProjectCollections);
+  const [covers, setCovers] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
   const project = projects.find((row) => row.id === selectedId) ?? null;
@@ -94,6 +105,33 @@ function Projects() {
       window.removeEventListener("lenslabs:projects-changed", handler);
     };
   }, []);
+  useEffect(() => {
+    let gone = false;
+    const urls: string[] = [];
+    void (async () => {
+      const next: Record<string, string> = {};
+      for (const row of projects) {
+        const blobId =
+          row.frames.find((frame) => frame.previewBlobId)?.previewBlobId ??
+          row.frames.find((frame) => frame.originalBlobId)?.originalBlobId;
+        if (!blobId) continue;
+        try {
+          const blob = await readBlob(blobId);
+          if (!blob || gone) continue;
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          next[row.id] = url;
+        } catch {
+          /* cover optional */
+        }
+      }
+      if (!gone) setCovers(next);
+    })();
+    return () => {
+      gone = true;
+      for (const url of urls) URL.revokeObjectURL(url);
+    };
+  }, [projects]);
   const update = (row: Project) => {
     setProjects((rows) => [row, ...rows.filter((entry) => entry.id !== row.id)]);
     setSelectedId(row.id);
@@ -116,9 +154,14 @@ function Projects() {
       setBusy(false);
     }
   };
+  const saveCollections = (rows: ProjectCollection[]) => {
+    setCollections(rows);
+    writeProjectCollections(rows);
+  };
   const openForm = (row: Project | null) => {
     setCreating(!row);
     setEditing(true);
+    setBrowse("detail");
     setDraft(
       row
         ? {
@@ -210,7 +253,8 @@ function Projects() {
 
   return (
     <Shell hideEventHeader quietWorkspace>
-      <h1 className="mb-5 font-display text-2xl font-semibold tracking-tight">Shoots</h1>
+      <div className="celinen-projects">
+      <h1>Projects</h1>
       {local === null ? (
         <p>Opening workspace…</p>
       ) : !local ? (
@@ -220,28 +264,17 @@ function Projects() {
         </p>
       ) : (
         <>
-          <div className="mb-7 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Link to="/studio" search={{}} className={primaryAction}>
-              Start in Studio
-            </Link>
-            <Btn className={quietAction} disabled={busy} onClick={() => openForm(null)}>
-              New project
-            </Btn>
-            <Btn className={quietAction} disabled={busy} onClick={() => fileRef.current?.click()}>
-              Restore archive
-            </Btn>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".lenspack"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) inspectArchive(file);
-              }}
-            />
-          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".lenspack"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) inspectArchive(file);
+            }}
+          />
           {error && (
             <p role="alert" className="mb-4 text-sm text-destructive">
               {error}
@@ -296,8 +329,127 @@ function Projects() {
               </div>
             </section>
           )}
+          {browse === "library" && !editing ? (
+            <>
+              <div className="celinen-projects__tabs" role="tablist">
+                {(
+                  [
+                    ["all", `All`],
+                    ["collections", `Collections (${collections.length})`],
+                    ["projects", `Projects (${projects.length})`],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === id}
+                    onClick={() => setTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {tab !== "projects" ? (
+                <>
+                  <p className="celinen-projects__label">Collections</p>
+                  <div className="celinen-projects__grid">
+                    <button
+                      type="button"
+                      className="celinen-projects__tile"
+                      onClick={() =>
+                        saveCollections([
+                          ...collections,
+                          { id: `col-${Date.now()}`, title: "Collection", projectIds: [] },
+                        ])
+                      }
+                    >
+                      <strong>Add collection</strong>
+                    </button>
+                    {collections.map((row) => (
+                      <button
+                        key={row.id}
+                        type="button"
+                        className="celinen-projects__tile"
+                        onClick={() => setTab("projects")}
+                      >
+                        {row.id === "favorites" ? <Heart size={16} /> : null}
+                        <strong>{row.title}</strong>
+                        <span>
+                          {row.projectIds.length} shoot{row.projectIds.length === 1 ? "" : "s"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              {tab !== "collections" ? (
+                <>
+                  <p className="celinen-projects__label">Projects</p>
+                  <div className="celinen-projects__grid">
+                    <Link to="/studio" search={{}} className="celinen-projects__tile">
+                      <strong>Import shoot</strong>
+                    </Link>
+                    <button
+                      type="button"
+                      className="celinen-projects__tile"
+                      disabled={busy}
+                      onClick={() => openForm(null)}
+                    >
+                      <strong>New project</strong>
+                    </button>
+                    <button
+                      type="button"
+                      className="celinen-projects__tile"
+                      disabled={busy}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <strong>Restore archive</strong>
+                    </button>
+                    {projects
+                      .filter((row) =>
+                        `${row.title} ${row.genre} ${row.brief}`
+                          .toLowerCase()
+                          .includes(query.toLowerCase()),
+                      )
+                      .map((row) => (
+                        <button
+                          key={row.id}
+                          type="button"
+                          className="celinen-projects__card"
+                          onClick={() => {
+                            setSelectedId(row.id);
+                            setEditing(false);
+                            setBrowse("detail");
+                          }}
+                        >
+                          <span className="celinen-projects__cover">
+                            {covers[row.id] ? <img src={covers[row.id]} alt="" /> : null}
+                          </span>
+                          <strong>{row.title}</strong>
+                          <span>
+                            {row.genre} · {row.frames.length} frame
+                            {row.frames.length === 1 ? "" : "s"}
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : (
           <div className="grid items-start gap-x-10 gap-y-7 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside aria-label="Saved shoots" className="min-w-0 lg:sticky lg:top-28">
+              <button
+                type="button"
+                className={quietAction}
+                onClick={() => {
+                  setBrowse("library");
+                  setEditing(false);
+                }}
+              >
+                Projects
+              </button>
               <label className="mb-3 block text-sm text-moss">
                 Find projects
                 <input
@@ -606,8 +758,10 @@ function Projects() {
               )}
             </div>
           </div>
+          )}
         </>
       )}
+      </div>
     </Shell>
   );
 }

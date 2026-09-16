@@ -40,6 +40,16 @@ async function open(): Promise<IDBDatabase> {
   return db;
 }
 
+export async function readBlob(id: string): Promise<Blob | null> {
+  const db = await open();
+  try {
+    const blob = await idbRequest(db.transaction(BLOBS).objectStore(BLOBS).get(id));
+    return blob instanceof Blob ? blob : null;
+  } finally {
+    db.close();
+  }
+}
+
 export async function listProjects(): Promise<Project[]> {
   const db = await open();
   try {
