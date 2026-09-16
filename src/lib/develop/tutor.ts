@@ -235,7 +235,10 @@ export function pointId(path: string) {
   if (path.startsWith("wheel.shadows") || path === "wheel-shadows") return "wheel-shadows";
   if (path.startsWith("wheel.midtones") || path === "wheel-midtones") return "wheel-midtones";
   if (path.startsWith("wheel.highlights") || path === "wheel-highlights") return "wheel-highlights";
-  if (path.startsWith("hsl.orange")) return "hsl-orange-sat";
+  if (path.startsWith("hsl.")) {
+    const hsl = path.match(/^hsl\.([a-z]+)\.(hue|sat|luminance)$/);
+    if (hsl) return `hsl-${hsl[1]}-${hsl[2] === "sat" ? "sat" : hsl[2]}`;
+  }
   if (path.startsWith("curve") || path === "tone-curve") return "tone-curve";
   if (path.startsWith("parametric.")) return `slider-parametric-${path.slice("parametric.".length)}`;
   if (path === "crop.angle" || path === "straighten") return "slider-straighten";
@@ -311,7 +314,7 @@ export function parseBeats(text: string): TutorBeat[] {
     current.say = line.replace(/\[[^\]]+\]/g, "").trim();
   }
   if (current.say || current.sets.length) beats.push(current);
-  return beats.slice(0, 6);
+  return beats.slice(0, 16);
 }
 
 export function lookTitle(ask: string) {
@@ -327,18 +330,15 @@ export function compileLook(
   options: TutorCompileOptions = {},
 ): TutorBeat[] {
   const text = ask.toLowerCase();
-  const sonder = /sonder|cinematic|color theory|warm/.test(text);
   const advanced = options.advanced !== false;
-  if (!sonder) {
-    return parseBeats(`
-[OPEN:panel.basic]
-[POINT:#slider-temp]
-Warm the person. Leave the street cold.
-[SET:temp:+12]
-[WAIT]
-[DONE]
-    `);
-  }
+  if (/sonder/.test(text)) return compileSonder(current, advanced);
+  if (/cinematic|color theory|teal|film/.test(text)) return compileCinematic(advanced);
+  if (/moody|dark/.test(text)) return compileMoody(advanced);
+  if (/warm/.test(text)) return compileWarm(current);
+  return compileRawStart();
+}
+
+function compileSonder(current: DevelopSettings, advanced: boolean): TutorBeat[] {
   const alreadyWarm = current.temperature > 16;
   const beats: string[] = ["[OPEN:panel.basic]"];
   if (alreadyWarm) {
@@ -402,7 +402,125 @@ Warm the person. Leave the street cold.
       "[DONE]",
     );
   }
-  return parseBeats(beats.join("\n")).slice(0, 6);
+  return parseBeats(beats.join("\n"));
+}
+
+/** Lightroom-style RAW cinematic: tone, presence, curve, HSL, wheels, grain. Not WB-only. */
+function compileCinematic(advanced: boolean): TutorBeat[] {
+  const beats = [
+    "[OPEN:panel.basic]",
+    "[DRAW:photo.windows]",
+    "[POINT:#slider-highlights]",
+    "[SET:highlights:-28]",
+    "[SET:shadows:+14]",
+    "[SET:whites:-10]",
+    "[SET:blacks:-14]",
+    "[SET:contrast:+10]",
+    "[POINT:#slider-vibrance]",
+    "[SET:vibrance:+8]",
+    "[SET:saturation:-10]",
+    "[SET:dehaze:+6]",
+  ];
+  if (advanced) {
+    beats.push(
+      "[SET:clarity:-8]",
+      "[SET:texture:+8]",
+      "[OPEN:panel.curve]",
+      "[POINT:#slider-parametric-highlights]",
+      "[SET:parametric.highlights:-12]",
+      "[SET:parametric.darks:+10]",
+      "[POINT:#tone-curve]",
+      "[SET:curve.mid:-10]",
+      "[OPEN:panel.mixer]",
+      "[DRAW:photo.skin]",
+      "[POINT:#hsl-orange-sat]",
+      "[SET:hsl.orange.sat:-6]",
+      "[POINT:#hsl-aqua-sat]",
+      "[SET:hsl.aqua.sat:+10]",
+      "[OPEN:panel.grading]",
+      "[POINT:#wheel-shadows]",
+      "[SET:wheel.shadows.hue:+200]",
+      "[SET:wheel.shadows.sat:+14]",
+      "[POINT:#wheel-highlights]",
+      "[SET:wheel.highlights.hue:+32]",
+      "[SET:wheel.highlights.sat:+8]",
+      "[OPEN:panel.effects]",
+      "[POINT:#slider-grain]",
+      "[SET:grain:+14]",
+      "[SET:vignette:-18]",
+      "[SET:fade:+10]",
+      "[OPEN:panel.detail]",
+      "[POINT:#slider-sharpening]",
+      "[SET:sharpening:+32]",
+      "[SET:noiseReduction:+16]",
+      "[DONE]",
+    );
+  } else {
+    beats.push("[DONE]");
+  }
+  return parseBeats(beats.join("\n"));
+}
+
+function compileMoody(advanced: boolean): TutorBeat[] {
+  const beats = [
+    "[OPEN:panel.basic]",
+    "[POINT:#slider-exposure]",
+    "[SET:exposure:-0.35]",
+    "[POINT:#slider-highlights]",
+    "[SET:highlights:-22]",
+    "[POINT:#slider-shadows]",
+    "[SET:shadows:-8]",
+    "[POINT:#slider-blacks]",
+    "[SET:blacks:-18]",
+    "[POINT:#slider-contrast]",
+    "[SET:contrast:+12]",
+  ];
+  if (advanced) {
+    beats.push(
+      "[OPEN:panel.curve]",
+      "[POINT:#tone-curve]",
+      "[SET:curve.mid:-8]",
+      "[OPEN:panel.effects]",
+      "[POINT:#slider-vignette]",
+      "[SET:vignette:-22]",
+      "[DONE]",
+    );
+  } else beats.push("[DONE]");
+  return parseBeats(beats.join("\n"));
+}
+
+function compileWarm(current: DevelopSettings): TutorBeat[] {
+  const beats = ["[OPEN:panel.basic]"];
+  if (current.temperature <= 16) {
+    beats.push("[POINT:#slider-temp]", "[SET:temp:+14]");
+  }
+  beats.push(
+    "[POINT:#slider-tint]",
+    "[SET:tint:-4]",
+    "[POINT:#slider-highlights]",
+    "[SET:highlights:-16]",
+    "[POINT:#slider-shadows]",
+    "[SET:shadows:+10]",
+    "[DONE]",
+  );
+  return parseBeats(beats.join("\n"));
+}
+
+function compileRawStart(): TutorBeat[] {
+  return parseBeats(`
+[OPEN:panel.basic]
+[POINT:#slider-highlights]
+[SET:highlights:-18]
+[POINT:#slider-shadows]
+[SET:shadows:+12]
+[POINT:#slider-whites]
+[SET:whites:-8]
+[POINT:#slider-blacks]
+[SET:blacks:-8]
+[POINT:#slider-contrast]
+[SET:contrast:+6]
+[DONE]
+  `);
 }
 
 export function pointerLabel(id?: string) {
@@ -535,8 +653,14 @@ export function midCurveHandle(root?: ParentNode | null) {
   return null;
 }
 
+export function mixerChip(point?: string) {
+  if (!point?.startsWith("hsl-")) return "hsl-orange";
+  const name = point.split("-")[1];
+  return name ? `hsl-${name}` : "hsl-orange";
+}
+
 /** Click the real panel row. Accordion the rest of the right rail. */
-export function openPanel(id: string) {
+export function openPanel(id: string, point?: string) {
   if (typeof document === "undefined") return false;
   const panel = document.getElementById(id);
   if (!(panel instanceof HTMLDetailsElement)) return false;
@@ -546,7 +670,7 @@ export function openPanel(id: string) {
   for (const node of document.querySelectorAll(".develop-right details.develop-panel")) {
     if (node instanceof HTMLDetailsElement && node.id && node.id !== id) node.open = false;
   }
-  if (id === "panel-mixer") document.getElementById("hsl-orange")?.click();
+  if (id === "panel-mixer") document.getElementById(mixerChip(point))?.click();
   panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
   return panel.open;
 }

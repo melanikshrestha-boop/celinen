@@ -11,7 +11,6 @@ import {
   parseBeats,
   pointerLabel,
   pointId,
-  spokenLabel,
   trustedPointer,
   valueAt,
 } from "../src/lib/develop/tutor";
@@ -143,20 +142,38 @@ Warm the person. Leave the street cold.
     expect(pointId("wheel.shadows.hue")).toBe("wheel-shadows");
   });
 
-  test("Clicky speaks one to three word tags, not the lesson sentence", () => {
-    const beats = compileLook(sonderAsk, defaultDevelopSettings());
-    for (const beat of beats) {
-      const spoken = spokenLabel(beat);
-      expect(spoken.split(/\s+/).length).toBeLessThanOrEqual(3);
-      expect(spoken).not.toMatch(/\[/);
-      expect(spoken).not.toBe(beat.say);
-    }
-    expect(spokenLabel({ point: "slider-temp", say: "Warm the person. Leave the street cold." })).toBe(
-      "temp",
-    );
-    expect(spokenLabel({ point: "tone-curve", say: "Hold the top of the curve so the windows stay." })).toBe(
-      "curve",
-    );
+  test("cinematic is a full RAW grade, not a temperature bump", () => {
+    const beats = compileLook("cinematic", defaultDevelopSettings());
+    const points = beats.map((beat) => beat.point);
+    expect(points[0]).toBe("slider-highlights");
+    expect(points).toContain("slider-vibrance");
+    expect(points).toContain("tone-curve");
+    expect(points).toContain("hsl-orange-sat");
+    expect(points).toContain("wheel-shadows");
+    expect(points).toContain("slider-grain");
+    expect(points).toContain("slider-sharpening");
+    expect(points.some((id) => id === "slider-temp")).toBe(false);
+    const look = applyLook(defaultDevelopSettings(), beats, beats.length - 1);
+    expect(look.highlights).toBe(-28);
+    expect(look.shadows).toBe(14);
+    expect(look.blacks).toBe(-14);
+    expect(look.contrast).toBe(10);
+    expect(look.grading.shadows.saturation).toBe(14);
+    expect(look.grain).toBe(14);
+    expect(look.vignette).toBe(-18);
+    expect(look.sharpening).toBe(32);
+    expect(beats.length).toBeGreaterThan(6);
+  });
+
+  test("plain asks start a RAW tone pass instead of only Temp", () => {
+    const beats = compileLook("fix this", defaultDevelopSettings());
+    expect(beats.map((beat) => beat.point)).toEqual([
+      "slider-highlights",
+      "slider-shadows",
+      "slider-whites",
+      "slider-blacks",
+      "slider-contrast",
+    ]);
   });
 
   test("SET writes parametric, straighten and grain onto the same recipe", () => {

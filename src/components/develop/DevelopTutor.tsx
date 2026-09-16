@@ -8,11 +8,11 @@ import {
   findRange,
   lookTitle,
   midCurveHandle,
+  mixerChip,
   nativeSetRange,
   openPanel,
-  pointerLabel,
+  pointId,
   rangeThumbClient,
-  spokenLabel,
   trustedPointer,
   valueAt,
   curveMidY,
@@ -74,8 +74,8 @@ function wait(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
 
-function revealPanel(id: string) {
-  openPanel(id);
+function revealPanel(id: string, point?: string) {
+  openPanel(id, point);
 }
 
 function summaryBox(id: string) {
@@ -178,6 +178,7 @@ export function DevelopTutor({
   const flight = useRef(0);
   const rec = useRef<SpeechRec | null>(null);
   const heard = useRef("");
+  const play = useRef(0);
   recipe.current = settings;
   originRef.current = origin;
   beatsRef.current = beats;
@@ -254,17 +255,17 @@ export function DevelopTutor({
     if (thumb) flyTo(pin(thumb.x, thumb.y), true);
   }
 
-  async function clickPanel(id: string) {
+  async function clickPanel(id: string, point?: string) {
     const target = summaryBox(id);
     if (target) {
       flyTo(pin(target.x, target.y));
-      await wait(260);
+      await wait(180);
       setPress(true);
-      await wait(80);
-      revealPanel(id);
+      await wait(60);
+      revealPanel(id, point);
       setPress(false);
-      await wait(280);
-    } else revealPanel(id);
+      await wait(200);
+    } else revealPanel(id, point);
   }
 
   async function dragSets(beat: TutorBeat, at: number) {
@@ -276,12 +277,18 @@ export function DevelopTutor({
       const start = current;
       const target = applySet(start, set.path, set.delta);
       const t0 = performance.now();
+      const control = pointId(set.path);
+      if (set.path.startsWith("hsl.")) {
+        document.getElementById(mixerChip(control))?.click();
+        await wait(80);
+      }
       const input =
-        beat.point && beat.point !== "tone-curve" && !beat.point.startsWith("wheel-")
-          ? findRange(beat.point)
+        control !== "tone-curve" && !control.startsWith("wheel-") ? findRange(control) : null;
+      const svg =
+        control === "tone-curve" || set.path.startsWith("curve.")
+          ? document.getElementById("tone-curve")
           : null;
-      const svg = beat.point === "tone-curve" ? document.getElementById("tone-curve") : null;
-      const wheel = beat.point?.startsWith("wheel-") ? document.getElementById(beat.point) : null;
+      const wheel = control.startsWith("wheel-") ? document.getElementById(control) : null;
       const fromVal = valueAt(start, set.path);
       const toVal = valueAt(target, set.path);
       const curveStart = svg ? curveHandleClient(svg) : null;
@@ -294,7 +301,7 @@ export function DevelopTutor({
       setPress(true);
       await new Promise<void>((resolve) => {
         const tick = (now: number) => {
-          const t = Math.min(1, (now - t0) / 680);
+          const t = Math.min(1, (now - t0) / 280);
           const eased = t * t * (3 - 2 * t);
           if (canSlide && input && fromVal !== null && toVal !== null)
             nativeSetRange(input, fromVal + (toVal - fromVal) * eased, t >= 1);
@@ -336,7 +343,7 @@ export function DevelopTutor({
             dispatchPointer(wheel, "pointermove", atClient.x, atClient.y);
             if (t >= 1) dispatchPointer(wheel, "pointerup", atClient.x, atClient.y);
           } else onChange(applySet(start, set.path, set.delta * eased), title, false);
-          rideControl(beat.point);
+          rideControl(control);
           if (t < 1) flight.current = window.requestAnimationFrame(tick);
           else resolve();
         };
@@ -417,7 +424,7 @@ export function DevelopTutor({
       y: ringAt.y,
       w: target.box.width + 16,
       h: target.box.height + 16,
-      label: pointerLabel(id) || label,
+      label: "",
     });
   }
 
@@ -430,17 +437,32 @@ export function DevelopTutor({
     onChange(next, label, commit);
   }
 
-  async function runBeat(next: TutorBeat, at: number, replay = false) {
-    if (next.open) await clickPanel(next.open);
+  async function runBeat(next: TutorBeat, at: number, replay = false, token = play.current) {
+    if (token !== play.current) return;
+    if (next.open) await clickPanel(next.open, next.point);
+    if (token !== play.current) return;
     fly(next.point, next.say, next.draw);
-    speak(spokenLabel(next));
-    await wait(300);
+    hush();
+    await wait(140);
+    if (token !== play.current) return;
     if (!replay && modeRef.current === "do" && next.sets.length) await dragSets(next, at);
     else if (!replay) paint(at, false);
+    if (token !== play.current || replay) return;
+    if (modeRef.current !== "do") return;
+    const following = beatsRef.current[at + 1];
+    if (following) {
+      const step = at + 1;
+      setIndex(step);
+      indexRef.current = step;
+      await runBeat(following, step, false, token);
+    } else finish(true);
   }
 
   function startLook(line = ask.trim()) {
     if (!line || !enabled) return;
+    play.current += 1;
+    const token = play.current;
+    hush();
     setVoice("teaching");
     const planned = compileLook(line, recipe.current, { advanced });
     if (!planned.length) return;
@@ -453,10 +475,11 @@ export function DevelopTutor({
     beatsRef.current = planned;
     setIndex(0);
     indexRef.current = 0;
-    runBeat(planned[0]!, 0);
+    void runBeat(planned[0]!, 0, false, token);
   }
 
   function dismiss() {
+    play.current += 1;
     hush();
     window.cancelAnimationFrame(flight.current);
     setBeats([]);
