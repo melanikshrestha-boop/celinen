@@ -772,6 +772,7 @@ html.dark .celinen-dash__cal {
   box-shadow: 0 0 0 1px #1c1c1e;
 }
 .celinen-ios-cal__gridscroll {
+  position: relative;
   display: grid;
   flex: 1;
   overflow: auto;
@@ -836,13 +837,15 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__now {
   position: absolute;
-  left: 0;
+  left: 48px;
   right: 0;
-  z-index: 2;
+  z-index: 3;
   height: 1px;
   background: #c45c5c;
   pointer-events: auto;
   cursor: default;
+  grid-column: 1 / -1;
+  grid-row: 1;
 }
 .celinen-ios-cal__now::before {
   content: "";

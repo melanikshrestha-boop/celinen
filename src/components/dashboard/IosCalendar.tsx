@@ -937,11 +937,6 @@ export function IosCalendar() {
                     {HOURS.map((hour) => (
                       <i key={hour} />
                     ))}
-                    {sameDay(day, today) ? (
-                      <span className="celinen-ios-cal__now" style={{ top: nowTop(clock) }}>
-                        <em>{clockLabel(clock)}</em>
-                      </span>
-                    ) : null}
                     {eventsOnDay(events, day)
                       .filter((event) => !event.allDay)
                       .map((event) => (
@@ -968,6 +963,11 @@ export function IosCalendar() {
                       ))}
                   </div>
                 ))}
+                {dayColumns.some((day) => sameDay(day, today)) ? (
+                  <span className="celinen-ios-cal__now" style={{ top: nowTop(clock) }}>
+                    <em>{clockLabel(clock)}</em>
+                  </span>
+                ) : null}
               </div>
             </div>
           )}
