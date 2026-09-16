@@ -13,7 +13,7 @@ import { nativeGalleryPlugin } from "./src/server/native-gallery";
 import { nativeSettingsPlugin } from "./src/server/native-settings";
 import { socialPastePlugin } from "./src/server/social-paste-plugin";
 import { voiceSttPlugin } from "./src/server/voice-stt-plugin";
-import { verifyProductionBuildEnvironment } from "./scripts/production-build-config";
+import { resolveProductionBuildEnvironment } from "./scripts/production-build-config";
 import { readBuildInfo } from "./scripts/build-info";
 
 type AppConfig = {
@@ -107,11 +107,14 @@ export default viteDefineConfig(async (env) => {
   internalPlugins.push(react(options.react));
 
   const loadedEnv = loadEnv(mode, process.cwd(), "VITE_");
-  if (command === "build" && process.env.LENSLAB_PRODUCTION_BUILD === "true")
-    verifyProductionBuildEnvironment(loadedEnv);
+  const buildEnv =
+    command === "build" && process.env.LENSLAB_PRODUCTION_BUILD === "true"
+      ? resolveProductionBuildEnvironment({ ...loadedEnv, ...process.env })
+      : loadedEnv;
   const envDefine: Record<string, string> = {};
   envDefine.__LENSLAB_BUILD_INFO__ = JSON.stringify(readBuildInfo(process.cwd()));
-  for (const [key, value] of Object.entries(loadedEnv)) {
+  for (const [key, value] of Object.entries(buildEnv)) {
+    if (!key.startsWith("VITE_") || !value) continue;
     envDefine[`import.meta.env.${key}`] = JSON.stringify(value);
   }
 
