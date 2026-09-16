@@ -3,7 +3,6 @@ import { LogoMark } from "@/components/lensos/Logo";
 import { Footer } from "@/components/lensos/Footer";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
-import { WaitlistForm } from "@/components/marketing/WaitlistForm";
 import { BILLING_PLANS } from "@/lib/billing-catalog";
 import { paymentsAreConfigured } from "@/lib/payments-available";
 import { PRODUCT_NAME, PRODUCT_TITLE } from "@/lib/product";
@@ -11,20 +10,19 @@ import { PRODUCT_NAME, PRODUCT_TITLE } from "@/lib/product";
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: `Start a ${PRODUCT_TITLE} plan` },
+      { title: `Start with ${PRODUCT_TITLE}` },
       {
         name: "description",
-        content:
-          paymentsAreConfigured()
-            ? `Create your ${PRODUCT_TITLE} account: pick a plan, save your email, and pay.`
-            : `Join the ${PRODUCT_TITLE} waitlist. Paid checkout is not live yet.`,
+        content: paymentsAreConfigured()
+          ? `Create your ${PRODUCT_TITLE} account: pick a plan, save your email, and pay.`
+          : `Create your free ${PRODUCT_TITLE} account and open the studio.`,
       },
-      { property: "og:title", content: `Start a ${PRODUCT_TITLE} plan` },
+      { property: "og:title", content: `Start with ${PRODUCT_TITLE}` },
       {
         property: "og:description",
         content: paymentsAreConfigured()
           ? "Pick your tier, save your email, and start culling tonight."
-          : "Paid checkout is not live. Join the waitlist for Hobby, Creator, or Arena.",
+          : "Sign in with Google and open the studio. Paid plans come later.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -33,10 +31,10 @@ export const Route = createFileRoute("/signup")({
   validateSearch: (
     search: Record<string, unknown>,
   ): { plan: string; billing: "monthly" | "yearly"; email?: string } => ({
-    plan: typeof search['plan'] === "string" ? (search['plan'] as string) : "starter",
-    billing: search['billing'] === "monthly" ? "monthly" : "yearly",
-    ...(typeof search['email'] === "string" && search['email']
-      ? { email: search['email'] as string }
+    plan: typeof search["plan"] === "string" ? (search["plan"] as string) : "starter",
+    billing: search["billing"] === "monthly" ? "monthly" : "yearly",
+    ...(typeof search["email"] === "string" && search["email"]
+      ? { email: search["email"] as string }
       : {}),
   }),
   component: SignupPage,
@@ -52,6 +50,7 @@ function SignupPage() {
   const perUser = plan === "crew" || plan === "agency";
   const price = billing === "yearly" ? active.yearly : active.monthly;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const paymentsLive = paymentsAreConfigured();
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-ink">
@@ -69,15 +68,29 @@ function SignupPage() {
 
       <main className="mx-auto grid w-full max-w-[1000px] flex-1 gap-8 px-6 pb-24 pt-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section>
-          <div className="rounded-xl border border-border bg-card p-2">
-            {paymentsAreConfigured() ? (
+          <div className="rounded-xl border border-border bg-card p-6">
+            {paymentsLive ? (
               <StripeEmbeddedCheckout
                 priceId={`${plan}_${billing}`}
                 customerEmail={search.email}
                 returnUrl={`${origin}/signup?plan=${plan}&billing=${billing}`}
               />
             ) : (
-              <WaitlistForm plan={plan} billing={billing} email={search.email} />
+              <div className="space-y-4">
+                <h1 className="font-display text-[28px] font-semibold tracking-tight">
+                  Open {PRODUCT_NAME}
+                </h1>
+                <p className="text-sm text-moss">
+                  Paid checkout isn’t live yet. Sign in and start in the studio — plans can wait.
+                </p>
+                <Link
+                  to="/auth"
+                  search={{ mode: "signup", next: "/studio" }}
+                  className="inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-background"
+                >
+                  Continue with Google
+                </Link>
+              </div>
             )}
           </div>
         </section>
@@ -88,6 +101,9 @@ function SignupPage() {
             USD {price}
             {perUser ? " / user" : ""} / mo · billed {billing}
           </p>
+          {!paymentsLive ? (
+            <p className="mt-4 text-xs text-moss">Pricing shown for reference. No charge until checkout is live.</p>
+          ) : null}
         </aside>
       </main>
 
