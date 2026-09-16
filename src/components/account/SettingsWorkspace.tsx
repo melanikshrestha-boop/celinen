@@ -1278,6 +1278,20 @@ function Personalization({
           />
         </Row>
         <Row
+          title="Chat voice"
+          note="Human uses Grok when the studio key is present. Fast stays on-site."
+        >
+          <Choice
+            label="Chat voice"
+            value={prefs.chatModel}
+            options={[
+              ["human", "Human"],
+              ["fast", "Fast"],
+            ]}
+            change={(value) => save({ chatModel: value as AccountPreferences["chatModel"] })}
+          />
+        </Row>
+        <Row
           title="Response detail"
           note="Changes how future hosted replies explain decisions, not their permissions."
         >

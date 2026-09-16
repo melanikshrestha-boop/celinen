@@ -58,6 +58,7 @@ export async function requestDashboardReply(
         mode: "conversation",
         workRole: input.workRole ?? "sports",
         style: assistantPersonalization(input.preferences ?? DEFAULT_PREFERENCES),
+        chatModel: input.preferences?.chatModel ?? "human",
         messages: input.messages.slice(-40).map(({ role, text }) => ({ role, content: text })),
       }),
     });

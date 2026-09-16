@@ -68,6 +68,7 @@ import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiCultureRouteImport } from './routes/api/culture'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiPlacesRouteImport } from './routes/api/places'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
@@ -398,6 +399,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCultureRoute = ApiCultureRouteImport.update({
+  id: '/api/culture',
+  path: '/api/culture',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpRoute = ApiMcpRouteImport.update({
   id: '/api/mcp',
   path: '/api/mcp',
@@ -632,6 +638,7 @@ export interface FileRoutesByFullPath {
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/culture': typeof ApiCultureRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
@@ -724,6 +731,7 @@ export interface FileRoutesByTo {
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/culture': typeof ApiCultureRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
@@ -819,6 +827,7 @@ export interface FileRoutesById {
   '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/culture': typeof ApiCultureRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
@@ -916,6 +925,7 @@ export interface FileRouteTypes {
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/culture'
     | '/api/mcp'
     | '/api/places'
     | '/api/version'
@@ -1008,6 +1018,7 @@ export interface FileRouteTypes {
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/culture'
     | '/api/mcp'
     | '/api/places'
     | '/api/version'
@@ -1102,6 +1113,7 @@ export interface FileRouteTypes {
     | '/video'
     | '/workspace'
     | '/api/chat'
+    | '/api/culture'
     | '/api/mcp'
     | '/api/places'
     | '/api/version'
@@ -1198,6 +1210,7 @@ export interface RootRouteChildren {
   VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiCultureRoute: typeof ApiCultureRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiPlacesRoute: typeof ApiPlacesRoute
   ApiVersionRoute: typeof ApiVersionRoute
@@ -1637,6 +1650,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/culture': {
+      id: '/api/culture'
+      path: '/api/culture'
+      fullPath: '/api/culture'
+      preLoaderRoute: typeof ApiCultureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp': {
       id: '/api/mcp'
       path: '/api/mcp'
@@ -2000,6 +2020,7 @@ const rootRouteChildren: RootRouteChildren = {
   VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiCultureRoute: ApiCultureRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiPlacesRoute: ApiPlacesRoute,
   ApiVersionRoute: ApiVersionRoute,

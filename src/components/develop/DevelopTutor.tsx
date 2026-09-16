@@ -6,6 +6,7 @@ import {
   compileLook,
   dispatchPointer,
   findRange,
+  lookMetricsFromHistogram,
   lookTitle,
   midCurveHandle,
   mixerChip,
@@ -20,6 +21,7 @@ import {
   type TutorDraw,
 } from "@/lib/develop/tutor";
 import { cloneDevelopSettings, type DevelopSettings } from "@/lib/develop/contract";
+import type { DevelopHistogramData } from "@/lib/develop/histogram";
 import "./develop-tutor.css";
 
 type Props = {
@@ -28,6 +30,7 @@ type Props = {
   enabled: boolean;
   photoId?: string | null;
   advanced?: boolean;
+  histogram?: DevelopHistogramData | null;
 };
 
 type Ring = { x: number; y: number; w: number; h: number; label: string };
@@ -155,6 +158,7 @@ export function DevelopTutor({
   enabled,
   photoId,
   advanced = true,
+  histogram = null,
 }: Props) {
   const [ask, setAsk] = useState("");
   const [beats, setBeats] = useState<TutorBeat[]>([]);
@@ -464,7 +468,10 @@ export function DevelopTutor({
     const token = play.current;
     hush();
     setVoice("teaching");
-    const planned = compileLook(line, recipe.current, { advanced });
+    const planned = compileLook(line, recipe.current, {
+      advanced,
+      metrics: histogram ? lookMetricsFromHistogram(histogram) : undefined,
+    });
     if (!planned.length) return;
     const snapshot = cloneDevelopSettings(recipe.current);
     const name = lookTitle(line);

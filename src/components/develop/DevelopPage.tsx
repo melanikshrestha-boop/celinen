@@ -2224,6 +2224,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 enabled={Boolean(source && draft)}
                 photoId={selected}
                 advanced={!browserOnly}
+                histogram={histogramUrl === displayedUrl ? histogram : null}
               />
               <div className="develop-view-toolbar">
                 <div>

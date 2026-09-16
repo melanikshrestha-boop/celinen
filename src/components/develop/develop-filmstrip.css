@@ -22,6 +22,12 @@
   height: var(--develop-filmstrip-item-height);
   min-height: var(--develop-filmstrip-item-height);
 }
+.develop-filmstrip-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
 @media (max-width: 850px) {
   .develop-filmstrip-items.develop-filmstrip-virtual {
     --develop-filmstrip-item-width: 95px;

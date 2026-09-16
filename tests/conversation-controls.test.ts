@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { chatSchema, newChat } from "../src/lib/chat-history";
-import { clientTranscript, chatShareHtml, chatShareFile } from "../src/lib/chat-sharing";
+import {
+  clientTranscript,
+  chatShareHtml,
+  chatShareFile,
+  dashboardChatRecord,
+} from "../src/lib/chat-sharing";
 import {
   ACCENT_COLORS,
   DEFAULT_APPEARANCE,
@@ -70,6 +75,13 @@ describe("Conversation controls and creative preferences", () => {
       expect(html).not.toContain(secret);
     expect(html).toContain("default-src 'none'");
     expect(chatShareFile(record).name).toBe("Client review-Celinen.html");
+    const home = dashboardChatRecord({
+      id: record.id,
+      title: "Home",
+      updatedAt: 1,
+      messages: [{ role: "assistant", text: "She said Konnichiwa." }],
+    });
+    expect(chatShareHtml(home)).toContain("She said Konnichiwa.");
   });
   test("sharing escapes executable markup and retains transcript text", () => {
     const attack = '<img src=x onerror="alert(1)"></script><script>alert(2)</script>&';

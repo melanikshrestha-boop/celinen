@@ -1,4 +1,5 @@
 import { cloneDevelopSettings, type DevelopSettings } from "./contract";
+import { histogramPercentile, type DevelopHistogramData } from "./histogram";
 
 export type TutorSet = { path: string; delta: number };
 export type TutorDraw = "subject" | "world" | "windows" | "skin";
@@ -11,7 +12,18 @@ export type TutorBeat = {
   wait: boolean;
   done: boolean;
 };
-export type TutorCompileOptions = { advanced?: boolean };
+export type TutorCompileOptions = {
+  advanced?: boolean;
+  metrics?: { clipHi: number; clipLo: number; mid: number };
+};
+
+export function lookMetricsFromHistogram(histogram: DevelopHistogramData) {
+  return {
+    clipHi: histogram.pixels ? histogram.highlights / histogram.pixels : 0,
+    clipLo: histogram.pixels ? histogram.shadows / histogram.pixels : 0,
+    mid: histogramPercentile(histogram.encodedLuminance, 0.5),
+  };
+}
 
 const HSL_INDEX: Record<string, number> = {
   red: 0,
@@ -332,7 +344,8 @@ export function compileLook(
   const text = ask.toLowerCase();
   const advanced = options.advanced !== false;
   if (/sonder/.test(text)) return compileSonder(current, advanced);
-  if (/cinematic|color theory|teal|film/.test(text)) return compileCinematic(advanced);
+  if (/cinematic|color theory|teal|film/.test(text))
+    return compileCinematic(advanced, options.metrics);
   if (/moody|dark/.test(text)) return compileMoody(advanced);
   if (/warm/.test(text)) return compileWarm(current);
   return compileRawStart();
@@ -406,13 +419,23 @@ function compileSonder(current: DevelopSettings, advanced: boolean): TutorBeat[]
 }
 
 /** Lightroom-style RAW cinematic: tone, presence, curve, HSL, wheels, grain. Not WB-only. */
-function compileCinematic(advanced: boolean): TutorBeat[] {
+function compileCinematic(
+  advanced: boolean,
+  metrics?: TutorCompileOptions["metrics"],
+): TutorBeat[] {
+  const highlights = metrics && metrics.clipHi > 0.03 ? -42 : -28;
+  const shadows = metrics && metrics.clipLo > 0.04 ? 22 : 14;
+  const exposure =
+    metrics && metrics.mid < 0.35 ? 0.35 : metrics && metrics.mid > 0.65 ? -0.25 : 0;
   const beats = [
     "[OPEN:panel.basic]",
     "[DRAW:photo.windows]",
+    ...(exposure
+      ? ["[POINT:#slider-exposure]", `[SET:exposure:${exposure > 0 ? "+" : ""}${exposure}]`]
+      : []),
     "[POINT:#slider-highlights]",
-    "[SET:highlights:-28]",
-    "[SET:shadows:+14]",
+    `[SET:highlights:${highlights}]`,
+    `[SET:shadows:+${shadows}]`,
     "[SET:whites:-10]",
     "[SET:blacks:-14]",
     "[SET:contrast:+10]",

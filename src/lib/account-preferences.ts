@@ -55,6 +55,7 @@ export const preferencesSchema = z
       .default(""),
     openSources: z.enum(["new-tab", "same-tab"]).default("new-tab"),
     personality: z.enum(["none", "friendly", "concise"]).default("none"),
+    chatModel: z.enum(["human", "fast"]).default("human"),
     responseDetail: z.enum(["balanced", "brief", "detailed"]).default("balanced"),
     preferredTerms: z.string().trim().max(300).default(""),
     customInstructions: z.string().trim().max(2000).default(""),

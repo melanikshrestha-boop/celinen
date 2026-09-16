@@ -368,6 +368,36 @@ html:has(.celinen-dash) {
   letter-spacing: -0.022em;
   text-align: center;
 }
+.celinen-dash__thread-tools {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.celinen-dash__thread-tools button,
+.celinen-dash__bubble > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.45;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.celinen-dash__thread-tools button:hover,
+.celinen-dash__bubble > button:hover {
+  opacity: 1;
+}
+.celinen-dash__bubble {
+  position: relative;
+}
+.celinen-dash__bubble > button {
+  position: absolute;
+  right: 0;
+  bottom: -6px;
+}
 .celinen-dash__thread {
   width: min(100%, 720px);
   flex: 1;

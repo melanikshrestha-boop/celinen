@@ -51,7 +51,9 @@ export const DevelopFilmstripThumb = memo(function DevelopFilmstripThumb({
       decoding="async"
       onError={() => setBroken(true)}
     />
-  ) : null;
+  ) : (
+    <span className="develop-filmstrip-empty" aria-hidden="true" />
+  );
 });
 
 type FrameProps = {

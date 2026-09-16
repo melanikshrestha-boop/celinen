@@ -11,6 +11,7 @@ type Body = {
   mode?: unknown;
   workRole?: unknown;
   style?: unknown;
+  chatModel?: unknown;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -44,7 +45,7 @@ export const Route = createFileRoute("/api/chat")({
           .catch(() => ({ data: null, error: true }));
         if (claimsError || !claims?.claims?.sub) return unauthorized();
 
-        const { messages, tools, mode, workRole, style } = (await request.json()) as Body;
+        const { messages, tools, mode, workRole, style, chatModel } = (await request.json()) as Body;
         if (!Array.isArray(messages)) {
           return new Response(JSON.stringify({ error: "messages required" }), {
             status: 400,
@@ -78,6 +79,7 @@ export const Route = createFileRoute("/api/chat")({
 
         const upstream = await requestCloudflareChat({
           messages: assembled,
+          voice: chatModel === "fast" ? "fast" : "human",
           // Conversation mode cannot acquire tools through a client payload.
           ...(mode !== "conversation" && Array.isArray(tools) && tools.length
             ? { tools, tool_choice: "auto" }

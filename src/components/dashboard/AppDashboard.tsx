@@ -4,6 +4,8 @@ import {
   ArrowUp,
   CalendarDays,
   ChartNoAxesColumn,
+  Copy,
+  Download,
   House,
   Images,
   Moon,
@@ -29,6 +31,7 @@ import { DashboardContext } from "./context";
 import { IosCalendar } from "./IosCalendar";
 import { VoiceMic } from "./VoiceMic";
 import { requestDashboardReply } from "@/lib/dashboard-assistant";
+import { chatShareFile, dashboardChatRecord } from "@/lib/chat-sharing";
 import { isPhotographyConversation } from "@/lib/photography-assistant";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { queueStudioImport } from "@/lib/studio/pending-import";
@@ -595,10 +598,56 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
               <div className="social-post__stage">
                 {active?.messages.length ? (
                   <div className="celinen-dash__thread" aria-label="Conversation">
+                    <div className="celinen-dash__thread-tools">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = active.messages.map((m) => m.text).join("\n\n");
+                          void navigator.clipboard?.writeText(text);
+                        }}
+                      >
+                        <Copy size={14} />
+                        Copy chat
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const file = chatShareFile(dashboardChatRecord(active));
+                          const url = URL.createObjectURL(file);
+                          const link = document.createElement("a");
+                          link.href = url;
+                          link.download = file.name;
+                          link.click();
+                          setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                        }}
+                      >
+                        <Download size={14} />
+                        Export
+                      </button>
+                      {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const file = chatShareFile(dashboardChatRecord(active));
+                            void navigator.share?.({ files: [file], title: active.title }).catch(() => {});
+                          }}
+                        >
+                          <Share2 size={14} />
+                          Share
+                        </button>
+                      ) : null}
+                    </div>
                     {active.messages.map((message) => (
-                      <p key={message.id} data-role={message.role}>
-                        {message.text}
-                      </p>
+                      <div key={message.id} className="celinen-dash__bubble" data-role={message.role}>
+                        <p data-role={message.role}>{message.text}</p>
+                        <button
+                          type="button"
+                          aria-label="Copy"
+                          onClick={() => void navigator.clipboard?.writeText(message.text)}
+                        >
+                          <Copy size={13} />
+                        </button>
+                      </div>
                     ))}
                     <div ref={end} />
                   </div>

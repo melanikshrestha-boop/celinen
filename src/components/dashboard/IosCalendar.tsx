@@ -49,7 +49,7 @@ const SETS: { id: ViewSet; label: string }[] = [
   { id: "business", label: "Business" },
 ];
 const WEEK = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
-const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SNAP = 15 * 60 * 1000;
 
 function timeLabel(event: CalendarEvent) {
@@ -69,7 +69,7 @@ function clockLabel(clock: Date) {
 }
 
 function nowTop(clock: Date) {
-  return `${((clock.getHours() * 60 + clock.getMinutes() - 360) / (16 * 60)) * 100}%`;
+  return `${((clock.getHours() * 60 + clock.getMinutes()) / (24 * 60)) * 100}%`;
 }
 
 function quarterLabel(date: Date, today: Date) {
@@ -90,12 +90,12 @@ function eventColor(event: CalendarEvent) {
 function blockStyle(event: CalendarEvent, day: Date) {
   const start = new Date(event.start);
   const end = new Date(event.end);
-  const origin = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 6, 0, 0, 0);
+  const origin = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0);
   const minutes = Math.max(0, (start.getTime() - origin.getTime()) / 60000);
   const dur = Math.max(25, (end.getTime() - start.getTime()) / 60000);
   return {
-    top: `${(minutes / (16 * 60)) * 100}%`,
-    height: `${Math.min(100, (dur / (16 * 60)) * 100)}%`,
+    top: `${(minutes / (24 * 60)) * 100}%`,
+    height: `${Math.min(100, (dur / (24 * 60)) * 100)}%`,
   };
 }
 
@@ -107,7 +107,7 @@ function snapMs(value: number, shift: boolean) {
 function minutesFromY(clientY: number, col: HTMLElement) {
   const rect = col.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-  return 6 * 60 + Math.round((pct * 16 * 60) / 15) * 15;
+  return Math.round((pct * 24 * 60) / 15) * 15;
 }
 
 function stampMinutes(day: Date, minutes: number) {
@@ -238,14 +238,14 @@ export function IosCalendar() {
       : null);
 
   useEffect(() => {
-    setTasks(readCalendarTasks(scope ?? "local"));
-    if (!scope) return;
-    const loaded = readCalendarState(scope);
+    const store = scope ?? "local";
+    setTasks(readCalendarTasks(store));
+    const loaded = readCalendarState(store);
     const localEvents = loaded.localEvents.filter((event) => !/usc vs ucla/i.test(event.title));
     const next = { ...loaded, localEvents };
     setState(next);
-    if (localEvents.length !== loaded.localEvents.length) writeCalendarState(scope, next);
-    setTypes(readBookingTypes(scope));
+    if (localEvents.length !== loaded.localEvents.length) writeCalendarState(store, next);
+    setTypes(readBookingTypes(store));
   }, [scope]);
 
   useEffect(() => {
@@ -308,7 +308,7 @@ export function IosCalendar() {
   function persist(next: typeof state) {
     stateRef.current = next;
     setState(next);
-    if (scope) writeCalendarState(scope, next);
+    writeCalendarState(scope ?? "local", next);
   }
 
   function patchLocal(id: string, patch: Partial<CalendarEvent>) {
@@ -533,7 +533,7 @@ export function IosCalendar() {
   function createAt(day: Date, clientY: number, col: HTMLElement) {
     const rect = col.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-    const startMin = 6 * 60 + Math.round((pct * 16 * 60) / 15) * 15;
+    const startMin = Math.round((pct * 24 * 60) / 15) * 15;
     const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, startMin).getTime();
     const session = pendingType.current;
     const minutes = session?.durationMin ?? 60;
@@ -1116,7 +1116,7 @@ export function IosCalendar() {
             types={types}
             onChange={(next) => {
               setTypes(next);
-              if (scope) writeBookingTypes(scope, next);
+              writeBookingTypes(scope ?? "local", next);
             }}
             onBook={(type) => {
               pendingType.current = type;

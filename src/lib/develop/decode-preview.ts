@@ -33,18 +33,24 @@ function isPreviewMime(type: string): type is DevelopPreviewMime {
 
 /** IndexedDB and some engine receipts drop MIME. Canvas and thumbs need a real image type. */
 export async function asDevelopPreviewBlob(blob: Blob): Promise<Blob> {
-  if (isPreviewMime(blob.type)) return blob;
   const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
-  const type = sniffDevelopPreviewType(header);
-  if (!type) return blob;
-  return new Blob([await blob.arrayBuffer()], { type });
+  const sniffed = sniffDevelopPreviewType(header);
+  if (sniffed) {
+    if (blob.type === sniffed) return blob;
+    return new Blob([await blob.arrayBuffer()], { type: sniffed });
+  }
+  if (isPreviewMime(blob.type)) return blob;
+  return blob;
 }
 
 /** Null when the bytes are not a JPEG/PNG/WebP. Never hand a broken-image `?` a URL. */
 export async function asDevelopViewBlob(blob: Blob | null | undefined): Promise<Blob | null> {
   if (!blob?.size) return null;
-  const typed = await asDevelopPreviewBlob(blob);
-  return typed.type.startsWith("image/") ? typed : null;
+  const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+  const sniffed = sniffDevelopPreviewType(header);
+  if (!sniffed) return null;
+  if (blob.type === sniffed) return blob;
+  return new Blob([await blob.arrayBuffer()], { type: sniffed });
 }
 
 export async function developBlobIsViewable(blob: Blob | null | undefined): Promise<boolean> {

@@ -124,6 +124,8 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(cal).not.toContain('placeholder="Title"');
   expect(cal).not.toContain('placeholder="All day"');
   expect(cal).toContain("parseShootNote");
+  expect(cal).toContain('scope ?? "local"');
+  expect(cal).toContain("length: 24");
   expect(cal).toContain("Quarter");
   expect(cal).toContain("All Tasks");
   expect(cal).toContain("onDoubleClick");

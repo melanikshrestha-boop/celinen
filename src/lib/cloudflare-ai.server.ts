@@ -1,10 +1,12 @@
-/** Server-only transport. No former-host gateway or cross-provider fallback. */
+/** Hosted chat: Grok when XAI_API_KEY is set, else Workers AI. */
 export const CHAT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+export const GROK_CHAT_MODEL = "grok-4.6";
 type ChatInput = {
   messages: unknown[];
   tools?: unknown[];
   tool_choice?: string;
   max_tokens?: number;
+  voice?: "human" | "fast";
 };
 type AiBinding = {
   run(
@@ -18,6 +20,7 @@ type ChatEnv = {
   CLOUDFLARE_AI_ENABLED?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_AI_API_TOKEN?: string;
+  XAI_API_KEY?: string;
 };
 type LogEntry = Record<string, string | number | null>;
 type Json = Record<string, unknown>;
@@ -134,6 +137,36 @@ export async function requestCloudflareChat(
       max_tokens: Math.min(2048, Math.max(1, input.max_tokens ?? 1200)),
       stream: false,
     };
+    const grokKey = env.XAI_API_KEY || (process.env as ChatEnv).XAI_API_KEY;
+    if (grokKey && input.voice !== "fast" && !input.tools?.length) {
+      try {
+        const grok = await send("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { authorization: `Bearer ${grokKey}`, "content-type": "application/json" },
+          signal,
+          body: JSON.stringify({
+            model: GROK_CHAT_MODEL,
+            messages: input.messages,
+            max_tokens: payload.max_tokens,
+            stream: false,
+          }),
+        });
+        if (grok instanceof Response && grok.ok) {
+          upstreamStatus = grok.status;
+          const data = await boundedJson(grok);
+          log({
+            outcome: "ok",
+            category: "completed",
+            provider: "xai",
+            model: GROK_CHAT_MODEL,
+            upstream_status: grok.status,
+          });
+          return Response.json({ message: normalizeMessage(data) }, { headers });
+        }
+      } catch {
+        /* Fall through to Workers AI. */
+      }
+    }
     const response = env.AI
       ? await env.AI.run(
           CHAT_MODEL,

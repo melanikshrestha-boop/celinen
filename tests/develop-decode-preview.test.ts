@@ -35,6 +35,9 @@ describe("Develop preview MIME", () => {
     const view = await asDevelopViewBlob(jpegBlob);
     expect(view?.type).toBe("image/jpeg");
     expect(await asDevelopViewBlob(new Blob([new Uint8Array(16)]))).toBeNull();
+    expect(
+      await asDevelopViewBlob(new Blob([new Uint8Array(16)], { type: "image/jpeg" })),
+    ).toBeNull();
     const photo = await developPhotoViewBlob({
       previewBlob: new Blob([new Uint8Array(8)]),
       sourceBlob: new Blob([jpeg], { type: "image/jpeg" }),
