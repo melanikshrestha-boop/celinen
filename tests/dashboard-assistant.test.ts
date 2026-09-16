@@ -255,8 +255,8 @@ test("desktop calendar view switcher moves without a click", () => {
   expect(source).toContain('id: "quarter"');
   expect(source).toContain("All Tasks");
   expect(source).toContain("celinen-ios-cal__compact");
-  expect(source).toContain("Allow full location access");
-  expect(source).toContain("formatPlace");
+  expect(source).not.toContain("Allow full location access");
+  expect(source).not.toContain("formatPlace");
   expect(source).toContain('event.pointerType !== "mouse" || viewsLocked');
   expect(source).toContain("lockView");
   expect(source).toContain("unlockViews");
