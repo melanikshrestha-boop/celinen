@@ -210,6 +210,8 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
   expect(css).toContain("repeat(4, minmax(0, 1fr))");
   expect(source).toContain('layout="year"');
   expect(source).toContain("celinen-ios-cal__theme");
+  expect(source).toContain('weekday: "long"');
+  expect(source).toContain("celinen-ios-cal__daystamp");
   expect(css).toContain("@container (max-width: 700px)");
   expect(css).toContain("width: max-content");
   expect(css).toContain(".celinen-ios-cal__quarter");

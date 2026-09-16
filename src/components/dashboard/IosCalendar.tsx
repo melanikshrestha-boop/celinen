@@ -911,7 +911,7 @@ export function IosCalendar() {
           ) : (
             <div className="celinen-ios-cal__weekview">
               <div
-                className="celinen-ios-cal__weekheads celinen-ios-cal__weekheads--timed"
+                className={`celinen-ios-cal__weekheads celinen-ios-cal__weekheads--timed${view === "day" ? " celinen-ios-cal__weekheads--day" : ""}`}
                 style={timedGrid}
               >
                 <span />
@@ -924,8 +924,20 @@ export function IosCalendar() {
                       className={on ? "is-today" : undefined}
                       onClick={() => setSelected(day)}
                     >
-                      <small>{WEEK[day.getDay()]}</small>
-                      <b>{day.getDate()}</b>
+                      {view === "day" ? (
+                        <>
+                          <small>{day.toLocaleString("en-US", { weekday: "long" })}</small>
+                          <span className="celinen-ios-cal__daystamp">
+                            {day.toLocaleString("en-US", { month: "short" })}
+                            <b>{day.getDate()}</b>
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <small>{WEEK[day.getDay()]}</small>
+                          <b>{day.getDate()}</b>
+                        </>
+                      )}
                     </button>
                   );
                 })}

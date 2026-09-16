@@ -793,6 +793,20 @@ html.dark .celinen-dash__cal {
   display: grid;
   place-items: center;
 }
+.celinen-ios-cal__weekheads--day button small {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ios-ink);
+}
+.celinen-ios-cal__daystamp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ios-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
 .celinen-ios-cal__month {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
