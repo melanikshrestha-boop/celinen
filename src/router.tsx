@@ -9,9 +9,8 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreload: "intent",
-    defaultPreloadDelay: 0,
-    defaultPreloadStaleTime: 0,
+    // Intent preload races on click and throws _nonReactive, so Sign In / Get started can fail.
+    defaultPreload: false,
   });
 
   return router;

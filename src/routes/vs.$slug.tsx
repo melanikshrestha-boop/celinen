@@ -28,6 +28,7 @@ export const Route = createFileRoute("/vs/$slug")({
 });
 
 function VsStubRoute() {
+  const { name } = Route.useLoaderData();
   const motion = useMarketingMotion();
   return (
     <div className="marketing-page" ref={motion}>
@@ -35,7 +36,13 @@ function VsStubRoute() {
         Skip to content
       </a>
       <Nav landing />
-      <main id="main-content" tabIndex={-1} className="marketing-public-page" />
+      <main id="main-content" tabIndex={-1} className="marketing-public-page">
+        <header className="marketing-public-page__intro">
+          <h1>
+            {PRODUCT_NAME} vs. {name}
+          </h1>
+        </header>
+      </main>
       <MarketingFooter />
     </div>
   );
