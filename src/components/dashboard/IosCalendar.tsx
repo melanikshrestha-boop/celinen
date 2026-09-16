@@ -110,6 +110,16 @@ function snapMs(value: number, shift: boolean) {
   return Math.round(value / SNAP) * SNAP;
 }
 
+function minutesFromY(clientY: number, col: HTMLElement) {
+  const rect = col.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+  return 6 * 60 + Math.round((pct * 16 * 60) / 15) * 15;
+}
+
+function stampMinutes(day: Date, minutes: number) {
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes).getTime();
+}
+
 function threeDays(day: Date) {
   return [0, 1, 2].map((offset) => addCalendarDays(day, offset));
 }
@@ -203,6 +213,8 @@ export function IosCalendar() {
     y: number;
     shift: boolean;
   } | null>(null);
+  const paint = useRef<{ day: Date; origin: number; col: HTMLElement } | null>(null);
+  const [ghost, setGhost] = useState<{ start: number; end: number } | null>(null);
 
   const raw = allCalendarEvents(state);
   const events = raw.filter((event) => kindInViewSet(eventKind(event), setName));
@@ -214,6 +226,11 @@ export function IosCalendar() {
   };
   const preview = ask.trim() ? parseShootNote(ask, { now: new Date(), selected, accent: "#2f6fed" }) : null;
   const inspected = events.find((event) => event.id === inspect) ?? null;
+  const shownGhost =
+    ghost ??
+    (sheet?.mode === "create" && !sheet.value.allDay
+      ? { start: sheet.value.start, end: sheet.value.end }
+      : null);
 
   useEffect(() => {
     setTasks(readCalendarTasks(scope ?? "local"));
@@ -455,6 +472,7 @@ export function IosCalendar() {
       persist({ ...state, localEvents: [...state.localEvents, event] });
     }
     setSheet(null);
+    setGhost(null);
   }
 
   const title = selected.toLocaleString("en-US", { month: "long", year: "numeric" });
@@ -582,6 +600,53 @@ export function IosCalendar() {
         end: event.end,
       },
       col,
+    );
+  }
+
+  function paintStart(event: PointerEvent<HTMLDivElement>, day: Date) {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button, .celinen-ios-cal__now, .celinen-ios-cal__ghost")) return;
+    const col = event.currentTarget;
+    col.setPointerCapture(event.pointerId);
+    const origin = minutesFromY(event.clientY, col);
+    paint.current = { day, origin, col };
+    const start = stampMinutes(day, origin);
+    setGhost({ start, end: start + 60 * 60 * 1000 });
+    setSelected(day);
+  }
+
+  function paintMove(event: PointerEvent<HTMLDivElement>) {
+    const job = paint.current;
+    if (!job) return;
+    const now = minutesFromY(event.clientY, job.col);
+    const a = Math.min(job.origin, now);
+    const b = Math.max(job.origin + 15, now);
+    setGhost({ start: stampMinutes(job.day, a), end: stampMinutes(job.day, b) });
+  }
+
+  function paintEnd(event: PointerEvent<HTMLDivElement>) {
+    const job = paint.current;
+    if (!job) return;
+    paint.current = null;
+    const now = minutesFromY(event.clientY, job.col);
+    const a = Math.min(job.origin, now);
+    const b = Math.max(job.origin + 60, now === job.origin ? job.origin + 60 : now);
+    const start = stampMinutes(job.day, a);
+    const end = stampMinutes(job.day, Math.max(a + 15, b));
+    setGhost({ start, end });
+    const session = pendingType.current;
+    pendingType.current = null;
+    openSheet(
+      "create",
+      {
+        title: session?.title ?? "",
+        location: session?.location ?? "",
+        mapsUrl: "",
+        allDay: false,
+        start,
+        end,
+      },
+      job.col,
     );
   }
 
@@ -975,10 +1040,39 @@ export function IosCalendar() {
                     key={`col-${day.toISOString()}`}
                     className="celinen-ios-cal__col"
                     onDoubleClick={(event) => createAt(day, event.clientY, event.currentTarget)}
+                    onPointerDown={(event) => paintStart(event, day)}
+                    onPointerMove={paintMove}
+                    onPointerUp={paintEnd}
+                    onPointerCancel={() => {
+                      paint.current = null;
+                      setGhost(null);
+                    }}
                   >
                     {HOURS.map((hour) => (
                       <i key={hour} />
                     ))}
+                    {shownGhost && sameDay(new Date(shownGhost.start), day) ? (
+                      <div
+                        className="celinen-ios-cal__ghost"
+                        style={blockStyle(
+                          { start: shownGhost.start, end: shownGhost.end, title: "", id: "ghost", allDay: false, source: "local" },
+                          day,
+                        )}
+                      >
+                        <span>
+                          {new Date(shownGhost.start).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                          –
+                          {new Date(shownGhost.end).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        <strong>{sheet?.value.title.trim() || "(No title)"}</strong>
+                      </div>
+                    ) : null}
                     {eventsOnDay(events, day)
                       .filter((event) => !event.allDay)
                       .map((event) => (
@@ -1035,7 +1129,10 @@ export function IosCalendar() {
             onChange={(value) => setSheet({ ...sheet, value })}
             onSave={saveSheet}
             onDelete={sheet.value.id ? () => removeEvent(sheet.value.id as string) : undefined}
-            onClose={() => setSheet(null)}
+            onClose={() => {
+              setSheet(null);
+              setGhost(null);
+            }}
           />
         ) : null}
       </div>
