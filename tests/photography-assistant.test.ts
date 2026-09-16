@@ -10,6 +10,7 @@ import { studioCommandRefusal, studioToolBoundary } from "../src/lib/studio/comm
 import { parseLocalCommand } from "../src/lib/studio/commands";
 import { requestCloudflareChat } from "../src/lib/cloudflare-ai.server";
 import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
+import { cultureApiUrl, loadCulture } from "../src/lib/assistant/culture";
 import { fastTalk } from "../src/lib/assistant/talk";
 
 describe("direct Cloudflare AI transport", () => {
@@ -580,6 +581,8 @@ test("actual server route removes tools in conversation mode and installs the ph
     },
     PHOTOGRAPHY_ASSISTANT_POLICY,
     assembleAssistantMessages,
+    cultureApiUrl,
+    loadCulture,
     fastTalk,
     fixtureAuth: {
       createClient: () => ({
@@ -618,6 +621,9 @@ test("actual server route removes tools in conversation mode and installs the ph
   expect(sent[0].tools).toBeUndefined();
   expect(sent[0].tool_choice).toBeUndefined();
   expect(sent[0].messages[0].content).toBe(PHOTOGRAPHY_ASSISTANT_POLICY);
+  expect(readFileSync(new URL("../src/routes/api/chat.ts", import.meta.url), "utf8")).toContain(
+    "/api/culture",
+  );
   await route.server.handlers.POST({ request: request(true, "studio") });
   expect(sent[1].tools).toEqual(tools);
   upstreamFailure = Response.json(

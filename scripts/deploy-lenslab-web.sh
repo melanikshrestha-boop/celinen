@@ -17,8 +17,11 @@ d["routes"] = [
     {"pattern": "lenslab.dev", "zone_name": "lenslab.dev", "custom_domain": True},
     {"pattern": "www.lenslab.dev", "zone_name": "lenslab.dev", "custom_domain": True},
 ]
+vars = d.get("vars") if isinstance(d.get("vars"), dict) else {}
+vars["LENSLAB_CULTURE_API"] = "https://lenslab.dev/api/culture"
+d["vars"] = vars
 p.write_text(json.dumps(d, indent=2) + "\n")
-print("patched", d["name"], "keep_vars", d["keep_vars"], "routes", d["routes"])
+print("patched", d["name"], "keep_vars", d["keep_vars"], "routes", d["routes"], "culture", vars["LENSLAB_CULTURE_API"])
 PY
 bunx wrangler@4.131.1 deploy --config .output/server/wrangler.json --name lenslab-web --keep-vars
 echo "Live: https://lenslab.dev"

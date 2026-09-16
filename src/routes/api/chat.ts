@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PHOTOGRAPHY_ASSISTANT_POLICY } from "@/lib/photography-assistant";
 import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
 import { assembleAssistantMessages } from "@/lib/assistant/orchestrator";
+import { cultureApiUrl, loadCulture } from "@/lib/assistant/culture";
 import { fastTalk } from "@/lib/assistant/talk";
 
 type Body = {
@@ -68,6 +69,10 @@ export const Route = createFileRoute("/api/chat")({
                 messages,
                 workRole,
                 style: typeof style === "string" ? style : "",
+                loadCulture: (query) =>
+                  loadCulture(query, {
+                    url: cultureApiUrl() || new URL("/api/culture", request.url).toString(),
+                  }),
               })
             : [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages];
 
