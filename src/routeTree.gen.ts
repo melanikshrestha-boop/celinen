@@ -69,6 +69,7 @@ import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
+import { Route as ApiPlacesRouteImport } from './routes/api/places'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
@@ -401,6 +402,11 @@ const ApiMcpRoute = ApiMcpRouteImport.update({
   path: '/api/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPlacesRoute = ApiPlacesRouteImport.update({
+  id: '/api/places',
+  path: '/api/places',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVersionRoute = ApiVersionRouteImport.update({
   id: '/api/version',
   path: '/api/version',
@@ -621,6 +627,7 @@ export interface FileRoutesByFullPath {
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/compare/$slug': typeof CompareSlugRoute
@@ -711,6 +718,7 @@ export interface FileRoutesByTo {
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/compare/$slug': typeof CompareSlugRoute
@@ -804,6 +812,7 @@ export interface FileRoutesById {
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/compare/$slug': typeof CompareSlugRoute
@@ -899,6 +908,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/mcp'
+    | '/api/places'
     | '/api/version'
     | '/blog/$slug'
     | '/compare/$slug'
@@ -989,6 +999,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/mcp'
+    | '/api/places'
     | '/api/version'
     | '/blog/$slug'
     | '/compare/$slug'
@@ -1081,6 +1092,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/mcp'
+    | '/api/places'
     | '/api/version'
     | '/blog/$slug'
     | '/compare/$slug'
@@ -1175,6 +1187,7 @@ export interface RootRouteChildren {
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiMcpRoute: typeof ApiMcpRoute
+  ApiPlacesRoute: typeof ApiPlacesRoute
   ApiVersionRoute: typeof ApiVersionRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DocsPermissionsRoute: typeof DocsPermissionsRoute
@@ -1618,6 +1631,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/places': {
+      id: '/api/places'
+      path: '/api/places'
+      fullPath: '/api/places'
+      preLoaderRoute: typeof ApiPlacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/version': {
       id: '/api/version'
       path: '/api/version'
@@ -1961,6 +1981,7 @@ const rootRouteChildren: RootRouteChildren = {
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
   ApiMcpRoute: ApiMcpRoute,
+  ApiPlacesRoute: ApiPlacesRoute,
   ApiVersionRoute: ApiVersionRoute,
   BlogSlugRoute: BlogSlugRoute,
   DocsPermissionsRoute: DocsPermissionsRoute,
