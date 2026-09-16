@@ -2,11 +2,13 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
+  padding: 8px 10px;
   width: 100%;
   min-width: 0;
   text-align: left;
-  border-radius: 10px;
+  border: 0;
+  background: none;
+  border-radius: 12px;
   color: var(--wb-text);
 }
 .account-trigger:hover {
@@ -51,35 +53,44 @@
   font-size: 17px;
 }
 .account-menu {
-  width: 280px;
+  width: 240px;
   max-width: calc(100vw - 24px);
-  padding: 8px;
-  border: 1px solid var(--input);
-  border-radius: 14px;
-  box-shadow: 0 8px 24px #00000018;
+  padding: 6px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 .account-menu-identity {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 8px 16px;
+  padding: 8px 8px 10px;
+  font-weight: 500;
 }
 .account-menu [role="menuitem"] {
-  min-height: 42px;
-  padding: 8px;
+  min-height: 36px;
+  padding: 0 8px;
   gap: 10px;
-  font-size: 14px;
-  border-radius: 7px;
+  font-size: 13px;
+  border-radius: 8px;
 }
 .account-menu kbd {
-  margin-left: auto;
-  color: var(--moss);
-  font-size: 12px;
+  display: none;
 }
 .account-inline-error {
   padding: 8px 10px;
   color: var(--destructive);
   font-size: 12px;
+}
+html.dark .account-menu {
+  background: #1c1c1e;
+  color: #f2f2f2;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+html.dark .account-menu [role="menuitem"]:focus,
+html.dark .account-menu [role="menuitem"]:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 .account-confirm {
   border-radius: 16px;

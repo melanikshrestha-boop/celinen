@@ -87,8 +87,8 @@ export function AccountMenu() {
               void openSection("usage");
             }}
           >
-            <Gauge size={17} />
-            Usage <kbd>{account.local ? "Local" : "Storage"}</kbd>
+            <Gauge size={16} />
+            Usage
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
@@ -100,16 +100,15 @@ export function AccountMenu() {
               }
             }}
           >
-            <Cat size={17} />
+            <Cat size={16} />
             {account.preferences.showPet ? "Hide pet" : "Show pet"}
-            <kbd>⌃Space</kbd>
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {
               setInvite(true);
             }}
           >
-            <Send size={17} />
+            <Send size={16} />
             Invite a friend
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -117,12 +116,12 @@ export function AccountMenu() {
               void openSection("profile");
             }}
           >
-            <Settings size={17} />
-            Settings<kbd>⌘,</kbd>
+            <Settings size={16} />
+            Settings
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setConfirm(true)}>
-            <LogOut size={17} />
-            {account.local ? "Close local workspace" : "Log out"}
+            <LogOut size={16} />
+            {account.local ? "Close workspace" : "Log out"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -144,10 +143,7 @@ export function AccountMenu() {
               {account.local ? "Close this workspace?" : "Log out on this browser?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Saved photos and chats are kept. Unfinished work is checked before you leave.
-              {account.local
-                ? " You can reopen this local profile without a password."
-                : " Your other devices stay signed in."}
+              {account.local ? "This profile stays on this Mac." : "This browser signs out."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
