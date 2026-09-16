@@ -121,7 +121,11 @@ export function exportTheme(appearance: Appearance) {
 export function importTheme(text: string) {
   if (text.length > 8192) throw new Error("Choose a theme smaller than 8 KB.");
   const parsed = z
-    .object({ product: z.literal("Celinen"), version: z.literal(1), appearance: appearanceSchema })
+    .object({
+      product: z.union([z.literal("Celinen"), z.literal("LensLabs")]),
+      version: z.literal(1),
+      appearance: appearanceSchema,
+    })
     .strict()
     .parse(JSON.parse(text));
   return validateAppearance(parsed.appearance);
