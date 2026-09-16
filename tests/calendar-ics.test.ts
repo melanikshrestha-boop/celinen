@@ -6,6 +6,7 @@ import {
   isCalendarFeedUrl,
   monthGrid,
   parseIcs,
+  quarterWeeks,
   sameDay,
 } from "../src/lib/calendar-ics";
 
@@ -62,6 +63,15 @@ test("month grid is six iOS weeks and today matching is local", () => {
   expect(hits).toHaveLength(1);
 });
 
+test("quarter is thirteen Sunday-start weeks from the selected month", () => {
+  const weeks = quarterWeeks(new Date(2026, 8, 15));
+  expect(weeks).toHaveLength(13);
+  expect(weeks[0]).toHaveLength(7);
+  expect(weeks[0]?.[0]?.getDay()).toBe(0);
+  expect(weeks[0]?.[2]?.getDate()).toBe(1);
+  expect(weeks[0]?.[2]?.getMonth()).toBe(8);
+});
+
 test("dashboard calendar fills the page, no add form, no Google connectors", () => {
   const dash = readFileSync(new URL("../src/components/dashboard/AppDashboard.tsx", import.meta.url), "utf8");
   const cal = readFileSync(new URL("../src/components/dashboard/IosCalendar.tsx", import.meta.url), "utf8");
@@ -74,15 +84,16 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(cal).not.toContain('placeholder="Title"');
   expect(cal).not.toContain('placeholder="All day"');
   expect(cal).toContain("parseShootNote");
-  expect(cal).toContain("this week");
+  expect(cal).toContain("Quarter");
+  expect(cal).toContain("All Tasks");
   expect(cal).toContain("onDoubleClick");
-  expect(cal).toContain("CALENDAR_COLORS");
   expect(cal).toContain('"week"');
+  expect(cal).toContain('"quarter"');
   expect(cal).toContain("Day");
   expect(cal).toContain("celinen-ios-cal__side");
   expect(cal).toContain("celinen-ios-cal__block");
   expect(cal).not.toContain("OAuth");
-  expect(css).toContain("grid-template-rows: repeat(6, minmax(0, 1fr))");
+  expect(css).toContain("grid-template-rows: repeat(6, minmax(72px, 1fr))");
   expect(css).toContain("celinen-ios-cal__shell");
   expect(css).not.toContain("margin: 0 auto");
   expect(css).toContain("color-scheme: light");

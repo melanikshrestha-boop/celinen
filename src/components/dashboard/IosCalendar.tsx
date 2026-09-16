@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { ChevronLeft, ChevronRight, PanelLeft } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, PanelLeft } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { parseShootNote } from "@/lib/calendar-assist";
 import {
   addCalendarDays,
   eventsOnDay,
   monthGrid,
+  quarterWeeks,
   sameDay,
   weekDays,
   type CalendarEvent,
@@ -34,6 +35,7 @@ import {
   writeCalendarPlace,
   type CalendarPlace,
 } from "@/lib/calendar-place";
+import { readCalendarTasks, writeCalendarTasks, type CalendarTask } from "@/lib/calendar-tasks";
 import { BookingsPanel } from "./BookingsPanel";
 import "./ios-calendar.css";
 
@@ -41,6 +43,7 @@ const VIEWS = [
   { id: "day", label: "Day" },
   { id: "week", label: "Week" },
   { id: "month", label: "Month" },
+  { id: "quarter", label: "Quarter" },
   { id: "year", label: "Year" },
 ] as const;
 type CalView = (typeof VIEWS)[number]["id"];
@@ -72,6 +75,13 @@ function clockLabel(clock: Date) {
 
 function nowTop(clock: Date) {
   return `${((clock.getHours() * 60 + clock.getMinutes() - 360) / (16 * 60)) * 100}%`;
+}
+
+function quarterLabel(date: Date, today: Date) {
+  if (sameDay(date, today) || date.getDate() === 1) {
+    return date.toLocaleString("en-US", { month: "short", day: "numeric" });
+  }
+  return String(date.getDate());
 }
 
 function eventKind(event: CalendarEvent) {
@@ -166,6 +176,11 @@ export function IosCalendar() {
   const [bookOpen, setBookOpen] = useState(false);
   const [types, setTypes] = useState<BookingType[]>([]);
   const [place, setPlace] = useState<CalendarPlace>(() => readCalendarPlace() ?? placeFromZone());
+  const [tasks, setTasks] = useState<CalendarTask[]>([]);
+  const [taskDraft, setTaskDraft] = useState("");
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [viewsOpen, setViewsOpen] = useState(false);
+  const taskScope = scope ?? "local";
   const pendingType = useRef<BookingType | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLElement>(null);
@@ -192,6 +207,7 @@ export function IosCalendar() {
   const inspected = events.find((event) => event.id === inspect) ?? null;
 
   useEffect(() => {
+    setTasks(readCalendarTasks(scope ?? "local"));
     if (!scope) return;
     const loaded = readCalendarState(scope);
     const localEvents = loaded.localEvents.filter((event) => !/usc vs ucla/i.test(event.title));
@@ -343,8 +359,14 @@ export function IosCalendar() {
   function step(dir: number) {
     if (view === "day") setSelected(addCalendarDays(selected, dir));
     else if (view === "week") setSelected(addCalendarDays(selected, dir * 7));
+    else if (view === "quarter") setSelected(new Date(selected.getFullYear(), selected.getMonth() + dir * 3, 1));
     else if (view === "year") setSelected(new Date(selected.getFullYear() + dir, selected.getMonth(), 1));
     else setSelected(new Date(selected.getFullYear(), selected.getMonth() + dir, 1));
+  }
+
+  function persistTasks(next: CalendarTask[]) {
+    setTasks(next);
+    writeCalendarTasks(taskScope, next);
   }
 
   function submitAsk() {
@@ -407,6 +429,7 @@ export function IosCalendar() {
     } else if (event.key === "d" || event.key === "D") setView("day");
     else if (event.key === "w" || event.key === "W") setView("week");
     else if (event.key === "m" || event.key === "M") setView("month");
+    else if (event.key === "q" || event.key === "Q") setView("quarter");
     else if (event.key === "y" || event.key === "Y") setView("year");
     else if (event.key === "ArrowLeft") {
       event.preventDefault();
@@ -414,7 +437,11 @@ export function IosCalendar() {
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
       step(1);
-    } else if (event.key === "Escape") setInspect(null);
+    } else if (event.key === "Escape") {
+      setInspect(null);
+      setTasksOpen(false);
+      setViewsOpen(false);
+    }
     else if (event.key === "Delete" || event.key === "Backspace") {
       if (inspected?.source === "local") removeEvent(inspected.id);
     }
@@ -580,6 +607,92 @@ export function IosCalendar() {
             </button>
           ))}
         </div>
+        <div className="celinen-ios-cal__tasks-wrap">
+            <button
+              type="button"
+              className="celinen-ios-cal__tasks-btn"
+              aria-label="Tasks"
+              aria-expanded={tasksOpen}
+              onClick={() => {
+                setTasksOpen((open) => !open);
+                setViewsOpen(false);
+              }}
+            >
+              <Check size={16} strokeWidth={2} />
+            </button>
+            {tasksOpen ? (
+              <div className="celinen-ios-cal__menu" role="dialog" aria-label="All Tasks">
+                <p>All Tasks</p>
+                <ul>
+                  {tasks.map((task) => (
+                    <li key={task.id}>
+                      <button
+                        type="button"
+                        className={task.done ? "is-done" : undefined}
+                        onClick={() =>
+                          persistTasks(
+                            tasks.map((item) => (item.id === task.id ? { ...item, done: !item.done } : item)),
+                          )
+                        }
+                      >
+                        {task.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const title = taskDraft.trim();
+                    if (!title) return;
+                    persistTasks([...tasks, { id: `task-${Date.now()}`, title, done: false }]);
+                    setTaskDraft("");
+                  }}
+                >
+                  <input
+                    value={taskDraft}
+                    onChange={(event) => setTaskDraft(event.target.value)}
+                    aria-label="New task"
+                  />
+                </form>
+              </div>
+            ) : null}
+        </div>
+        <div className="celinen-ios-cal__compact">
+          <div className="celinen-ios-cal__views-wrap">
+            <button
+              type="button"
+              className="celinen-ios-cal__views-now"
+              aria-haspopup="listbox"
+              aria-expanded={viewsOpen}
+              onClick={() => {
+                setViewsOpen((open) => !open);
+                setTasksOpen(false);
+              }}
+            >
+              {VIEWS.find((item) => item.id === view)?.label}
+              <ChevronDown size={14} strokeWidth={2} />
+            </button>
+            {viewsOpen ? (
+              <div className="celinen-ios-cal__menu" role="listbox" aria-label="View">
+                {VIEWS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="option"
+                    aria-selected={view === item.id}
+                    onClick={() => {
+                      setView(item.id);
+                      setViewsOpen(false);
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
         <label className="celinen-ios-cal__find">
           <span className="sr-only">Search</span>
           <input type="search" placeholder="Search" />
@@ -660,6 +773,43 @@ export function IosCalendar() {
                   }}
                 />
               ))}
+            </div>
+          ) : view === "quarter" ? (
+            <div className="celinen-ios-cal__quarter">
+              <div className="celinen-ios-cal__weekheads">
+                {WEEK.map((d) => (
+                  <span key={d}>{d}</span>
+                ))}
+              </div>
+              <div className="celinen-ios-cal__quarter-grid">
+                {quarterWeeks(selected).map((week) => (
+                  <div key={week[0]?.toISOString()} className="celinen-ios-cal__quarter-row">
+                    {week.map((day) => {
+                      const on = sameDay(day, today);
+                      const monthStart = day.getDate() === 1;
+                      const onDay = eventsOnDay(events, day);
+                      return (
+                        <button
+                          key={day.toISOString()}
+                          type="button"
+                          className={`celinen-ios-cal__qday${on ? " is-today" : ""}${monthStart ? " is-month" : ""}${day.getDay() === 0 || day.getDay() === 6 ? " is-end" : ""}`}
+                          onClick={() => setSelected(day)}
+                          onDoubleClick={() => setView("day")}
+                        >
+                          <span className={`celinen-ios-cal__mark${on ? " is-now" : monthStart ? " is-start" : ""}`}>
+                            {quarterLabel(day, today)}
+                          </span>
+                          {onDay.slice(0, 3).map((event) => (
+                            <em key={event.id} style={{ background: eventColor(event) }}>
+                              {event.title}
+                            </em>
+                          ))}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : view === "month" ? (
             <>

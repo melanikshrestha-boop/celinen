@@ -245,6 +245,14 @@ export function weekDays(day: Date) {
   });
 }
 
+/** Thirteen weeks from the Sunday of the selected month — Fantastical Quarter. */
+export function quarterWeeks(day: Date, weeks = 13) {
+  const start = weekStart(new Date(day.getFullYear(), day.getMonth(), 1));
+  return Array.from({ length: weeks }, (_, week) =>
+    Array.from({ length: 7 }, (_, index) => addCalendarDays(start, week * 7 + index)),
+  );
+}
+
 export function addCalendarDays(day: Date, count: number) {
   const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + count);
   return next;

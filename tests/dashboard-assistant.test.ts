@@ -207,6 +207,8 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
   expect(source.match(/style=\{timedGrid\}/g)?.length).toBeGreaterThanOrEqual(3);
   expect(css).toContain("@container (max-width: 700px)");
   expect(css).toContain("width: max-content");
+  expect(css).toContain(".celinen-ios-cal__quarter");
+  expect(css).toContain("@container (max-width: 900px)");
   expect(css).not.toContain("flex-basis: 100%");
 });
 
@@ -248,6 +250,9 @@ test("desktop calendar view switcher moves without a click", () => {
     new URL("../src/components/dashboard/ios-calendar.css", import.meta.url),
     "utf8",
   );
+  expect(source).toContain('id: "quarter"');
+  expect(source).toContain("All Tasks");
+  expect(source).toContain("celinen-ios-cal__compact");
   expect(source).toContain("Allow full location access");
   expect(source).toContain("formatPlace");
   expect(source).toContain('event.pointerType !== "mouse"');
