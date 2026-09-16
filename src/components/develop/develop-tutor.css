@@ -26,6 +26,9 @@
   display: block;
   fill: currentColor;
 }
+.develop-tutor-buddy.is-press {
+  filter: drop-shadow(0 0 10px #2f6fed);
+}
 .develop-tutor-wave {
   display: flex;
   align-items: center;

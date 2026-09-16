@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   applyLook,
+  applySet,
   bezierArc,
   compileLook,
   lookTitle,
@@ -59,13 +60,39 @@ function hush() {
   window.speechSynthesis.cancel();
 }
 
+function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
 function revealPanel(id: string) {
-  for (const node of document.querySelectorAll(".develop-right details.develop-panel[id]")) {
+  for (const node of document.querySelectorAll(".develop-right details.develop-panel")) {
     if (node instanceof HTMLDetailsElement) node.open = node.id === id;
   }
   const node = document.getElementById(id);
-  if (node instanceof HTMLDetailsElement) node.open = true;
+  if (node instanceof HTMLDetailsElement) {
+    node.open = true;
+    node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
   if (id === "panel-mixer") document.getElementById("hsl-orange")?.click();
+}
+
+function summaryBox(id: string) {
+  const summary = document.querySelector(`#${CSS.escape(id)} summary`);
+  if (!(summary instanceof HTMLElement)) return null;
+  const box = summary.getBoundingClientRect();
+  return { x: box.left + Math.min(48, box.width / 2), y: box.top + box.height / 2, box, node: summary };
+}
+
+function rangeThumb(id: string) {
+  const wrap = document.getElementById(id);
+  const input = wrap?.querySelector("input[type=range]");
+  if (!(input instanceof HTMLInputElement)) return null;
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const val = Number(input.value);
+  const box = input.getBoundingClientRect();
+  const t = (val - min) / ((max - min) || 1);
+  return { x: box.left + box.width * t, y: box.top + box.height / 2, box, node: input };
 }
 
 function controlBox(id: string) {
@@ -137,6 +164,7 @@ export function DevelopTutor({
   const [draw, setDraw] = useState<Ring | null>(null);
   const [mode, setMode] = useState<"do" | "show">("do");
   const [voice, setVoice] = useState<Voice>("idle");
+  const [press, setPress] = useState(false);
   const [canTalk, setCanTalk] = useState(false);
   const bar = useRef<HTMLFormElement>(null);
   const recipe = useRef(settings);
@@ -188,8 +216,69 @@ export function DevelopTutor({
     flight.current = window.requestAnimationFrame(tick);
   }
 
+  function rideControl(id?: string) {
+    if (!id) return;
+    if (id === "tone-curve") {
+      const point =
+        document.getElementById("curve-point-1") || document.getElementById("curve-point-0");
+      if (point) {
+        const box = point.getBoundingClientRect();
+        flyTo(pin(box.left + box.width / 2, box.top + box.height / 2), true);
+      }
+      return;
+    }
+    const thumb = rangeThumb(id);
+    if (thumb) flyTo(pin(thumb.x, thumb.y), true);
+  }
+
+  async function clickPanel(id: string) {
+    const target = summaryBox(id);
+    if (target) {
+      flyTo(pin(target.x, target.y));
+      await wait(260);
+      setPress(true);
+      await wait(80);
+      revealPanel(id);
+      setPress(false);
+      await wait(280);
+    } else revealPanel(id);
+  }
+
+  async function dragSets(beat: TutorBeat, at: number) {
+    const origin = originRef.current;
+    if (!origin) return;
+    const from = at <= 0 ? origin : applyLook(origin, beatsRef.current, at - 1);
+    let current = from;
+    for (const set of beat.sets) {
+      const start = current;
+      const t0 = performance.now();
+      await new Promise<void>((resolve) => {
+        const tick = (now: number) => {
+          const t = Math.min(1, (now - t0) / 680);
+          const eased = t * t * (3 - 2 * t);
+          onChange(applySet(start, set.path, set.delta * eased), title, false);
+          rideControl(beat.point);
+          if (t < 1) flight.current = window.requestAnimationFrame(tick);
+          else resolve();
+        };
+        flight.current = window.requestAnimationFrame(tick);
+      });
+      current = applySet(start, set.path, set.delta);
+    }
+  }
+
   function fly(id?: string, label = "", mark?: TutorDraw) {
-    const target = id ? controlBox(id) : null;
+    const target =
+      id === "tone-curve"
+        ? (() => {
+            const node = document.getElementById("tone-curve");
+            if (!node) return null;
+            const box = node.getBoundingClientRect();
+            return { x: box.left + box.width * 0.62, y: box.top + box.height * 0.38, box, node };
+          })()
+        : id
+          ? rangeThumb(id) || controlBox(id)
+          : null;
     const markBox = mark ? photoMark(mark) : null;
     setDraw(
       markBox
@@ -200,8 +289,7 @@ export function DevelopTutor({
       parkBuddy();
       return;
     }
-    const beside = pin(target.box.right + 8, target.box.top + 12);
-    flyTo(beside);
+    flyTo(pin(target.x, target.y));
     const ringAt = pin(target.box.left - 8, target.box.top - 8);
     setRing({
       x: ringAt.x,
@@ -221,15 +309,13 @@ export function DevelopTutor({
     onChange(next, label, commit);
   }
 
-  function runBeat(next: TutorBeat, at: number, replay = false) {
-    if (next.open) revealPanel(next.open);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        fly(next.point, next.say, next.draw);
-        speak(next.say);
-        if (!replay) paint(at, false);
-      });
-    });
+  async function runBeat(next: TutorBeat, at: number, replay = false) {
+    if (next.open) await clickPanel(next.open);
+    fly(next.point, next.say, next.draw);
+    speak(next.say);
+    await wait(300);
+    if (!replay && modeRef.current === "do" && next.sets.length) await dragSets(next, at);
+    else if (!replay) paint(at, false);
   }
 
   function startLook(line = ask.trim()) {
@@ -383,7 +469,7 @@ export function DevelopTutor({
     <div className="develop-tutor" aria-label="Look tutor">
       <div className="develop-tutor-layer" aria-hidden="true">
       <div
-        className={`develop-tutor-buddy${teaching ? " is-teaching" : ""}${voice === "listening" ? " is-listening" : ""}`}
+        className={`develop-tutor-buddy${teaching ? " is-teaching" : ""}${voice === "listening" ? " is-listening" : ""}${press ? " is-press" : ""}`}
         style={{
           transform: `translate(${buddy.x - 8}px, ${buddy.y - 8}px) rotate(${buddy.rotation}deg) scale(${buddy.scale})`,
         }}

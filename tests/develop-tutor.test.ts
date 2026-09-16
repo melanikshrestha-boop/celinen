@@ -46,15 +46,12 @@ Green in the shade will fight the warmth.
       "slider-tint",
       "slider-highlights",
       "slider-shadows",
-      "wheel-shadows",
+      "tone-curve",
       "hsl-orange-sat",
     ]);
     expect(beats[0]?.sets).toEqual([{ path: "temp", delta: 18 }]);
-    expect(beats[4]?.open).toBe("panel-grading");
-    expect(beats[4]?.sets).toEqual([
-      { path: "wheel.shadows.hue", delta: 200 },
-      { path: "wheel.shadows.sat", delta: 12 },
-    ]);
+    expect(beats[4]?.open).toBe("panel-curve");
+    expect(beats[4]?.sets).toEqual([{ path: "curve.mid", delta: -12 }]);
     expect(beats[5]?.done).toBe(true);
     expect(beats[0]?.draw).toBe("subject");
     expect(beats[2]?.draw).toBe("windows");
@@ -103,7 +100,7 @@ Warm the person. Leave the street cold.
       "slider-highlights",
       "slider-tint",
       "slider-shadows",
-      "wheel-shadows",
+      "tone-curve",
       "hsl-orange-sat",
     ]);
     expect(beats.filter((beat) => beat.point === "slider-highlights")).toHaveLength(1);
@@ -132,12 +129,12 @@ Warm the person. Leave the street cold.
     expect(once.tint).toBe(-4);
     expect(once.highlights).toBe(-20);
     expect(once.shadows).toBe(15);
-    expect(once.grading.shadows.hue).toBe(200);
-    expect(once.grading.shadows.saturation).toBe(12);
+    expect(once.curve.some((point) => point.x > 0.3 && point.y < 0.62)).toBe(true);
     expect(once.hsl[1]?.saturation).toBe(-8);
     expect(twice).toEqual(once);
     expect(applySet(once, "temp", 18).temperature).toBe(36);
     expect(pointId("temp")).toBe("slider-temp");
+    expect(pointId("curve.mid")).toBe("tone-curve");
     expect(pointId("wheel.shadows.hue")).toBe("wheel-shadows");
   });
 });

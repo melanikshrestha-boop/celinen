@@ -41,6 +41,8 @@ export const TUTOR_IDS = [
   "hsl-orange",
   "hsl-orange-sat",
   "wheel-shadows",
+  "panel-curve",
+  "tone-curve",
 ] as const;
 
 function clamp(path: string, value: number) {
@@ -75,6 +77,20 @@ export function applySet(settings: DevelopSettings, path: string, delta: number)
     next.grading[range][field] = clamp(path, current + delta) as never;
     return next;
   }
+  if (path === "curve.mid" || path.startsWith("curve.")) {
+    const curve = next.curve.map((point) => ({ ...point }));
+    let index = curve.findIndex((point) => point.x > 0.35 && point.x < 0.82);
+    if (index <= 0 || index >= curve.length - 1) {
+      const insert = { x: 0.62, y: 0.62 };
+      const at = Math.max(1, curve.length - 1);
+      curve.splice(at, 0, insert);
+      index = at;
+    }
+    const point = curve[index]!;
+    curve[index] = { x: point.x, y: Math.min(1, Math.max(0, point.y + delta / 100)) };
+    next.curve = curve;
+    return next;
+  }
   const hsl = path.match(/^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/);
   if (hsl) {
     const index = HSL_INDEX[hsl[1]!];
@@ -99,6 +115,7 @@ export function pointId(path: string) {
   if (path === "tint") return "slider-tint";
   if (path.startsWith("wheel.shadows") || path === "wheel-shadows") return "wheel-shadows";
   if (path.startsWith("hsl.orange")) return "hsl-orange-sat";
+  if (path.startsWith("curve") || path === "tone-curve") return "tone-curve";
   if (path.startsWith("slider-")) return path.replace(/^#/, "");
   const map: Record<string, string> = {
     exposure: "slider-exposure",
@@ -237,11 +254,10 @@ Warm the person. Leave the street cold.
   );
   if (advanced) {
     beats.push(
-      "[OPEN:panel.grading]",
-      "[POINT:#wheel-shadows]",
-      "Teal lives in shadows and glass only.",
-      "[SET:wheel.shadows.hue:200]",
-      "[SET:wheel.shadows.sat:12]",
+      "[OPEN:panel.curve]",
+      "[POINT:#tone-curve]",
+      "Hold the top of the curve so the windows stay.",
+      "[SET:curve.mid:-12]",
       "[WAIT]",
       "[OPEN:panel.mixer]",
       "[DRAW:photo.skin]",
@@ -270,6 +286,7 @@ export function pointerLabel(id?: string) {
   if (id.includes("shadows")) return "shadows";
   if (id.includes("blacks")) return "blacks";
   if (id.includes("orange")) return "skin lock";
+  if (id.includes("curve")) return "curve";
   return id.replace(/^slider-|^hsl-|^wheel-/, "").replace(/-/g, " ");
 }
 

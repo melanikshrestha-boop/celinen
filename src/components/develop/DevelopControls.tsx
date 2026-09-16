@@ -368,6 +368,7 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
         </select>
       </label>
       <svg
+        id="tone-curve"
         className="develop-curve"
         data-channel={channel}
         data-interpolation={value.curveInterpolation}
@@ -433,7 +434,13 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
           strokeWidth="1.5"
         />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x * 200} cy={(1 - p.y) * 200} r="3.3" />
+          <circle
+            key={i}
+            id={`curve-point-${i}`}
+            cx={p.x * 200}
+            cy={(1 - p.y) * 200}
+            r="3.3"
+          />
         ))}
       </svg>
       <div className="develop-inline">
@@ -731,7 +738,7 @@ export function DevelopControls({
         {scalar("vibrance", "Vibrance")}
         {scalar("saturation", "Saturation")}
       </Panel>
-      <Panel title="Tone Curve" disabled={browserOnly}>
+      <Panel title="Tone Curve" id="panel-curve" disabled={browserOnly}>
         <div className="develop-inline">
           <span>Curve Type</span>
           <select
@@ -829,7 +836,7 @@ export function DevelopControls({
       <Panel title="Color Grading" id="panel-grading" disabled={browserOnly}>
         <ColorGrading key={photoId} value={value} change={change} Slider={DevelopSlider} />
       </Panel>
-      <Panel title="Effects" disabled={browserOnly}>
+      <Panel title="Effects" id="panel-effects" disabled={browserOnly}>
         {scalar("grain", "Grain", 0)}
         {scalar("grainSize", "Grain size", 0.5, 4, 0.1)}
         {scalar("grainLuminance", "Grain luminance", 0)}
@@ -839,7 +846,7 @@ export function DevelopControls({
         {scalar("vignette", "Vignette")}
         {scalar("filmFalloff", "Film falloff", 0)}
       </Panel>
-      <Panel title="Detail" disabled={browserOnly}>
+      <Panel title="Detail" id="panel-detail" disabled={browserOnly}>
         {scalar("sharpening", "Sharpening", 0)}
         {scalar("sharpeningRadius", "Sharpening radius", 0.5, 3, 0.1, {
           displayLabel: "Radius",
@@ -857,7 +864,7 @@ export function DevelopControls({
         {scalar("colorNoiseReduction", "Color noise", 0)}
         <p className="develop-hint">Inspect at 100% for fine detail.</p>
       </Panel>
-      <Panel title="Crop & Straighten" open={tool === "crop"}>
+      <Panel title="Crop & Straighten" id="panel-crop" open={tool === "crop"}>
         {onSuggestCrop && (
           <button onClick={onSuggestCrop} disabled={browserOnly}>
             Automatic crop…
@@ -962,7 +969,7 @@ export function DevelopControls({
           />
         ))}
       </Panel>
-      <Panel title="Lens Correction" disabled={browserOnly}>
+      <Panel title="Lens Correction" id="panel-lens" disabled={browserOnly}>
         <div className="develop-inline">
           <span>Enable</span>
           <label>
@@ -1084,7 +1091,7 @@ export function DevelopControls({
           disabled: !value.lensCorrection.enabled
         })}
       </Panel>
-      <Panel title="Masking" open={tool === "mask"} disabled={browserOnly}>
+      <Panel title="Masking" id="panel-masks" open={tool === "mask"} disabled={browserOnly}>
         <div className="develop-button-row">
           <button disabled={value.masks.length >= 12} onClick={() => addMask("linear")}>
             <Plus size={12} />
