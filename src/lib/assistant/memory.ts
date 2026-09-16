@@ -90,6 +90,42 @@ export function recordTemperatureCorrection(memory: AssistantMemory, deltaKelvin
   return next;
 }
 
+export type OnboardingTaste = {
+  cull: "peak" | "face" | "sharp";
+  skin: "natural" | "smoother";
+};
+
+export function memoryFromOnboarding(
+  photographerId: string,
+  workRole: string,
+  taste: OnboardingTaste,
+): AssistantMemory {
+  const base = defaultAssistantMemory(photographerId, workRole);
+  return {
+    ...base,
+    sports: {
+      ...base.sports,
+      peakAction: taste.cull === "peak" ? 0.98 : taste.cull === "face" ? 0.84 : 0.72,
+      rejectNoBall: taste.cull === "peak",
+    },
+    editing: {
+      ...base.editing,
+      neverOverSmoothSkin: taste.skin === "natural",
+      confidence: 0.45,
+    },
+    notes: [
+      taste.cull === "peak"
+        ? "Onboarding: peak action wins the cull."
+        : taste.cull === "face"
+          ? "Onboarding: face wins the cull."
+          : "Onboarding: sharpness wins the cull.",
+      taste.skin === "natural"
+        ? "Onboarding: keep skin texture."
+        : "Onboarding: smoother skin ok.",
+    ],
+  };
+}
+
 export function formatMemoryForPrompt(memory: AssistantMemory): string {
   const lines = [
     `USER MEMORY workRole=${memory.user.workRole}; concise=${memory.user.concise ? "yes" : "no"}`,

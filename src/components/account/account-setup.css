@@ -94,6 +94,56 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.account-setup .account-setup-label {
+  margin: 18px 0 8px;
+  color: var(--auth-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.account-setup .account-setup-themes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.account-setup .account-setup-theme {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  padding: 8px;
+  border: 1px solid #bcc8d0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--auth-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.account-setup .account-setup-theme[aria-checked="true"] {
+  border-color: #4d6fff;
+  box-shadow: 0 0 0 1px #4d6fff;
+}
+.account-setup .account-setup-theme-preview {
+  display: block;
+  height: 56px;
+  border-radius: 8px;
+  background: #e8eef2;
+}
+.account-setup .account-setup-theme.is-light .account-setup-theme-preview {
+  background: linear-gradient(180deg, #f7f4ee 0%, #e6edf3 100%);
+}
+.account-setup .account-setup-theme.is-dark .account-setup-theme-preview {
+  background: linear-gradient(180deg, #2a3138 0%, #11161a 100%);
+}
+.account-setup .account-setup-theme.is-system .account-setup-theme-preview {
+  background: linear-gradient(90deg, #f7f4ee 50%, #11161a 50%);
+}
+.account-setup .account-setup-theme-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
 .account-setup .account-setup-roles {
   display: grid;
   gap: 8px;

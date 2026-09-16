@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { classifyAssistantIntent } from "../src/lib/assistant/intent";
 import { retrievePhotographyKnowledge } from "../src/lib/assistant/knowledge";
 import { explainPick, pickFrame, scoreFrame } from "../src/lib/assistant/taste";
-import { defaultAssistantMemory, formatMemoryForPrompt, recordTemperatureCorrection } from "../src/lib/assistant/memory";
+import {
+  defaultAssistantMemory,
+  formatMemoryForPrompt,
+  memoryFromOnboarding,
+  recordTemperatureCorrection,
+} from "../src/lib/assistant/memory";
 import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
 
 describe("Lenslab intelligence", () => {
@@ -50,6 +55,17 @@ describe("Lenslab intelligence", () => {
     );
     expect(pick?.winner.id).toBe("4382");
     expect(explainPick("4382", a, "4383", b)).toContain("I'd pick 4382");
+  });
+
+  test("onboarding taste becomes sports memory", () => {
+    const memory = memoryFromOnboarding("84721", "college-football", {
+      cull: "peak",
+      skin: "natural",
+    });
+    expect(memory.user.workRole).toBe("college-football");
+    expect(memory.sports.peakAction).toBe(0.98);
+    expect(memory.editing.neverOverSmoothSkin).toBe(true);
+    expect(memory.notes.some((note) => note.includes("peak action"))).toBe(true);
   });
 
   test("memory records a cooler skin bias", () => {

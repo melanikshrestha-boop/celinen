@@ -27,6 +27,7 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
     expect(css).toContain("background: var(--auth-blue)");
     expect(css).toContain(":focus-visible");
     expect(css).toContain(".account-setup-role");
+    expect(css).toContain(".account-setup-themes");
     expect(css).toContain("#4d6fff");
   });
 } else {
@@ -77,6 +78,8 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
   assert.ok(html.includes("Other"));
   assert.ok(html.includes("Continue"));
   assert.ok(html.includes("disabled"));
+  assert.ok(!html.includes("Customize"));
+  assert.ok(!html.includes("What wins a cull"));
   assert.ok(html.includes('role="radiogroup"'));
   assert.ok(!html.includes('id="profile-display-name"'));
   assert.ok(!html.includes("Open workspace →"));
@@ -123,6 +126,29 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
     (node) => node.type === "button" && node.props?.children === "Continue",
   )!;
   assert.equal(continueButton.props!.disabled, true);
+  const look = AccountSetupView({
+    account,
+    workRole: "college-football",
+    theme: "dark",
+    cull: "peak",
+    skin: "natural",
+    step: "look",
+    onPick() {},
+    onContinue() {},
+    onLookContinue() {},
+    onBack() {},
+  });
+  const lookHtml = renderToStaticMarkup(look);
+  assert.ok(lookHtml.includes("Customize"));
+  assert.ok(lookHtml.includes("Theme"));
+  assert.ok(lookHtml.includes("Light"));
+  assert.ok(lookHtml.includes("Dark"));
+  assert.ok(lookHtml.includes("System"));
+  assert.ok(lookHtml.includes("What wins a cull"));
+  assert.ok(lookHtml.includes("Peak action"));
+  assert.ok(lookHtml.includes("Natural skin"));
+  assert.ok(lookHtml.includes("Next"));
+  assert.ok(!lookHtml.includes("Who are you?"));
   const named = AccountSetupView({
     account,
     workRole: "college-football",
