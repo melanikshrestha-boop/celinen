@@ -1,5 +1,6 @@
 .voice-mic {
   position: relative;
+  z-index: 2;
   display: grid;
   place-items: center;
   width: 36px;
@@ -11,6 +12,8 @@
   background: transparent;
   color: #5b6570;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 .voice-mic:hover {
   background: #f4f4f4;
@@ -21,6 +24,9 @@
 }
 .voice-mic.is-busy:not(.is-listening) {
   color: #4d6fff;
+}
+.voice-mic.is-error {
+  color: #e24b4a;
 }
 .voice-mic__wave {
   display: flex;

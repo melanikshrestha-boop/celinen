@@ -73,6 +73,9 @@ test("home and social dictation use VoiceMic plus Grok STT", () => {
   );
   const cull = readFileSync(new URL("../src/components/studio/CullChat.tsx", import.meta.url), "utf8");
   const mic = readFileSync(new URL("../src/components/dashboard/VoiceMic.tsx", import.meta.url), "utf8");
+  const flow = readFileSync(new URL("../src/lib/voice/useVoiceFlow.ts", import.meta.url), "utf8");
+  const client = readFileSync(new URL("../src/lib/voice/transcribe-client.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../src/routes/api/voice/stt.ts", import.meta.url), "utf8");
   const stt = readFileSync(new URL("../src/lib/voice/grok-stt.ts", import.meta.url), "utf8");
   expect(home).toContain("VoiceMic");
   expect(home).toContain("inputRef={box}");
@@ -81,8 +84,13 @@ test("home and social dictation use VoiceMic plus Grok STT", () => {
   expect(social).not.toContain("webkitSpeechRecognition");
   expect(cull).toContain("VoiceMic");
   expect(cull).toContain("inputRef={inputRef}");
-  expect(mic).toContain("Control+Space");
+  expect(mic).toContain("onClick");
   expect(mic).toContain("registerDictationHotkey");
+  expect(flow).toContain("openMicStream");
+  expect(flow).toContain("MediaRecorder");
+  expect(flow).not.toContain("createScriptProcessor");
+  expect(client).toContain("/api/voice/stt");
+  expect(route).toContain("grokTranscribeAudio");
   expect(stt).toContain("https://api.x.ai/v1/stt");
   expect(stt).toContain("filler_words");
   expect(stt).toContain("XAI_API_KEY");

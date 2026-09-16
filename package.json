@@ -12,6 +12,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "test": "bun test",
+    "deploy:web": "zsh scripts/deploy-lenslab-web.sh",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

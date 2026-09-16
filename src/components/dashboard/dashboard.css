@@ -497,10 +497,12 @@ html:has(.celinen-dash) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.social-post .celinen-dash__composer .social-post__send {
+.social-post .celinen-dash__composer .social-post__send,
+.social-post .celinen-dash__composer .voice-mic {
   width: 36px;
   height: 36px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 .celinen-dash__plus,
 .celinen-dash__send {

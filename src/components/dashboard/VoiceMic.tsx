@@ -7,7 +7,7 @@ import {
 } from "@/lib/voice/dictation-hotkey";
 import "./voice-mic.css";
 
-/** Wispr-style dictation: hold to talk, tap to toggle, Control+Space in the composer. */
+/** Tap to dictate, hold to talk, Control+Space in the composer. */
 export function VoiceMic({
   value,
   onChange,
@@ -49,23 +49,30 @@ export function VoiceMic({
   }, [inputRef]);
 
   const caret = () => dictationCaretOf(inputRef?.current ?? null, value);
+  const label = flow.error
+    ? flow.error
+    : flow.busy
+      ? "Transcribing"
+      : flow.listening
+        ? "Stop dictation"
+        : "Dictate";
 
   return (
     <button
       ref={buttonRef}
       type="button"
-      className={`voice-mic${flow.listening ? " is-listening" : ""}${flow.busy ? " is-busy" : ""}`}
-      aria-label={flow.listening ? "Stop dictation" : "Dictate · hold Control-Space"}
+      className={`voice-mic${flow.listening ? " is-listening" : ""}${flow.busy ? " is-busy" : ""}${flow.error ? " is-error" : ""}`}
+      aria-label={label}
+      title={label}
       aria-keyshortcuts="Control+Space"
       aria-pressed={flow.listening}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
-        event.preventDefault();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        flow.onPointerDown(event, caret());
+        flow.onPointerDown();
       }}
       onPointerUp={() => flow.onPointerUp()}
       onPointerCancel={() => flow.onPointerUp()}
+      onClick={() => flow.onClick(caret())}
     >
       {flow.listening ? (
         <span className="voice-mic__wave" aria-hidden="true">

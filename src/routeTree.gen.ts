@@ -92,6 +92,7 @@ import { Route as VsSlugRouteImport } from './routes/vs.$slug'
 import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
+import { Route as ApiVoiceSttRouteImport } from './routes/api/voice/stt'
 import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
 import { Route as ShootsIdCullRouteImport } from './routes/shoots.$id.cull'
 import { Route as ShootsIdDevelopRouteImport } from './routes/shoots.$id.develop'
@@ -517,6 +518,11 @@ const ApiPublicTrafficRoute = ApiPublicTrafficRouteImport.update({
   path: '/api/public/traffic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVoiceSttRoute = ApiVoiceSttRouteImport.update({
+  id: '/api/voice/stt',
+  path: '/api/voice/stt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShootsIdIndexRoute = ShootsIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -650,6 +656,7 @@ export interface FileRoutesByFullPath {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
   '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
@@ -740,6 +747,7 @@ export interface FileRoutesByTo {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
   '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
@@ -835,6 +843,7 @@ export interface FileRoutesById {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
   '/shoots/$id/gallery': typeof ShootsIdGalleryRoute
@@ -931,6 +940,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/voice/stt'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
     | '/shoots/$id/gallery'
@@ -1021,6 +1031,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/voice/stt'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
     | '/shoots/$id/gallery'
@@ -1115,6 +1126,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/voice/stt'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
     | '/shoots/$id/gallery'
@@ -1204,6 +1216,7 @@ export interface RootRouteChildren {
   ApiNativeV2Route: typeof ApiNativeV2Route
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
+  ApiVoiceSttRoute: typeof ApiVoiceSttRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
   ApiPublicStoriesPostIdCoverRoute: typeof ApiPublicStoriesPostIdCoverRoute
@@ -1792,6 +1805,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTrafficRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/voice/stt': {
+      id: '/api/voice/stt'
+      path: '/api/voice/stt'
+      fullPath: '/api/voice/stt'
+      preLoaderRoute: typeof ApiVoiceSttRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shoots/$id/': {
       id: '/shoots/$id/'
       path: '/'
@@ -1998,6 +2018,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeV2Route: ApiNativeV2Route,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicTrafficRoute: ApiPublicTrafficRoute,
+  ApiVoiceSttRoute: ApiVoiceSttRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
   ApiPublicStoriesPostIdCoverRoute: ApiPublicStoriesPostIdCoverRoute,
