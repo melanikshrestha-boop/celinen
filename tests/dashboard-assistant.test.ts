@@ -223,7 +223,7 @@ test("night mode calendar does not reserve a black appearance gutter", () => {
   );
   expect(dash).toContain(".celinen-dash__body.is-cal {\n  padding-right: 0;");
   expect(dash).toContain("html.dark .celinen-dash__body.is-cal {\n  background: #111111;");
-  expect(cal).toContain("padding: 0 96px 8px 16px");
+  expect(cal).toContain("padding: 20px 96px 16px 20px");
 });
 
 test("now line shows the clock on hover and today is a blue dot", () => {

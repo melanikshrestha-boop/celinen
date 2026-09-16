@@ -553,8 +553,8 @@ html.dark .celinen-dash__cal {
 }
 .celinen-dash__theme {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 22px;
+  right: 20px;
   z-index: 10;
   display: flex;
   padding: 3px;
@@ -607,6 +607,9 @@ html.dark .celinen-embedded-studio {
 }
 html.dark .celinen-dash__body.is-cal {
   background: #111111;
+}
+.celinen-dash__body.is-cal .celinen-dash__theme {
+  top: 22px;
 }
 html.dark .celinen-dash__brand,
 html.dark .celinen-dash__brand svg,
