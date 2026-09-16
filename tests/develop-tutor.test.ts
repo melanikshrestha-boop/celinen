@@ -12,6 +12,8 @@ import {
   pointerLabel,
   pointId,
   spokenLabel,
+  trustedPointer,
+  valueAt,
 } from "../src/lib/develop/tutor";
 
 const sonderAsk = "make this more warm and apply color theory or cinematic that gives off sonder vibes";
@@ -171,6 +173,26 @@ Warm the person. Leave the street cold.
   test("driveSet does not dump a look when there is no live control", () => {
     expect(driveSet("slider-temp", { path: "temp", delta: 18 })).toBe(false);
     expect(driveSet("tone-curve", { path: "curve.mid", delta: -12 })).toBe(false);
+  });
+
+  test("Clicky's synthetic pointerup does not skip WAIT; photographer clicks do", () => {
+    expect(trustedPointer({ isTrusted: false })).toBe(false);
+    expect(trustedPointer({ isTrusted: true })).toBe(true);
+    expect(trustedPointer({} as Event)).toBe(false);
+  });
+
+  test("SET targets are origin-relative so Back does not add the delta twice", () => {
+    const start = defaultDevelopSettings();
+    const beats = compileLook(sonderAsk, start);
+    const first = applyLook(start, beats, 0);
+    expect(valueAt(first, "temp")).toBe(18);
+    expect(valueAt(applySet(first, "temp", 18), "temp")).toBe(36);
+    const again = applyLook(start, beats, 0);
+    expect(valueAt(again, "temp")).toBe(18);
+    const lens = applySet(start, "lens.vignetteCorrection.amount", -20);
+    expect(lens.lensCorrection.enabled).toBe(true);
+    expect(lens.lensCorrection.vignetteCorrection.enabled).toBe(true);
+    expect(lens.lensCorrection.vignetteCorrection.amount).toBe(-20);
   });
 
   test("curve pointer math matches ToneCurve's SVG mapping so Clicky pulls the mid point", () => {

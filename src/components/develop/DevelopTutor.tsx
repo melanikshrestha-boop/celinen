@@ -13,6 +13,9 @@ import {
   pointerLabel,
   rangeThumbClient,
   spokenLabel,
+  trustedPointer,
+  valueAt,
+  curveMidY,
   type TutorBeat,
   type TutorDraw,
 } from "@/lib/develop/tutor";
@@ -218,10 +221,16 @@ export function DevelopTutor({
   function rideControl(id?: string) {
     if (!id) return;
     if (id === "tone-curve") {
-      const point = midCurveHandle() ?? document.getElementById("curve-point-0");
+      const point = midCurveHandle();
       if (point) {
         const box = point.getBoundingClientRect();
         flyTo(pin(box.left + box.width / 2, box.top + box.height / 2), true);
+        return;
+      }
+      const svg = document.getElementById("tone-curve");
+      if (svg) {
+        const box = svg.getBoundingClientRect();
+        flyTo(pin(box.left + box.width * 0.62, box.top + box.height * 0.38), true);
       }
       return;
     }
@@ -265,47 +274,60 @@ export function DevelopTutor({
     let current = from;
     for (const set of beat.sets) {
       const start = current;
+      const target = applySet(start, set.path, set.delta);
       const t0 = performance.now();
-      const input = beat.point && beat.point !== "tone-curve" && !beat.point.startsWith("wheel-")
-        ? findRange(beat.point)
-        : null;
+      const input =
+        beat.point && beat.point !== "tone-curve" && !beat.point.startsWith("wheel-")
+          ? findRange(beat.point)
+          : null;
       const svg = beat.point === "tone-curve" ? document.getElementById("tone-curve") : null;
       const wheel = beat.point?.startsWith("wheel-") ? document.getElementById(beat.point) : null;
-      const startValue = input ? Number(input.value) : null;
+      const fromVal = valueAt(start, set.path);
+      const toVal = valueAt(target, set.path);
       const curveStart = svg ? curveHandleClient(svg) : null;
       const wheelStart = wheel ? wheelHandleClient(wheel) : null;
-      const usedDom = Boolean(input || svg || wheel);
-      if (svg && curveStart) dispatchPointer(svg, "pointerdown", curveStart.x, curveStart.y);
-      if (wheel && wheelStart) dispatchPointer(wheel, "pointerdown", wheelStart.x, wheelStart.y);
+      const canSlide = Boolean(input && fromVal !== null && toVal !== null);
+      const canCurve = Boolean(svg && curveStart && svg.getBoundingClientRect().width > 0);
+      const canWheel = Boolean(wheel && wheelStart && wheel.getBoundingClientRect().width > 0);
+      if (canCurve && svg && curveStart) dispatchPointer(svg, "pointerdown", curveStart.x, curveStart.y);
+      if (canWheel && wheel && wheelStart) dispatchPointer(wheel, "pointerdown", wheelStart.x, wheelStart.y);
       setPress(true);
       await new Promise<void>((resolve) => {
         const tick = (now: number) => {
           const t = Math.min(1, (now - t0) / 680);
           const eased = t * t * (3 - 2 * t);
-          if (input && startValue !== null)
-            nativeSetRange(input, startValue + set.delta * eased, t >= 1);
-          else if (svg && curveStart) {
+          if (canSlide && input && fromVal !== null && toVal !== null)
+            nativeSetRange(input, fromVal + (toVal - fromVal) * eased, t >= 1);
+          else if (canCurve && svg && curveStart) {
             const box = svg.getBoundingClientRect();
-            const y0 = 1 - (curveStart.y - box.top) / box.height;
-            const y = Math.min(1, Math.max(0, y0 + (set.delta / 100) * eased));
+            const y = curveMidY(start) + (curveMidY(target) - curveMidY(start)) * eased;
             const atClient = {
               x: curveStart.x,
-              y: box.top + (1 - y) * box.height,
+              y: box.top + (1 - Math.min(1, Math.max(0, y))) * box.height,
             };
             dispatchPointer(svg, "pointermove", atClient.x, atClient.y);
             if (t >= 1) dispatchPointer(svg, "pointerup", atClient.x, atClient.y);
-          } else if (wheel && wheelStart) {
+          } else if (canWheel && wheel && wheelStart) {
             const box = wheel.getBoundingClientRect();
             const radius = Math.min(box.width, box.height) / 2;
             const cx = box.left + box.width / 2;
             const cy = box.top + box.height / 2;
-            const hueDelta = set.path.endsWith(".hue") ? set.delta * eased : 0;
-            const satDelta =
-              set.path.endsWith(".sat") || set.path.endsWith(".saturation") ? set.delta * eased : 0;
-            const dx = wheelStart.x - cx;
-            const dy = wheelStart.y - cy;
-            const hue = ((Math.atan2(dy, dx) * 180) / Math.PI + 360 + hueDelta) % 360;
-            const sat = Math.min(100, Math.max(0, (Math.hypot(dx, dy) / (radius || 1)) * 100 + satDelta));
+            const range = set.path.match(/^wheel\.(shadows|midtones|highlights|global)/)?.[1] as
+              | "shadows"
+              | "midtones"
+              | "highlights"
+              | "global"
+              | undefined;
+            const fromGrade = range ? start.grading[range] : null;
+            const toGrade = range ? target.grading[range] : null;
+            const hue =
+              fromGrade && toGrade
+                ? fromGrade.hue + (((toGrade.hue - fromGrade.hue + 540) % 360) - 180) * eased
+                : 0;
+            const sat =
+              fromGrade && toGrade
+                ? fromGrade.saturation + (toGrade.saturation - fromGrade.saturation) * eased
+                : 0;
             const angle = (hue * Math.PI) / 180;
             const atClient = {
               x: cx + Math.cos(angle) * (sat / 100) * radius,
@@ -321,8 +343,8 @@ export function DevelopTutor({
         flight.current = window.requestAnimationFrame(tick);
       });
       setPress(false);
-      if (!usedDom) current = applySet(start, set.path, set.delta);
-      else current = recipe.current;
+      onChange(target, title, false);
+      current = target;
     }
   }
 
@@ -540,7 +562,10 @@ export function DevelopTutor({
   useEffect(() => {
     if (!beat?.point) return;
     const pointed = document.getElementById(beat.point);
-    const advance = () => nextBeat();
+    const advance = (event: PointerEvent) => {
+      if (!trustedPointer(event)) return;
+      nextBeat();
+    };
     pointed?.addEventListener("pointerup", advance);
     const keys = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)

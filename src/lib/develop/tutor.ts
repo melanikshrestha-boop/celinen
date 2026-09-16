@@ -161,14 +161,64 @@ export function applySet(settings: DevelopSettings, path: string, delta: number)
     const block = next.lensCorrection[section] as Record<string, unknown>;
     const current = block[field];
     if (typeof current === "number") {
+      const patched: Record<string, unknown> = { ...block, [field]: clamp(path, current + delta) };
+      if (section !== "transform") patched["enabled"] = true;
       next.lensCorrection = {
         ...next.lensCorrection,
-        [section]: { ...block, [field]: clamp(path, current + delta) },
+        enabled: true,
+        [section]: patched,
       };
     }
     return next;
   }
   return next;
+}
+
+/** Photographer clicks are trusted. Clicky's synthetic pointerup must not skip WAIT. */
+export function trustedPointer(event: { isTrusted?: boolean } | Event) {
+  return event.isTrusted === true;
+}
+
+export function valueAt(settings: DevelopSettings, path: string): number | null {
+  const key = path === "temp" ? "temperature" : path === "tint" ? "tint" : path;
+  if (SCALAR_PATHS.has(key)) {
+    const current = settings[key as keyof DevelopSettings];
+    return typeof current === "number" ? current : null;
+  }
+  const wheel = path.match(/^wheel\.(shadows|midtones|highlights|global)\.(hue|sat|luminance)$/);
+  if (wheel) {
+    const range = wheel[1] as "shadows" | "midtones" | "highlights" | "global";
+    const channel = wheel[2] === "sat" ? "saturation" : (wheel[2] as "hue" | "luminance");
+    return settings.grading[range][channel];
+  }
+  if (path === "curve.mid" || path.startsWith("curve.")) {
+    const point = settings.curve.find((entry) => entry.x > 0.35 && entry.x < 0.82);
+    return point ? point.y * 100 : 62;
+  }
+  const hsl = path.match(/^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/);
+  if (hsl) {
+    const index = HSL_INDEX[hsl[1]!];
+    const channel = hsl[2] === "sat" ? "saturation" : (hsl[2] as "hue" | "luminance");
+    if (index === undefined || !settings.hsl[index]) return null;
+    return settings.hsl[index][channel];
+  }
+  const parametric = path.match(/^parametric\.(highlights|lights|darks|shadows)$/);
+  if (parametric) return settings.parametricCurve?.[parametric[1] as "highlights" | "lights" | "darks" | "shadows"] ?? 0;
+  if (path === "crop.angle" || path === "straighten") return settings.crop.angle;
+  const lens = path.match(/^lens\.(chromaticAberration|vignetteCorrection|transform)\.(\w+)$/);
+  if (lens) {
+    const block = settings.lensCorrection[lens[1] as "chromaticAberration" | "vignetteCorrection" | "transform"] as
+      | Record<string, unknown>
+      | undefined;
+    const current = block?.[lens[2]!];
+    return typeof current === "number" ? current : null;
+  }
+  return null;
+}
+
+export function curveMidY(settings: DevelopSettings) {
+  const point = settings.curve.find((entry) => entry.x > 0.35 && entry.x < 0.82);
+  return point?.y ?? 0.62;
 }
 
 export function applyLook(settings: DevelopSettings, beats: readonly TutorBeat[], through: number) {
@@ -430,7 +480,14 @@ export function nativeSetRange(input: HTMLInputElement, value: number, commit = 
     input.value = String(next);
   }
   input.dispatchEvent(new Event("input", { bubbles: true }));
-  if (commit) input.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+  if (commit) {
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      /* jsdom */
+    }
+    input.blur();
+  }
   return next;
 }
 
@@ -503,10 +560,10 @@ export function findRange(id?: string) {
   return input instanceof HTMLInputElement ? input : null;
 }
 
-export function driveSlider(id: string | undefined, delta: number, commit = false) {
+export function driveSlider(id: string | undefined, value: number, commit = false) {
   const input = findRange(id);
   if (!input) return false;
-  nativeSetRange(input, Number(input.value) + delta, commit);
+  nativeSetRange(input, value, commit);
   return true;
 }
 
