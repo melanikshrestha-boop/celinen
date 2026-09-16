@@ -10,6 +10,7 @@ import {
   frameAvailabilityLabel,
   studioThumbPaint,
 } from "@/lib/studio/frame-availability";
+import { cullScoreTone, cullToneClass, isImportAnalyzed } from "@/lib/studio/cull-on-import";
 
 interface FilmstripProps {
   shots: Shot[];
@@ -217,12 +218,18 @@ const FrameButton = memo(function FrameButton({
               : "preview pending"}
         </span>
       )}
-      <span className="absolute bottom-0 left-0 bg-ink/70 px-1 font-mono text-[9px] text-paper2">
+      <span
+        className={`absolute bottom-0 left-0 px-1 font-mono text-[9px] ${
+          index != null ? "bg-ink/70 text-paper2" : cullToneClass(cullScoreTone(s), "fill")
+        }`}
+      >
         {index != null
           ? String(index)
           : availability === "unreadable"
             ? "review"
-            : s.score || "—"}
+            : isImportAnalyzed(s)
+              ? String(Math.round(s.score))
+              : "…"}
       </span>
       {s.develop && (
         <span
@@ -233,10 +240,14 @@ const FrameButton = memo(function FrameButton({
         </span>
       )}
       {s.verdict === "keep" && (
-        <span className="absolute right-1 top-1 size-2 rounded-full bg-moss" />
+        <span className={`absolute right-1 top-1 rounded-sm px-1 font-mono text-[9px] leading-4 ${cullToneClass("keep", "fill")}`}>
+          K
+        </span>
       )}
       {s.verdict === "reject" && (
-        <span className="absolute right-1 top-1 size-2 rounded-full bg-rust" />
+        <span className={`absolute right-1 top-1 rounded-sm px-1 font-mono text-[9px] leading-4 ${cullToneClass("reject", "fill")}`}>
+          X
+        </span>
       )}
       {s.flags.length > 0 && s.verdict === "undecided" && (
         <span className="absolute right-1 top-1 size-2 rounded-full bg-sun" />

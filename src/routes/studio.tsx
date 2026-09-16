@@ -72,8 +72,11 @@ import { firstPassVerdict } from "@/lib/studio/first-pass";
 import { smartCullPass } from "@/lib/studio/smart-cull";
 import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
 import {
+  analysisBytesForShot,
   applyImportCull,
   attachImportAnalysis,
+  cullScoreTone,
+  cullToneClass,
   isImportAnalyzed,
   mergePreservedImportAnalysis,
 } from "@/lib/studio/cull-on-import";
@@ -98,7 +101,12 @@ import {
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
-import { asDevelopPreviewBlob, decodeDevelopPreview } from "@/lib/develop/decode-preview";
+import {
+  asDevelopPreviewBlob,
+  cullBitmapStillCurrent,
+  decodeDevelopPreview,
+  decodeDevelopPreviewUrl,
+} from "@/lib/develop/decode-preview";
 import { observationsFromPreviewUrl } from "@/lib/studio/face-descriptor";
 import { decideGallery, proposeGallery } from "@/lib/studio/gallery-select";
 import { INSIGHTFACE_WEIGHTS_NOTE, requestPeopleClusters } from "@/lib/studio/insightface";
@@ -599,10 +607,7 @@ export function Studio({
       let telemetry: ReturnType<typeof productOperation> | undefined;
       try {
         const pending = latestShotsRef.current.filter(
-          (shot) =>
-            unanalyzedIds.current.has(shot.id) &&
-            shot.sourceAvailable !== false &&
-            Boolean(shot.file?.size),
+          (shot) => unanalyzedIds.current.has(shot.id) && analysisBytesForShot(shot),
         );
         const analyzedIds = new Set<string>();
         if (pending.length || !importCullRef.current.applied)
@@ -613,7 +618,9 @@ export function Studio({
         await Promise.all(
           pending.map(async (shot) => {
             try {
-              const result = await analyseFile(shot.file);
+              const source = analysisBytesForShot(shot);
+              if (!source) return;
+              const result = await analyseFile(source);
               if (token !== importCullRef.current.token) return;
               unanalyzedIds.current.delete(shot.id);
               analyzedIds.add(shot.id);
@@ -1462,14 +1469,27 @@ export function Studio({
     const pending = bitmapPromisesRef.current.get(shot.id);
     if (pending) return pending;
 
-    const promise = (
-      shot.previewBlob
-        ? decodeDevelopPreview(shot.previewBlob)
-        : decodeFile(shot.file, 1800)
-    )
+    const promise = (async () => {
+      if (shot.previewBlob && shot.previewBlob.size >= 32) {
+        try {
+          return await decodeDevelopPreview(shot.previewBlob);
+        } catch {
+          /* Filmstrip already paints this URL — use those pixels. */
+        }
+      }
+      if (shot.previewUrl) {
+        try {
+          return await decodeDevelopPreviewUrl(shot.previewUrl);
+        } catch {
+          /* Original file is the last source. */
+        }
+      }
+      if (shot.file?.size) return decodeFile(shot.file, 1800);
+      throw new Error("This preview could not be decoded.");
+    })()
       .then((bmp) => {
         const current = latestShotsRef.current.find((candidate) => candidate.id === shot.id);
-        if (!mountedRef.current || current?.file !== shot.file) {
+        if (!mountedRef.current || !cullBitmapStillCurrent(current, shot)) {
           bmp.close?.();
           throw new Error("Preview source changed before decoding finished");
         }
@@ -2668,7 +2688,9 @@ export function Studio({
                           >
                             {loupeStatus === "loading"
                               ? "Rendering photo…"
-                              : "Preview unavailable. Reconnect the source to review this photo."}
+                              : selected.previewBlob || selected.previewUrl
+                                ? "Could not draw this preview."
+                                : "Preview unavailable. Reconnect the source to review this photo."}
                           </p>
                         )}
                         {loupeStatus === "ready" && proposalFrames.has(selected.id) && (
@@ -2704,10 +2726,12 @@ export function Studio({
                               {FLAG_LABEL[f]}
                             </span>
                           ))}
-                          <span className="rounded-full bg-moss px-2 py-0.5 text-paper2">
-                            {unanalyzedIds.current.has(selected.id)
+                          <span
+                            className={`rounded-full px-2 py-0.5 ${cullToneClass(cullScoreTone(selected), "fill")}`}
+                          >
+                            {unanalyzedIds.current.has(selected.id) || !isImportAnalyzed(selected)
                               ? "Analysis pending"
-                              : `score ${selected.score}`}
+                              : `score ${Math.round(selected.score)}`}
                           </span>
                           {selected.faces && (
                             <span className="rounded-full border border-input px-2 py-0.5">
@@ -2767,8 +2791,8 @@ export function Studio({
                           aria-pressed={selected.verdict === "keep"}
                           className={`rounded-full px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
                             selected.verdict === "keep"
-                              ? "bg-moss text-paper2"
-                              : "border border-input hover:bg-moss hover:text-paper2"
+                              ? cullToneClass("keep", "fill")
+                              : cullToneClass("keep", "border")
                           }`}
                         >
                           Keep · K
@@ -2778,8 +2802,8 @@ export function Studio({
                           aria-pressed={selected.verdict === "reject"}
                           className={`rounded-full px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
                             selected.verdict === "reject"
-                              ? "bg-rust text-paper2"
-                              : "border border-input hover:bg-rust hover:text-paper2"
+                              ? cullToneClass("reject", "fill")
+                              : cullToneClass("reject", "border")
                           }`}
                         >
                           Reject · X

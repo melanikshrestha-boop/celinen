@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_EDITS, type Shot } from "../src/lib/imaging";
 import {
+  analysisBytesForShot,
   applyImportCull,
   attachImportAnalysis,
+  cullScoreTone,
+  cullToneClass,
   flagImportDuplicates,
   isImportAnalyzed,
   mergePreservedImportAnalysis,
@@ -34,6 +37,30 @@ function shot(id: string, overrides: Partial<Shot> = {}): Shot {
 }
 
 describe("cull on import", () => {
+  test("offline previews are still scored; originals are preferred when present", () => {
+    const preview = new Blob(["0123456789abcdef0123456789abcdef"], { type: "image/jpeg" });
+    const original = new File(["0123456789abcdef0123456789abcdef-original"], "orig.jpg", {
+      type: "image/jpeg",
+    });
+    const offline = shot("offline", {
+      sourceAvailable: false,
+      file: new File([], "offline.jpg"),
+      previewBlob: preview,
+    });
+    const online = shot("online", { file: original, previewBlob: preview });
+    const empty = shot("empty", { sourceAvailable: false, file: new File([], "x.jpg") });
+    expect(analysisBytesForShot(offline)?.size).toBe(preview.size);
+    expect(analysisBytesForShot(online)).toBe(original);
+    expect(analysisBytesForShot(empty)).toBeNull();
+    expect(cullScoreTone(shot("k", { verdict: "keep", score: 12 }))).toBe("keep");
+    expect(cullScoreTone(shot("x", { verdict: "reject", score: 90 }))).toBe("reject");
+    expect(cullScoreTone(shot("high", { score: 80 }))).toBe("keep");
+    expect(cullScoreTone(shot("low", { score: 20 }))).toBe("reject");
+    expect(cullScoreTone(shot("pending", { hash: "", score: 0 }))).toBe("open");
+    expect(cullToneClass("keep", "fill")).toContain("#1f9d5c");
+    expect(cullToneClass("reject", "fill")).toContain("#e24b4a");
+  });
+
   test("rejects blur and near-dupes on undecided frames only", () => {
     const keeper = shot("keep-me", { score: 90, hash: "1".repeat(64) });
     const blur = shot("blur", { score: 92, flags: ["blur"], hash: "0".repeat(64) });

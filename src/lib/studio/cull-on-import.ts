@@ -37,6 +37,54 @@ export function isImportAnalyzed(shot: Pick<Shot, "error" | "hash" | "score">): 
   );
 }
 
+const MIN_ANALYSIS_BYTES = 32;
+
+/**
+ * Score the original when it is on this machine. If the folder is offline,
+ * score the stored preview. Never upload. Never invent a score from empty bytes.
+ */
+export function analysisBytesForShot(
+  shot: Pick<Shot, "file" | "previewBlob" | "sourceAvailable" | "name">,
+): File | null {
+  if (shot.sourceAvailable !== false && (shot.file?.size ?? 0) >= MIN_ANALYSIS_BYTES)
+    return shot.file;
+  const blob = shot.previewBlob;
+  if (blob && blob.size >= MIN_ANALYSIS_BYTES) {
+    if (shot.file && shot.file.size === blob.size) return shot.file;
+    return new File([blob], `${shot.name.replace(/\.[^.]+$/, "") || "frame"}.preview.jpg`, {
+      type: blob.type || "image/jpeg",
+      lastModified: 0,
+    });
+  }
+  if ((shot.file?.size ?? 0) >= MIN_ANALYSIS_BYTES) return shot.file;
+  return null;
+}
+
+/** Keep is green (≥70), reject is red (<45). Unscored frames stay neutral. */
+export function cullScoreTone(
+  shot: Pick<Shot, "verdict" | "error" | "hash" | "score">,
+): "keep" | "reject" | "open" {
+  if (shot.verdict === "keep") return "keep";
+  if (shot.verdict === "reject") return "reject";
+  if (!isImportAnalyzed(shot)) return "open";
+  if (shot.score >= 70) return "keep";
+  if (shot.score < 45) return "reject";
+  return "open";
+}
+
+/** Product moss/rust are gray/blue. Cull rates are keep-green and reject-red. */
+export function cullToneClass(tone: "keep" | "reject" | "open", kind: "fill" | "border"): string {
+  if (tone === "keep")
+    return kind === "fill"
+      ? "bg-[#1f9d5c] text-white"
+      : "border border-[#1f9d5c] text-[#1f9d5c] hover:bg-[#1f9d5c] hover:text-white";
+  if (tone === "reject")
+    return kind === "fill"
+      ? "bg-[#e24b4a] text-white"
+      : "border border-[#e24b4a] text-[#e24b4a] hover:bg-[#e24b4a] hover:text-white";
+  return kind === "fill" ? "bg-ink/70 text-paper2" : "border border-input";
+}
+
 /** Map a local analysis receipt onto a shot. Never changes keep/reject or the File handle. */
 export function attachImportAnalysis(shot: Shot, result: ImportAnalysisReceipt): Shot {
   const { score, flags } = scoreOf(result.analysis);

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   asDevelopPreviewBlob,
+  cullBitmapStillCurrent,
   decodeDevelopPreview,
   sniffDevelopPreviewType,
 } from "../src/lib/develop/decode-preview";
@@ -37,6 +38,21 @@ describe("Develop preview MIME", () => {
     const rgba = new Blob([new Uint8Array(16)]);
     expect(await asDevelopPreviewBlob(rgba)).toBe(rgba);
     expect(rgba.type).toBe("");
+  });
+
+  test("loupe keeps a reminted preview of the same frame", () => {
+    const blob = new Blob([jpeg], { type: "image/jpeg" });
+    const file = new File([jpeg], "a.jpg", { type: "image/jpeg" });
+    expect(cullBitmapStillCurrent({ previewBlob: blob, file }, { previewBlob: blob, file })).toBe(
+      true,
+    );
+    expect(
+      cullBitmapStillCurrent(
+        { previewBlob: new Blob([jpeg, jpeg], { type: "image/jpeg" }), file },
+        { previewBlob: blob, file },
+      ),
+    ).toBe(false);
+    expect(cullBitmapStillCurrent(undefined, { previewBlob: blob, file })).toBe(false);
   });
 
   test("decode passes a JPEG MIME to createImageBitmap", async () => {

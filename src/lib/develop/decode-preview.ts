@@ -40,23 +40,13 @@ export async function asDevelopPreviewBlob(blob: Blob): Promise<Blob> {
   return new Blob([blob], { type });
 }
 
-export async function decodeDevelopPreview(blob: Blob): Promise<ImageBitmap> {
-  const typed = await asDevelopPreviewBlob(blob);
-  let last: unknown;
-  try {
-    const bitmap = await createImageBitmap(typed, { imageOrientation: "from-image" });
-    if (bitmap.width && bitmap.height) return bitmap;
-    bitmap.close();
-  } catch (error) {
-    last = error;
-  }
+async function bitmapFromImageUrl(url: string, revoke = false): Promise<ImageBitmap> {
   if (typeof Image === "undefined") {
-    throw last instanceof Error ? last : new Error("This preview could not be decoded.");
+    throw new Error("This preview could not be decoded.");
   }
-  const url = URL.createObjectURL(typed);
+  const image = new Image();
+  image.decoding = "async";
   try {
-    const image = new Image();
-    image.decoding = "async";
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
       image.onerror = () => reject(new Error("This preview could not be decoded."));
@@ -69,6 +59,36 @@ export async function decodeDevelopPreview(blob: Blob): Promise<ImageBitmap> {
     }
     return bitmap;
   } finally {
-    URL.revokeObjectURL(url);
+    if (revoke) URL.revokeObjectURL(url);
   }
+}
+
+export async function decodeDevelopPreview(blob: Blob): Promise<ImageBitmap> {
+  const typed = await asDevelopPreviewBlob(blob);
+  try {
+    const bitmap = await createImageBitmap(typed, { imageOrientation: "from-image" });
+    if (bitmap.width && bitmap.height) return bitmap;
+    bitmap.close();
+  } catch {
+    /* Image element can still paint a blob the filmstrip already shows. */
+  }
+  return bitmapFromImageUrl(URL.createObjectURL(typed), true);
+}
+
+/** Same pixels the filmstrip <img> already painted. */
+export function decodeDevelopPreviewUrl(url: string): Promise<ImageBitmap> {
+  return bitmapFromImageUrl(url);
+}
+
+/** Keep a decoded loupe if the photographer is still on the same frame bytes. */
+export function cullBitmapStillCurrent(
+  current: { file?: File; previewBlob?: Blob } | undefined,
+  started: { file?: File; previewBlob?: Blob },
+): boolean {
+  if (!current) return false;
+  if (started.previewBlob && current.previewBlob)
+    return started.previewBlob.size === current.previewBlob.size;
+  if (started.file && current.file)
+    return started.file.size === current.file.size && started.file.name === current.file.name;
+  return true;
 }
