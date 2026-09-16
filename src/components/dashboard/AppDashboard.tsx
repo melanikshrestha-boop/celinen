@@ -467,7 +467,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   : pathname === item.to || pathname.startsWith(`${item.to}/`);
               return (
                 <Link
-                  key={item.to}
+                  key={"view" in item ? `${item.to}:${item.view}` : item.to}
                   to={item.to}
                   title={label}
                   aria-label={label}

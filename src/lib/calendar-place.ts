@@ -118,7 +118,11 @@ export async function lookupPlace(coords?: { latitude: number; longitude: number
     url.searchParams.set("latitude", String(coords.latitude));
     url.searchParams.set("longitude", String(coords.longitude));
   }
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) return null;
-  return (await res.json()) as GeoName;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    return (await res.json()) as GeoName;
+  } catch {
+    return null;
+  }
 }
