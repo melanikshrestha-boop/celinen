@@ -11,7 +11,13 @@ type Dependencies = {
 
 /** The dashboard uses the same authenticated server as Studio, without action tools. */
 export async function requestDashboardReply(
-  input: { scope: string; messages: Message[]; enabled: boolean; signal: AbortSignal },
+  input: {
+    scope: string;
+    messages: Message[];
+    enabled: boolean;
+    signal: AbortSignal;
+    workRole?: string;
+  },
   dependencies: Dependencies = {
     local: isLocalSingleUserMode,
     fetch: (...args) => fetch(...args),
@@ -43,6 +49,7 @@ export async function requestDashboardReply(
       },
       body: JSON.stringify({
         mode: "conversation",
+        workRole: input.workRole ?? "sports",
         messages: input.messages.slice(-40).map(({ role, text }) => ({ role, content: text })),
       }),
     });

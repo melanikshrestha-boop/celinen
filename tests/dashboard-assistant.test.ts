@@ -142,6 +142,7 @@ test("dashboard conversation makes a real API request with history but no tools"
   expect(await f.run()).toContain("What city");
   expect(f.requests[0]?.url).toBe("/api/chat");
   expect(f.requests[0]?.body.mode).toBe("conversation");
+  expect(f.requests[0]?.body.workRole).toBe("sports");
   expect(f.requests[0]?.body.tools).toBeUndefined();
 });
 for (const opts of [{ local: true }, { enabled: false }, { owner: "owner-b" }])

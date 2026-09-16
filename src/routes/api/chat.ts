@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PHOTOGRAPHY_ASSISTANT_POLICY } from "@/lib/photography-assistant";
 import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
+import { loadLiveSportsBrief, sportsEventSystemPrompt, wantsEventSearch } from "@/lib/photographer-events";
+import { isPhotographerWorkRole } from "@/lib/photographer-work-roles";
 
 type Body = {
   messages?: unknown;
   tools?: unknown;
   mode?: unknown;
+  workRole?: unknown;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -39,16 +42,37 @@ export const Route = createFileRoute("/api/chat")({
           .catch(() => ({ data: null, error: true }));
         if (claimsError || !claims?.claims?.sub) return unauthorized();
 
-        const { messages, tools, mode } = (await request.json()) as Body;
+        const { messages, tools, mode, workRole } = (await request.json()) as Body;
         if (!Array.isArray(messages)) {
           return new Response(JSON.stringify({ error: "messages required" }), {
             status: 400,
             headers: { "content-type": "application/json" },
           });
         }
+        const lastUser = [...messages].reverse().find((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+          return (item as { role?: unknown }).role === "user";
+        }) as { content?: unknown } | undefined;
+        const ask = typeof lastUser?.content === "string" ? lastUser.content : "";
+        const role =
+          typeof workRole === "string" && isPhotographerWorkRole(workRole) ? workRole : "sports";
+        const live =
+          mode === "conversation" && wantsEventSearch(ask) ? await loadLiveSportsBrief() : "";
+        const context = live
+          ? [
+              {
+                role: "system",
+                content: sportsEventSystemPrompt(role, live, new Date().toISOString()),
+              },
+            ]
+          : [];
 
         const upstream = await requestCloudflareChat({
-          messages: [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages],
+          messages: [
+            { role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY },
+            ...context,
+            ...messages,
+          ],
           // Conversation mode cannot acquire tools through a client payload.
           ...(mode !== "conversation" && Array.isArray(tools) && tools.length
             ? { tools, tool_choice: "auto" }

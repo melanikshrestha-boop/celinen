@@ -365,6 +365,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
           messages: thread.messages,
           enabled: account?.preferences.cloudAssistant === true,
           signal: controller.signal,
+          workRole: account?.workRole ?? "sports",
         });
         if (controller.signal.aborted || currentScope.current !== scope) return;
         persist(

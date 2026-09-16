@@ -9,6 +9,12 @@ import {
 import { studioCommandRefusal, studioToolBoundary } from "../src/lib/studio/command-safety";
 import { parseLocalCommand } from "../src/lib/studio/commands";
 import { requestCloudflareChat } from "../src/lib/cloudflare-ai.server";
+import {
+  loadLiveSportsBrief,
+  sportsEventSystemPrompt,
+  wantsEventSearch,
+} from "../src/lib/photographer-events";
+import { isPhotographerWorkRole } from "../src/lib/photographer-work-roles";
 
 describe("direct Cloudflare AI transport", () => {
   const config = {
@@ -561,6 +567,10 @@ test("actual server route removes tools in conversation mode and installs the ph
       return Response.json({ choices: [{ message: { content: "Let's brainstorm." } }] });
     },
     PHOTOGRAPHY_ASSISTANT_POLICY,
+    wantsEventSearch,
+    loadLiveSportsBrief,
+    sportsEventSystemPrompt,
+    isPhotographerWorkRole,
     fixtureAuth: {
       createClient: () => ({
         auth: { getClaims: async () => ({ data: { claims: { sub: "synthetic-owner" } } }) },
