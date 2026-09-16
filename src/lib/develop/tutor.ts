@@ -28,6 +28,12 @@ export const TUTOR_IDS = [
   "panel-basic",
   "panel-mixer",
   "panel-grading",
+  "panel-curve",
+  "panel-effects",
+  "panel-detail",
+  "panel-crop",
+  "panel-lens",
+  "panel-masks",
   "slider-temp",
   "slider-tint",
   "slider-exposure",
@@ -38,15 +44,52 @@ export const TUTOR_IDS = [
   "slider-blacks",
   "slider-vibrance",
   "slider-saturation",
+  "slider-parametric-highlights",
+  "slider-parametric-lights",
+  "slider-parametric-darks",
+  "slider-parametric-shadows",
+  "slider-straighten",
   "hsl-orange",
   "hsl-orange-sat",
   "wheel-shadows",
-  "panel-curve",
+  "wheel-midtones",
+  "wheel-highlights",
   "tone-curve",
 ] as const;
 
+const SCALAR_PATHS = new Set([
+  "temperature",
+  "tint",
+  "exposure",
+  "contrast",
+  "highlights",
+  "shadows",
+  "whites",
+  "blacks",
+  "vibrance",
+  "saturation",
+  "texture",
+  "clarity",
+  "dehaze",
+  "grain",
+  "grainSize",
+  "grainLuminance",
+  "fade",
+  "filmFalloff",
+  "vignette",
+  "bloom",
+  "halation",
+  "sharpening",
+  "sharpeningRadius",
+  "sharpeningDetail",
+  "sharpeningMasking",
+  "noiseReduction",
+  "colorNoiseReduction",
+]);
+
 function clamp(path: string, value: number) {
   if (path === "exposure") return Math.min(5, Math.max(-5, value));
+  if (path === "crop.angle" || path.endsWith("rotation")) return Math.min(45, Math.max(-45, value));
   if (path.includes("hue") && path.includes("wheel")) return ((value % 360) + 360) % 360;
   return Math.min(100, Math.max(-100, value));
 }
@@ -54,27 +97,19 @@ function clamp(path: string, value: number) {
 export function applySet(settings: DevelopSettings, path: string, delta: number): DevelopSettings {
   const next = cloneDevelopSettings(settings);
   const key = path === "temp" ? "temperature" : path === "tint" ? "tint" : path;
-  if (
-    key === "temperature" ||
-    key === "tint" ||
-    key === "exposure" ||
-    key === "contrast" ||
-    key === "highlights" ||
-    key === "shadows" ||
-    key === "whites" ||
-    key === "blacks" ||
-    key === "vibrance" ||
-    key === "saturation"
-  ) {
-    next[key] = clamp(key, next[key] + delta) as never;
-    return next;
+  if (SCALAR_PATHS.has(key)) {
+    const current = next[key as keyof DevelopSettings];
+    if (typeof current === "number") {
+      (next as Record<string, unknown>)[key] = clamp(key, current + delta);
+      return next;
+    }
   }
   const wheel = path.match(/^wheel\.(shadows|midtones|highlights|global)\.(hue|sat|luminance)$/);
   if (wheel) {
     const range = wheel[1] as "shadows" | "midtones" | "highlights" | "global";
-    const field = wheel[2] === "sat" ? "saturation" : wheel[2];
-    const current = next.grading[range][field];
-    next.grading[range][field] = clamp(path, current + delta) as never;
+    const channel = wheel[2] === "sat" ? "saturation" : (wheel[2] as "hue" | "luminance");
+    const current = next.grading[range][channel];
+    next.grading[range][channel] = clamp(path, current + delta) as never;
     return next;
   }
   if (path === "curve.mid" || path.startsWith("curve.")) {
@@ -94,9 +129,43 @@ export function applySet(settings: DevelopSettings, path: string, delta: number)
   const hsl = path.match(/^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/);
   if (hsl) {
     const index = HSL_INDEX[hsl[1]!];
-    const field = hsl[2] === "sat" ? "saturation" : hsl[2];
+    const channel = hsl[2] === "sat" ? "saturation" : (hsl[2] as "hue" | "luminance");
     if (index === undefined || !next.hsl[index]) return next;
-    next.hsl[index][field] = clamp(path, next.hsl[index][field] + delta) as never;
+    next.hsl[index][channel] = clamp(path, next.hsl[index][channel] + delta) as never;
+    return next;
+  }
+  const parametric = path.match(/^parametric\.(highlights|lights|darks|shadows)$/);
+  if (parametric) {
+    const field = parametric[1] as "highlights" | "lights" | "darks" | "shadows";
+    const current = next.parametricCurve ?? {
+      highlights: 0,
+      lights: 0,
+      darks: 0,
+      shadows: 0,
+      pointCurve: next.curve,
+    };
+    next.parametricCurve = {
+      ...current,
+      [field]: clamp(path, current[field] + delta),
+    };
+    return next;
+  }
+  if (path === "crop.angle" || path === "straighten") {
+    next.crop = { ...next.crop, angle: clamp("crop.angle", next.crop.angle + delta) };
+    return next;
+  }
+  const lens = path.match(/^lens\.(chromaticAberration|vignetteCorrection|transform)\.(\w+)$/);
+  if (lens) {
+    const section = lens[1] as "chromaticAberration" | "vignetteCorrection" | "transform";
+    const field = lens[2]!;
+    const block = next.lensCorrection[section] as Record<string, unknown>;
+    const current = block[field];
+    if (typeof current === "number") {
+      next.lensCorrection = {
+        ...next.lensCorrection,
+        [section]: { ...block, [field]: clamp(path, current + delta) },
+      };
+    }
     return next;
   }
   return next;
@@ -114,8 +183,12 @@ export function pointId(path: string) {
   if (path === "temp" || path.startsWith("slider-temp")) return "slider-temp";
   if (path === "tint") return "slider-tint";
   if (path.startsWith("wheel.shadows") || path === "wheel-shadows") return "wheel-shadows";
+  if (path.startsWith("wheel.midtones") || path === "wheel-midtones") return "wheel-midtones";
+  if (path.startsWith("wheel.highlights") || path === "wheel-highlights") return "wheel-highlights";
   if (path.startsWith("hsl.orange")) return "hsl-orange-sat";
   if (path.startsWith("curve") || path === "tone-curve") return "tone-curve";
+  if (path.startsWith("parametric.")) return `slider-parametric-${path.slice("parametric.".length)}`;
+  if (path === "crop.angle" || path === "straighten") return "slider-straighten";
   if (path.startsWith("slider-")) return path.replace(/^#/, "");
   const map: Record<string, string> = {
     exposure: "slider-exposure",
@@ -126,6 +199,11 @@ export function pointId(path: string) {
     blacks: "slider-blacks",
     vibrance: "slider-vibrance",
     saturation: "slider-saturation",
+    texture: "slider-texture",
+    clarity: "slider-clarity",
+    dehaze: "slider-dehaze",
+    grain: "slider-grain",
+    vignette: "slider-vignette",
   };
   return map[path] ?? path.replace(/^#/, "");
 }
@@ -281,13 +359,27 @@ export function pointerLabel(id?: string) {
   if (!id) return "right here";
   if (id.includes("temp")) return "temp";
   if (id.includes("tint")) return "tint";
+  if (id.includes("parametric-lights")) return "lights";
+  if (id.includes("parametric-darks")) return "darks";
+  if (id.includes("parametric")) return "parametric";
+  if (id.includes("highlights") && id.includes("wheel")) return "amber";
   if (id.includes("highlights")) return "highlights";
   if (id.includes("shadows") && id.includes("wheel")) return "teal";
   if (id.includes("shadows")) return "shadows";
   if (id.includes("blacks")) return "blacks";
   if (id.includes("orange")) return "skin lock";
   if (id.includes("curve")) return "curve";
-  return id.replace(/^slider-|^hsl-|^wheel-/, "").replace(/-/g, " ");
+  if (id.includes("straighten")) return "straighten";
+  if (id.includes("wheel-midtones")) return "midtones";
+  return id.replace(/^slider-|^hsl-|^wheel-|^panel-/, "").replace(/-/g, " ");
+}
+
+/** Clicky speaks the tag, not the lesson sentence. */
+export function spokenLabel(beat: Pick<TutorBeat, "point" | "say">) {
+  const tag = pointerLabel(beat.point);
+  if (tag && tag !== "right here") return tag;
+  const clipped = beat.say.split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
+  return clipped || "look";
 }
 
 /** Clicky flight: quadratic arc, smoothstep, scale pulse, rotate to travel. */
@@ -314,4 +406,172 @@ export function bezierArc(
     rotation: (Math.atan2(tangentY, tangentX) * 180) / Math.PI + 90,
     scale: 1 + Math.sin(linear * Math.PI) * 0.3,
   };
+}
+
+export function rangeThumbClient(input: HTMLInputElement) {
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const val = Number(input.value);
+  const box = input.getBoundingClientRect();
+  const t = (val - min) / ((max - min) || 1);
+  return { x: box.left + box.width * t, y: box.top + box.height / 2, box, t };
+}
+
+export function nativeSetRange(input: HTMLInputElement, value: number, commit = false) {
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const next =
+    Number.isFinite(min) && Number.isFinite(max) ? Math.min(max, Math.max(min, value)) : value;
+  try {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (setter) setter.call(input, String(next));
+    else input.value = String(next);
+  } catch {
+    input.value = String(next);
+  }
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  if (commit) input.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+  return next;
+}
+
+export function dispatchPointer(
+  node: EventTarget,
+  type: string,
+  clientX: number,
+  clientY: number,
+) {
+  const init: PointerEventInit = {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX,
+    clientY,
+    pointerId: 1,
+    pointerType: "mouse",
+    isPrimary: true,
+    buttons: type === "pointerup" || type === "pointercancel" ? 0 : 1,
+    button: 0,
+  };
+  if (typeof window !== "undefined") init.view = window;
+  const event = new PointerEvent(type, init);
+  node.dispatchEvent(event);
+  return event;
+}
+
+export function clientOnNorm(
+  box: { left: number; top: number; width: number; height: number },
+  x: number,
+  y: number,
+) {
+  return { x: box.left + x * box.width, y: box.top + (1 - y) * box.height };
+}
+
+export function midCurveHandle(root?: ParentNode | null) {
+  const scope = root ?? (typeof document === "undefined" ? null : document);
+  if (!scope) return null;
+  const svg = scope.querySelector("#tone-curve");
+  if (!svg) return null;
+  for (const node of svg.querySelectorAll("[id^='curve-point-']")) {
+    const cx = Number(node.getAttribute("cx"));
+    if (cx > 70 && cx < 164) return node;
+  }
+  return null;
+}
+
+/** Click the real panel row. Accordion the rest of the right rail. */
+export function openPanel(id: string) {
+  if (typeof document === "undefined") return false;
+  const panel = document.getElementById(id);
+  if (!(panel instanceof HTMLDetailsElement)) return false;
+  const summary = panel.querySelector("summary");
+  if (summary instanceof HTMLElement && !panel.open) summary.click();
+  else panel.open = true;
+  for (const node of document.querySelectorAll(".develop-right details.develop-panel")) {
+    if (node instanceof HTMLDetailsElement && node.id && node.id !== id) node.open = false;
+  }
+  if (id === "panel-mixer") document.getElementById("hsl-orange")?.click();
+  panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return panel.open;
+}
+
+export function findRange(id?: string) {
+  if (!id || typeof document === "undefined") return null;
+  const wrap = document.getElementById(id);
+  if (!wrap) return null;
+  if (wrap instanceof HTMLInputElement && wrap.type === "range") return wrap;
+  const input = wrap.querySelector("input[type=range]");
+  return input instanceof HTMLInputElement ? input : null;
+}
+
+export function driveSlider(id: string | undefined, delta: number, commit = false) {
+  const input = findRange(id);
+  if (!input) return false;
+  nativeSetRange(input, Number(input.value) + delta, commit);
+  return true;
+}
+
+export function driveCurve(delta: number, commit = true) {
+  if (typeof document === "undefined") return false;
+  const svg = document.getElementById("tone-curve");
+  if (!svg) return false;
+  const box = svg.getBoundingClientRect();
+  if (box.width <= 0 || box.height <= 0) return false;
+  const handle = midCurveHandle(svg);
+  const start = handle
+    ? (() => {
+        const at = handle.getBoundingClientRect();
+        return { x: at.left + at.width / 2, y: at.top + at.height / 2 };
+      })()
+    : clientOnNorm(box, 0.62, 0.62);
+  const startY = 1 - (start.y - box.top) / box.height;
+  const end = { x: start.x, y: box.top + (1 - Math.min(1, Math.max(0, startY + delta / 100))) * box.height };
+  dispatchPointer(svg, "pointerdown", start.x, start.y);
+  dispatchPointer(svg, "pointermove", end.x, end.y);
+  if (commit) dispatchPointer(svg, "pointerup", end.x, end.y);
+  return true;
+}
+
+export function driveWheel(id: string | undefined, hueDelta: number, satDelta: number, commit = true) {
+  if (!id || typeof document === "undefined") return false;
+  const wheel = document.getElementById(id);
+  if (!wheel) return false;
+  const box = wheel.getBoundingClientRect();
+  if (box.width <= 0 || box.height <= 0) return false;
+  const handle = wheel.querySelector(".develop-grade-handle");
+  const start = handle
+    ? (() => {
+        const at = handle.getBoundingClientRect();
+        return { x: at.left + at.width / 2, y: at.top + at.height / 2 };
+      })()
+    : { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  const radius = Math.min(box.width, box.height) / 2;
+  const cx = box.left + box.width / 2;
+  const cy = box.top + box.height / 2;
+  const dx = start.x - cx;
+  const dy = start.y - cy;
+  const hue = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+  const sat = Math.min(100, (Math.hypot(dx, dy) / (radius || 1)) * 100);
+  const nextHue = ((hue + hueDelta) % 360 + 360) % 360;
+  const nextSat = Math.min(100, Math.max(0, sat + satDelta));
+  const angle = (nextHue * Math.PI) / 180;
+  const end = {
+    x: cx + Math.cos(angle) * (nextSat / 100) * radius,
+    y: cy + Math.sin(angle) * (nextSat / 100) * radius,
+  };
+  dispatchPointer(wheel, "pointerdown", start.x, start.y);
+  dispatchPointer(wheel, "pointermove", end.x, end.y);
+  if (commit) dispatchPointer(wheel, "pointerup", end.x, end.y);
+  return true;
+}
+
+/** Drive the live control for one SET. False means the caller should write the recipe. */
+export function driveSet(point: string | undefined, set: TutorSet, commit = false) {
+  if (typeof document === "undefined") return false;
+  if (point === "tone-curve" || set.path.startsWith("curve.")) return driveCurve(set.delta, commit);
+  if (point?.startsWith("wheel-") || set.path.startsWith("wheel.")) {
+    const hue = set.path.endsWith(".hue") ? set.delta : 0;
+    const sat = set.path.endsWith(".sat") || set.path.endsWith(".saturation") ? set.delta : 0;
+    return driveWheel(point ?? pointId(set.path), hue, sat, commit);
+  }
+  return driveSlider(point ?? pointId(set.path), set.delta, commit);
 }

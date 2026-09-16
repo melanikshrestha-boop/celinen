@@ -1,4 +1,5 @@
 import { developSettingsSchema, type DevelopSettings } from "./contract";
+import { lensIsNeutral, parametricIsNeutral } from "./parametric";
 
 /** Active recipe edits that the hosted renderer cannot reproduce. Inspect a
  * validated copy so capability checks never rewrite saved recipes or presets.
@@ -47,6 +48,8 @@ export function unsupportedBrowserDevelopEdits(settings: DevelopSettings): strin
   )
     unsupported.push("Masks");
   if (s.crop.angle !== 0) unsupported.push("Straighten");
+  if (!parametricIsNeutral(s.parametricCurve)) unsupported.push("Parametric curve");
+  if (!lensIsNeutral(s.lensCorrection)) unsupported.push("Lens correction");
   return unsupported;
 }
 

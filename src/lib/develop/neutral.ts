@@ -1,4 +1,5 @@
 import { developSettingsSchema, type DevelopSettings } from "./contract";
+import { lensIsNeutral, parametricIsNeutral } from "./parametric";
 
 const effectiveAmounts = [
   "exposure",
@@ -57,6 +58,8 @@ export function isNeutralDevelopRecipe(input: unknown): boolean {
     )
   )
     return false;
+  if (!parametricIsNeutral(s.parametricCurve)) return false;
+  if (!lensIsNeutral(s.lensCorrection)) return false;
   const c = s.crop;
   return (
     c.x === 0 &&

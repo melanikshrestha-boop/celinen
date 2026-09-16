@@ -12,6 +12,10 @@ mock.module("react", () => ({
   ...originalReact,
   useState: (value: unknown) => [value, () => {}],
   useRef: (value: unknown) => ({ current: value }),
+  useMemo: (compute: () => unknown) => compute(),
+  useCallback: (callback: unknown) => callback,
+  useEffect() {},
+  useLayoutEffect() {},
 }));
 const { DevelopControls, DevelopSlider, Panel } =
   await import("../src/components/develop/DevelopControls");

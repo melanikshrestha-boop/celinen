@@ -154,7 +154,11 @@ export function GradingWheel({
           if (!gesture.begin(event.pointerId, current.current, point(event), modifiers(event)))
             return;
           pointer.current = event.pointerId;
-          event.currentTarget.setPointerCapture(event.pointerId);
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+          } catch {
+            // Untrusted pointers still receive moves on this wheel.
+          }
         }}
         onPointerMove={(event) => gesture.move(event.pointerId, point(event), modifiers(event))}
         onPointerUp={(event) => finishPointer(event)}
@@ -249,13 +253,10 @@ export function ColorGrading({
     }
   }, [ownership, previousGrading, value.grading]);
   
-  // Ensure cleanup on unmount
   useLayoutEffect(() => {
     return () => {
-      if (numericInitial.current) {
-        ownership.release(numericInitial.current.owner);
-        numericInitial.current = null;
-      }
+      numericInitial.current = null;
+      ownership.releaseAll();
     };
   }, [ownership]);
   const legacy = value.grading.model === "legacy" && !neutralGrading(value.grading);

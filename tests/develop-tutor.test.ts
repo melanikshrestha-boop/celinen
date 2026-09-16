@@ -4,11 +4,14 @@ import {
   applyLook,
   applySet,
   bezierArc,
+  clientOnNorm,
   compileLook,
+  driveSet,
   lookTitle,
   parseBeats,
   pointerLabel,
   pointId,
+  spokenLabel,
 } from "../src/lib/develop/tutor";
 
 const sonderAsk = "make this more warm and apply color theory or cinematic that gives off sonder vibes";
@@ -136,5 +139,50 @@ Warm the person. Leave the street cold.
     expect(pointId("temp")).toBe("slider-temp");
     expect(pointId("curve.mid")).toBe("tone-curve");
     expect(pointId("wheel.shadows.hue")).toBe("wheel-shadows");
+  });
+
+  test("Clicky speaks one to three word tags, not the lesson sentence", () => {
+    const beats = compileLook(sonderAsk, defaultDevelopSettings());
+    for (const beat of beats) {
+      const spoken = spokenLabel(beat);
+      expect(spoken.split(/\s+/).length).toBeLessThanOrEqual(3);
+      expect(spoken).not.toMatch(/\[/);
+      expect(spoken).not.toBe(beat.say);
+    }
+    expect(spokenLabel({ point: "slider-temp", say: "Warm the person. Leave the street cold." })).toBe(
+      "temp",
+    );
+    expect(spokenLabel({ point: "tone-curve", say: "Hold the top of the curve so the windows stay." })).toBe(
+      "curve",
+    );
+  });
+
+  test("SET writes parametric, straighten and grain onto the same recipe", () => {
+    const start = defaultDevelopSettings();
+    const parametric = applySet(start, "parametric.darks", 20);
+    expect(parametric.parametricCurve.darks).toBe(20);
+    expect(parametric.curve).toEqual(start.curve);
+    expect(applySet(start, "straighten", 3).crop.angle).toBe(3);
+    expect(applySet(start, "grain", 12).grain).toBe(12);
+    expect(pointId("parametric.lights")).toBe("slider-parametric-lights");
+    expect(pointId("straighten")).toBe("slider-straighten");
+  });
+
+  test("driveSet does not dump a look when there is no live control", () => {
+    expect(driveSet("slider-temp", { path: "temp", delta: 18 })).toBe(false);
+    expect(driveSet("tone-curve", { path: "curve.mid", delta: -12 })).toBe(false);
+  });
+
+  test("curve pointer math matches ToneCurve's SVG mapping so Clicky pulls the mid point", () => {
+    const box = { left: 0, top: 0, width: 200, height: 200 };
+    const at = clientOnNorm(box, 0.62, 0.62);
+    expect(at.x).toBeCloseTo(124, 5);
+    expect(at.y).toBeCloseTo(76, 5);
+    expect((at.x - box.left) / box.width).toBeCloseTo(0.62, 5);
+    expect(1 - (at.y - box.top) / box.height).toBeCloseTo(0.62, 5);
+    const next = applySet(defaultDevelopSettings(), "curve.mid", -12);
+    const mid = next.curve.find((point) => point.x > 0.35 && point.x < 0.82);
+    expect(mid?.x).toBeCloseTo(0.62, 5);
+    expect(mid?.y).toBeCloseTo(0.5, 5);
   });
 });

@@ -4,8 +4,15 @@ import {
   applySet,
   bezierArc,
   compileLook,
+  dispatchPointer,
+  findRange,
   lookTitle,
+  midCurveHandle,
+  nativeSetRange,
+  openPanel,
   pointerLabel,
+  rangeThumbClient,
+  spokenLabel,
   type TutorBeat,
   type TutorDraw,
 } from "@/lib/develop/tutor";
@@ -65,15 +72,7 @@ function wait(ms: number) {
 }
 
 function revealPanel(id: string) {
-  for (const node of document.querySelectorAll(".develop-right details.develop-panel")) {
-    if (node instanceof HTMLDetailsElement) node.open = node.id === id;
-  }
-  const node = document.getElementById(id);
-  if (node instanceof HTMLDetailsElement) {
-    node.open = true;
-    node.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
-  if (id === "panel-mixer") document.getElementById("hsl-orange")?.click();
+  openPanel(id);
 }
 
 function summaryBox(id: string) {
@@ -114,7 +113,7 @@ function visiblePhotoBox() {
   const width = Math.min(photo.right, clip.right) - left;
   const height = Math.min(photo.bottom, clip.bottom) - top;
   if (width < 40 || height < 40) return null;
-  return { left, top, width, height };
+  return { left, top, width, height, bottom: top + height };
 }
 
 function pin(x: number, y: number) {
@@ -219,12 +218,27 @@ export function DevelopTutor({
   function rideControl(id?: string) {
     if (!id) return;
     if (id === "tone-curve") {
-      const point =
-        document.getElementById("curve-point-1") || document.getElementById("curve-point-0");
+      const point = midCurveHandle() ?? document.getElementById("curve-point-0");
       if (point) {
         const box = point.getBoundingClientRect();
         flyTo(pin(box.left + box.width / 2, box.top + box.height / 2), true);
       }
+      return;
+    }
+    if (id.startsWith("wheel-")) {
+      const handle = document.querySelector(`#${CSS.escape(id)} .develop-grade-handle`);
+      const wheel = document.getElementById(id);
+      const node = handle ?? wheel;
+      if (node) {
+        const box = node.getBoundingClientRect();
+        flyTo(pin(box.left + box.width / 2, box.top + box.height / 2), true);
+      }
+      return;
+    }
+    const input = findRange(id);
+    if (input) {
+      const thumb = rangeThumbClient(input);
+      flyTo(pin(thumb.x, thumb.y), true);
       return;
     }
     const thumb = rangeThumb(id);
@@ -252,19 +266,81 @@ export function DevelopTutor({
     for (const set of beat.sets) {
       const start = current;
       const t0 = performance.now();
+      const input = beat.point && beat.point !== "tone-curve" && !beat.point.startsWith("wheel-")
+        ? findRange(beat.point)
+        : null;
+      const svg = beat.point === "tone-curve" ? document.getElementById("tone-curve") : null;
+      const wheel = beat.point?.startsWith("wheel-") ? document.getElementById(beat.point) : null;
+      const startValue = input ? Number(input.value) : null;
+      const curveStart = svg ? curveHandleClient(svg) : null;
+      const wheelStart = wheel ? wheelHandleClient(wheel) : null;
+      const usedDom = Boolean(input || svg || wheel);
+      if (svg && curveStart) dispatchPointer(svg, "pointerdown", curveStart.x, curveStart.y);
+      if (wheel && wheelStart) dispatchPointer(wheel, "pointerdown", wheelStart.x, wheelStart.y);
+      setPress(true);
       await new Promise<void>((resolve) => {
         const tick = (now: number) => {
           const t = Math.min(1, (now - t0) / 680);
           const eased = t * t * (3 - 2 * t);
-          onChange(applySet(start, set.path, set.delta * eased), title, false);
+          if (input && startValue !== null)
+            nativeSetRange(input, startValue + set.delta * eased, t >= 1);
+          else if (svg && curveStart) {
+            const box = svg.getBoundingClientRect();
+            const y0 = 1 - (curveStart.y - box.top) / box.height;
+            const y = Math.min(1, Math.max(0, y0 + (set.delta / 100) * eased));
+            const atClient = {
+              x: curveStart.x,
+              y: box.top + (1 - y) * box.height,
+            };
+            dispatchPointer(svg, "pointermove", atClient.x, atClient.y);
+            if (t >= 1) dispatchPointer(svg, "pointerup", atClient.x, atClient.y);
+          } else if (wheel && wheelStart) {
+            const box = wheel.getBoundingClientRect();
+            const radius = Math.min(box.width, box.height) / 2;
+            const cx = box.left + box.width / 2;
+            const cy = box.top + box.height / 2;
+            const hueDelta = set.path.endsWith(".hue") ? set.delta * eased : 0;
+            const satDelta =
+              set.path.endsWith(".sat") || set.path.endsWith(".saturation") ? set.delta * eased : 0;
+            const dx = wheelStart.x - cx;
+            const dy = wheelStart.y - cy;
+            const hue = ((Math.atan2(dy, dx) * 180) / Math.PI + 360 + hueDelta) % 360;
+            const sat = Math.min(100, Math.max(0, (Math.hypot(dx, dy) / (radius || 1)) * 100 + satDelta));
+            const angle = (hue * Math.PI) / 180;
+            const atClient = {
+              x: cx + Math.cos(angle) * (sat / 100) * radius,
+              y: cy + Math.sin(angle) * (sat / 100) * radius,
+            };
+            dispatchPointer(wheel, "pointermove", atClient.x, atClient.y);
+            if (t >= 1) dispatchPointer(wheel, "pointerup", atClient.x, atClient.y);
+          } else onChange(applySet(start, set.path, set.delta * eased), title, false);
           rideControl(beat.point);
           if (t < 1) flight.current = window.requestAnimationFrame(tick);
           else resolve();
         };
         flight.current = window.requestAnimationFrame(tick);
       });
-      current = applySet(start, set.path, set.delta);
+      setPress(false);
+      if (!usedDom) current = applySet(start, set.path, set.delta);
+      else current = recipe.current;
     }
+  }
+
+  function curveHandleClient(svg: Element) {
+    const handle = midCurveHandle(svg);
+    if (handle) {
+      const box = handle.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    }
+    const box = svg.getBoundingClientRect();
+    return { x: box.left + box.width * 0.62, y: box.top + box.height * 0.38 };
+  }
+
+  function wheelHandleClient(wheel: Element) {
+    const handle = wheel.querySelector(".develop-grade-handle");
+    const node = handle ?? wheel;
+    const box = node.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   }
 
   function fly(id?: string, label = "", mark?: TutorDraw) {
@@ -273,9 +349,32 @@ export function DevelopTutor({
         ? (() => {
             const node = document.getElementById("tone-curve");
             if (!node) return null;
+            const handle = midCurveHandle(node);
+            if (handle) {
+              const box = handle.getBoundingClientRect();
+              return {
+                x: box.left + box.width / 2,
+                y: box.top + box.height / 2,
+                box: node.getBoundingClientRect(),
+                node,
+              };
+            }
             const box = node.getBoundingClientRect();
             return { x: box.left + box.width * 0.62, y: box.top + box.height * 0.38, box, node };
           })()
+        : id?.startsWith("wheel-")
+          ? (() => {
+              const node = document.getElementById(id);
+              if (!node) return null;
+              const handle = node.querySelector(".develop-grade-handle");
+              const box = (handle ?? node).getBoundingClientRect();
+              return {
+                x: box.left + box.width / 2,
+                y: box.top + box.height / 2,
+                box: node.getBoundingClientRect(),
+                node,
+              };
+            })()
         : id
           ? rangeThumb(id) || controlBox(id)
           : null;
@@ -312,7 +411,7 @@ export function DevelopTutor({
   async function runBeat(next: TutorBeat, at: number, replay = false) {
     if (next.open) await clickPanel(next.open);
     fly(next.point, next.say, next.draw);
-    speak(next.say);
+    speak(spokenLabel(next));
     await wait(300);
     if (!replay && modeRef.current === "do" && next.sets.length) await dragSets(next, at);
     else if (!replay) paint(at, false);

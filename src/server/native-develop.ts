@@ -15,6 +15,7 @@ import {
   type DevelopSourceMode,
   type DevelopSettings,
 } from "../lib/develop/contract";
+import { transportDevelopSettings } from "../lib/develop/parametric";
 import { authorizeNativeRequest, NativeBridgeError } from "./native-studio-plugin";
 import { jpegDimensions } from "../lib/delivery/media-integrity";
 
@@ -103,7 +104,8 @@ export function validateDevelopResult(bytes: Buffer, requestedEdge: number) {
 }
 export function developProtocol(input: DevelopSettings): string {
   const s = developSettingsSchema.parse(input),
-    c = s.crop;
+    transported = transportDevelopSettings(s),
+    c = transported.crop;
   const extendedDetail =
     s.sharpeningRadius !== 1 || s.sharpeningDetail !== 100 || s.sharpeningMasking !== 0;
   const smoothCurve = s.curveInterpolation === "smooth";
@@ -124,8 +126,8 @@ export function developProtocol(input: DevelopSettings): string {
       s.clarity,
       s.dehaze,
     ],
-    [s.curve.length],
-    ...s.curve.map((p) => [p.x, p.y]),
+    [transported.curve.length],
+    ...transported.curve.map((p) => [p.x, p.y]),
     ...s.hsl.map((h) => [h.hue, h.saturation, h.luminance]),
     ...[s.grading.shadows, s.grading.midtones, s.grading.highlights].map((g) => [
       g.hue,
@@ -138,7 +140,7 @@ export function developProtocol(input: DevelopSettings): string {
       s.grain,
       s.grainSize,
       s.fade,
-      s.vignette,
+      transported.vignette,
       s.bloom,
       s.halation,
       s.sharpening,

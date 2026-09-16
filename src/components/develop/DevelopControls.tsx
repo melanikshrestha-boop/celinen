@@ -415,7 +415,13 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
             drag.current = gesture;
             editCurve(next, curveLabel, false, channel, gesture);
           }
-          if (drag.current) e.currentTarget.setPointerCapture(e.pointerId);
+          if (drag.current) {
+            try {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            } catch {
+              // Untrusted pointers still receive moves on this SVG.
+            }
+          }
         }}
         onPointerMove={moveDrag}
         onPointerUp={(event) => finishDrag(false, event)}
@@ -590,8 +596,9 @@ export function DevelopControls({
     />
   );
   
+  const parametric = value.parametricCurve ?? defaults.parametricCurve;
   const parametricScalar = (
-    childKey: keyof DevelopSettings["parametricCurve"],
+    childKey: "highlights" | "lights" | "darks" | "shadows",
     label: string,
     min = -100,
     max = 100,
@@ -600,25 +607,27 @@ export function DevelopControls({
   ) => (
     <DevelopSlider
       key={`parametric.${childKey}`}
-      id={`slider-parametric-${String(childKey)}`}
+      id={`slider-parametric-${childKey}`}
       label={label}
       {...options}
-      value={(value.parametricCurve?.[childKey] ?? 0) as number}
+      value={parametric[childKey]}
       min={min}
       max={max}
       step={step}
       reset={0}
       onChange={(n, c) => {
-        if (value.parametricCurve) {
-          change({ 
-            ...value, 
-            parametricCurve: { ...value.parametricCurve, [childKey]: n } 
-          }, label, c);
-        }
+        change(
+          {
+            ...value,
+            parametricCurve: { ...parametric, [childKey]: n },
+          },
+          label,
+          c,
+        );
       }}
     />
   );
-  
+
   const lensScalar = (
     section: "chromaticAberration" | "vignetteCorrection" | "transform",
     childKey: string,
@@ -628,11 +637,8 @@ export function DevelopControls({
     step = 1,
     options: { displayLabel?: string; help?: string; disabled?: boolean; reset?: number } = {},
   ) => {
-    const sectionValue = value.lensCorrection[section];
-    const currentValue = sectionValue && typeof sectionValue === 'object' && childKey in sectionValue 
-      ? (sectionValue as any)[childKey] 
-      : 0;
-    
+    const sectionValue = value.lensCorrection[section] as Record<string, unknown>;
+    const currentValue = typeof sectionValue?.[childKey] === "number" ? sectionValue[childKey] : 0;
     return (
       <DevelopSlider
         key={`lens.${section}.${childKey}`}
@@ -645,13 +651,17 @@ export function DevelopControls({
         step={step}
         reset={options.reset ?? 0}
         onChange={(n, c) => {
-          change({ 
-            ...value, 
-            lensCorrection: { 
-              ...value.lensCorrection, 
-              [section]: { ...(value.lensCorrection[section] as any), [childKey]: n } 
-            } 
-          }, label, c);
+          change(
+            {
+              ...value,
+              lensCorrection: {
+                ...value.lensCorrection,
+                [section]: { ...value.lensCorrection[section], [childKey]: n },
+              },
+            },
+            label,
+            c,
+          );
         }}
       />
     );
@@ -739,53 +749,13 @@ export function DevelopControls({
         {scalar("saturation", "Saturation")}
       </Panel>
       <Panel title="Tone Curve" id="panel-curve" disabled={browserOnly}>
-        <div className="develop-inline">
-          <span>Curve Type</span>
-          <select
-            aria-label="Curve type"
-            value={value.parametricCurve ? "parametric" : "point"}
-            onChange={(e) => {
-              const type = e.target.value;
-              if (type === "parametric") {
-                change({ 
-                  ...value, 
-                  parametricCurve: {
-                    highlights: 0,
-                    lights: 0,
-                    darks: 0,
-                    shadows: 0,
-                    pointCurve: value.curve,
-                  }
-                }, "Enable parametric curve");
-              } else {
-                change({ 
-                  ...value, 
-                  parametricCurve: undefined 
-                }, "Use point curve only");
-              }
-            }}
-          >
-            <option value="point">Point curve</option>
-            <option value="parametric">Parametric + Point</option>
-          </select>
+        <div className="develop-parametric-controls">
+          <p className="develop-control-heading">Parametric</p>
+          {parametricScalar("highlights", "Parametric Highlights")}
+          {parametricScalar("lights", "Parametric Lights")}
+          {parametricScalar("darks", "Parametric Darks")}
+          {parametricScalar("shadows", "Parametric Shadows")}
         </div>
-        {value.parametricCurve && (
-          <div className="develop-parametric-controls">
-            <p className="develop-control-heading">Parametric Regions</p>
-            {parametricScalar("highlights", "Parametric Highlights", -100, 100, 1, {
-              help: "Adjust the brightest tonal regions"
-            })}
-            {parametricScalar("lights", "Parametric Lights", -100, 100, 1, {
-              help: "Adjust the light tonal regions"
-            })}
-            {parametricScalar("darks", "Parametric Darks", -100, 100, 1, {
-              help: "Adjust the dark tonal regions"
-            })}
-            {parametricScalar("shadows", "Parametric Shadows", -100, 100, 1, {
-              help: "Adjust the darkest tonal regions"
-            })}
-          </div>
-        )}
         <ToneCurve key={photoId} value={value} change={change} />
       </Panel>
       <Panel title="Color Mixer" id="panel-mixer" disabled={browserOnly}>
@@ -903,6 +873,7 @@ export function DevelopControls({
           </select>
         </div>
         <DevelopSlider
+          id="slider-straighten"
           label="Straighten"
           disabled={browserOnly}
           {...(browserOnly ? { help: "Requires the local C++ Develop engine." } : {})}
@@ -1148,6 +1119,7 @@ export function DevelopControls({
               </label>
             </div>
             <DevelopSlider
+              id="slider-mask-exposure"
               label="Mask exposure"
               value={mask.exposure}
               min={-5}
@@ -1156,11 +1128,13 @@ export function DevelopControls({
               onChange={(n, c) => updateMask({ exposure: n }, "Mask exposure", c)}
             />
             <DevelopSlider
+              id="slider-mask-temp"
               label="Mask temp"
               value={mask.temperature}
               onChange={(n, c) => updateMask({ temperature: n }, "Mask temperature", c)}
             />
             <DevelopSlider
+              id="slider-mask-saturation"
               label="Mask saturation"
               value={mask.saturation}
               onChange={(n, c) => updateMask({ saturation: n }, "Mask saturation", c)}
