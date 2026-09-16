@@ -23,7 +23,7 @@ export function ClientGalleryFooter({
   state: DeliveryState;
   preview?: boolean;
 }) {
-  const { showLensLabsCredit } = galleryPresentation(state);
+  const { showCelinenCredit } = galleryPresentation(state);
   return (
     <footer className="delivery-client-footer">
       <p>
@@ -31,10 +31,10 @@ export function ClientGalleryFooter({
         photographer sees comments here; email notifications are not enabled. Save final files
         before the gallery expires.
       </p>
-      {showLensLabsCredit && (
+      {showCelinenCredit && (
         <div className="delivery-attribution">
           <span>
-            <LogoMark size={20} /> Delivered with LensLabs
+            <LogoMark size={20} /> Delivered with Celinen
           </span>
           {selectionsLocked(state) &&
             (preview ? (

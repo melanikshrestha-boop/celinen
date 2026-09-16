@@ -423,7 +423,7 @@ export function CommerceDesk({ api = defaultAPI }: { api?: typeof defaultAPI }) 
               </div>
             ))}
             <section className="commerce-prose">
-              <h3>Buying inside LensLabs</h3>
+              <h3>Buying inside Celinen</h3>
               <p>
                 Embedded registration is planned through Entri. Domain checkout is not active yet.
                 It needs a registrar partner and verified custom-domain hosting before anyone is
@@ -439,7 +439,7 @@ export function CommerceDesk({ api = defaultAPI }: { api?: typeof defaultAPI }) 
             <Upload size={24} />
             <h2>Bring your shop with you.</h2>
             <p>
-              Import a Shopify product CSV into private LensLabs print drafts. Your Shopify store
+              Import a Shopify product CSV into private Celinen print drafts. Your Shopify store
               stays untouched.
             </p>
             <div className="commerce-form">

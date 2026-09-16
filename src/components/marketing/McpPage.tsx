@@ -23,7 +23,7 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
       hrefLabel: "Customize → Connectors",
     },
     { title: "Add the foto connector", body: "Name it foto and paste the URL." },
-    { title: "Connect", body: "Click Connect, then ask Claude to list FOTO plans or walk the pick → send path." },
+    { title: "Connect", body: "Click Connect, then ask Claude to list Celinen plans or walk the pick → send path." },
   ],
   chatgpt: [
     {
@@ -36,13 +36,13 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
     },
     {
       title: "Turn it on in a chat",
-      body: "New conversation → + → Developer mode → tick foto. Ask it to list FOTO plans or walk import → pick → send.",
+      body: "New conversation → + → Developer mode → tick foto. Ask it to list Celinen plans or walk import → pick → send.",
     },
   ],
   cursor: [
     { title: "Open MCP settings", body: "In Cursor, open MCP settings and add a new HTTP server." },
     { title: "Paste the URL", body: "Set the server URL to the foto connector and save." },
-    { title: "Reload", body: "Reload Cursor, then ask it to describe the FOTO workflow." },
+    { title: "Reload", body: "Reload Cursor, then ask it to describe the Celinen workflow." },
   ],
   grok: [
     {
@@ -62,7 +62,7 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
       hrefLabel: "Julius Data Connectors",
     },
     { title: "Paste the URL", body: "Name it foto and paste the connector URL." },
-    { title: "Ask in a notebook", body: "Ask Julius for FOTO plans or the same-night gallery path." },
+    { title: "Ask in a notebook", body: "Ask Julius for Celinen plans or the same-night gallery path." },
   ],
 };
 
@@ -165,7 +165,7 @@ print(response.output_text)`,
 const FAQ: [string, string][] = [
   [
     "What is the foto MCP server?",
-    "A Model Context Protocol server. Your assistant can read the FOTO workflow, published USD plan amounts, and public photography notes from one URL.",
+    "A Model Context Protocol server. Your assistant can read the Celinen workflow, published USD plan amounts, and public photography notes from one URL.",
   ],
   [
     "Which AI apps can connect?",
@@ -177,7 +177,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "Is it free?",
-    "Connecting is free. Running FOTO on a shoot uses your FOTO plan. Hobby is USD 20 / month. Creator is USD 30 / month.",
+    "Connecting is free. Running Celinen on a shoot uses your Celinen plan. Hobby is USD 20 / month. Creator is USD 30 / month.",
   ],
 ];
 
@@ -249,7 +249,7 @@ export function McpPage() {
           The <em>foto</em> MCP for {clientLabel}
         </h1>
         <p>
-          Connect FOTO to your assistant. Pick keepers, send a gallery, and read published plans from
+          Connect Celinen to your assistant. Pick keepers, send a gallery, and read published plans from
           the prompt.
         </p>
       </header>

@@ -60,7 +60,7 @@ export function parsePresetPackage(text: string): PresetPackage {
     typeof text !== "string" ||
     new TextEncoder().encode(text).byteLength > PRESET_PACKAGE_MAX_BYTES
   )
-    throw new Error("Choose a FOTO preset JSON file smaller than 256 KB.");
+    throw new Error("Choose a Celinen preset JSON file smaller than 256 KB.");
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -81,7 +81,7 @@ export function presetPackageFilename(title: string): string {
     .replace(/[\p{Cc}/\\<>:"|?*]/gu, "-")
     .replace(/[. ]+$/g, "")
     .slice(0, 100);
-  return `FOTO-${stem || "preset"}.foto-preset.json`;
+  return `Celinen-${stem || "preset"}.foto-preset.json`;
 }
 /** Always creates a fresh local ID; a package can never target an existing account preset. */
 export function developPresetFromPackage(input: PresetPackage): DevelopPreset {

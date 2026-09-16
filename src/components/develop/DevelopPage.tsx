@@ -593,7 +593,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (current && alive.current) {
         setCopiedPhoto({ id, revision: current.revision });
         setNotice(
-          "Photo copied in FOTO. Paste creates an independent virtual copy; the original is untouched.",
+          "Photo copied in Celinen. Paste creates an independent virtual copy; the original is untouched.",
         );
       }
     } finally {
@@ -1693,7 +1693,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     <section
       {...pointerBoundary}
       className={`foto-develop${dragging ? " is-dragging" : ""}`}
-      aria-label="FOTO Develop"
+      aria-label="Celinen Develop"
       onDragEnter={(event) => {
         if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
@@ -1767,7 +1767,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         <div className="develop-brand">
           <span className="develop-brand-mark">f.</span>
           <span>
-            FOTO <small>Photo Lab</small>
+            Celinen <small>Photo Lab</small>
           </span>
         </div>
         <div className="develop-top-actions">

@@ -4,7 +4,7 @@ type Segment = { h: number; a: number; b: number; c: number };
 const sameSign = (a: number, b: number) => (a > 0 && b > 0) || (a < 0 && b < 0);
 const sign = (value: number) => Number(value > 0) - Number(value < 0);
 
-/** FOTO's PCHIP graph mirror; native rendering uses the same double-precision arithmetic.
+/** Celinen's PCHIP graph mirror; native rendering uses the same double-precision arithmetic.
  * https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.PchipInterpolator.html
  * No coefficient threshold silently changes tightly spaced, valid control points.
  */

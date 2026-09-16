@@ -223,7 +223,7 @@ export function parsePortfolioImport(
     const result = portfolioImportSchema.safeParse(parsed);
     if (!result.success)
       throw new Error(
-        "Choose a FOTO migration-plan JSON, version 1. Other JSON exports are not supported.",
+        "Choose a Celinen migration-plan JSON, version 1. Other JSON exports are not supported.",
       );
     if (sourceUrl && sourceUrl !== result.data.source.url)
       throw new Error(
@@ -277,14 +277,14 @@ export function parsePortfolioImport(
     }
     if (!plan.collections.length) throw new Error("This CSV contains no collections.");
     plan.warnings = [
-      "Collection names and credential-free links only. No photos, videos, albums or FOTO galleries are created.",
+      "Collection names and credential-free links only. No photos, videos, albums or Celinen galleries are created.",
       "All contact details, passwords, PINs and other columns are discarded. Keep your original export private.",
     ];
     if (skippedUrls)
       plan.warnings.push(`${skippedUrls} unsafe or unsupported collection links were omitted.`);
   } else
     throw new Error(
-      "Choose saved HTML (.html), Pixieset folder CSV (.csv), or a FOTO migration plan (.json). ZIP, XML and full-site backups are not supported.",
+      "Choose saved HTML (.html), Pixieset folder CSV (.csv), or a Celinen migration plan (.json). ZIP, XML and full-site backups are not supported.",
     );
   return portfolioImportSchema.parse(plan);
 }

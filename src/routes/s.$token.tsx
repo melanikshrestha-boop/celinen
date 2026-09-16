@@ -18,7 +18,7 @@ export const Route = createFileRoute("/s/$token")({
       {
         name: "description",
         content:
-          "Your private LensLabs shoot space: references, notes with your photographer, and the final gallery.",
+          "Your private Celinen shoot space: references, notes with your photographer, and the final gallery.",
       },
       { property: "og:title", content: "Your shoot — Celinen" },
       {
@@ -176,7 +176,7 @@ function ShootSpace() {
         <header className="flex flex-wrap items-center gap-3">
           <Link to="/" className="flex items-center gap-2">
             <LogoMark className="text-ink" />
-            <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
+            <span className="font-display text-[15px] font-semibold tracking-tight">Celinen</span>
           </Link>
           <span className={`rounded-full px-2.5 py-1 font-mono text-[11px] ${status.tone}`}>
             {status.label}

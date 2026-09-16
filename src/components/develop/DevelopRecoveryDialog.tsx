@@ -233,7 +233,7 @@ export function DevelopRecoveryDialog({
   return (
     <div className="develop-recovery" aria-busy={Boolean(stage)}>
       <p id={descriptionId}>
-        Restore adjustments from a FOTO recovery file. Originals, ratings and saved history stay
+        Restore adjustments from a Celinen recovery file. Originals, ratings and saved history stay
         intact.
       </p>
       <fieldset disabled={Boolean(stage) || Boolean(saved)} className="develop-recovery-fields">

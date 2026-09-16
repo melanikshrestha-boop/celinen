@@ -323,7 +323,7 @@ export function normalizeConnectedPayments(input: {
   return { receipts, ignored, warnings: [...new Set(warnings)] };
 }
 
-/** Only explicitly owned FOTO invoices enter receivables; provider invoice paid
+/** Only explicitly owned Celinen invoices enter receivables; provider invoice paid
  * status does not create another payment row. */
 export function normalizeConnectedInvoices(
   values: unknown[],

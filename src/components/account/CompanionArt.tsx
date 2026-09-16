@@ -1,4 +1,4 @@
-/** Original LensLabs vector companions; no imported mascots or task-status claims. */
+/** Original Celinen vector companions; no imported mascots or task-status claims. */
 export function CompanionArt({
   kind,
   image,
@@ -13,7 +13,7 @@ export function CompanionArt({
       {image ? (
         <img src={image} alt="Custom companion" />
       ) : (
-        <svg viewBox="0 0 80 80" role="img" aria-label={`LensLabs ${kind} companion`}>
+        <svg viewBox="0 0 80 80" role="img" aria-label={`Celinen ${kind} companion`}>
           <path
             d="M58 64c18 0 14-21 8-17"
             fill="none"

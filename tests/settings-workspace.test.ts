@@ -43,7 +43,7 @@ describe("expanded settings", () => {
     const exported = exportSettings(preferences);
     expect(importSettings(exported)).toEqual(preferences);
     expect(Object.keys(JSON.parse(exported))).toEqual(["product", "version", "preferences"]);
-    expect(exported).not.toMatch(/email|token|password|Celine/);
+    expect(exported).not.toMatch(/email|token|password|\bCeline\b/);
   });
   test("invalid imports reject atomically instead of resetting preferences", () => {
     for (const text of [

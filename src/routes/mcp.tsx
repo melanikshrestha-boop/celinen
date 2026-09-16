@@ -14,7 +14,7 @@ export const Route = createFileRoute("/mcp")({
   head: () =>
     publicContentHead(
       "foto MCP",
-      "Connect FOTO to Claude, ChatGPT, Cursor, Grok, and Julius with one URL.",
+      "Connect Celinen to Claude, ChatGPT, Cursor, Grok, and Julius with one URL.",
       "/mcp",
     ),
   component: McpRoute,

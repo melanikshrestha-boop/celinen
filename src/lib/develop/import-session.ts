@@ -282,7 +282,7 @@ export function createDevelopImportSession(
             if (prior && !["complete", "cancelled", "interrupted"].includes(prior.phase)) {
               if (!exclusive && prior.id !== lastSettledOwnedJobId)
                 throw new Error(
-                  "An earlier import may still be running. Without Web Locks this tab cannot safely recover it. Cancel it in its original tab, or reopen FOTO in a browser with Web Locks support; saved photos remain intact.",
+                  "An earlier import may still be running. Without Web Locks this tab cannot safely recover it. Cancel it in its original tab, or reopen Celinen in a browser with Web Locks support; saved photos remain intact.",
                 );
               // Only an exclusive lock or this exact, fully drained owner proves it stopped.
               // Interrupted handle-only work is recorded honestly, never marked Saved on reload.

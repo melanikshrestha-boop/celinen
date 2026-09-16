@@ -13,7 +13,7 @@ export const Route = createFileRoute("/ambassador")({
         content:
           "A quiet program for student sports photographers at Big Ten and other D1 schools: free Pro, gear stipend, and a same-night culling workflow for game days.",
       },
-      { property: "og:title", content: "LensLabs campus ambassadors" },
+      { property: "og:title", content: "Celinen campus ambassadors" },
       {
         property: "og:description",
         content: "Shoot the game, file before the bus leaves. Free Pro for student sports shooters.",
@@ -35,7 +35,7 @@ const PERKS: [string, string][] = [
 ];
 
 const ASKS: string[] = [
-  "Shoot at least four events a semester with LensLabs in the loop.",
+  "Shoot at least four events a semester with Celinen in the loop.",
   "One short note a month on what broke and what saved you time.",
   "Tell one other shooter on your staff. That's the whole marketing plan.",
 ];
@@ -87,7 +87,7 @@ function Ambassador() {
       <header className="mx-auto flex w-full max-w-[1100px] items-center justify-between px-6 py-5">
         <Link to="/" className="flex items-center gap-2">
           <LogoMark className="text-ink" />
-          <span className="font-display text-[15px] font-semibold tracking-tight">LensLabs</span>
+          <span className="font-display text-[15px] font-semibold tracking-tight">Celinen</span>
         </Link>
         <Link
           to="/pricing"

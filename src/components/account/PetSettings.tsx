@@ -28,7 +28,7 @@ export function PetSettings({
       <Group title="We'll design more">
         <Row
           title="Show pet"
-          note="An optional in-app companion. It does not report task progress or operate outside LensLabs."
+          note="An optional in-app companion. It does not report task progress or operate outside Celinen."
         >
           <Switch
             aria-label="Show pet"
@@ -38,7 +38,7 @@ export function PetSettings({
         </Row>
         <Row
           title="Companion"
-          note="Original LensLabs artwork. Selecting one replaces a custom image."
+          note="Original Celinen artwork. Selecting one replaces a custom image."
         >
           <Choice
             label="Companion"
@@ -108,7 +108,7 @@ export function PetSettings({
         </Row>
         <AvatarEditor
           value={draft ?? prefs.petImage}
-          name="LensLabs"
+          name="Celinen"
           kind="companion"
           maxBytes={12_000}
           disabled={false}

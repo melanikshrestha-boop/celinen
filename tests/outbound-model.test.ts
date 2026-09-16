@@ -47,7 +47,7 @@ function desk(): OutboundWorkspace {
       type: "campaign",
       campaign: {
         senderName: "Celine",
-        offer: "I'm building FOTO and would value your feedback.",
+        offer: "I'm building Celinen and would value your feedback.",
         cta: "Would you be open to a short conversation?",
         signature: "Celine\nFOTO",
       },

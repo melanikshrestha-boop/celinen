@@ -33,7 +33,7 @@ export function publicStoryHead(
     : "This public story is unavailable.";
   const title = story
     ? `${story.title}${story.creator ? ` — ${story.creator.displayName}` : ""}`
-    : "Story unavailable — LensLabs";
+    : "Story unavailable — Celinen";
   const meta = [
     { title },
     { name: "description", content: description },

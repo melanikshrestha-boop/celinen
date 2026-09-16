@@ -48,7 +48,7 @@ export async function publishStories(
             status?.status_code === "PUBLISHED" ? "published" : "uncertain",
             status?.status_code === "PUBLISHED"
               ? "Instagram confirmed the Story."
-              : "Outcome unconfirmed. Check Instagram; LensLabs will not post this Story twice.",
+              : "Outcome unconfirmed. Check Instagram; Celinen will not post this Story twice.",
           );
           continue;
         }
@@ -93,7 +93,7 @@ export async function publishStories(
         if (uncertain) {
           await set(
             "uncertain",
-            "Outcome unconfirmed. Check your Facebook Page; LensLabs will not post this Story twice.",
+            "Outcome unconfirmed. Check your Facebook Page; Celinen will not post this Story twice.",
           );
           continue;
         }

@@ -306,13 +306,13 @@ export function SettingsWorkspace({
             <Group title="Permissions">
               <Row
                 title="Default permissions"
-                note="By default, LensLabs can read and edit files in the current workspace. It asks before accessing additional locations or performing restricted actions. In this browser, only chosen files are readable; edits create reversible instructions, not changes to originals."
+                note="By default, Celinen can read and edit files in the current workspace. It asks before accessing additional locations or performing restricted actions. In this browser, only chosen files are readable; edits create reversible instructions, not changes to originals."
               >
                 {fixed("Protected")}
               </Row>
               <Row
                 title="Full access"
-                note="Allow LensLabs to perform supported actions beyond the current workspace without asking each time. This increases the risk of unintended changes, data loss, or exposing private information. This browser has no elevated execution service: arbitrary file access, shell commands and external app control are unavailable."
+                note="Allow Celinen to perform supported actions beyond the current workspace without asking each time. This increases the risk of unintended changes, data loss, or exposing private information. This browser has no elevated execution service: arbitrary file access, shell commands and external app control are unavailable."
               >
                 <Switch aria-label="Full access" checked={false} disabled />
               </Row>
@@ -321,7 +321,7 @@ export function SettingsWorkspace({
               <AppearanceBasics prefs={prefs} save={save} mode />
               <Row
                 title="Projectless task folder"
-                note="The default location for files created outside a project. This web edition uses this browser’s LensLabs storage, not an unrestricted filesystem folder."
+                note="The default location for files created outside a project. This web edition uses this browser’s Celinen storage, not an unrestricted filesystem folder."
               >
                 {action("Manage shoots", "/projects")}
               </Row>
@@ -334,7 +334,7 @@ export function SettingsWorkspace({
                     label="Default file open destination"
                     value={prefs.fileDestination}
                     options={[
-                      ["studio", "LensLabs Studio"],
+                      ["studio", "Celinen Studio"],
                       ["adobe", "Adobe · XMP export"],
                       ["folder", "Finder / Files · import folder"],
                     ]}
@@ -446,7 +446,7 @@ export function SettingsWorkspace({
             <Group title="Assistant">
               <Row
                 title="Learn from your photos and edits"
-                note="Remembers looks you save so FOTO gets closer to your eye. Originals stay read-only. Not a shared model. Off deletes the local log."
+                note="Remembers looks you save so Celinen gets closer to your eye. Originals stay read-only. Not a shared model. Off deletes the local log."
               >
                 {toggle("Learn from your photos and edits", "learnFromYourWork")}
               </Row>
@@ -484,7 +484,7 @@ export function SettingsWorkspace({
           <Group title="Photos & sidecars">
             <Row
               title="Bring your website content"
-              note="Review saved HTML, Pixieset folder CSV or a FOTO migration plan. Existing sites and domains stay untouched."
+              note="Review saved HTML, Pixieset folder CSV or a Celinen migration plan. Existing sites and domains stay untouched."
             >
               {action("Review website import", "/portfolio")}
             </Row>
@@ -571,7 +571,7 @@ export function SettingsWorkspace({
             </Row>
             <Row
               title="Lifetime usage"
-              note="Lifetime AI-token charts and activity streaks are not tracked by LensLabs."
+              note="Lifetime AI-token charts and activity streaks are not tracked by Celinen."
             >
               <span className="settings-capability">Not tracked</span>
             </Row>
@@ -637,13 +637,13 @@ export function SettingsWorkspace({
             </Row>
             <Row
               title="File access"
-              note="Only files you explicitly choose or drop into LensLabs can be imported."
+              note="Only files you explicitly choose or drop into Celinen can be imported."
             >
               {fixed("Selected files only")}
             </Row>
             <Row
               title="Background screen recording"
-              note="LensLabs does not monitor your desktop or record other applications."
+              note="Celinen does not monitor your desktop or record other applications."
             >
               {fixed("Off")}
             </Row>
@@ -654,7 +654,7 @@ export function SettingsWorkspace({
           <Group title="Computer history">
             <Row
               title="Activity collection"
-              note="No application-interaction collection or summarization service is connected. Chat messages are not Computer History. LensLabs does not collect other applications, private browsing, passwords or keystrokes."
+              note="No application-interaction collection or summarization service is connected. Chat messages are not Computer History. Celinen does not collect other applications, private browsing, passwords or keystrokes."
             >
               <Switch aria-label="Activity collection" checked={false} disabled />
             </Row>
@@ -732,7 +732,7 @@ export function SettingsWorkspace({
             </Row>
             <Row
               title="Control other websites"
-              note="No browser extension or unattended website-control permission is installed by LensLabs."
+              note="No browser extension or unattended website-control permission is installed by Celinen."
             >
               <span className="settings-capability">Not connected</span>
             </Row>
@@ -760,7 +760,7 @@ export function SettingsWorkspace({
           <Group title="Repository">
             <Row
               title="Git repository"
-              note="No authorized Git execution environment is connected to LensLabs. A photo’s edit history is not a Git repository. This page cannot inspect branches, stage, commit, merge or push."
+              note="No authorized Git execution environment is connected to Celinen. A photo’s edit history is not a Git repository. This page cannot inspect branches, stage, commit, merge or push."
             >
               <span className="settings-capability">Not connected</span>
             </Row>
@@ -785,7 +785,7 @@ export function SettingsWorkspace({
             </Row>
             <Row
               title="Active tasks and uncommitted changes"
-              note="No worktree state is accessible. LensLabs does not assume ignored files, credentials or unsaved changes are copied."
+              note="No worktree state is accessible. Celinen does not assume ignored files, credentials or unsaved changes are copied."
             >
               {fixed("No runtime")}
             </Row>
@@ -1149,7 +1149,7 @@ function Configuration({
         />
         <Row
           title="Reset preferences"
-          note="Restore LensLabs defaults on this browser. Does not delete photos, conversations or your profile."
+          note="Restore Celinen defaults on this browser. Does not delete photos, conversations or your profile."
         >
           <button
             className="settings-button"
@@ -1535,7 +1535,7 @@ function NotificationSettings({
         </Row>
         <Row
           title="Desktop notifications"
-          note="While LensLabs is open, use a silent system notification when allowed, or an in-app alert. Background push after closing the app is not connected."
+          note="While Celinen is open, use a silent system notification when allowed, or an in-app alert. Background push after closing the app is not connected."
         >
           <Switch
             aria-label="Desktop notifications"
@@ -1594,7 +1594,7 @@ function NotificationSettings({
               setNote(
                 delivered === "desktop"
                   ? "Test sent to your system notification center."
-                  : "Test shown in LensLabs.",
+                  : "Test shown in Celinen.",
               );
             }}
           >
@@ -1604,7 +1604,7 @@ function NotificationSettings({
       </Group>
       <p className="settings-footnote">
         Alerts contain no photo previews, filenames, client names or message content. They work
-        while LensLabs is open, not after the browser is closed.
+        while Celinen is open, not after the browser is closed.
       </p>
       {note && <p role="status">{note}</p>}
     </>

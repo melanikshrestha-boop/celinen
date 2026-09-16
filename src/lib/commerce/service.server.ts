@@ -10,7 +10,7 @@ import {
 } from "./model";
 type DB = ReturnType<typeof businessDatabase>;
 const unavailable =
-  "Commerce is not connected yet. Your draft is still here. The LensLabs owner needs to activate the commerce database.";
+  "Commerce is not connected yet. Your draft is still here. The Celinen owner needs to activate the commerce database.";
 export async function readShop(owner: string, db: DB = businessDatabase()) {
   const { data, error } = await db
     .from("commerce_shops")

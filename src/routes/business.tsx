@@ -10,7 +10,7 @@ export const Route = createFileRoute("/business")({
       {
         name: "description",
         content:
-          "Production facts LensLabs can actually know, plus manual money fields. Unknown values stay blank — never a fake $0 profit.",
+          "Production facts Celinen can actually know, plus manual money fields. Unknown values stay blank — never a fake $0 profit.",
       },
       { property: "og:title", content: "Business — Celinen Job Economics" },
       {

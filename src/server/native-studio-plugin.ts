@@ -551,7 +551,7 @@ export function nativeStudioPlugin(): Plugin {
                 "Content-Length": jpeg.length,
                 "Cache-Control": "no-store",
                 "X-Content-Type-Options": "nosniff",
-                "X-LensLabs-Engine": "cpp",
+                "X-Celinen-Engine": "cpp",
               });
               res.end(jpeg);
             } finally {
@@ -583,7 +583,7 @@ export function nativeStudioPlugin(): Plugin {
               res.writeHead(200, {
                 "Content-Type": "application/json",
                 "Cache-Control": "no-store",
-                "X-LensLabs-Engine": "cpp",
+                "X-Celinen-Engine": "cpp",
               });
               res.end(output);
             } finally {
@@ -622,7 +622,7 @@ export function nativeStudioPlugin(): Plugin {
               res.writeHead(200, {
                 "Content-Type": "application/json",
                 "Cache-Control": "no-store",
-                "X-LensLabs-Engine": "cpp",
+                "X-Celinen-Engine": "cpp",
               });
               res.end(output);
             } finally {
@@ -692,7 +692,7 @@ export function nativeStudioPlugin(): Plugin {
               "Content-Type": "application/x-lenslabs-frame",
               "Cache-Control": "no-store",
               "X-Content-Type-Options": "nosniff",
-              "X-LensLabs-Engine": "cpp",
+              "X-Celinen-Engine": "cpp",
               "Content-Length": header.length + frame.jpeg.length,
             });
             res.write(header);

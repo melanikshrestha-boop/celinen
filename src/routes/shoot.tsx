@@ -30,9 +30,9 @@ export const Route = createFileRoute("/shoot")({
       {
         name: "description",
         content:
-          "Drop a shoot anywhere on the page, let LensLabs auto-cull it to keepers, then send the picks to Lightroom as XMP sidecars. Talk to it in plain English.",
+          "Drop a shoot anywhere on the page, let Celinen auto-cull it to keepers, then send the picks to Lightroom as XMP sidecars. Talk to it in plain English.",
       },
-      { property: "og:title", content: "LensLabs Shoot Bar" },
+      { property: "og:title", content: "Celinen Shoot Bar" },
       {
         property: "og:description",
         content: "Drop photos anywhere. Auto-cull to keepers. Send to Lightroom with XMP.",
@@ -337,8 +337,8 @@ function LegacyShootPage() {
 
     setNote(
       pushed
-        ? `${done.length} frames sent to Lightroom — sidecars downloaded, and verdicts queued on the bridge (Plug-in Extras → “Pull LensLabs verdicts”).`
-        : `${done.length} XMP sidecar${done.length === 1 ? "" : "s"} written, but the LensLabs bridge was unreachable — drop them beside the negatives and hit “Read metadata from file” in Lightroom.`,
+        ? `${done.length} frames sent to Lightroom — sidecars downloaded, and verdicts queued on the bridge (Plug-in Extras → “Pull Celinen verdicts”).`
+        : `${done.length} XMP sidecar${done.length === 1 ? "" : "s"} written, but the Celinen bridge was unreachable — drop them beside the negatives and hit “Read metadata from file” in Lightroom.`,
     );
     return done.length;
   }, [shots]);
@@ -436,7 +436,7 @@ function LegacyShootPage() {
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2.5">
         <Link to="/" className="flex items-center gap-2">
           <LogoMark className="text-ink" />
-          <span className="font-display text-[14px] font-semibold tracking-tight">LensLabs</span>
+          <span className="font-display text-[14px] font-semibold tracking-tight">Celinen</span>
         </Link>
         <span className="font-mono text-[11px] text-moss">
           {shots.length

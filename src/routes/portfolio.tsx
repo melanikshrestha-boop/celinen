@@ -13,7 +13,7 @@ export const Route = createFileRoute("/portfolio")({
       {
         name: "description",
         content:
-          "Review saved website text and Pixieset collection metadata before adding content to a FOTO portfolio preview. Your existing website stays untouched.",
+          "Review saved website text and Pixieset collection metadata before adding content to a Celinen portfolio preview. Your existing website stays untouched.",
       },
       { property: "og:title", content: "Bring your website content — Celinen" },
       {

@@ -67,7 +67,7 @@ function PickScreen() {
       </Card>
 
       <p className="mt-4 text-[13px] text-moss">
-        Reject is a soft reject. Originals are never modified or deleted by LensLabs.
+        Reject is a soft reject. Originals are never modified or deleted by Celinen.
       </p>
     </Shell>
   );

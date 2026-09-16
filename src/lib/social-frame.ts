@@ -36,7 +36,7 @@ export async function prepareSocialFrame(
   if (!source.size || source.size > 16 * 1024 * 1024)
     throw new Error("Choose a prepared photo under 16 MB.");
   const status = await fetch("/__native/status", {
-    headers: { "X-LensLabs-Request": "studio" },
+    headers: { "X-Celinen-Request": "studio" },
     signal: signal ?? null,
   });
   if (!status.ok || !status.headers.get("content-type")?.includes("application/json"))
@@ -50,9 +50,9 @@ export async function prepareSocialFrame(
     body: source,
     headers: {
       "Content-Type": "application/octet-stream",
-      "X-LensLabs-Request": "studio",
-      "X-LensLabs-Token": engine.token,
-      "X-LensLabs-Frame": JSON.stringify(recipe),
+      "X-Celinen-Request": "studio",
+      "X-Celinen-Token": engine.token,
+      "X-Celinen-Frame": JSON.stringify(recipe),
     },
   });
   if (!response.ok) {
@@ -62,7 +62,7 @@ export async function prepareSocialFrame(
     );
   }
   if (
-    response.headers.get("X-LensLabs-Engine") !== "cpp" ||
+    (response.headers.get("X-Celinen-Engine") ?? response.headers.get("X-LensLabs-Engine")) !== "cpp" ||
     !response.headers.get("content-type")?.includes("image/jpeg")
   )
     throw new Error("The social operator returned an invalid image.");

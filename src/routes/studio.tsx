@@ -220,7 +220,7 @@ export const Route = createFileRoute("/studio")({
       { property: "og:title", content: `${PRODUCT_NAME} Studio` },
       {
         property: "og:description",
-        content: "The LensLabs culling bench: score, flag, keep, develop, export.",
+        content: "The Celinen culling bench: score, flag, keep, develop, export.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -890,7 +890,7 @@ export function Studio({
       setEventPeople(people);
       setStudioEventPeople(people, storageScope, shootId);
       setSyncNote(
-        `${people.length} event-local ${people.length === 1 ? "person" : "people"} grouped. Name them yourself. FOTO does not infer family roles.`,
+        `${people.length} event-local ${people.length === 1 ? "person" : "people"} grouped. Name them yourself. Celinen does not infer family roles.`,
       );
     } catch (error) {
       setSyncNote(
@@ -1378,7 +1378,7 @@ export function Studio({
           );
       } catch (error) {
         if (error instanceof Error) setSyncNote(error.message);
-        else if (!quiet) setSyncNote("LensLabs bridge unreachable — is the studio server running?");
+        else if (!quiet) setSyncNote("Celinen bridge unreachable — is the studio server running?");
       }
     },
     [mergeBridge],
@@ -1391,7 +1391,7 @@ export function Studio({
     return () => clearInterval(t);
   }, [linked, pullFromLightroom]);
 
-  /** Publish LensLabs verdicts so the plugin's "Pull" writes them into the catalog. */
+  /** Publish Celinen verdicts so the plugin's "Pull" writes them into the catalog. */
   const pushToLightroom = useCallback(async () => {
     if (!canPersistStudioSession(sessionStatusRef.current)) {
       setSyncNote("Resolve the paused save before publishing changes to Lightroom.");
@@ -1417,13 +1417,13 @@ export function Studio({
           "Could not queue folder-matched verdicts. Check that the deployed bridge and Lightroom plug-in are updated.",
         );
       setSyncNote(
-        `${frames.length} frames queued, not yet applied. In Lightroom plug-in 1.3 or newer, run Plug-in Extras → “Pull LensLabs verdicts”.`,
+        `${frames.length} frames queued, not yet applied. In Lightroom plug-in 1.3 or newer, run Plug-in Extras → “Pull Celinen verdicts”.`,
       );
     } catch (error) {
       setSyncNote(
         error instanceof Error
           ? error.message
-          : "Could not reach the LensLabs bridge to publish verdicts.",
+          : "Could not reach the Celinen bridge to publish verdicts.",
       );
     }
   }, []);
@@ -2139,7 +2139,7 @@ export function Studio({
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = `LensLabs-recovery-${Date.now()}.lenspack`;
+        anchor.download = `Celinen-recovery-${Date.now()}.lenspack`;
         anchor.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       }}
@@ -2763,7 +2763,7 @@ export function Studio({
                                   ? "from Lightroom (live)"
                                   : selected.develop.origin === "sidecar"
                                     ? "from XMP sidecar"
-                                    : "LensLabs, published"
+                                    : "Celinen, published"
                                 : "untouched"}
                           </span>
                           {selected.develop?.rating !== undefined &&

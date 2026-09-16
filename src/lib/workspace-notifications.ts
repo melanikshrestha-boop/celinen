@@ -29,7 +29,7 @@ export function notifyResponseReady(preferences: AccountPreferences) {
     Notification.permission === "granted"
   ) {
     try {
-      const notification = new Notification("LensLabs", {
+      const notification = new Notification("Celinen", {
         body: RESPONSE_READY,
         tag: "lenslabs-response-ready",
         silent: true,

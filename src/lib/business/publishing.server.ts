@@ -218,7 +218,7 @@ export async function runPublication(
     if (post.portfolio && post.destinations.portfolio.status !== "published") {
       post.destinations.portfolio = {
         status: "published",
-        note: "Published to your LensLabs portfolio.",
+        note: "Published to your Celinen portfolio.",
         url: `/p/${post.id}`,
       };
       await save();

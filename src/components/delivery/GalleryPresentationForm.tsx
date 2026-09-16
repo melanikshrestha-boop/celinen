@@ -22,10 +22,10 @@ export function GalleryPresentationForm({
   const initial = galleryPresentation(state);
   const [name, setName] = useState(initial.studioName);
   const [baseline, setBaseline] = useState(initial);
-  const [credit, setCredit] = useState(initial.showLensLabsCredit);
+  const [credit, setCredit] = useState(initial.showCelinenCredit);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const dirty = name !== baseline.studioName || credit !== baseline.showLensLabsCredit;
+  const dirty = name !== baseline.studioName || credit !== baseline.showCelinenCredit;
   useEffect(() => {
     onDirty(dirty);
     return () => onDirty(false);
@@ -44,7 +44,7 @@ export function GalleryPresentationForm({
             );
           const value = galleryPresentationSchema.parse({
             studioName: name,
-            showLensLabsCredit: credit,
+            showCelinenCredit: credit,
           });
           await save(value);
           setName(value.studioName);
@@ -79,7 +79,7 @@ export function GalleryPresentationForm({
           disabled={busy}
         />
         <span>
-          Show “Delivered with LensLabs”
+          Show “Delivered with Celinen”
           <small>
             A quiet credit below the photos. An optional photographer sign-up link appears after
             selections are submitted.

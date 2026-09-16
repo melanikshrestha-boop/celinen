@@ -37,7 +37,7 @@ export function reminderCalendar(clients: WorkspaceClient[], now = new Date()) {
   const rows = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//LensLabs//Client follow-ups//EN",
+    "PRODID:-//Celinen//Client follow-ups//EN",
     "CALSCALE:GREGORIAN",
   ];
   for (const c of clients.filter((c) => c.stage !== "archived" && isClientDate(c.followUpOn))) {
@@ -48,7 +48,7 @@ export function reminderCalendar(clients: WorkspaceClient[], now = new Date()) {
       `DTSTART;VALUE=DATE:${c.followUpOn!.replace(/-/g, "")}`,
       `DTEND;VALUE=DATE:${nextFollowUp(c.followUpOn!, 1).replace(/-/g, "")}`,
       `SUMMARY:${escapeIcs(`Follow up with ${c.name}`)}`,
-      "DESCRIPTION:Open LensLabs Clients to follow up.",
+      "DESCRIPTION:Open Celinen Clients to follow up.",
       "BEGIN:VALARM",
       "TRIGGER:-PT15H",
       "ACTION:DISPLAY",

@@ -1,4 +1,4 @@
-/** Public FOTO presence. Swap the handle here when the live accounts change. */
+/** Public Celinen presence. Swap the handle here when the live accounts change. */
 const HANDLE = "lenslab";
 
 export const PUBLIC_SOCIALS = [

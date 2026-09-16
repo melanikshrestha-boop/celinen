@@ -57,7 +57,7 @@ async function open(scope: string) {
     req.onerror = () => reject(req.error ?? new Error("Shoot directory could not open."));
     req.onblocked = () => {
       rejected = true;
-      reject(new Error("Close older FOTO tabs and retry. Your saved shoots are unchanged."));
+      reject(new Error("Close older Celinen tabs and retry. Your saved shoots are unchanged."));
     };
     req.onsuccess = () => {
       const db = req.result;

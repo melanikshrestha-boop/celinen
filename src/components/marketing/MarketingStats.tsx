@@ -88,7 +88,7 @@ function Count({
 
 export function MarketingStats() {
   return (
-    <section className="marketing-stats" aria-label="FOTO in numbers" data-reveal>
+    <section className="marketing-stats" aria-label="Celinen in numbers" data-reveal>
       {STATS.map((stat, index) => (
         <p key={stat.label}>
           <Count to={stat.to} suffix={stat.suffix} delay={index * 160} label={stat.label} />

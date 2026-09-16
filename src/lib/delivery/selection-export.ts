@@ -124,7 +124,7 @@ function normalizedFilename(filename: string): string {
 
 /**
  * Build a pasteable editor lookup from the immutable latest submission.
- * LensLabs IDs in the CSV remain authoritative; this convenience list fails closed whenever an
+ * Celinen IDs in the CSV remain authoritative; this convenience list fails closed whenever an
  * editor's filename-only lookup could select the wrong photo.
  */
 export function submittedEditorLookup(
@@ -136,13 +136,13 @@ export function submittedEditorLookup(
   const duplicate = normalized.find((filename, index) => normalized.indexOf(filename) !== index);
   if (duplicate)
     throw new Error(
-      "Editor lookup blocked: duplicate filenames cannot identify the submitted photos safely. Use the LensLabs selection CSV instead.",
+      "Editor lookup blocked: duplicate filenames cannot identify the submitted photos safely. Use the Celinen selection CSV instead.",
     );
 
   if (target === "lightroom") {
     if (filenames.some((filename) => filename.includes(",")))
       throw new Error(
-        "Lightroom lookup blocked: a filename contains a comma. Use the LensLabs selection CSV instead.",
+        "Lightroom lookup blocked: a filename contains a comma. Use the Celinen selection CSV instead.",
       );
     const partialMatch = normalized.some((filename, index) =>
       normalized.some(
@@ -151,14 +151,14 @@ export function submittedEditorLookup(
     );
     if (partialMatch)
       throw new Error(
-        "Lightroom lookup blocked: one filename partially matches another. Use the LensLabs selection CSV instead.",
+        "Lightroom lookup blocked: one filename partially matches another. Use the Celinen selection CSV instead.",
       );
     return { target, filenames: [...filenames], text: filenames.join(",") };
   }
 
   if (filenames.some((filename) => /\s/.test(filename)))
     throw new Error(
-      "Capture One lookup blocked: a filename contains whitespace. Use the LensLabs selection CSV instead.",
+      "Capture One lookup blocked: a filename contains whitespace. Use the Celinen selection CSV instead.",
     );
   return { target, filenames: [...filenames], text: filenames.join(" ") };
 }

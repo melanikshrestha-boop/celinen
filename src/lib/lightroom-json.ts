@@ -1,5 +1,5 @@
 /** Lua 5.1 codec for the generated bridge. No SDK, network, filesystem or code evaluation. */
-export const LIGHTROOM_JSON_LUA = String.raw`-- LensLabs bounded JSON codec. RFC 8259 syntax; rejects ambiguous duplicate keys.
+export const LIGHTROOM_JSON_LUA = String.raw`-- Celinen bounded JSON codec. RFC 8259 syntax; rejects ambiguous duplicate keys.
 local JSON = { null = {} }
 local arrayType = {}
 local MAX_BYTES, MAX_DEPTH, MAX_VALUES = 8388608, 64, 250000

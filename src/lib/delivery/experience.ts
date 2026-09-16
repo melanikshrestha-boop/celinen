@@ -75,6 +75,6 @@ export function galleryInvitation(state: DeliveryState, privateUrl: string, now:
     `Available until ${expiry} (UTC). Save your final files before it expires.`,
     "No new account needed. Keep this link private: everyone with it shares the same selections and feedback.",
     ...(presentation.studioName ? ["", presentation.studioName] : []),
-    ...(presentation.showLensLabsCredit ? ["Delivered with LensLabs"] : []),
+    ...(presentation.showCelinenCredit ? ["Delivered with Celinen"] : []),
   ].join("\n");
 }

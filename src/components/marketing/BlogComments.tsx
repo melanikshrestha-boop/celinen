@@ -88,7 +88,7 @@ export function BlogComments({ slug }: { slug: string }) {
     <section className="blog-comments" aria-labelledby="blog-comments-heading">
       <h2 id="blog-comments-heading">Talk back</h2>
       <p>
-        Like it, hate it, or tell us what to build. Notes are stored with this FOTO site so the
+        Like it, hate it, or tell us what to build. Notes are stored with this Celinen site so the
         product can actually change.
       </p>
 

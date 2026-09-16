@@ -33,7 +33,7 @@ export function DevelopPhotoActions({
         <DropdownMenuItem onSelect={rename}>Rename for library & exports…</DropdownMenuItem>
         <DropdownMenuItem onSelect={duplicate}>Create virtual copy</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={copy}>Copy photo in FOTO</DropdownMenuItem>
+        <DropdownMenuItem onSelect={copy}>Copy photo in Celinen</DropdownMenuItem>
         <DropdownMenuItem disabled={!canPaste} onSelect={paste}>
           Paste photo as virtual copy
         </DropdownMenuItem>

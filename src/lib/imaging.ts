@@ -1,5 +1,5 @@
 /**
- * LensLabs imaging core.
+ * Celinen imaging core.
  * Runs entirely in the browser: decode, analyse, score, edit, export.
  */
 import { validReviewRating } from "./studio/review-metadata";
@@ -536,7 +536,7 @@ export function analyseBitmap(bitmap: ImageBitmap): Analysis {
 }
 
 /**
- * Auto Refine — the LensLabs answer to Lightroom's Auto button.
+ * Auto Refine — the Celinen answer to Lightroom's Auto button.
  * Everything below is derived from the frame's own measured histogram:
  * exposure targets a mid-grey median, highlights/shadows recover the real
  * clipping points, contrast fills the tonal range, temp neutralises a colour
@@ -908,7 +908,7 @@ export interface SidecarSettings {
   rating: number | null;
   /** Lightroom pick flag: 1 = flagged/pick, -1 = rejected */
   pick: number | null;
-  /** Preserve user-defined labels independently of LensLabs keep/reject decisions. */
+  /** Preserve user-defined labels independently of Celinen keep/reject decisions. */
   label?: string;
 }
 
@@ -965,7 +965,7 @@ function num(xml: string, key: string): number | null {
   return raw === undefined ? null : Number(raw);
 }
 
-/** Parse a Lightroom .xmp sidecar into LensLabs edit values. */
+/** Parse a Lightroom .xmp sidecar into Celinen edit values. */
 export function parseXmpSidecar(xml: string): SidecarSettings {
   const edits: Partial<Edits> = {};
   const exposure = num(xml, "Exposure2012");
@@ -980,7 +980,7 @@ export function parseXmpSidecar(xml: string): SidecarSettings {
   if (sat !== null) edits.saturation = sat;
   const temp = num(xml, "Temperature");
   if (temp !== null) {
-    // Lightroom stores kelvin; 5500K is neutral for LensLabs.
+    // Lightroom stores kelvin; 5500K is neutral for Celinen.
     edits.temp = Math.max(-100, Math.min(100, ((temp - 5500) / 4500) * 100));
   }
 
@@ -995,7 +995,7 @@ export function parseXmpSidecar(xml: string): SidecarSettings {
   };
 }
 
-/** Write a Lightroom-readable .xmp sidecar from LensLabs edits. */
+/** Write a Lightroom-readable .xmp sidecar from Celinen edits. */
 export function buildXmpSidecar(
   edits: Edits,
   verdict: Verdict,

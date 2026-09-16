@@ -69,7 +69,7 @@ describe("Conversation controls and creative preferences", () => {
     for (const secret of [record.id, record.project, record.draft, "PRIVATE_TOOL", "PRIVATE_EMAIL"])
       expect(html).not.toContain(secret);
     expect(html).toContain("default-src 'none'");
-    expect(chatShareFile(record).name).toBe("Client review-LensLabs.html");
+    expect(chatShareFile(record).name).toBe("Client review-Celinen.html");
   });
   test("sharing escapes executable markup and retains transcript text", () => {
     const attack = '<img src=x onerror="alert(1)"></script><script>alert(2)</script>&';

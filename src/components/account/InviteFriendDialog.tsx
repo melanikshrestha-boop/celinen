@@ -95,7 +95,7 @@ function InvitationContent({ returnFocus }: { returnFocus: RefObject<HTMLButtonE
       <DialogHeader>
         <DialogTitle>Invite a friend</DialogTitle>
         <DialogDescription>
-          Give them a place to start their next shoot. They’ll create their own LensLabs account.
+          Give them a place to start their next shoot. They’ll create their own Celinen account.
         </DialogDescription>
       </DialogHeader>
       <div className="invite-friend-link">
@@ -103,7 +103,7 @@ function InvitationContent({ returnFocus }: { returnFocus: RefObject<HTMLButtonE
         <input
           ref={input}
           id="friend-signup-link"
-          aria-label="LensLabs invitation link"
+          aria-label="Celinen invitation link"
           readOnly
           value={invitation.url}
           onFocus={(event) => event.target.select()}

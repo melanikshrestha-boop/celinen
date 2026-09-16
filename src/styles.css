@@ -82,7 +82,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * LensLabs — minimal. Pantone-style warm stone paper, graphite ink, one quiet accent.
+ * Celinen — minimal. Pantone-style warm stone paper, graphite ink, one quiet accent.
  * No neon. No gradients as decoration.
  */
 
@@ -144,7 +144,7 @@
   --foto-settings-surface: #f7f7fa;
   --foto-settings-border: #1a1c2214;
 
-  /* LensLabs — engineered dark-first. Near-black shell, one signal red. */
+  /* Celinen — engineered dark-first. Near-black shell, one signal red. */
   --paper: oklch(0.985 0.002 90);
   --paper2: oklch(1 0 0);
   --ink: oklch(0.16 0.004 285);
@@ -424,7 +424,7 @@ html.dark {
   color-scheme: dark;
 }
 
-/* ---- LensLabs motion kit ---- */
+/* ---- Celinen motion kit ---- */
 @keyframes iris-spin {
   from {
     transform: rotate(0deg);

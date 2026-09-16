@@ -7,12 +7,12 @@ import {
 } from "@/lib/lightroom-matching";
 
 /**
- * LensLabs ↔ Lightroom bridge (public endpoint — the LR plugin calls it directly).
+ * Celinen ↔ Lightroom bridge (public endpoint — the LR plugin calls it directly).
  *
  * POST — the Lightroom plugin pushes XMP-derived state (rating, label, pick,
  *        IPTC, develop settings) for the selected photos.
  * GET  — the studio polls `?side=studio` for what Lightroom pushed; the plugin
- *        GETs the default side to pull LensLabs verdicts back into the catalog.
+ *        GETs the default side to pull Celinen verdicts back into the catalog.
  *
  * State is persisted per workspace key so it survives restarts and works from
  * the published URL, not just localhost.
@@ -76,7 +76,7 @@ export const Route = createFileRoute("/api/public/lightroom")({
         if (direction === "to-lightroom" && url.searchParams.get("matching") !== LIGHTROOM_MATCHING)
           return json(
             {
-              error: "Update the LensLabs Lightroom plug-in for folder-matched sync.",
+              error: "Update the Celinen Lightroom plug-in for folder-matched sync.",
               kind: "upgrade-required",
               at: 0,
               frames: [],
@@ -97,7 +97,7 @@ export const Route = createFileRoute("/api/public/lightroom")({
         if (direction === "to-lightroom" && data.kind !== `verdicts-${LIGHTROOM_MATCHING}`)
           return json(
             {
-              error: "Publish this batch again from the updated LensLabs Studio.",
+              error: "Publish this batch again from the updated Celinen Studio.",
               kind: "upgrade-required",
               at: 0,
               frames: [],

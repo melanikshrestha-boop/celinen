@@ -116,7 +116,7 @@ export function ProspectForm({
         <input {...field("sourceUrl")} type="url" maxLength={2000} placeholder="https://…" />
       </label>
       <label>
-        Why FOTO could fit
+        Why Celinen could fit
         <textarea
           {...field("fitReason")}
           rows={2}

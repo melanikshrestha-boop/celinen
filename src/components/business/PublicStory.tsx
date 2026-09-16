@@ -50,7 +50,7 @@ export function PublicStory({ postId, story }: { postId: string; story: Story })
           </div>
         )}
         <div className="story-platform-credit">
-          Shared with LensLabs ·{" "}
+          Shared with Celinen ·{" "}
           <a href="/auth?next=%2Fpublish&mode=signup">Create your own photo story →</a>
         </div>
       </footer>

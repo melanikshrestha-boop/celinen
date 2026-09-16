@@ -45,7 +45,7 @@ export const fotoArticles: readonly FotoArticle[] = [
           "The biggest sports-photography problem is not editing by itself. It is everything between pressing the shutter and getting the correct photograph in front of the correct person.",
           "A sports photographer can shoot 3,000 to 9,000 frames in one game, often in long bursts where only one or two frames hold the peak. A club, a wire desk, a social manager, an athlete, a parent, or a buyer may want those frames during the match, at half-time, and right after the whistle. Photographers on public forums describe 6,000–8,000 RAW files from a football match while the club is already asking for pictures.",
           "If the genie wish is one sentence: I want to press the shutter, and I want the right photos identified, edited like me, labeled with the right athlete and event, backed up, delivered to the right person, and sold or published within minutes — without sitting at a computer.",
-          "That is bigger than an AI culling product. It is bigger than a slightly better Aftershoot. The rest of this note is the wish list underneath that sentence. FOTO is building toward it. We do not pretend the genie is shipped. Leave a comment at the bottom — what you like, what you hate, what to build next.",
+          "That is bigger than an AI culling product. It is bigger than a slightly better Aftershoot. The rest of this note is the wish list underneath that sentence. Celinen is building toward it. We do not pretend the genie is shipped. Leave a comment at the bottom — what you like, what you hate, what to build next.",
         ],
       },
       {
@@ -53,7 +53,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "The luxury workflow is shoot, go home, import, cull, edit, export, upload. Professional sports often looks like: shoot, transmit, an editor sees it in seconds, crop and caption, publish. Camera Bits has described Associated Press sports desks where frames arrive from the sideline within seconds and move through identify, tone, metadata, and the wire.",
           "Speed is money. One race photographer reported more than ten hours to get 5,000+ photos online while a competitor put up about 8,000 in under an hour, and estimated the delay cost most of the sales. That is one person’s night, not a lab study. It is still the market.",
-          "Genie: everything I shoot is already online before I pack the camera. FOTO today: pick, then send a gallery the same night. The camera-to-desk live path is the larger build.",
+          "Genie: everything I shoot is already online before I pack the camera. Celinen today: pick, then send a gallery the same night. The camera-to-desk live path is the larger build.",
         ],
       },
       {
@@ -74,7 +74,7 @@ export const fotoArticles: readonly FotoArticle[] = [
           "Once you sell to individual athletes, identity is the product. A marathon is 4,000 runners and 80,000 pictures. The buyer does not want Gallery → 80,000 photographs → scroll. They want Melani Shrestha → 47 photos of Melani.",
           "Motorsports photographers describe customers who cannot find themselves in 1,000+ frames, and the extra job of tagging by hand. PhotoDay sells FaceFind for high-volume sports. Photo Mechanic lets you type jersey shorthand and expand it into name, team, position. Demand is already paid for.",
           "The large version combines face, jersey, bib, OCR, roster, kit colour, event timing, camera position. Then #23 is Jane Doe, USC, women’s soccer, 34th minute, without you typing it.",
-          "Genie: every photo already knows who is in it. FOTO today: a shoot roster, jersey/bib tags in Studio, Find my photos on the gallery. Faces are counted for cull. Faces are not named. That next layer stays local — not a shared face model trained on other photographers’ work.",
+          "Genie: every photo already knows who is in it. Celinen today: a shoot roster, jersey/bib tags in Studio, Find my photos on the gallery. Faces are counted for cull. Faces are not named. That next layer stays local — not a shared face model trained on other photographers’ work.",
         ],
       },
       {
@@ -82,14 +82,14 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "Stadium light is not a preset. Sun, cloud, shade, LED arenas, two bodies, two lenses, ISO walking, white balance drifting. Aftershoot’s own sports-editing notes call out mixed light, colour casts, batch consistency, and sharpening.",
           "The wish is not “apply one look to 4,000 files.” It is: make 4,000 different files converge on my style. One needs +0.7. One is fine. One needs white balance. One a tighter crop. One lifted shadows. One a levelled horizon. The gallery still has to feel like one photographer.",
-          "Genie: learn how I edit so I never batch-edit again. FOTO today: a look you save stays with your work. It is not a shared model. Per-frame style is the harder engine.",
+          "Genie: learn how I edit so I never batch-edit again. Celinen today: a look you save stays with your work. It is not a shared model. Per-frame style is the harder engine.",
         ],
       },
       {
         title: "5. Stop making me move files",
         paragraphs: [
           "Camera → card → reader → SSD → Photo Mechanic → Lightroom → Photoshop → export folder → cloud → gallery → social → client. Every hop is latency. Photographers describe editing off the SD card during football because Instagram wants pictures during the match. Others report ~40 minutes to export 2,500 JPEGs from Lightroom on a fast laptop.",
-          "Genie: the photograph is never imported, exported, or uploaded. Camera → system. Everything after that reads the same asset. FOTO today: originals stay on your machine; a gallery is a copy you chose to send. The live ingest path is not “we already ate the card.”",
+          "Genie: the photograph is never imported, exported, or uploaded. Camera → system. Everything after that reads the same asset. Celinen today: originals stay on your machine; a gallery is a copy you chose to send. The live ingest path is not “we already ate the card.”",
         ],
       },
       {
@@ -104,21 +104,21 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "High-volume sports turns the photographer into salesperson, store, marketer, gallery admin, support, and fulfillment. Motorsport photographers argue in public about charging the organiser, shooting free and selling, charging athletes, or mixing models — and whether the money covers the work.",
           "The genie notices: John opened his gallery four times, favourited eight, bought nothing — and sends a real offer, not a fake countdown. Emma bought five singles; the complete set is one click more. Pricing, bundles, prints, team packages, sponsor sets.",
-          "Genie: turn every frame into the most revenue without making me run a shop. FOTO today: Stripe books for invoices and collected payments. A print lab and an in-gallery store are not this path yet. We will not invent one in copy.",
+          "Genie: turn every frame into the most revenue without making me run a shop. Celinen today: Stripe books for invoices and collected payments. A print lab and an in-gallery store are not this path yet. We will not invent one in copy.",
         ],
       },
       {
         title: "8. Never lose a photograph",
         paragraphs: [
           "Thousands of files, fast ingest, easy to format the wrong card. Camera Bits describes event ingest that copies to editors and to backup as soon as the card is in. The photographer should not have to ask whether the card copied, the folder uploaded, or the checksum passed.",
-          "Genie: losing a photograph is practically impossible — local copy, second copy, integrity check, optional cloud, card verify. FOTO today: originals stay local; a published gallery is not a backup of the shoot. That sentence stays true.",
+          "Genie: losing a photograph is practically impossible — local copy, second copy, integrity check, optional cloud, card verify. Celinen today: originals stay local; a published gallery is not a backup of the shoot. That sentence stays true.",
         ],
       },
       {
         title: "9. Caption and tag everything",
         paragraphs: [
           "Editorial work wants photographer, copyright, event, place, team, player, caption, keywords — IPTC so the fields travel with the file. Photo Mechanic’s sports workflow exists because typing that by hand is slow. Code replacements turn shorthand into a full name and team.",
-          "Genie: look at the picture and write “Jane Doe (23) of USC celebrates after scoring against UCLA in the second half.” FOTO today: roster plus jersey/bib shorthand on the frame, the same habit as code replacement. Automatic captions from the pixels are the next writer, not a silent lie in the sidecar.",
+          "Genie: look at the picture and write “Jane Doe (23) of USC celebrates after scoring against UCLA in the second half.” Celinen today: roster plus jersey/bib shorthand on the frame, the same habit as code replacement. Automatic captions from the pixels are the next writer, not a silent lie in the sidecar.",
         ],
       },
       {
@@ -134,7 +134,7 @@ export const fotoArticles: readonly FotoArticle[] = [
           "Not “AI photo culling.” Not “Aftershoot, but ours.” Camera → money / publication. You shoot. The system watches.",
           "Ingest. Understand the sport and the play. Cull the burst for the moment, not the blur. Edit like you. Identify the athlete. Organize team and player sets. Describe the file. Deliver to the desk, the athlete, the parent. Sell. Archive so you can find it in ten years.",
           "Existing tools already attack pieces of this — cull, edit, metadata, galleries, athlete search. That is evidence the pains are real. The opening is the seams between them.",
-          "FOTO’s wedge is photography, local originals, the photographer’s last word. Sports-semantic culling + who-is-in-the-photo + same-night delivery is the stack we will not fake. Tell us, below, which wish is loudest on your card.",
+          "Celinen’s wedge is photography, local originals, the photographer’s last word. Sports-semantic culling + who-is-in-the-photo + same-night delivery is the stack we will not fake. Tell us, below, which wish is loudest on your card.",
         ],
         items: [
           "Turnaround — get it out immediately",
@@ -166,7 +166,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "Three hours of play, a card full of bursts, and someone who wants the set before they leave the lot. Sports editing is not a mood board. It is volume, mixed light, and a clock.",
           "Most nights fail in the same place: you start polishing before the set exists. You second-guess every near-duplicate. Stadium lights fight the white balance. Sharpening turns jerseys into plastic. The gallery goes out late, or it goes out looking like three different photographers shot it.",
-          "What follows is nine habits. They are the same problems every sports shooter already knows. The FOTO version is honest about the product: suggestions on the pile, your pick, originals untouched, a gallery you can send tonight. Finish work still belongs in the editor you already trust.",
+          "What follows is nine habits. They are the same problems every sports shooter already knows. The Celinen version is honest about the product: suggestions on the pile, your pick, originals untouched, a gallery you can send tonight. Finish work still belongs in the editor you already trust.",
         ],
       },
       {
@@ -174,7 +174,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "Burst mode is how you catch the catch. It is also how you end up with sixty frames of the same reach. The 5% that matter are usually obvious once you stop treating every frame as a candidate: ball contact, the top of a jump, the face that changes, the step where the play turns.",
           "Walk a sequence in order. The reach, the catch, the defender’s face, the start of the celebration — those are four photographs, not forty. Near-duplicates do not all deserve a develop pass.",
-          "FOTO Smart Cull can flag blur, blinks, and burst duds. It does not auto-delete. Rejects are flags. Originals stay on the card and on disk. You still mark the keepers. That is the point: shrink the pile without giving the night away to a model.",
+          "Celinen Smart Cull can flag blur, blinks, and burst duds. It does not auto-delete. Rejects are flags. Originals stay on the card and on disk. You still mark the keepers. That is the point: shrink the pile without giving the night away to a model.",
         ],
       },
       {
@@ -190,7 +190,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "Sports need a sharp subject and, often, a streak of motion. Global crunch kills both. Over-sharpening makes the athlete look cut out. Under-editing leaves the whole frame mush.",
           "Sharpen the person. Let the background stay a little softer so the play has depth. If the panning blur is the photograph, do not “fix” it. Motion is information.",
-          "Do the local work in the editor you finish in. FOTO is not a replacement for Lightroom or Photoshop masks. It is the pass that decides which frames are worth that work.",
+          "Do the local work in the editor you finish in. Celinen is not a replacement for Lightroom or Photoshop masks. It is the pass that decides which frames are worth that work.",
         ],
       },
       {
@@ -214,7 +214,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         paragraphs: [
           "RAW sports files often come back cold: LED gyms, green bounce off the turf, skin that looks gray. Color is how you say whether this was a late-afternoon field or a hard indoor court. Warmth can add intensity. It can also lie.",
           "Lift vibrance carefully. Watch the reds in the jerseys. Match the brief: a recap gallery is not a campaign, and a campaign is not yours to reinvent if the client already has a palette.",
-          "Fifty frames or five hundred, they should feel like one photographer. Start from one look, then correct the exceptions. FOTO can remember a look you save for your own work. It is not used to train a shared model for other photographers.",
+          "Fifty frames or five hundred, they should feel like one photographer. Start from one look, then correct the exceptions. Celinen can remember a look you save for your own work. It is not used to train a shared model for other photographers.",
         ],
       },
       {
@@ -245,7 +245,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         title: "What you can control",
         paragraphs: [
           "You cannot make the quarterback throw a spiral or make the gym lights behave. You can decide which frames are the night, hold the motion that belongs, and send a set that still looks like you.",
-          "FOTO is built for that order: import a shoot, pick the keepers, send a gallery. Originals stay local. Smart Cull suggests. You keep the last word. Adobe stays available when you want it.",
+          "Celinen is built for that order: import a shoot, pick the keepers, send a gallery. Originals stay local. Smart Cull suggests. You keep the last word. Adobe stays available when you want it.",
         ],
       },
       {
@@ -280,7 +280,7 @@ export const fotoArticles: readonly FotoArticle[] = [
         title: "What actually changes after you pick",
         paragraphs: [
           "The cull is the expensive hour. After that, you need ratings, color, and a clean handoff into the editor you already trust. Matching sliders does not mean matching pixels. Check a real file from your last shoot before you move a whole season.",
-          "If you keep Adobe for finish work, FOTO is built to stay out of the way: originals stay local, and supported develop settings can go with you.",
+          "If you keep Adobe for finish work, Celinen is built to stay out of the way: originals stay local, and supported develop settings can go with you.",
         ],
       },
       {
@@ -342,7 +342,7 @@ export const fotoArticles: readonly FotoArticle[] = [
       {
         title: "Keep the decision",
         paragraphs: [
-          "FOTO will surface focus and duplicate suggestions. You still mark the keepers. That is the product: help with the pile, not a replacement for your eye.",
+          "Celinen will surface focus and duplicate suggestions. You still mark the keepers. That is the product: help with the pile, not a replacement for your eye.",
         ],
       },
       {
@@ -417,7 +417,7 @@ export const fotoReleases = [
     changes: [
       "The public homepage, sign-in, and first-account setup use a white-and-blue design with mountain artwork and OpenAI Sans.",
       "Repaired the unavailable workspace-history error on the hosted service.",
-      "If cloud history becomes unavailable, FOTO identifies a temporary conversation clearly. Retrying does not silently upload or replace that conversation.",
+      "If cloud history becomes unavailable, Celinen identifies a temporary conversation clearly. Retrying does not silently upload or replace that conversation.",
     ],
     note: "The public redesign does not change your private workspace theme, photos, edit history, or financial calculations.",
   },

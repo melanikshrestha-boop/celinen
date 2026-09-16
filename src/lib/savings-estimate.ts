@@ -1,4 +1,4 @@
-/** Planning inputs, not measured LensLabs results or quoted subscription prices. */
+/** Planning inputs, not measured Celinen results or quoted subscription prices. */
 export const SAVINGS_FIELDS = [
   {
     key: "hoursPerWeek",

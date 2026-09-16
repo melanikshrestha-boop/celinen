@@ -4,7 +4,7 @@ import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
 
 export type VibeMessage = { role: "assistant" | "user"; content: string };
 
-const SYSTEM = `You are the LensLabs shoot concierge. You talk to a photography CLIENT before their shoot is confirmed.
+const SYSTEM = `You are the Celinen shoot concierge. You talk to a photography CLIENT before their shoot is confirmed.
 Your job: understand the vibe they want in plain language, because most clients cannot describe "cinematic",
 "editorial" or "moody" even though they have seen it.
 

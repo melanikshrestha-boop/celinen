@@ -52,7 +52,7 @@ export function PresetExchange({
     createPresetPackage({ title, creator, description, license }, settings);
   return (
     <div className="develop-preset-exchange">
-      <p>Portable FOTO preset files. No photos, local paths, crops, or masks are included.</p>
+      <p>Portable Celinen preset files. No photos, local paths, crops, or masks are included.</p>
       <fieldset disabled={busy}>
         <label>
           Starting look
@@ -126,7 +126,7 @@ export function PresetExchange({
           ref={picker}
           type="file"
           accept=".json,application/json"
-          aria-label="Import FOTO preset file"
+          aria-label="Import Celinen preset file"
           hidden
           onChange={async (e) => {
             const file = e.target.files?.[0];

@@ -23,7 +23,7 @@ function pull(
   return JSON.parse(
     execute(`
 package.preload['JSON'] = assert(loadstring(${literal(source("JSON"))}))
-package.preload['LensLabsMatch'] = assert(loadstring(${literal(source("LensLabsMatch"))}))
+package.preload['CelinenMatch'] = assert(loadstring(${literal(source("CelinenMatch"))}))
 local JSON = require 'JSON'
 local state = JSON:decode(${literal(JSON.stringify({ kind, frames }))})
 local data = JSON:decode(${literal(JSON.stringify(photos))})
@@ -49,8 +49,8 @@ function import(name)
   if name == 'LrDialogs' then return { message = function(title, text) messages[#messages + 1] = text end, showBezel = function(text) messages[#messages + 1] = text end } end
   error('Unexpected import ' .. name)
 end
-package.preload['LensLabsBridge'] = function() return { get = function() return state end, writeSidecar = function(photo) photo:saveMetadata() end } end
-assert(loadstring(${literal(source("LensLabsPull"))}))()
+package.preload['CelinenBridge'] = function() return { get = function() return state end, writeSidecar = function(photo) photo:saveMetadata() end } end
+assert(loadstring(${literal(source("CelinenPull"))}))()
 print(JSON:encode({ writes = writes, saved = saved, photos = result, messages = messages }))
 `),
   ) as { writes: number; saved: number; photos: Record<string, unknown>[]; messages: string[] };
@@ -58,9 +58,9 @@ print(JSON:encode({ writes = writes, saved = saved, photos = result, messages = 
 
 test("generated plug-in includes matching module and explicit upgraded protocol", () => {
   expect(source("Info")).toContain("minor = 3");
-  expect(source("LensLabsBridge")).toContain("matching=relative-path-v1");
-  expect(source("LensLabsPull")).toContain("Matching.plan(state.frames, catalog:getAllPhotos())");
-  expect(source("LensLabsPull")).not.toContain("byName[name]");
+  expect(source("CelinenBridge")).toContain("matching=relative-path-v1");
+  expect(source("CelinenPull")).toContain("Matching.plan(state.frames, catalog:getAllPhotos())");
+  expect(source("CelinenPull")).not.toContain("byName[name]");
 });
 
 // Portable suite runs without installing a runtime; CI/manual release verification

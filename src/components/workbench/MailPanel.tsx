@@ -121,7 +121,7 @@ export function MailPanel({
           </p>
           {!configured && (
             <p>
-              Setup needed: enable Gmail API and add the public Gmail OAuth client ID in LensLabs
+              Setup needed: enable Gmail API and add the public Gmail OAuth client ID in Celinen
               hosting settings.
             </p>
           )}

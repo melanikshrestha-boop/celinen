@@ -514,7 +514,7 @@ export function ChatRecents({
                     <h3>{shared.title}</h3>
                     {clientTranscript(shared).messages.map((message, index) => (
                       <article key={index}>
-                        <strong>{message.role === "user" ? "Photographer" : "LensLabs"}</strong>
+                        <strong>{message.role === "user" ? "Photographer" : "Celinen"}</strong>
                         <p>{message.text}</p>
                       </article>
                     ))}

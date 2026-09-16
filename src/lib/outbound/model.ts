@@ -277,7 +277,7 @@ export function emptyOutbound(): OutboundWorkspace {
     campaign: {
       senderName: "",
       offer:
-        "I'm building FOTO, a local-first photography workspace, and would value your feedback.",
+        "I'm building Celinen, a local-first photography workspace, and would value your feedback.",
       cta: "Would you be open to a short conversation?",
       signature: "",
     },

@@ -345,7 +345,7 @@ export function AppearanceSettings({
             })
             .catch(() => {
               if (ticket === generation.current)
-                setError("Invalid or unreadable LensLabs theme. Nothing changed.");
+                setError("Invalid or unreadable Celinen theme. Nothing changed.");
             });
         }}
       />
