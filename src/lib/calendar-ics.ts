@@ -10,6 +10,7 @@ export type CalendarEvent = {
   allDay: boolean;
   source: "google" | "local" | "feed";
   location?: string;
+  mapsUrl?: string;
   notes?: string;
   pose?: string;
   color?: string;

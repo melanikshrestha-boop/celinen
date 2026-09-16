@@ -1,4 +1,5 @@
 import { isCalendarColor, sortCalendarEvents, type CalendarEvent } from "./calendar-ics";
+import { isGoogleMapsUrl } from "./maps-places";
 import { isCalendarKind } from "./calendar-kinds";
 
 export type CalendarState = {
@@ -22,6 +23,8 @@ function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent
   if (typeof row.id !== "string" || typeof row.title !== "string") return null;
   if (!Number.isFinite(row.start) || !Number.isFinite(row.end)) return null;
   const location = typeof row.location === "string" ? row.location.slice(0, 200) : "";
+  const mapsUrl =
+    typeof row.mapsUrl === "string" && isGoogleMapsUrl(row.mapsUrl) ? row.mapsUrl.slice(0, 2000) : "";
   const notes = typeof row.notes === "string" ? row.notes.slice(0, 2000) : "";
   const pose = typeof row.pose === "string" ? row.pose.slice(0, 80) : "";
   const color = typeof row.color === "string" && isCalendarColor(row.color) ? row.color : undefined;
@@ -34,6 +37,7 @@ function asEvent(value: unknown, source: CalendarEvent["source"]): CalendarEvent
     allDay: row.allDay === true,
     source,
     ...(location ? { location } : {}),
+    ...(mapsUrl ? { mapsUrl } : {}),
     ...(notes ? { notes } : {}),
     ...(pose ? { pose } : {}),
     ...(color ? { color } : {}),

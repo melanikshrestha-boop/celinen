@@ -7,6 +7,25 @@ export function mapsSearchUrl(query: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+export function isGoogleMapsUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.replace(/^www\./, "");
+    return host === "maps.app.goo.gl" || host.startsWith("maps.google.") || (host.includes("google.") && url.pathname.includes("/maps"));
+  } catch {
+    return false;
+  }
+}
+
+export function shortPlaceLabel(label: string) {
+  return label
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(", ");
+}
+
 export function placeFromMapsPaste(input: string): MapPlace | null {
   const raw = input.trim();
   if (!raw) return null;
@@ -41,7 +60,7 @@ async function nominatim(query: string): Promise<MapPlace[]> {
     .map((row) => {
       const label = typeof row.display_name === "string" ? row.display_name : "";
       if (!label || !row.lat || !row.lon) return null;
-      return { label, mapsUrl: mapsSearchUrl(`${row.lat},${row.lon}`) };
+      return { label: shortPlaceLabel(label), mapsUrl: mapsSearchUrl(`${row.lat},${row.lon}`) };
     })
     .filter((row): row is MapPlace => Boolean(row));
 }
@@ -96,12 +115,14 @@ export async function searchPlaces(query: string): Promise<MapPlace[]> {
   if (q.length < 2) return [];
   const pasted = placeFromMapsPaste(q);
   if (pasted) return [pasted];
+  const google: MapPlace = { label: q, mapsUrl: mapsSearchUrl(q) };
   try {
     const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
-    if (!res.ok) return [];
+    if (!res.ok) return [google];
     const body = (await res.json()) as { hits?: MapPlace[] };
-    return Array.isArray(body.hits) ? body.hits.slice(0, 6) : [];
+    const hits = Array.isArray(body.hits) ? body.hits.slice(0, 5) : [];
+    return [...hits.filter((hit) => hit.mapsUrl !== google.mapsUrl), google];
   } catch {
-    return [];
+    return [google];
   }
 }

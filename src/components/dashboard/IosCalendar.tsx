@@ -26,6 +26,7 @@ import {
 } from "@/lib/calendar-store";
 import { readBookingTypes, writeBookingTypes, type BookingType } from "@/lib/booking-types";
 import { readCalendarTasks, writeCalendarTasks, type CalendarTask } from "@/lib/calendar-tasks";
+import { mapsSearchUrl } from "@/lib/maps-places";
 import { BookingsPanel } from "./BookingsPanel";
 import { EventSheet, type EventSheetValue } from "./EventSheet";
 import "./ios-calendar.css";
@@ -335,11 +336,12 @@ export function IosCalendar() {
   }
 
   function valueFromEvent(event: CalendarEvent): EventSheetValue {
+    const location = event.location ?? "";
     return {
       id: event.id,
       title: event.title,
-      location: event.location ?? "",
-      mapsUrl: "",
+      location,
+      mapsUrl: event.mapsUrl || (location ? mapsSearchUrl(location) : ""),
       allDay: event.allDay,
       start: event.start,
       end: event.end,
@@ -356,13 +358,15 @@ export function IosCalendar() {
     if (!sheet) return;
     const title = sheet.value.title.trim() || "Shoot";
     const location = sheet.value.location.trim();
+    const mapsUrl = (sheet.value.mapsUrl.trim() || (location ? mapsSearchUrl(location) : "")).slice(0, 2000);
     if (sheet.mode === "edit" && sheet.value.id) {
       patchLocal(sheet.value.id, {
         title,
         start: sheet.value.start,
         end: Math.max(sheet.value.end, sheet.value.start + (sheet.value.allDay ? 86400000 : SNAP)),
         allDay: sheet.value.allDay,
-        ...(location ? { location } : { location: "" }),
+        location,
+        mapsUrl,
       });
     } else {
       const event: CalendarEvent = {
@@ -374,7 +378,7 @@ export function IosCalendar() {
         source: "local",
         kind: "shoot",
         color: KIND_COLOR.shoot,
-        ...(location ? { location } : {}),
+        ...(location ? { location, mapsUrl } : {}),
       };
       persist({ ...state, localEvents: [...state.localEvents, event] });
     }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { searchPlaces, type MapPlace } from "@/lib/maps-places";
+import { mapsSearchUrl, searchPlaces, type MapPlace } from "@/lib/maps-places";
 
 export type EventSheetValue = {
   id?: string;
@@ -46,6 +46,7 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
   const [hits, setHits] = useState<MapPlace[]>([]);
   const left = Math.max(12, Math.min(anchor.left, window.innerWidth - 340));
   const top = Math.max(12, Math.min(anchor.top, window.innerHeight - 420));
+  const mapsHref = value.mapsUrl || (value.location.trim() ? mapsSearchUrl(value.location.trim()) : "");
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -57,6 +58,7 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
       setHits([]);
       return;
     }
+    setHits([{ label: q, mapsUrl: mapsSearchUrl(q) }]);
     const id = window.setTimeout(() => {
       void searchPlaces(q).then(setHits);
     }, 220);
@@ -86,11 +88,12 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
           onChange={(event) => onChange({ ...value, location: event.target.value, mapsUrl: "" })}
           placeholder="Add Location"
           aria-label="Add Location"
+          autoComplete="off"
         />
         {hits.length ? (
           <ul className="celinen-ios-cal__places">
             {hits.map((hit) => (
-              <li key={hit.mapsUrl}>
+              <li key={hit.mapsUrl + hit.label}>
                 <button
                   type="button"
                   onClick={() => {
@@ -103,6 +106,17 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
               </li>
             ))}
           </ul>
+        ) : null}
+        {mapsHref ? (
+          <a
+            className="celinen-ios-cal__maps"
+            href={mapsHref}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+          >
+            Google Maps
+          </a>
         ) : null}
         <label className="celinen-ios-cal__check">
           <span>all-day</span>

@@ -1151,6 +1151,12 @@ html.dark .celinen-dash__cal {
   text-align: left;
   cursor: pointer;
 }
+.celinen-ios-cal__maps {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f6fed;
+  text-decoration: none;
+}
 .celinen-ios-cal__sheet-actions {
   display: flex;
   justify-content: flex-end;

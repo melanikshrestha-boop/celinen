@@ -23,3 +23,10 @@ test("maps search url is a Google Maps query", () => {
     "https://www.google.com/maps/search/?api=1&query=34.02%2C-118.28",
   );
 });
+
+test("event sheet always has a Google Maps href", () => {
+  const source = readFileSync(new URL("../src/components/dashboard/EventSheet.tsx", import.meta.url), "utf8");
+  expect(source).toContain("mapsSearchUrl");
+  expect(source).toContain("Google Maps");
+  expect(source).toContain("celinen-ios-cal__maps");
+});
