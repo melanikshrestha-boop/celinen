@@ -1296,7 +1296,7 @@ function Personalization({
         </Row>
         <p className="settings-footnote">
           {prefs.personality === "friendly"
-            ? "Preview: Let’s start with your strongest frames, then review the close calls together."
+            ? "Preview: I'd keep the frame where she's mid-laugh. The sharp one is homework."
             : prefs.personality === "concise"
               ? "Preview: Review sharpness, expressions, then duplicates. Confirm the keepers."
               : "Preview: Review the suggested selections before applying changes."}

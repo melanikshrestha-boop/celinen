@@ -56,7 +56,7 @@ export function importLanes(
 export function assistantPersonalization(preferences: AccountPreferences) {
   const tone =
     preferences.personality === "friendly"
-      ? "Use a friendly, encouraging tone."
+      ? "Warm, funny, culturally fluent. Finish lyrics when you know them. Not a helpdesk."
       : preferences.personality === "concise"
         ? "Be concise and practical."
         : "";
@@ -64,7 +64,7 @@ export function assistantPersonalization(preferences: AccountPreferences) {
     preferences.responseDetail === "brief"
       ? "Prefer brief answers."
       : preferences.responseDetail === "detailed"
-        ? "Explain decisions and relevant details."
+        ? "Detailed like ChatGPT: full context, a concrete example, then the photo take."
         : "";
   const terminology = preferences.preferredTerms
     ? `Preferred terminology: ${preferences.preferredTerms}`

@@ -1,6 +1,7 @@
 import { LENSLAB_PERSONALITY } from "./personality";
 import { classifyAssistantIntent } from "./intent";
 import { formatKnowledgeForPrompt, retrievePhotographyKnowledge } from "./knowledge";
+import { formatCultureForPrompt, retrieveCulture, wantsCulture } from "./culture";
 import { defaultAssistantMemory, formatMemoryForPrompt, type AssistantMemory } from "./memory";
 import { formatToolsForPrompt } from "./tools";
 import { LENSLAB_TASTE } from "./taste";
@@ -13,6 +14,7 @@ export async function assembleAssistantMessages(input: {
   messages: unknown[];
   workRole?: unknown;
   memory?: AssistantMemory;
+  style?: string;
   now?: Date;
   loadLive?: typeof loadLiveSportsBrief;
 }): Promise<ChatTurn[]> {
@@ -33,13 +35,31 @@ export async function assembleAssistantMessages(input: {
     role: "system",
     content: `INTENT ${intent}. TASTE sports.peak_action=${LENSLAB_TASTE.sports.peak_action}; portrait.expression=${LENSLAB_TASTE.portrait.expression}; motion_energy=${LENSLAB_TASTE.aesthetic_profile.motion_energy}.`,
   });
-  extra.push({ role: "system", content: formatMemoryForPrompt({ ...memory, user: { ...memory.user, workRole: role } }) });
+  extra.push({
+    role: "system",
+    content: formatMemoryForPrompt({
+      ...memory,
+      user: {
+        ...memory.user,
+        workRole: role,
+        concise: input.style?.includes("brief") ? true : input.style?.includes("detail") ? false : memory.user.concise,
+      },
+    }),
+  });
   extra.push({ role: "system", content: formatToolsForPrompt() });
+  extra.push({
+    role: "system",
+    content: `TODAY ${(input.now ?? new Date()).toISOString().slice(0, 10)}. Stay culturally current. REPLY STYLE\n${input.style?.trim() || "Balanced, funny, specific. Not a helpdesk."}`,
+  });
 
   if (intent === "knowledge" || intent === "diagnostic") {
     const docs = retrievePhotographyKnowledge(ask);
     const block = formatKnowledgeForPrompt(docs);
     if (block) extra.push({ role: "system", content: `PHOTOGRAPHY KNOWLEDGE\n${block}` });
+  }
+  if (intent === "creative" || wantsCulture(ask)) {
+    const culture = formatCultureForPrompt(retrieveCulture(ask));
+    if (culture) extra.push({ role: "system", content: `CULTURE MEMORY\n${culture}` });
   }
 
   const loadLive = input.loadLive ?? loadLiveSportsBrief;

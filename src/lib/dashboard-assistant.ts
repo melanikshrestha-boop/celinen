@@ -1,6 +1,8 @@
 import { assistantUnavailable, requireAssistantMessage } from "./photography-assistant";
 import { fastTalk } from "./assistant/talk";
 import { isLocalSingleUserMode } from "./app-mode";
+import { assistantPersonalization } from "./settings-transfer";
+import { DEFAULT_PREFERENCES, type AccountPreferences } from "./account-preferences";
 
 type Message = { role: "user" | "assistant"; text: string };
 type Session = { user: { id: string }; access_token: string } | null;
@@ -18,6 +20,7 @@ export async function requestDashboardReply(
     enabled: boolean;
     signal: AbortSignal;
     workRole?: string;
+    preferences?: AccountPreferences;
   },
   dependencies: Dependencies = {
     local: isLocalSingleUserMode,
@@ -54,6 +57,7 @@ export async function requestDashboardReply(
       body: JSON.stringify({
         mode: "conversation",
         workRole: input.workRole ?? "sports",
+        style: assistantPersonalization(input.preferences ?? DEFAULT_PREFERENCES),
         messages: input.messages.slice(-40).map(({ role, text }) => ({ role, content: text })),
       }),
     });

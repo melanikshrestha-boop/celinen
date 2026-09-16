@@ -9,6 +9,7 @@ type Body = {
   tools?: unknown;
   mode?: unknown;
   workRole?: unknown;
+  style?: unknown;
 };
 
 export const Route = createFileRoute("/api/chat")({
@@ -42,7 +43,7 @@ export const Route = createFileRoute("/api/chat")({
           .catch(() => ({ data: null, error: true }));
         if (claimsError || !claims?.claims?.sub) return unauthorized();
 
-        const { messages, tools, mode, workRole } = (await request.json()) as Body;
+        const { messages, tools, mode, workRole, style } = (await request.json()) as Body;
         if (!Array.isArray(messages)) {
           return new Response(JSON.stringify({ error: "messages required" }), {
             status: 400,
@@ -63,7 +64,11 @@ export const Route = createFileRoute("/api/chat")({
         }
         const assembled =
           mode === "conversation"
-            ? await assembleAssistantMessages({ messages, workRole })
+            ? await assembleAssistantMessages({
+                messages,
+                workRole,
+                style: typeof style === "string" ? style : "",
+              })
             : [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages];
 
         const upstream = await requestCloudflareChat({

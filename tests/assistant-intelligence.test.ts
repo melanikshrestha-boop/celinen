@@ -9,17 +9,18 @@ import {
   recordTemperatureCorrection,
 } from "../src/lib/assistant/memory";
 import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
+import { retrieveCulture } from "../src/lib/assistant/culture";
 import { fastTalk } from "../src/lib/assistant/talk";
 
 describe("Lenslab intelligence", () => {
-  test("greetings never hit the model", () => {
-    expect(fastTalk("hey gang")).toBe("Hey. What's the shoot?");
-    expect(fastTalk("hi")).toBe("Hey. What's the shoot?");
-    expect(fastTalk("lol")).toBe("What do you need — cull, an edit, events, or a lens?");
+  test("greetings and lyrics hit the model, not a canned menu", () => {
+    expect(fastTalk("hey gang")).toBeNull();
+    expect(fastTalk("hi")).toBeNull();
+    expect(fastTalk("lol")).toBeNull();
     expect(fastTalk("help me find some events")).toBeNull();
     expect(fastTalk("Plan a shoot")).toBeNull();
     expect(fastTalk("Olá, come with us")).toBeNull();
-    expect(fastTalk("come with us now")).toBeNull();
+    expect(fastTalk("she said hola coma estas")).toBeNull();
   });
   test("routes knowledge, taste, action, diagnostic, and research", () => {
     expect(classifyAssistantIntent("What does HSS mean?")).toBe("knowledge");
@@ -109,5 +110,17 @@ describe("Lenslab intelligence", () => {
     });
     expect(research.some((row) => row.content.includes("Texas Tech vs Houston"))).toBe(true);
     expect(research.some((row) => row.content.includes("Never invent a match"))).toBe(true);
+  });
+
+  test("she said hola / konichiwa is Kent Jones Don't Mind, not a culture lecture", async () => {
+    expect(retrieveCulture("she said hola coma estas")[0]?.id).toBe("dont-mind");
+    expect(retrieveCulture("she said conichiwa")[0]?.id).toBe("dont-mind");
+    const assembled = await assembleAssistantMessages({
+      messages: [{ role: "user", content: "finish this lyrics: she said comma estas" }],
+      workRole: "sports",
+      loadLive: async () => "",
+    });
+    expect(assembled.some((row) => row.content.includes("Don't Mind"))).toBe(true);
+    expect(assembled.some((row) => row.content.includes("Konnichiwa"))).toBe(true);
   });
 });

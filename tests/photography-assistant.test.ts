@@ -360,6 +360,7 @@ describe("photographer conversation, not command fragments", () => {
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("not a rapper");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("finish it in one breath");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Cursor for photographers");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("favorite song");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).not.toContain(
       "I'm here to help with any questions related to photography",
     );
