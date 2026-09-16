@@ -7,6 +7,7 @@ import {
   filmstripWindow,
   type FilmstripMetrics,
 } from "@/lib/develop/filmstrip-window";
+import { asDevelopPreviewBlob } from "@/lib/develop/decode-preview";
 import "./develop-filmstrip.css";
 
 /** Blob ownership is local to a mounted thumbnail, never the whole logical library. */
@@ -22,9 +23,26 @@ export const DevelopFilmstripThumb = memo(function DevelopFilmstripThumb({
       setOwner(null);
       return;
     }
-    const url = URL.createObjectURL(blob);
-    setOwner({ blob, url });
-    return () => URL.revokeObjectURL(url);
+    let cancelled = false;
+    let url: string | null = null;
+    const publish = (typed: Blob) => {
+      if (cancelled) return;
+      url = URL.createObjectURL(typed);
+      if (cancelled) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setOwner({ blob, url });
+    };
+    if (blob.type.startsWith("image/")) publish(blob);
+    else
+      void asDevelopPreviewBlob(blob)
+        .catch(() => blob)
+        .then(publish);
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
   }, [blob]);
   return owner && owner.blob === blob ? (
     <img src={owner.url} alt="" loading="lazy" decoding="async" />

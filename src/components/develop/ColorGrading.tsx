@@ -52,12 +52,14 @@ export function GradingWheel({
   onChange,
   ownership,
   owner,
+  id,
 }: {
   label: string;
   value: DevelopGrade;
   onChange: (value: DevelopGrade, commit: boolean) => void;
   ownership: ColorGradingOwnership;
   owner: string;
+  id?: string;
 }) {
   const help = useId();
   const current = useRef(value);
@@ -129,6 +131,7 @@ export function GradingWheel({
     <>
       <button
         type="button"
+        id={id}
         className="develop-grade-wheel"
         role="slider"
         tabIndex={0}
@@ -371,6 +374,7 @@ export function ColorGrading({
               disabled={activeOwner !== null && activeOwner !== `wheel:${range}`}
             >
               <GradingWheel
+                id={`wheel-${range}`}
                 label={names[range]}
                 value={grade(range)}
                 onChange={(next, commit) => changeGrade(range, next, commit)}

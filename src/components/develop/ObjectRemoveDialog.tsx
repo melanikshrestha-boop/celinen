@@ -8,6 +8,7 @@ import {
   REMOVE_ANALYSIS_EDGE,
   type ObjectInstances,
 } from "@/lib/develop/object-remove";
+import { decodeDevelopPreview } from "@/lib/develop/decode-preview";
 import "./object-remove.css";
 
 export function ObjectRemoveDialog({
@@ -51,7 +52,7 @@ export function ObjectRemoveDialog({
       try {
         const blob = await callbacks.current.getRendered(controller.signal);
         controller.signal.throwIfAborted();
-        const bitmap = await createImageBitmap(blob);
+        const bitmap = await decodeDevelopPreview(blob);
         let full: ImageData, analysis: ImageData;
         const fullCanvas = document.createElement("canvas");
         const small = document.createElement("canvas");

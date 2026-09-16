@@ -1,3 +1,4 @@
+import { decodeDevelopPreview } from "./decode-preview";
 import {
   analyzeDevelopPixelTiles,
   checkPixelAnalysisSignal,
@@ -32,7 +33,7 @@ export async function analyzeDevelopBlobOnMain(
   try {
     await cooperate();
     checkPixelAnalysisSignal(options.signal);
-    if (typeof createImageBitmap === "function") bitmap = await createImageBitmap(blob);
+    if (typeof createImageBitmap === "function") bitmap = await decodeDevelopPreview(blob);
     else {
       objectUrl = URL.createObjectURL(blob);
       image = new Image();

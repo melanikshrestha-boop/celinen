@@ -101,6 +101,44 @@ describe("Develop JPEG import without the C++ engine", () => {
     expect(renderCalls).toBe(0);
   });
 
+  test("JPEG edits use the browser renderer when C++ is down", async () => {
+    const { renderDevelop } = await import("../src/lib/develop/client");
+    const { defaultDevelopSettings } = await import("../src/lib/develop/contract");
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+    const previousBitmap = globalThis.createImageBitmap;
+    globalThis.createImageBitmap = (async () =>
+      ({ width: 1, height: 1, close() {} }) as ImageBitmap) as typeof createImageBitmap;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        createElement: () => {
+          const pixels = new Uint8ClampedArray([128, 128, 128, 255]);
+          return {
+            width: 1,
+            height: 1,
+            getContext: () => ({
+              drawImage: () => {},
+              getImageData: () => ({ data: pixels }),
+              putImageData: () => {},
+            }),
+            toBlob: (done: (blob: Blob) => void) => done(new Blob([pixels], { type: "image/jpeg" })),
+          };
+        },
+      },
+    });
+    try {
+      const recipe = defaultDevelopSettings();
+      recipe.temperature = 18;
+      const blob = await renderDevelop(file, recipe);
+      expect(blob.type).toBe("image/jpeg");
+      expect(renderCalls).toBe(0);
+    } finally {
+      globalThis.createImageBitmap = previousBitmap;
+      if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument);
+      else Reflect.deleteProperty(globalThis, "document");
+    }
+  });
+
   test("uses C++ when the engine is ready", async () => {
     statusReady = true;
     await developEngineStatus(true);

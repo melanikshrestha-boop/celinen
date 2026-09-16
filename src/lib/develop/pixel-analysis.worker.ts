@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { asDevelopPreviewBlob } from "./decode-preview";
 import {
   analyzeDevelopPixelTiles,
   validatePixelAnalysisBlob,
@@ -22,7 +23,7 @@ scope.onmessage = async (event: MessageEvent<PixelAnalysisRequest>) => {
   let canvas: OffscreenCanvas | undefined;
   try {
     validatePixelAnalysisBlob(blob);
-    bitmap = await createImageBitmap(blob);
+    bitmap = await createImageBitmap(await asDevelopPreviewBlob(blob));
     validatePixelAnalysisDimensions(bitmap.width, bitmap.height);
     canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d", { colorSpace: "srgb", willReadFrequently: true });

@@ -1,6 +1,7 @@
 import { BROWSER_DEVELOP_ENGINE } from "./browser-render";
 import { defaultDevelopSettings } from "./contract";
 import { developEngineStatus, renderDevelop } from "./client";
+import { asDevelopPreviewBlob, decodeDevelopPreview } from "./decode-preview";
 
 export type DevelopPreviewResult = {
   previewBlob: Blob;
@@ -11,7 +12,7 @@ export type DevelopPreviewResult = {
 
 async function measurePreview(preview: Blob, signal: AbortSignal) {
   signal.throwIfAborted();
-  const bitmap = await createImageBitmap(preview);
+  const bitmap = await decodeDevelopPreview(preview);
   try {
     signal.throwIfAborted();
     if (!bitmap.width || !bitmap.height) throw new Error("This photo could not be decoded.");
@@ -27,7 +28,7 @@ export async function rasterDevelopPreview(
   signal: AbortSignal,
 ): Promise<DevelopPreviewResult> {
   const size = await measurePreview(file, signal);
-  return { previewBlob: file, previewOrigin: "raster", ...size };
+  return { previewBlob: await asDevelopPreviewBlob(file), previewOrigin: "raster", ...size };
 }
 
 /**
@@ -51,7 +52,7 @@ export async function prepareDevelopPreview(
     });
     const size = await measurePreview(preview, signal);
     return {
-      previewBlob: preview,
+      previewBlob: await asDevelopPreviewBlob(preview),
       previewOrigin: input.isRaw ? "unknown" : "raster",
       ...size,
     };
@@ -66,7 +67,7 @@ export async function prepareDevelopPreview(
         ...(options.priority ? { priority: options.priority } : {}),
       });
       const size = await measurePreview(preview, signal);
-      return { previewBlob: preview, previewOrigin: "raw-demosaic", ...size };
+      return { previewBlob: await asDevelopPreviewBlob(preview), previewOrigin: "raw-demosaic", ...size };
     }
     try {
       return await rasterDevelopPreview(file, signal);

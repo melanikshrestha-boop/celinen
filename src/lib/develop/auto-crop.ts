@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { developSettingsSchema } from "./contract";
+import { decodeDevelopPreview } from "./decode-preview";
 
 export const AUTO_CROP_EDGE = 384;
 export const AUTO_CROP_MAX_BYTES = 16 + AUTO_CROP_EDGE * AUTO_CROP_EDGE * 4;
@@ -85,7 +86,7 @@ export async function suggestAutoCrop(
     throw new Error("Automatic crop requires the local C++ engine.");
   if (!neutralPreview.size || neutralPreview.size > 32 * 1024 * 1024)
     throw new Error("Use a bounded neutral preview for automatic crop.");
-  const bitmap = await createImageBitmap(neutralPreview);
+  const bitmap = await decodeDevelopPreview(neutralPreview);
   let body: Uint8Array<ArrayBuffer>;
   try {
     signal?.throwIfAborted();

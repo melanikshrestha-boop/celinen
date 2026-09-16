@@ -1,0 +1,133 @@
+.develop-tutor {
+  pointer-events: none;
+}
+.develop-tutor-buddy,
+.develop-tutor-ring {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), width 280ms ease, height 280ms ease;
+}
+.develop-tutor-buddy {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.28);
+}
+.develop-tutor-ring {
+  border: 2px solid #2f6fed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(47, 111, 237, 0.2);
+  animation: develop-tutor-fade 2s ease forwards;
+}
+.develop-tutor-ring span {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 4px;
+  width: max-content;
+  max-width: 220px;
+  color: #2f6fed;
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: 0 0 8px #fff;
+}
+.develop-lookbar,
+.develop-lesson {
+  pointer-events: auto;
+}
+.develop-lookbar {
+  position: absolute;
+  left: 50%;
+  top: 48px;
+  z-index: 8;
+  display: flex;
+  gap: 8px;
+  width: min(520px, calc(100% - 48px));
+  transform: translateX(-50%);
+  padding: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #fff 88%, transparent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+.develop-lookbar input {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+}
+.develop-lookbar button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.develop-lookbar button[type="button"] {
+  background: transparent;
+  color: inherit;
+}
+.develop-lookbar button[type="submit"] {
+  background: #2f6fed;
+  color: #fff;
+}
+.develop-lookbar button.is-on {
+  color: #2f6fed;
+}
+.develop-lesson {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 44px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #111 82%, transparent);
+  color: #fff;
+  font-size: 12px;
+}
+.develop-lesson p {
+  margin: 0;
+  flex: 1;
+  font-weight: 500;
+}
+.develop-lesson div {
+  display: flex;
+  gap: 6px;
+}
+.develop-lesson button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.develop-lesson button:disabled {
+  opacity: 0.4;
+}
+html.dark .develop-lookbar {
+  background: color-mix(in srgb, #1c1c1e 88%, transparent);
+  color: #f2f2f2;
+}
+@keyframes develop-tutor-fade {
+  0%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.28;
+  }
+}

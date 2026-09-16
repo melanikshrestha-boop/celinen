@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defaultDevelopSettings } from "./contract";
 import { renderDevelop } from "./client";
+import { decodeDevelopPreview } from "./decode-preview";
 import {
   assertReferenceAspect,
   encodeReferencePair,
@@ -56,10 +57,10 @@ export async function fitReferenceLook(
     ...(signal ? { signal } : {}),
   });
   signal?.throwIfAborted();
-  const source = await createImageBitmap(originalPreview);
+  const source = await decodeDevelopPreview(originalPreview);
   let target: ImageBitmap | null = null;
   try {
-    target = await createImageBitmap(editedPreview);
+    target = await decodeDevelopPreview(editedPreview);
     signal?.throwIfAborted();
     assertReferenceAspect(source, target);
     const { width, height } = referencePreviewSize(source.width, source.height);

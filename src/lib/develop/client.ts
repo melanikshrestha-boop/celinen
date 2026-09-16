@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createDevelopAdmissionQueue } from "./admission";
 import { BROWSER_DEVELOP_ENGINE, renderDevelopInBrowser } from "./browser-render";
+import { asDevelopPreviewBlob } from "./decode-preview";
 import {
   defaultDevelopSettings,
   DEVELOP_ENGINE_LIMITS,
@@ -165,10 +166,18 @@ export async function renderDevelop(
         const status = await developEngineStatus(refreshStatus);
         refreshStatus = false;
         signal?.throwIfAborted();
-        if (!status?.ready || !status.token)
-          throw new Error(
-            "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
-          );
+        if (!status?.ready || !status.token) {
+          const raster = sourceMode === "raw" ? null : await asDevelopPreviewBlob(source);
+          if (!raster?.type.startsWith("image/"))
+            throw new Error(
+              "The local C++ Develop engine is unavailable. Build it with make -C native and reopen Develop.",
+            );
+          return renderDevelopInBrowser(raster, recipe, {
+            edge: edge ?? DEVELOP_ENGINE_LIMITS.previewEdge,
+            quality: quality ?? 0.9,
+            ...(signal ? { signal } : {}),
+          });
+        }
         if (sourceMode === "raw" && !status.rawSupported)
           throw new Error(
             status.engine === BROWSER_DEVELOP_ENGINE

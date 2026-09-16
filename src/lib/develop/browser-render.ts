@@ -1,4 +1,5 @@
 import { cloneDevelopSettings, DEVELOP_ENGINE_LIMITS, type DevelopSettings } from "./contract";
+import { decodeDevelopPreview } from "./decode-preview";
 import { isNeutralDevelopRecipe } from "./neutral";
 import { assertBrowserDevelopSettingsSupported } from "./browser-capabilities";
 
@@ -195,7 +196,7 @@ export async function renderDevelopInBrowser(
   options.signal?.throwIfAborted();
   const recipe = cloneDevelopSettings(settings);
   assertBrowserDevelopSettingsSupported(recipe);
-  const bitmap = await createImageBitmap(source);
+  const bitmap = await decodeDevelopPreview(source);
   try {
     options.signal?.throwIfAborted();
     const scale = Math.min(1, options.edge / Math.max(bitmap.width, bitmap.height));

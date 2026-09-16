@@ -24,14 +24,16 @@ export function Panel({
   children,
   open = false,
   disabled = false,
+  id,
 }: {
   title: string;
   children: ReactNode;
   open?: boolean;
   disabled?: boolean;
+  id?: string;
 }) {
   return (
-    <details className="develop-panel" open={open || undefined}>
+    <details className="develop-panel" id={id} open={open || undefined}>
       <summary>
         {title}
         <ChevronDown size={12} />
@@ -60,6 +62,7 @@ export function DevelopSlider({
   step = 1,
   reset = 0,
   disabled = false,
+  id,
   onChange,
 }: {
   label: string;
@@ -71,12 +74,13 @@ export function DevelopSlider({
   step?: number;
   reset?: number;
   disabled?: boolean;
+  id?: string;
   onChange: (value: number, commit: boolean) => void;
 }) {
   const last = useRef(value);
   last.current = value;
   return (
-    <div className="develop-slider">
+    <div className="develop-slider" id={id}>
       <label
         onDoubleClick={(event) => {
           if (!disabled && !event.currentTarget.closest("fieldset:disabled")) onChange(reset, true);
@@ -541,6 +545,7 @@ export function DevelopControls({
   ) => (
     <DevelopSlider
       key={key}
+      id={`slider-${key === "temperature" ? "temp" : String(key)}`}
       label={label}
       {...options}
       value={(value[key] ?? defaults[key]) as number}
@@ -595,7 +600,7 @@ export function DevelopControls({
   }
   return (
     <div className="develop-adjustments">
-      <Panel title="Basic" open>
+      <Panel title="Basic" id="panel-basic" open>
         <div className="develop-inline">
           <span>Treatment</span>
           <button
@@ -636,11 +641,12 @@ export function DevelopControls({
       <Panel title="Tone Curve" disabled={browserOnly}>
         <ToneCurve key={photoId} value={value} change={change} />
       </Panel>
-      <Panel title="Color Mixer" disabled={browserOnly}>
+      <Panel title="Color Mixer" id="panel-mixer" disabled={browserOnly}>
         <div className="develop-colors" role="group" aria-label="Color range">
           {DEVELOP_HSL_CHANNELS.map((name, i) => (
             <button
               key={name}
+              id={`hsl-${name.toLowerCase()}`}
               aria-label={name}
               aria-pressed={i === hslIndex}
               title={name}
@@ -664,6 +670,7 @@ export function DevelopControls({
         {(["hue", "saturation", "luminance"] as const).map((key) => (
           <DevelopSlider
             key={key}
+            id={`hsl-${DEVELOP_HSL_CHANNELS[hslIndex]!.toLowerCase()}-${key === "saturation" ? "sat" : key}`}
             label={key[0]!.toUpperCase() + key.slice(1)}
             value={value.hsl[hslIndex]![key]}
             onChange={(n, c) =>
@@ -679,7 +686,7 @@ export function DevelopControls({
           />
         ))}
       </Panel>
-      <Panel title="Color Grading" disabled={browserOnly}>
+      <Panel title="Color Grading" id="panel-grading" disabled={browserOnly}>
         <ColorGrading key={photoId} value={value} change={change} Slider={DevelopSlider} />
       </Panel>
       <Panel title="Effects" disabled={browserOnly}>

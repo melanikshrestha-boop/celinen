@@ -50,6 +50,8 @@ import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { prepareDevelopPreview } from "@/lib/develop/preview";
+import { asDevelopPreviewBlob, decodeDevelopPreview } from "@/lib/develop/decode-preview";
+import { DevelopTutor } from "./DevelopTutor";
 import { canReuseNeutralDevelop, isNeutralDevelopRecipe } from "@/lib/develop/neutral";
 import { AutoCropDialog } from "./AutoCropDialog";
 import { ObjectRemoveDialog } from "./ObjectRemoveDialog";
@@ -157,9 +159,26 @@ function useBlobUrl(blob: Blob | null | undefined) {
       setValue(null);
       return;
     }
-    const u = URL.createObjectURL(blob);
-    setValue({ blob, url: u });
-    return () => URL.revokeObjectURL(u);
+    let cancelled = false;
+    let url: string | null = null;
+    const publish = (typed: Blob) => {
+      if (cancelled) return;
+      url = URL.createObjectURL(typed);
+      if (cancelled) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setValue({ blob, url });
+    };
+    if (blob.type.startsWith("image/")) publish(blob);
+    else
+      void asDevelopPreviewBlob(blob)
+        .catch(() => blob)
+        .then(publish);
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
   }, [blob]);
   return value && value.blob === blob ? value.url : null;
 }
@@ -478,7 +497,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       void developEngineStatus(true).then((s) => {
         if (!cancelled) {
           setEngine(Boolean(s?.ready));
-          setBrowserOnly(s?.engine === BROWSER_DEVELOP_ENGINE);
+          setBrowserOnly(!s?.ready || s.engine === BROWSER_DEVELOP_ENGINE);
         }
       });
     };
@@ -1274,7 +1293,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             });
         void rendered
           .then(async (blob) => {
-            const bitmap = await createImageBitmap(blob);
+            const bitmap = await decodeDevelopPreview(blob);
             try {
               if (!controller.signal.aborted) {
                 renderOwner.current = {
@@ -1459,7 +1478,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           sourceMode: request.sourceMode,
           signal: controller.signal,
         }));
-      const bitmap = await createImageBitmap(blob);
+      const bitmap = await decodeDevelopPreview(blob);
       try {
         if (current() && !controller.signal.aborted)
           setExportProof({ ...request, blob, width: bitmap.width, height: bitmap.height });
@@ -1569,7 +1588,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   signal: controller.signal,
                   sourceMode,
                 });
-        const bitmap = await createImageBitmap(blob);
+        const bitmap = await decodeDevelopPreview(blob);
         const size = `${bitmap.width} × ${bitmap.height}`;
         bitmap.close();
         if (current() && !controller.signal.aborted) {
@@ -1889,8 +1908,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           <aside className="develop-left">
             <Panel title="Navigator" open>
               <div className="develop-navigator">
-                {beforeUrl ? (
-                  <img src={beforeUrl} alt="Navigator preview" />
+                {displayedUrl ? (
+                  <img src={displayedUrl} alt="" />
                 ) : (
                   <ImagePlus size={24} />
                 )}
@@ -2166,6 +2185,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             />
           ) : (
             <>
+              <DevelopTutor
+                settings={draft}
+                onChange={change}
+                enabled={Boolean(source && draft)}
+                photoId={selected}
+                advanced={!browserOnly}
+              />
               <div className="develop-view-toolbar">
                 <div>
                   <DevelopPhotoActions
@@ -2732,7 +2758,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     type: "image/png",
                     lastModified: Date.now(),
                   });
-                  const bitmap = await createImageBitmap(blob);
+                  const bitmap = await decodeDevelopPreview(blob);
                   const dimensions = { width: bitmap.width, height: bitmap.height };
                   bitmap.close();
                   const incoming = await developPhotoFromFile(file, blob, dimensions);
