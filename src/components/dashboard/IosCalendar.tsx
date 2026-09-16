@@ -37,6 +37,7 @@ import {
 } from "@/lib/calendar-place";
 import { readCalendarTasks, writeCalendarTasks, type CalendarTask } from "@/lib/calendar-tasks";
 import { BookingsPanel } from "./BookingsPanel";
+import { EventSheet, type EventSheetValue } from "./EventSheet";
 import "./ios-calendar.css";
 
 const VIEWS = [
@@ -173,6 +174,12 @@ export function IosCalendar() {
   const [composing, setComposing] = useState(false);
   const [open, setOpen] = useState(true);
   const [inspect, setInspect] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<{
+    mode: "create" | "edit";
+    value: EventSheetValue;
+    anchor: { top: number; left: number };
+  } | null>(null);
+  const plusRef = useRef<HTMLButtonElement>(null);
   const [bookOpen, setBookOpen] = useState(false);
   const [types, setTypes] = useState<BookingType[]>([]);
   const [place, setPlace] = useState<CalendarPlace>(() => readCalendarPlace() ?? placeFromZone());
@@ -400,6 +407,54 @@ export function IosCalendar() {
       feedEvents: state.feedEvents.filter((event) => event.id !== id),
     });
     setInspect(null);
+    setSheet(null);
+  }
+
+  function valueFromEvent(event: CalendarEvent): EventSheetValue {
+    return {
+      id: event.id,
+      title: event.title,
+      location: event.location ?? "",
+      mapsUrl: "",
+      allDay: event.allDay,
+      start: event.start,
+      end: event.end,
+    };
+  }
+
+  function openSheet(mode: "create" | "edit", value: EventSheetValue, el: HTMLElement) {
+    const box = el.getBoundingClientRect();
+    setInspect(null);
+    setSheet({ mode, value, anchor: { top: box.bottom + 8, left: box.left } });
+  }
+
+  function saveSheet() {
+    if (!sheet) return;
+    const title = sheet.value.title.trim() || "Shoot";
+    const location = sheet.value.location.trim();
+    if (sheet.mode === "edit" && sheet.value.id) {
+      patchLocal(sheet.value.id, {
+        title,
+        start: sheet.value.start,
+        end: Math.max(sheet.value.end, sheet.value.start + (sheet.value.allDay ? 86400000 : SNAP)),
+        allDay: sheet.value.allDay,
+        ...(location ? { location } : { location: "" }),
+      });
+    } else {
+      const event: CalendarEvent = {
+        id: `local-${sheet.value.start}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        start: sheet.value.start,
+        end: Math.max(sheet.value.end, sheet.value.start + (sheet.value.allDay ? 86400000 : SNAP)),
+        allDay: sheet.value.allDay,
+        source: "local",
+        kind: "shoot",
+        color: KIND_COLOR.shoot,
+        ...(location ? { location } : {}),
+      };
+      persist({ ...state, localEvents: [...state.localEvents, event] });
+    }
+    setSheet(null);
   }
 
   const title = selected.toLocaleString("en-US", { month: "long", year: "numeric" });
@@ -457,12 +512,13 @@ export function IosCalendar() {
       step(1);
     } else if (event.key === "Escape") {
       setInspect(null);
+      setSheet(null);
       setTasksOpen(false);
       setViewsOpen(false);
       unlockViews();
     }
     else if (event.key === "Delete" || event.key === "Backspace") {
-      if (inspected?.source === "local") removeEvent(inspected.id);
+      if (sheet?.value.id) removeEvent(sheet.value.id);
     }
   }
 
@@ -515,8 +571,18 @@ export function IosCalendar() {
       ...(session?.location ? { location: session.location } : {}),
     };
     pendingType.current = null;
-    persist({ ...state, localEvents: [...state.localEvents, event] });
-    setInspect(event.id);
+    openSheet(
+      "create",
+      {
+        title: event.title === "Shoot" ? "" : event.title,
+        location: event.location ?? "",
+        mapsUrl: "",
+        allDay: false,
+        start: event.start,
+        end: event.end,
+      },
+      col,
+    );
   }
 
   return (
@@ -554,9 +620,9 @@ export function IosCalendar() {
                     <li key={event.id}>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(click) => {
                           setSelected(new Date(event.start));
-                          setInspect(event.id);
+                          openSheet("edit", valueFromEvent(event), click.currentTarget);
                           if (view === "month" || view === "year") setView("week");
                         }}
                       >
@@ -728,54 +794,30 @@ export function IosCalendar() {
           Book
         </button>
         <button
+          ref={plusRef}
           type="button"
           className="celinen-ios-cal__plus"
           aria-label="Add"
-          onClick={() => {
-            setComposing(true);
-            requestAnimationFrame(() => askRef.current?.focus());
+          onClick={(event) => {
+            const day = selected;
+            const start = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+            openSheet(
+              "create",
+              {
+                title: "",
+                location: "",
+                mapsUrl: "",
+                allDay: true,
+                start,
+                end: start + 86400000,
+              },
+              event.currentTarget,
+            );
           }}
         >
           +
         </button>
       </div>
-      {composing ? (
-      <form
-        className="celinen-ios-cal__ask"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submitAsk();
-        }}
-      >
-        <input
-          ref={askRef}
-          value={ask}
-          onChange={(event) => setAsk(event.target.value)}
-          aria-label="Add event"
-          placeholder="Add event"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              setComposing(false);
-              setAsk("");
-            }
-          }}
-        />
-        {preview ? (
-          <p className="celinen-ios-cal__preview">
-            {new Date(preview.start).toLocaleString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              ...(preview.allDay ? {} : { hour: "numeric", minute: "2-digit" }),
-            })}
-            {preview.allDay ? "" : `–${new Date(preview.end).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}
-            {" · "}
-            {KIND_LABEL[preview.kind ?? "shoot"]}
-            {preview.location ? ` · ${preview.location}` : ""}
-          </p>
-        ) : null}
-      </form>
-      ) : null}
         <div className="celinen-ios-cal__board">
           {view === "year" ? (
             <div className="celinen-ios-cal__year">
@@ -825,7 +867,7 @@ export function IosCalendar() {
                               onClick={(click) => {
                                 click.stopPropagation();
                                 setSelected(day);
-                                setInspect(event.id);
+                                openSheet("edit", valueFromEvent(event), click.currentTarget);
                               }}
                             >
                               {event.title}
@@ -866,7 +908,7 @@ export function IosCalendar() {
                           onClick={(click) => {
                             click.stopPropagation();
                             setSelected(cell.date);
-                            setInspect(event.id);
+                            openSheet("edit", valueFromEvent(event), click.currentTarget);
                           }}
                         >
                           {event.title}
@@ -909,11 +951,11 @@ export function IosCalendar() {
                         <button
                           key={event.id}
                           type="button"
-                          className={`celinen-ios-cal__lane${inspect === event.id ? " is-on" : ""}`}
+                          className={`celinen-ios-cal__lane${sheet?.value.id === event.id ? " is-on" : ""}`}
                           style={{ background: eventColor(event) }}
-                          onClick={() => {
+                          onClick={(click) => {
                             setSelected(day);
-                            setInspect(event.id);
+                            openSheet("edit", valueFromEvent(event), click.currentTarget);
                           }}
                         >
                           {event.title}
@@ -943,7 +985,7 @@ export function IosCalendar() {
                         <button
                           key={event.id}
                           type="button"
-                          className={`celinen-ios-cal__block${inspect === event.id ? " is-on" : ""}`}
+                          className={`celinen-ios-cal__block${sheet?.value.id === event.id ? " is-on" : ""}`}
                           style={{
                             ...blockStyle(event, day),
                             ["--evt" as string]: eventColor(event),
@@ -952,9 +994,9 @@ export function IosCalendar() {
                           onPointerMove={onMove}
                           onPointerUp={endMove}
                           onPointerCancel={endMove}
-                          onClick={() => {
+                          onClick={(click) => {
                             setSelected(day);
-                            setInspect(event.id);
+                            openSheet("edit", valueFromEvent(event), click.currentTarget);
                           }}
                         >
                           <span>{timeLabel(event)}</span>
@@ -984,29 +1026,17 @@ export function IosCalendar() {
               setBookOpen(false);
             }}
           />
-        ) : inspected ? (
-          <aside className="celinen-ios-cal__inspect" aria-label="Event">
-            <button type="button" className="celinen-ios-cal__dismiss" onClick={() => setInspect(null)}>
-              Close
-            </button>
-            <h2>{inspected.title}</h2>
-            <p>
-              {new Date(inspected.start).toLocaleString("en-US", {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-                ...(inspected.allDay ? {} : { hour: "numeric", minute: "2-digit" }),
-              })}
-              {inspected.allDay
-                ? ""
-                : `–${new Date(inspected.end).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`}
-            </p>
-            {inspected.location ? <p>{inspected.location}</p> : null}
-            <p className="celinen-ios-cal__kind">{KIND_LABEL[eventKind(inspected)]}</p>
-            <button type="button" onClick={() => removeEvent(inspected.id)}>
-              Delete
-            </button>
-          </aside>
+        ) : null}
+        {sheet ? (
+          <EventSheet
+            mode={sheet.mode}
+            value={sheet.value}
+            anchor={sheet.anchor}
+            onChange={(value) => setSheet({ ...sheet, value })}
+            onSave={saveSheet}
+            onDelete={sheet.value.id ? () => removeEvent(sheet.value.id as string) : undefined}
+            onClose={() => setSheet(null)}
+          />
         ) : null}
       </div>
     </section>

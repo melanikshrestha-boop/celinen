@@ -79,6 +79,18 @@ export function developmentLabPlugin(root: string): Plugin {
           ].join("; "),
         );
         const path = new URL(request.url ?? "/", LAB_ORIGIN).pathname;
+        if (path === "/api/places") {
+          const q = new URL(request.url ?? "/", LAB_ORIGIN).searchParams.get("q") ?? "";
+          void import("../lib/maps-places")
+            .then(({ geocodePlaces }) => geocodePlaces(q, process.env.GOOGLE_MAPS_API_KEY || ""))
+            .then((hits) => {
+              response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ hits }));
+            })
+            .catch(() => {
+              response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ hits: [] }));
+            });
+          return;
+        }
         if (
           path.startsWith("/_serverFn/") ||
           path.startsWith("/__cloud_disabled") ||

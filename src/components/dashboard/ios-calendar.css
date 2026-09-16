@@ -24,10 +24,10 @@
 .celinen-ios-cal.celinen-ios-cal__shell.is-slim {
   grid-template-columns: minmax(0, 1fr);
 }
-.celinen-ios-cal.celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
+.celinen-ios-cal.celinen-ios-cal__shell:has(.celinen-ios-cal__bookings) {
   grid-template-columns: 268px minmax(0, 1fr) 260px;
 }
-.celinen-ios-cal.is-slim.celinen-ios-cal__shell:has(.celinen-ios-cal__inspect) {
+.celinen-ios-cal.is-slim.celinen-ios-cal__shell:has(.celinen-ios-cal__bookings) {
   grid-template-columns: minmax(0, 1fr) 260px;
 }
 html.dark .celinen-ios-cal,
@@ -907,6 +907,101 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__dismiss {
   font-size: 12px;
   color: var(--ios-muted);
+}
+.celinen-ios-cal__sheet-back {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+.celinen-ios-cal__sheet {
+  position: fixed;
+  z-index: 31;
+  display: grid;
+  gap: 10px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 16px 18px 14px;
+  border-radius: 14px;
+  background: #fff;
+  color: #1c1c1e;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+.celinen-ios-cal__sheet input[placeholder],
+.celinen-ios-cal__sheet input[aria-label="Add Title"],
+.celinen-ios-cal__sheet input[aria-label="Add Location"] {
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+}
+.celinen-ios-cal__sheet input::placeholder {
+  color: #b0b0b4;
+}
+.celinen-ios-cal__sheet label {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.celinen-ios-cal__sheet label span {
+  color: #6b6b70;
+}
+.celinen-ios-cal__sheet label input[type="date"],
+.celinen-ios-cal__sheet label input[type="time"] {
+  min-height: 28px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+}
+.celinen-ios-cal__check {
+  grid-template-columns: 64px auto !important;
+  justify-content: start;
+}
+.celinen-ios-cal__places {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 140px;
+  overflow: auto;
+}
+.celinen-ios-cal__places button {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.celinen-ios-cal__sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.celinen-ios-cal__sheet-actions button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #2f6fed;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+html.dark .celinen-ios-cal__sheet {
+  background: #1c1c1e;
+  color: #f2f2f2;
 }
 @media (max-width: 900px) {
   .celinen-ios-cal,
