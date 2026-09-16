@@ -105,13 +105,31 @@
   font-size: 13px;
 }
 .marketing-pricing .pricing-billing__cycle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: #eef1f4;
+  gap: 0;
 }
-.marketing-pricing .pricing-billing__cycle > button:not([role="switch"]) {
-  min-height: 44px;
+.marketing-pricing .pricing-billing__cycle > button {
+  margin: 0;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b7280;
+  font: 500 14px/1 inherit;
+  cursor: pointer;
+}
+.marketing-pricing .pricing-billing__cycle > button[aria-pressed="true"] {
+  background: #fff;
+  color: #142a36;
+  box-shadow: 0 1px 2px #142a3614;
+}
+.marketing-pricing .pricing-billing__cycle > button:focus-visible {
+  outline: 2px solid #4d6fff;
+  outline-offset: 2px;
 }
 /* Savings sits on its own row under Monthly / Annual, not beside Annual. */
 .marketing-pricing .pricing-billing__save {

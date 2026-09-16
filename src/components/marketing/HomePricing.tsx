@@ -1,7 +1,6 @@
 import { useState } from "react";
 import "./home-product.css";
 import { Link } from "@tanstack/react-router";
-import { SettingsSwitch } from "@/components/marketing/SettingsSwitch";
 
 type Point = { label: string; included: boolean; accent?: boolean };
 
@@ -252,17 +251,14 @@ export function HomePricing() {
         </p>
       </div>
       <div className="home-pricing__cycle" data-reveal>
-        <button type="button" data-active={!yearly} onClick={() => setYearly(false)}>
-          Monthly
-        </button>
-        <SettingsSwitch
-          checked={yearly}
-          onCheckedChange={setYearly}
-          label="Yearly billing"
-        />
-        <button type="button" data-active={yearly} onClick={() => setYearly(true)}>
-          Yearly
-        </button>
+        <div className="home-pricing__seg" role="group" aria-label="Billing">
+          <button type="button" aria-pressed={!yearly} onClick={() => setYearly(false)}>
+            Monthly
+          </button>
+          <button type="button" aria-pressed={yearly} onClick={() => setYearly(true)}>
+            Yearly
+          </button>
+        </div>
         <span className="home-pricing__off">20% off</span>
       </div>
       <PlanCardGrid plans={plansForAudience("personal", yearly)} />

@@ -6,7 +6,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { publicEntry } from "@/lib/public-entry";
 import { BUSINESS, PRO_STEPS, TEAM_STEPS } from "@/lib/published-plans";
 import { PlanCardGrid, plansForAudience } from "@/components/marketing/HomePricing";
-import { SettingsSwitch } from "@/components/marketing/SettingsSwitch";
+
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import "@/components/marketing/marketing-page.css";
 import "@/components/marketing/sky-entry.css";
@@ -250,23 +250,20 @@ function PricingPage() {
           {/* billing toggle */}
           {audience !== "enterprise" && (
             <div className="pricing-billing">
-              <div className="pricing-billing__cycle">
+              <div className="pricing-billing__cycle" role="group" aria-label="Billing">
                 <button
+                  type="button"
+                  aria-pressed={!yearly}
                   onClick={() => setCycle("monthly")}
-                  className={yearly ? "text-moss hover:text-ink" : "text-ink"}
                 >
                   Monthly
                 </button>
-                <SettingsSwitch
-                  checked={yearly}
-                  onCheckedChange={(on) => setCycle(on ? "yearly" : "monthly")}
-                  label="Yearly billing"
-                />
                 <button
+                  type="button"
+                  aria-pressed={yearly}
                   onClick={() => setCycle("yearly")}
-                  className={yearly ? "text-ink" : "text-moss hover:text-ink"}
                 >
-                  Annual
+                  Yearly
                 </button>
               </div>
               {yearly ? (

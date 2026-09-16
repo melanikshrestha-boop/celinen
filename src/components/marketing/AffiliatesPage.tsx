@@ -139,35 +139,3 @@ export function AffiliatesPage() {
     </div>
   );
 }
-
-export function AffiliatesLanding() {
-  return (
-    <section className="foto-affiliates-landing" aria-labelledby="affiliates-heading" data-reveal>
-      <p className="foto-affiliates__eyebrow">Earn with us</p>
-      <h2 id="affiliates-heading">Our 30% affiliate program.</h2>
-      <p>Earn recurring commission from your referrals. Incentivise your referrals with discounts at checkout.</p>
-      <dl className="foto-affiliates__stats">
-        <div>
-          <dt>30%</dt>
-          <dd>Recurring commission</dd>
-        </div>
-        <div>
-          <dt>20%</dt>
-          <dd>Off for the photographer you send</dd>
-        </div>
-        <div>
-          <dt>PayPal</dt>
-          <dd>Payouts</dd>
-        </div>
-        <div>
-          <dt>60 days</dt>
-          <dd>Referral cookie window</dd>
-        </div>
-      </dl>
-      <div className="foto-affiliates__actions">
-        <Link to="/affiliates">Affiliates</Link>
-        <a href={APPLY}>Start earning</a>
-      </div>
-    </section>
-  );
-}

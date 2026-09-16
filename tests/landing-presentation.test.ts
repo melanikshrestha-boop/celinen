@@ -283,8 +283,9 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("How celinen compares"));
     assert.ok(!html.includes("Read the comparison"));
     assert.ok(html.includes('href="/compare"'));
-    assert.ok(html.includes("Our 30% affiliate program"));
-    assert.ok(html.includes("Referral cookie window"));
+    assert.ok(!html.includes("Our 30% affiliate program"));
+    assert.ok(!html.includes("Referral cookie window"));
+    assert.ok(html.includes('href="/affiliates"'));
     assert.ok(html.includes("LIVE"));
     assert.ok(html.includes("Publish everywhere"));
     assert.ok(html.includes("YouTube Shorts"));

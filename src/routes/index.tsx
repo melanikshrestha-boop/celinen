@@ -9,7 +9,6 @@ import { IntegrationsSection } from "@/components/marketing/IntegrationsSection"
 import { PublishEverywhere } from "@/components/marketing/PublishEverywhere";
 import { LivePhotographers } from "@/components/marketing/LivePhotographers";
 import { HomePricing } from "@/components/marketing/HomePricing";
-import { AffiliatesLanding } from "@/components/marketing/AffiliatesPage";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
 import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
@@ -134,9 +133,6 @@ function Index() {
         </SectionGuard>
         <SectionGuard>
           <HomePricing />
-        </SectionGuard>
-        <SectionGuard>
-          <AffiliatesLanding />
         </SectionGuard>
         <SectionGuard>
         <section className="marketing-handoff" aria-labelledby="handoff-heading">

@@ -34,21 +34,32 @@
   justify-content: center;
   gap: 12px;
   margin: -12px 0 36px;
-  color: #8b98a1;
-  font-size: 15px;
-  font-weight: 500;
 }
-.home-pricing__cycle button:not([role="switch"]) {
+.home-pricing__seg {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: #eef1f4;
+}
+.home-pricing__seg button {
   margin: 0;
-  padding: 0;
+  min-height: 36px;
+  padding: 0 16px;
   border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b7280;
+  font: 500 14px/1 inherit;
   cursor: pointer;
 }
-.home-pricing__cycle button:not([role="switch"])[data-active="true"] {
+.home-pricing__seg button[aria-pressed="true"] {
+  background: #fff;
   color: #142a36;
+  box-shadow: 0 1px 2px #142a3614;
+}
+.home-pricing__seg button:focus-visible {
+  outline: 2px solid #4d6fff;
+  outline-offset: 2px;
 }
 
 .home-pricing__off {
@@ -324,7 +335,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .home-pricing__cycle {
-    gap: 16px;
-    font-size: 16px;
+    gap: 12px;
+  }
+  .home-pricing__seg button {
+    min-height: 40px;
+    padding: 0 18px;
   }
 }

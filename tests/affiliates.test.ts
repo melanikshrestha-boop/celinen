@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
-test("affiliates page is the 30% program at the bottom of the landing", () => {
+test("affiliates page is the 30% program, not a home-page strip", () => {
   const page = readFileSync(
     new URL("../src/components/marketing/AffiliatesPage.tsx", import.meta.url),
     "utf8",
@@ -17,7 +17,7 @@ test("affiliates page is the 30% program at the bottom of the landing", () => {
   expect(page).not.toContain("4,000");
   expect(page).not.toContain("getrewardful");
   const landing = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
-  expect(landing).toContain("AffiliatesLanding");
+  expect(landing).not.toContain("AffiliatesLanding");
   const footer = readFileSync(
     new URL("../src/components/marketing/MarketingFooter.tsx", import.meta.url),
     "utf8",
