@@ -24,6 +24,16 @@ import {
   writeCalendarState,
 } from "@/lib/calendar-store";
 import { readBookingTypes, writeBookingTypes, type BookingType } from "@/lib/booking-types";
+import {
+  formatPlace,
+  lookupPlace,
+  placeFromGeo,
+  placeFromZone,
+  readCalendarPlace,
+  shortTimeZone,
+  writeCalendarPlace,
+  type CalendarPlace,
+} from "@/lib/calendar-place";
 import { BookingsPanel } from "./BookingsPanel";
 import "./ios-calendar.css";
 
@@ -155,6 +165,7 @@ export function IosCalendar() {
   const [inspect, setInspect] = useState<string | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
   const [types, setTypes] = useState<BookingType[]>([]);
+  const [place, setPlace] = useState<CalendarPlace>(() => readCalendarPlace() ?? placeFromZone());
   const pendingType = useRef<BookingType | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLElement>(null);
@@ -193,6 +204,48 @@ export function IosCalendar() {
   useEffect(() => {
     const id = window.setInterval(() => setClock(new Date()), 15000);
     return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    let gone = false;
+    async function hydrate() {
+      const current = readCalendarPlace() ?? placeFromZone();
+      if (!gone) {
+        setPlace(current);
+        writeCalendarPlace(current);
+      }
+      try {
+        const perm = await navigator.permissions?.query({ name: "geolocation" });
+        if (perm?.state === "granted") {
+          await askPrecise(true);
+          return;
+        }
+        if (perm?.state === "denied") {
+          const next = { ...current, asked: true };
+          if (!gone) {
+            setPlace(next);
+            writeCalendarPlace(next);
+          }
+          return;
+        }
+      } catch {
+        /* permissions.query is optional */
+      }
+      if (current.precise) return;
+      try {
+        const geo = await lookupPlace();
+        if (!geo || gone) return;
+        const next = placeFromGeo(geo, current);
+        setPlace(next);
+        writeCalendarPlace(next);
+      } catch {
+        /* keep zone region */
+      }
+    }
+    void hydrate();
+    return () => {
+      gone = true;
+    };
   }, []);
 
   function stepView(dir: number) {
@@ -242,6 +295,51 @@ export function IosCalendar() {
     setSelected(new Date());
   }
 
+  function askPrecise(silent = false) {
+    return new Promise<void>((resolve) => {
+      if (!navigator.geolocation) {
+        setPlace((current) => {
+          const next = { ...current, asked: true };
+          writeCalendarPlace(next);
+          return next;
+        });
+        resolve();
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (here) => {
+          try {
+            const geo = await lookupPlace({
+              latitude: here.coords.latitude,
+              longitude: here.coords.longitude,
+            });
+            setPlace((current) => {
+              const next = placeFromGeo(geo ?? {}, { ...current, asked: true, precise: true });
+              writeCalendarPlace(next);
+              return next;
+            });
+          } catch {
+            setPlace((current) => {
+              const next = { ...current, asked: true };
+              writeCalendarPlace(next);
+              return next;
+            });
+          }
+          resolve();
+        },
+        () => {
+          setPlace((current) => {
+            const next = { ...current, asked: true };
+            writeCalendarPlace(next);
+            return next;
+          });
+          resolve();
+        },
+        { enableHighAccuracy: !silent, maximumAge: 300000, timeout: 12000 },
+      );
+    });
+  }
+
   function step(dir: number) {
     if (view === "day") setSelected(addCalendarDays(selected, dir));
     else if (view === "week") setSelected(addCalendarDays(selected, dir * 7));
@@ -267,10 +365,7 @@ export function IosCalendar() {
   const title = selected.toLocaleString("en-US", { month: "long", year: "numeric" });
   const monthName = selected.toLocaleString("en-US", { month: "long" });
   const yearName = String(selected.getFullYear());
-  const tz =
-    Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
-      .formatToParts(today)
-      .find((part) => part.type === "timeZoneName")?.value ?? "";
+  const placeLabel = formatPlace({ ...place, tz: place.tz || shortTimeZone(today, place.zone) });
 
   const agendaGroups = useMemo(() => {
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -489,7 +584,14 @@ export function IosCalendar() {
           <span className="sr-only">Search</span>
           <input type="search" placeholder="Search" />
         </label>
-        <span className="celinen-ios-cal__tz">{tz}</span>
+        <div className="celinen-ios-cal__place">
+          <span className="celinen-ios-cal__tz">{placeLabel}</span>
+          {!place.precise && !place.asked ? (
+            <button type="button" className="celinen-ios-cal__locate" onClick={() => void askPrecise()}>
+              Allow full location access
+            </button>
+          ) : null}
+        </div>
         <button type="button" className="celinen-ios-cal__today" onClick={() => setBookOpen((value) => !value)}>
           Book
         </button>

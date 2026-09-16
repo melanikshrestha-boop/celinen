@@ -76,8 +76,9 @@ html.dark .celinen-dash__cal {
   gap: 8px;
   flex: 0 0 auto;
   min-height: 52px;
-  height: 52px;
-  padding: 0 96px 0 16px;
+  height: auto;
+  flex-wrap: wrap;
+  padding: 0 96px 8px 16px;
   border-bottom: 1px solid var(--ios-line);
 }
 .celinen-ios-cal__title {
@@ -167,10 +168,31 @@ html.dark .celinen-dash__cal {
   font: inherit;
   font-size: 12px;
 }
+.celinen-ios-cal__place {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  order: 8;
+  flex: 1 0 100%;
+  margin: 2px 0 0;
+  min-width: 0;
+}
 .celinen-ios-cal__tz {
-  margin-left: 8px;
   color: var(--ios-muted);
   font-size: 11px;
+  white-space: nowrap;
+}
+.celinen-ios-cal__locate {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ios-ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
 .celinen-ios-cal__brand {
   display: flex;
@@ -728,8 +750,7 @@ html.dark .celinen-dash__cal {
   }
 }
 @container (max-width: 960px) {
-  .celinen-ios-cal__find,
-  .celinen-ios-cal__tz {
+  .celinen-ios-cal__find {
     display: none;
   }
 }
