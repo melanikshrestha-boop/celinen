@@ -151,7 +151,7 @@ test("dashboard chrome is the full light rail", () => {
   expect(css).toContain(".celinen-dash__body:has(.foto-develop)");
 });
 
-test("home canvas keeps a sky wash in dark, not a flat black field", () => {
+test("home canvas is pitch black in dark mode", () => {
   const css = readFileSync(
     new URL("../src/components/dashboard/social-accounts.css", import.meta.url),
     "utf8",
@@ -159,10 +159,8 @@ test("home canvas keeps a sky wash in dark, not a flat black field", () => {
   expect(css).toMatch(
     /\.social-post\s*\{[^}]*radial-gradient\(90% 70% at 50% 0%, #d7ecff 0%, #eef8f3 38%, #ffffff 72%\)/,
   );
-  expect(css).toMatch(
-    /html\.dark \.social-post\s*\{[^}]*radial-gradient\(90% 70% at 50% 0%, #1e3f6b 0%, #16352f 38%, #0b0c0e 72%\)/,
-  );
-  expect(css).not.toMatch(/html\.dark \.social-post\s*\{[^}]*background:\s*#000/);
+  expect(css).toMatch(/html\.dark \.social-post\s*\{[^}]*background:\s*#000/);
+  expect(css).not.toContain("#1e3f6b");
   expect(css).toContain("home-composer-open");
   expect(css).toContain("home-open");
   expect(css).toContain(".social-post__action");

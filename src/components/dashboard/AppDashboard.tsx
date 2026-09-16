@@ -630,7 +630,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                       setDraft(event.target.value);
                       const el = event.currentTarget;
                       el.style.height = "auto";
-                      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
@@ -646,7 +646,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                       const el = box.current;
                       if (!el) return;
                       el.style.height = "auto";
-                      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
                     }}
                     onSend={(text) => send(text)}
                   />

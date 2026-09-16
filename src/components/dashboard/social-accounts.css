@@ -680,9 +680,7 @@
   }
 }
 html.dark .social-post {
-  /* Same sky→mint wash as light, inverted: cool top, teal mid, near-black field. */
-  background:
-    radial-gradient(90% 70% at 50% 0%, #1e3f6b 0%, #16352f 38%, #0b0c0e 72%);
+  background: #000;
 }
 html.dark .social-post__hero h1,
 html.dark .celinen-dash .social-post__hero h1 {
