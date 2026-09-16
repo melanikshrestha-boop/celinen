@@ -24,6 +24,49 @@ export const developCurveSchema = z
         message: "Curve points must increase from x=0 to x=1.",
       });
   });
+
+// Parametric tone curve regions (Lightroom Classic style)
+export const developParametricCurveSchema = z.object({
+  highlights: z.number().finite().min(-100).max(100),
+  lights: z.number().finite().min(-100).max(100),
+  darks: z.number().finite().min(-100).max(100),
+  shadows: z.number().finite().min(-100).max(100),
+  pointCurve: developCurveSchema,
+});
+
+export type DevelopParametricCurve = z.infer<typeof developParametricCurveSchema>;
+
+// Lens correction settings
+export const developLensCorrectionSchema = z.object({
+  enabled: z.boolean(),
+  profile: z.enum(["none", "auto", "custom"]).default("none"),
+  profileId: z.string().optional(),
+  chromaticAberration: z.object({
+    enabled: z.boolean(),
+    amount: z.number().finite().min(0).max(100),
+  }).default({ enabled: false, amount: 50 }),
+  vignetteCorrection: z.object({
+    enabled: z.boolean(),
+    amount: z.number().finite().min(-100).max(100),
+  }).default({ enabled: false, amount: 0 }),
+  transform: z.object({
+    upright: z.enum(["off", "auto", "level", "vertical", "full"]).default("off"),
+    rotation: z.number().finite().min(-45).max(45).default(0),
+    aspect: z.number().finite().min(-100).max(100).default(0),
+    scale: z.number().finite().min(50).max(150).default(100),
+    x: z.number().finite().min(-100).max(100).default(0),
+    y: z.number().finite().min(-100).max(100).default(0),
+  }).default({
+    upright: "off",
+    rotation: 0,
+    aspect: 0,
+    scale: 100,
+    x: 0,
+    y: 0,
+  }),
+});
+
+export type DevelopLensCorrection = z.infer<typeof developLensCorrectionSchema>;
 const channelCurvesSchema = z
   .object({
     red: developCurveSchema.default(identityCurve),
@@ -85,6 +128,27 @@ export const developSettingsSchema = z
       red: identityCurve(),
       green: identityCurve(),
       blue: identityCurve(),
+    })),
+    parametricCurve: developParametricCurveSchema.optional().default(() => ({
+      highlights: 0,
+      lights: 0,
+      darks: 0,
+      shadows: 0,
+      pointCurve: identityCurve(),
+    })),
+    lensCorrection: developLensCorrectionSchema.default(() => ({
+      enabled: false,
+      profile: "none",
+      chromaticAberration: { enabled: false, amount: 50 },
+      vignetteCorrection: { enabled: false, amount: 0 },
+      transform: {
+        upright: "off",
+        rotation: 0,
+        aspect: 0,
+        scale: 100,
+        x: 0,
+        y: 0,
+      },
     })),
     hsl: z
       .array(z.object({ hue: signed, saturation: signed, luminance: signed }).strict())
@@ -164,6 +228,27 @@ export function defaultDevelopSettings(): DevelopSettings {
     ],
     curveInterpolation: "linear",
     channelCurves: { red: identityCurve(), green: identityCurve(), blue: identityCurve() },
+    parametricCurve: {
+      highlights: 0,
+      lights: 0,
+      darks: 0,
+      shadows: 0,
+      pointCurve: identityCurve(),
+    },
+    lensCorrection: {
+      enabled: false,
+      profile: "none",
+      chromaticAberration: { enabled: false, amount: 50 },
+      vignetteCorrection: { enabled: false, amount: 0 },
+      transform: {
+        upright: "off",
+        rotation: 0,
+        aspect: 0,
+        scale: 100,
+        x: 0,
+        y: 0,
+      },
+    },
     hsl: Array.from({ length: 8 }, () => ({ hue: 0, saturation: 0, luminance: 0 })),
     grading: {
       model: "tonal",

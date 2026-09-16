@@ -34,6 +34,12 @@ export class ColorGradingOwnership {
     this.owner = null;
     this.changed(null);
   }
+  releaseAll() {
+    if (this.owner !== null) {
+      this.changed(null);
+      this.owner = null;
+    }
+  }
 }
 
 /** Coordinates use the wheel radius, red at the right, hue increasing clockwise. */
