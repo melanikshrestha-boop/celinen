@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PHOTOGRAPHY_ASSISTANT_POLICY } from "@/lib/photography-assistant";
 import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
-import { loadLiveSportsBrief, sportsEventSystemPrompt, wantsEventSearch } from "@/lib/photographer-events";
-import { isPhotographerWorkRole } from "@/lib/photographer-work-roles";
+import { assembleAssistantMessages } from "@/lib/assistant/orchestrator";
 
 type Body = {
   messages?: unknown;
@@ -49,30 +48,13 @@ export const Route = createFileRoute("/api/chat")({
             headers: { "content-type": "application/json" },
           });
         }
-        const lastUser = [...messages].reverse().find((item) => {
-          if (!item || typeof item !== "object" || Array.isArray(item)) return false;
-          return (item as { role?: unknown }).role === "user";
-        }) as { content?: unknown } | undefined;
-        const ask = typeof lastUser?.content === "string" ? lastUser.content : "";
-        const role =
-          typeof workRole === "string" && isPhotographerWorkRole(workRole) ? workRole : "sports";
-        const live =
-          mode === "conversation" && wantsEventSearch(ask) ? await loadLiveSportsBrief() : "";
-        const context = live
-          ? [
-              {
-                role: "system",
-                content: sportsEventSystemPrompt(role, live, new Date().toISOString()),
-              },
-            ]
-          : [];
+        const assembled =
+          mode === "conversation"
+            ? await assembleAssistantMessages({ messages, workRole })
+            : [{ role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY }, ...messages];
 
         const upstream = await requestCloudflareChat({
-          messages: [
-            { role: "system", content: PHOTOGRAPHY_ASSISTANT_POLICY },
-            ...context,
-            ...messages,
-          ],
+          messages: assembled,
           // Conversation mode cannot acquire tools through a client payload.
           ...(mode !== "conversation" && Array.isArray(tools) && tools.length
             ? { tools, tool_choice: "auto" }

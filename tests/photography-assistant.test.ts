@@ -9,12 +9,7 @@ import {
 import { studioCommandRefusal, studioToolBoundary } from "../src/lib/studio/command-safety";
 import { parseLocalCommand } from "../src/lib/studio/commands";
 import { requestCloudflareChat } from "../src/lib/cloudflare-ai.server";
-import {
-  loadLiveSportsBrief,
-  sportsEventSystemPrompt,
-  wantsEventSearch,
-} from "../src/lib/photographer-events";
-import { isPhotographerWorkRole } from "../src/lib/photographer-work-roles";
+import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
 
 describe("direct Cloudflare AI transport", () => {
   const config = {
@@ -357,6 +352,9 @@ describe("photographer conversation, not command fragments", () => {
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("does not require imported photographs");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("cannot reserve");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Never invent citations");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("If I had to choose");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Both are good depending on your preference");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("You are Lenslab");
   });
 });
 
@@ -567,10 +565,7 @@ test("actual server route removes tools in conversation mode and installs the ph
       return Response.json({ choices: [{ message: { content: "Let's brainstorm." } }] });
     },
     PHOTOGRAPHY_ASSISTANT_POLICY,
-    wantsEventSearch,
-    loadLiveSportsBrief,
-    sportsEventSystemPrompt,
-    isPhotographerWorkRole,
+    assembleAssistantMessages,
     fixtureAuth: {
       createClient: () => ({
         auth: { getClaims: async () => ({ data: { claims: { sub: "synthetic-owner" } } }) },
