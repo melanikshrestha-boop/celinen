@@ -2,10 +2,12 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   applyVoiceCommands,
+  dropLastSentence,
   dropLastUtterance,
   joinUtterance,
   tidySpeech,
 } from "../src/lib/voice/clean-transcript";
+import { dictationCaretOf, isDictateChord } from "../src/lib/voice/dictation-hotkey";
 import { downsampleToPcm16, pcm16ToWav, STT_RATE } from "../src/lib/voice/pcm";
 
 test("spoken commands match Wispr Flow", () => {
@@ -14,6 +16,7 @@ test("spoken commands match Wispr Flow", () => {
     send: true,
     stop: false,
     scratch: false,
+    sentence: false,
   });
   expect(applyVoiceCommands("scratch that")).toMatchObject({ scratch: true, text: "" });
   expect(applyVoiceCommands("new line send the gallery")).toEqual({
@@ -21,6 +24,7 @@ test("spoken commands match Wispr Flow", () => {
     send: false,
     stop: false,
     scratch: false,
+    sentence: false,
   });
   expect(applyVoiceCommands("stop listening")).toMatchObject({ stop: true });
   expect(applyVoiceCommands("hello new paragraph world")).toEqual({
@@ -28,13 +32,29 @@ test("spoken commands match Wispr Flow", () => {
     send: false,
     stop: false,
     scratch: false,
+    sentence: false,
   });
+  expect(applyVoiceCommands("cull this shoot period press enter")).toMatchObject({
+    text: "cull this shoot.",
+    send: true,
+  });
+  expect(applyVoiceCommands("delete last sentence")).toMatchObject({ sentence: true, text: "" });
 });
 
 test("tidy speech drops fillers and punctuates", () => {
   expect(tidySpeech("um open the gallery uh")).toBe("Open the gallery.");
+  expect(tidySpeech("you know cull the keepers i mean")).toBe("Cull the keepers.");
   expect(joinUtterance("Send", "a gallery.")).toBe("Send a gallery.");
   expect(dropLastUtterance("Send a gallery.", "a gallery.")).toBe("Send");
+  expect(dropLastSentence("Keep the first. Drop the rest.")).toBe("Keep the first.");
+});
+
+test("Control+Space is the in-app dictation chord and inserts at the caret", () => {
+  expect(isDictateChord({ code: "Space", ctrlKey: true, metaKey: false, altKey: false })).toBe(true);
+  expect(isDictateChord({ code: "Space", ctrlKey: true, metaKey: true, altKey: false })).toBe(false);
+  expect(
+    dictationCaretOf({ value: "hello world", selectionStart: 6, selectionEnd: 6 }, "hello world"),
+  ).toEqual({ prefix: "hello ", suffix: "world" });
 });
 
 test("pcm16 wraps a real WAV header at 16 kHz", () => {
@@ -51,11 +71,18 @@ test("home and social dictation use VoiceMic plus Grok STT", () => {
     new URL("../src/components/dashboard/SocialAccounts.tsx", import.meta.url),
     "utf8",
   );
+  const cull = readFileSync(new URL("../src/components/studio/CullChat.tsx", import.meta.url), "utf8");
+  const mic = readFileSync(new URL("../src/components/dashboard/VoiceMic.tsx", import.meta.url), "utf8");
   const stt = readFileSync(new URL("../src/lib/voice/grok-stt.ts", import.meta.url), "utf8");
   expect(home).toContain("VoiceMic");
+  expect(home).toContain("inputRef={box}");
   expect(home).not.toContain("webkitSpeechRecognition");
   expect(social).toContain("VoiceMic");
   expect(social).not.toContain("webkitSpeechRecognition");
+  expect(cull).toContain("VoiceMic");
+  expect(cull).toContain("inputRef={inputRef}");
+  expect(mic).toContain("Control+Space");
+  expect(mic).toContain("registerDictationHotkey");
   expect(stt).toContain("https://api.x.ai/v1/stt");
   expect(stt).toContain("filler_words");
   expect(stt).toContain("XAI_API_KEY");

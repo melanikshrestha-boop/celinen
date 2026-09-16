@@ -36,3 +36,19 @@ export function frameAvailabilityLabel(availability: FrameAvailability): string 
       return "preview pending";
   }
 }
+
+/**
+ * Never paint a broken <img> (browsers show a "?" glyph). Untyped blobs and
+ * failed decodes stay a placeholder until a typed JPEG/PNG/WebP URL exists.
+ */
+export function studioThumbPaint(input: {
+  availability: FrameAvailability;
+  previewUrl: string | null;
+  mime?: string | undefined;
+  broken?: boolean | undefined;
+}): "image" | "placeholder" {
+  if (input.broken) return "placeholder";
+  if (input.availability !== "ready" || !input.previewUrl) return "placeholder";
+  if (input.mime !== undefined && !input.mime.startsWith("image/")) return "placeholder";
+  return "image";
+}

@@ -649,6 +649,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                       el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
                     }}
                     onSend={(text) => send(text)}
+                    inputRef={box}
                   />
                   <button
                     type="submit"

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   applyVoiceCommands,
+  dropLastSentence,
   dropLastUtterance,
   joinUtterance,
   tidySpeech,
 } from "@/lib/voice/clean-transcript";
+import type { DictationCaret } from "@/lib/voice/dictation-hotkey";
 import { downsampleToPcm16, pcm16ToWav, rmsLevel, STT_RATE } from "@/lib/voice/pcm";
 import { transcribeWav } from "@/lib/voice/transcribe-client";
 
@@ -51,6 +53,7 @@ export function useVoiceFlow({
   const valueRef = useRef(value);
   const listeningRef = useRef(false);
   const prefixRef = useRef("");
+  const suffixRef = useRef("");
   const lastFinalRef = useRef("");
   const pcmRef = useRef<Int16Array[]>([]);
   const recRef = useRef<SpeechRec | null>(null);
@@ -64,11 +67,19 @@ export function useVoiceFlow({
     valueRef.current = value;
   }, [value]);
 
-  useEffect(() => () => stop(true), []);
+  useEffect(
+    () => () => {
+      void stop(true);
+    },
+    [],
+  );
+
+  function publish(head: string) {
+    onChange(suffixRef.current ? `${head}${suffixRef.current}` : head);
+  }
 
   function paintLive(interim: string) {
-    const next = joinUtterance(prefixRef.current, interim);
-    onChange(next);
+    publish(joinUtterance(prefixRef.current, interim));
   }
 
   async function commitUtterance(live: string) {
@@ -95,10 +106,13 @@ export function useVoiceFlow({
       return;
     }
     const cmd = applyVoiceCommands(said);
-    if (cmd.scratch) {
-      onChange(dropLastUtterance(prefixRef.current, lastFinalRef.current));
-      prefixRef.current = dropLastUtterance(prefixRef.current, lastFinalRef.current);
+    if (cmd.scratch || cmd.sentence) {
+      const next = cmd.sentence
+        ? dropLastSentence(prefixRef.current)
+        : dropLastUtterance(prefixRef.current, lastFinalRef.current);
+      prefixRef.current = next;
       lastFinalRef.current = "";
+      publish(next);
       if (cmd.stop) void stop();
       return;
     }
@@ -106,15 +120,16 @@ export function useVoiceFlow({
     const next = cleaned ? joinUtterance(prefixRef.current, cleaned) : prefixRef.current;
     prefixRef.current = next;
     lastFinalRef.current = cleaned;
-    onChange(next);
+    publish(next);
     if (cmd.send) onSend?.(next);
     if (cmd.stop) void stop();
   }
 
-  async function start() {
+  async function start(caret?: DictationCaret) {
     if (listeningRef.current) return;
     const mine = ++gen.current;
-    prefixRef.current = valueRef.current;
+    prefixRef.current = caret?.prefix ?? valueRef.current;
+    suffixRef.current = caret?.suffix ?? "";
     lastFinalRef.current = "";
     pcmRef.current = [];
     let stream: MediaStream;
@@ -232,8 +247,12 @@ export function useVoiceFlow({
     setBusy(false);
     if (!grok) return;
     const cmd = applyVoiceCommands(grok);
-    if (cmd.scratch) {
-      onChange(dropLastUtterance(prefixRef.current, lastFinalRef.current));
+    if (cmd.scratch || cmd.sentence) {
+      const next = cmd.sentence
+        ? dropLastSentence(prefixRef.current)
+        : dropLastUtterance(prefixRef.current, lastFinalRef.current);
+      prefixRef.current = next;
+      publish(next);
       return;
     }
     const cleaned = cmd.text ? tidySpeech(cmd.text) : "";
@@ -241,7 +260,7 @@ export function useVoiceFlow({
     const next = joinUtterance(prefixRef.current, cleaned);
     prefixRef.current = next;
     lastFinalRef.current = cleaned;
-    onChange(next);
+    publish(next);
     if (cmd.send) onSend?.(next);
   }
 
@@ -250,14 +269,21 @@ export function useVoiceFlow({
     else await start();
   }
 
-  function onPointerDown(event: { button: number; pointerType?: string }) {
+  function onPointerDown(
+    event: { button: number; pointerType?: string },
+    caret?: DictationCaret,
+  ) {
     if (event.button !== 0) return;
     holdAt.current = Date.now();
     held.current = false;
     if (!listeningRef.current) {
       held.current = true;
-      void start();
+      void start(caret);
     }
+  }
+
+  function begin(caret?: DictationCaret) {
+    if (!listeningRef.current) void start(caret);
   }
 
   function onPointerUp() {
@@ -269,5 +295,5 @@ export function useVoiceFlow({
     if (!held.current) void toggle();
   }
 
-  return { listening, busy, levels, toggle, onPointerDown, onPointerUp };
+  return { listening, busy, levels, toggle, begin, stop, onPointerDown, onPointerUp };
 }

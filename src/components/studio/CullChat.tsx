@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Folder, Image, Plus, X } from "lucide-react";
+import { VoiceMic } from "@/components/dashboard/VoiceMic";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useChatHistory, ChatSaveStatus } from "@/components/workbench/ChatHistory";
 import { transcriptContext, type ChatMessage } from "@/lib/chat-history";
@@ -950,6 +951,12 @@ function CullChatSession({
             disabled={history?.switching}
             placeholder={workspace ? "Message your photo assistant" : "cull this shoot…"}
             className="w-full resize-none rounded-md border border-input bg-paper px-2.5 py-2 text-[14px] text-ink outline-none placeholder:text-moss focus:border-ink/40"
+          />
+          <VoiceMic
+            value={input}
+            onChange={setInput}
+            onSend={(text) => void send(text)}
+            inputRef={inputRef}
           />
           <div
             className={

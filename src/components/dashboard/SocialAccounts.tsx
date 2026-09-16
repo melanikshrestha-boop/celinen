@@ -293,7 +293,12 @@ export function SocialAccounts() {
             >
               <Paperclip size={18} />
             </button>
-            <VoiceMic value={draft} onChange={setDraft} onSend={(text) => makePost(text)} />
+            <VoiceMic
+              value={draft}
+              onChange={setDraft}
+              onSend={(text) => makePost(text)}
+              inputRef={box}
+            />
             <button type="submit" className="social-post__send" disabled={!draft.trim()} aria-label="Send">
               <ArrowUp size={18} />
             </button>

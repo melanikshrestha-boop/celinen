@@ -5,7 +5,11 @@ import {
   getFilmstripRows,
   getFilmstripWindow,
 } from "@/lib/studio/filmstrip-window";
-import { frameAvailability, frameAvailabilityLabel } from "@/lib/studio/frame-availability";
+import {
+  frameAvailability,
+  frameAvailabilityLabel,
+  studioThumbPaint,
+} from "@/lib/studio/frame-availability";
 
 interface FilmstripProps {
   shots: Shot[];
@@ -138,7 +142,7 @@ export function Filmstrip({ shots, selectedId, onSelect, onDeadPreview, compact 
                   shot={shot}
                   selected={shot.id === selectedId}
                   onSelect={onSelect}
-                  onDeadPreview={onDeadPreview}
+                  {...(onDeadPreview ? { onDeadPreview } : {})}
                   index={numbered ? index + 1 : null}
                 />
               </div>
@@ -166,7 +170,20 @@ const FrameButton = memo(function FrameButton({
 }) {
   const availability = frameAvailability(s);
   const status = frameAvailabilityLabel(availability);
-  const showPreview = availability === "ready" && Boolean(s.previewUrl);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [s.previewUrl, s.previewBlob]);
+  useEffect(() => {
+    if (s.previewBlob && !s.previewBlob.type.startsWith("image/")) onDeadPreview?.(s.id);
+  }, [s.id, s.previewBlob, onDeadPreview]);
+  const showPreview =
+    studioThumbPaint({
+      availability,
+      previewUrl: s.previewUrl,
+      broken,
+      ...(s.previewBlob ? { mime: s.previewBlob.type } : {}),
+    }) === "image";
   return (
     <button
       onClick={() => onSelect(s.id)}
@@ -184,7 +201,10 @@ const FrameButton = memo(function FrameButton({
           alt={s.name}
           loading="lazy"
           className={`size-full object-cover ${s.verdict === "reject" ? "opacity-30" : ""}`}
-          onError={() => onDeadPreview?.(s.id)}
+          onError={() => {
+            setBroken(true);
+            onDeadPreview?.(s.id);
+          }}
         />
       ) : (
         <span

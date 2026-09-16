@@ -1,6 +1,7 @@
 import type { Shot } from "@/lib/imaging";
 import { isEventPeople, isRoster, type EventPerson, type RosterPerson } from "./people";
 import { studioDatabaseKey } from "./shoot-directory";
+import { asDevelopPreviewBlob } from "@/lib/develop/decode-preview";
 
 const VERSION = 2;
 const SESSION_STORE = "sessions";
@@ -290,6 +291,12 @@ async function hydrateStudioSession(
             ),
           ).then((items) => items.filter((item): item is StoredShot => Boolean(item)))
     ).filter((record) => (record.previewBlob?.size ?? 0) >= 32);
+    for (const record of records) {
+      if (record.previewBlob)
+        record.previewBlob = await asDevelopPreviewBlob(record.previewBlob).catch(
+          () => record.previewBlob,
+        );
+    }
     if (!records.length) {
       if (state) {
         state.knownRevision = loadedRevision;
@@ -375,12 +382,14 @@ async function persistStudioSession(
   }
   const database = await openDatabase(scope, shootId);
   try {
-    const records: StoredShot[] = shots.map(
-      ({ file: _file, previewUrl: _previewUrl, ...shot }) => ({
+    const records: StoredShot[] = await Promise.all(
+      shots.map(async ({ file: _file, previewUrl: _previewUrl, ...shot }) => ({
         ...shot,
         sourceAvailable: false,
-        previewBlob: shot.previewBlob ?? null,
-      }),
+        previewBlob: shot.previewBlob
+          ? await asDevelopPreviewBlob(shot.previewBlob).catch(() => shot.previewBlob ?? null)
+          : null,
+      })),
     );
     const transaction = database.transaction([SESSION_STORE, SHOT_STORE], "readwrite");
     const sessionStore = transaction.objectStore(SESSION_STORE);
@@ -565,8 +574,8 @@ export function clearStudioSession(
 }
 
 /** Read-only inspection: never changes the live writer's CAS baseline or makes preview URLs. */
-export async function inspectPreviousShoot(scope: string) {
-  const db = await openDatabase(scope);
+export async function inspectPreviousShoot(scope: string, shootId?: string) {
+  const db = await openDatabase(scope, shootId);
   try {
     const raw = (await requestResult(
       db.transaction(SESSION_STORE).objectStore(SESSION_STORE).get(ACTIVE_SESSION),
@@ -577,10 +586,52 @@ export async function inspectPreviousShoot(scope: string) {
   }
 }
 
+/**
+ * Empty tombstones are not a shoot. Occupied destinations are never overwritten.
+ * A completed recovery may be retried (same source, same frame count).
+ */
+export function studioCopyBlocked(
+  existing: { recoverySource?: string; shotIds?: readonly string[] } | undefined,
+  storedShotCount: number,
+  sourceScope: string,
+): "retry" | "blocked" | false {
+  const listed = existing?.shotIds?.length ?? 0;
+  const occupied = Math.max(storedShotCount, listed);
+  if (occupied > 0) {
+    if (
+      existing?.recoverySource === sourceScope &&
+      storedShotCount > 0 &&
+      storedShotCount === existing.shotIds?.length
+    )
+      return "retry";
+    return "blocked";
+  }
+  return false;
+}
+
+/**
+ * On first sign-in this device already has a library. Attach those previews to
+ * the photographer's account key. Originals stay on this machine. Nothing is
+ * uploaded. Destination is never overwritten if it already has frames.
+ *
+ * Unsigned-in work lives in the device-local default library, not a new shoot UUID.
+ */
+export async function adoptDeviceStudio(owner: string, shootId?: string): Promise<number> {
+  if (!owner || owner === "device-local") return 0;
+  const destId = shootId ?? "legacy";
+  if ((await inspectPreviousShoot(owner, destId)) > 0) return 0;
+  if (!(await inspectPreviousShoot("device-local"))) return 0;
+  try {
+    return await copyPreviousShoot("device-local", owner, destId);
+  } catch {
+    return 0;
+  }
+}
+
 /** Explicit, coherent copy into an empty shoot. The previous database is never written. */
 export async function copyPreviousShoot(sourceScope: string, owner: string, shootId: string) {
-  if (owner === "device-local" || shootId === "legacy")
-    throw new Error("Choose a signed-in account and a new shoot.");
+  if (owner === "device-local")
+    throw new Error("Choose a signed-in account.");
   const source = await openDatabase(sourceScope);
   let snapshot: StoredSession | LegacyStoredSession | undefined;
   let records: StoredShot[];
@@ -617,37 +668,36 @@ export async function copyPreviousShoot(sourceScope: string, owner: string, shoo
       const sessions = tx.objectStore(SESSION_STORE),
         shots = tx.objectStore(SHOT_STORE);
       const [existing, count] = await Promise.all([
-        requestResult(sessions.get(ACTIVE_SESSION)),
+        requestResult(sessions.get(ACTIVE_SESSION) as IDBRequest<StoredSession | undefined>),
         requestResult(shots.count()),
       ]);
-      if (existing || count) {
-        if (
-          existing?.recoverySource === sourceScope &&
-          count > 0 &&
-          count === existing.shotIds?.length
-        ) {
-          await done;
-          return count;
-        }
+      const blocked = studioCopyBlocked(existing, count, sourceScope);
+      if (blocked === "retry") {
+        await done;
+        return count;
+      }
+      if (blocked === "blocked") {
         tx.abort();
         await done.catch(() => {});
         throw new Error("Destination already contains a shoot. Nothing was overwritten.");
       }
-      sessions.add({
+      const session = {
         recoverySource: sourceScope,
         id: ACTIVE_SESSION,
         shotIds: records.map((row) => row.id),
         selectedId: snapshot.selectedId,
         filter: snapshot.filter,
         updatedAt: Date.now(),
-        revision: 1,
+        revision: existing ? nextStudioRevision(revisionOf(existing), 0) : 1,
         writerId: WRITER_ID,
         roster: "roster" in snapshot && isRoster(snapshot.roster) ? snapshot.roster : [],
         eventPeople:
           "eventPeople" in snapshot && isEventPeople(snapshot.eventPeople)
             ? snapshot.eventPeople
             : [],
-      } satisfies StoredSession);
+      } satisfies StoredSession;
+      if (existing) sessions.put(session);
+      else sessions.add(session);
       for (const row of records) shots.add(row);
       await done;
       return records.length;

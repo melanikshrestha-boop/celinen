@@ -3,6 +3,7 @@ import {
   frameAvailability,
   frameAvailabilityLabel,
   studioFrameHasVisiblePhoto,
+  studioThumbPaint,
 } from "../src/lib/studio/frame-availability";
 
 describe("culling frame availability", () => {
@@ -30,6 +31,26 @@ describe("culling frame availability", () => {
     const before = structuredClone(frame);
     expect(frameAvailability(frame)).toBe("unreadable");
     expect(frame).toEqual(before);
+  });
+
+  test("filmstrip never paints a broken-image question mark", () => {
+    expect(
+      studioThumbPaint({ availability: "ready", previewUrl: "blob:ok", mime: "image/jpeg" }),
+    ).toBe("image");
+    expect(
+      studioThumbPaint({ availability: "ready", previewUrl: "blob:untyped", mime: "" }),
+    ).toBe("placeholder");
+    expect(
+      studioThumbPaint({
+        availability: "ready",
+        previewUrl: "blob:dead",
+        mime: "image/jpeg",
+        broken: true,
+      }),
+    ).toBe("placeholder");
+    expect(studioThumbPaint({ availability: "preview-pending", previewUrl: null })).toBe(
+      "placeholder",
+    );
   });
 
   test("ghost frames without image bytes are not visible photos", () => {

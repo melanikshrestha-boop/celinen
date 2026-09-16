@@ -54,6 +54,7 @@ import { createShootRecovery } from "@/lib/studio/recovery";
 import { SaveProject } from "@/components/studio/SaveProject";
 import {
   listRecentShoots,
+  markDeviceRecovery,
   rememberShoot,
   renameShoot,
   studioDatabaseKey,
@@ -97,6 +98,7 @@ import {
   renderToCanvas,
   scoreOf,
 } from "@/lib/imaging";
+import { asDevelopPreviewBlob, decodeDevelopPreview } from "@/lib/develop/decode-preview";
 import { observationsFromPreviewUrl } from "@/lib/studio/face-descriptor";
 import { decideGallery, proposeGallery } from "@/lib/studio/gallery-select";
 import { INSIGHTFACE_WEIGHTS_NOTE, requestPeopleClusters } from "@/lib/studio/insightface";
@@ -107,6 +109,7 @@ import {
   type RosterPerson,
 } from "@/lib/studio/people";
 import {
+  adoptDeviceStudio,
   canPersistStudioSession,
   readStudioSessionSnapshot,
   saveStudioSession,
@@ -311,6 +314,14 @@ export function Studio({
   );
   const [saveBoundary] = useState(() => new StudioSaveBoundary());
   const loadStoredSession = useCallback(async () => {
+    if (!projectSession && storageScope !== "device-local") {
+      const copied = await adoptDeviceStudio(storageScope, shootId);
+      if (copied) {
+        const id = shootId ?? "legacy";
+        await rememberShoot(storageScope, id, copied, "Previous shoot").catch(() => {});
+        await markDeviceRecovery(storageScope, id).catch(() => {});
+      }
+    }
     const legacy = projectSession
       ? await projectSession.load()
       : await readStudioSessionSnapshot(storageScope, shootId);
@@ -319,7 +330,11 @@ export function Studio({
       unanalyzedIds.current = session.unanalyzedIds;
       nativeTreatmentIds.current = session.nativeTreatmentIds;
       for (const shot of session.shots) {
-        if (shot.previewBlob) shot.previewUrl = URL.createObjectURL(shot.previewBlob);
+        if (shot.previewBlob) {
+          const typed = await asDevelopPreviewBlob(shot.previewBlob).catch(() => shot.previewBlob!);
+          shot.previewBlob = typed;
+          shot.previewUrl = URL.createObjectURL(typed);
+        }
       }
       return session;
     } finally {
@@ -550,31 +565,26 @@ export function Studio({
   const dropDeadPreview = useCallback(
     (id: string) => {
       if (importingRef.current) return;
+      if (remintedPreviewRef.current.has(id)) return;
       const shot = latestShotsRef.current.find((item) => item.id === id);
       if (!shot) return;
-      if (!remintedPreviewRef.current.has(id) && (shot.previewBlob?.size ?? 0) >= 32) {
-        remintedPreviewRef.current.add(id);
-        if (shot.previewUrl) {
-          URL.revokeObjectURL(shot.previewUrl);
-          previewUrlsRef.current.delete(shot.previewUrl);
-        }
-        const url = URL.createObjectURL(shot.previewBlob!);
-        previewUrlsRef.current.add(url);
-        updateShots((current) =>
-          current.map((item) => (item.id === id ? { ...item, previewUrl: url } : item)),
-        );
-        return;
-      }
-      if (shot.previewUrl) {
-        URL.revokeObjectURL(shot.previewUrl);
-        previewUrlsRef.current.delete(shot.previewUrl);
-      }
-      updateShots((current) => current.filter((item) => item.id !== id));
-      if (latestSelectedIdRef.current === id) {
-        const next = latestShotsRef.current.find((item) => item.id !== id);
-        latestSelectedIdRef.current = next?.id ?? null;
-        setSelectedId(next?.id ?? null);
-      }
+      if ((shot.previewBlob?.size ?? 0) < 32) return;
+      remintedPreviewRef.current.add(id);
+      void asDevelopPreviewBlob(shot.previewBlob!)
+        .catch(() => shot.previewBlob!)
+        .then((typed) => {
+          if (shot.previewUrl) {
+            URL.revokeObjectURL(shot.previewUrl);
+            previewUrlsRef.current.delete(shot.previewUrl);
+          }
+          const url = URL.createObjectURL(typed);
+          previewUrlsRef.current.add(url);
+          updateShots((current) =>
+            current.map((item) =>
+              item.id === id ? { ...item, previewBlob: typed, previewUrl: url } : item,
+            ),
+          );
+        });
     },
     [updateShots],
   );
@@ -1453,7 +1463,9 @@ export function Studio({
     if (pending) return pending;
 
     const promise = (
-      shot.previewBlob ? createImageBitmap(shot.previewBlob) : decodeFile(shot.file, 1800)
+      shot.previewBlob
+        ? decodeDevelopPreview(shot.previewBlob)
+        : decodeFile(shot.file, 1800)
     )
       .then((bmp) => {
         const current = latestShotsRef.current.find((candidate) => candidate.id === shot.id);
