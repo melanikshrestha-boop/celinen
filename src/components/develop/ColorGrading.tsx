@@ -84,6 +84,9 @@ export function GradingWheel({
       alive.current = false;
       gesture.discard();
       ownership.release(owner);
+      // Ensure cleanup on unmount
+      pointer.current = null;
+      keyboard.current = null;
     };
   }, [gesture, ownership, owner]);
   // Undo, presets or a recovery receipt can replace the current recipe mid-drag.
@@ -245,6 +248,16 @@ export function ColorGrading({
       ownership.release(initial.owner);
     }
   }, [ownership, previousGrading, value.grading]);
+  
+  // Ensure cleanup on unmount
+  useLayoutEffect(() => {
+    return () => {
+      if (numericInitial.current) {
+        ownership.release(numericInitial.current.owner);
+        numericInitial.current = null;
+      }
+    };
+  }, [ownership]);
   const legacy = value.grading.model === "legacy" && !neutralGrading(value.grading);
   const patch = (
     update: Partial<DevelopSettings["grading"]>,

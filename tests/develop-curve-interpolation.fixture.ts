@@ -47,6 +47,15 @@ mock.module("react", () => ({
         slots[index] = { deps, cleanup: effect() };
       });
   },
+  useEffect(effect: () => (() => void) | void, deps: unknown[]) {
+    const index = cursor++,
+      previous = slots[index] as Slot | undefined;
+    if (!previous || deps.some((dep, i) => !Object.is(dep, previous.deps?.[i])))
+      effects.push(() => {
+        previous?.cleanup?.();
+        slots[index] = { deps, cleanup: effect() };
+      });
+  },
 }));
 const { ToneCurve } = await import("../src/components/develop/DevelopControls");
 type Node = { type?: unknown; props?: Record<string, unknown> };

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   RotateCcw,
@@ -78,12 +78,25 @@ export function DevelopSlider({
   onChange: (value: number, commit: boolean) => void;
 }) {
   const last = useRef(value);
+  const lastCommit = useRef(value);
   last.current = value;
+  
+  const handleCommit = useCallback(() => {
+    if (!disabled && last.current !== lastCommit.current) {
+      lastCommit.current = last.current;
+      onChange(last.current, true);
+    }
+  }, [disabled, onChange]);
+  
   return (
     <div className="develop-slider" id={id}>
       <label
         onDoubleClick={(event) => {
-          if (!disabled && !event.currentTarget.closest("fieldset:disabled")) onChange(reset, true);
+          if (!disabled && !event.currentTarget.closest("fieldset:disabled")) {
+            last.current = reset;
+            lastCommit.current = reset;
+            onChange(reset, true);
+          }
         }}
         title={help ? `${help} Double-click to reset.` : "Double-click to reset"}
       >
@@ -100,18 +113,15 @@ export function DevelopSlider({
         value={value}
         onChange={(e) => {
           if (disabled) return;
-          last.current = Number(e.target.value);
-          onChange(last.current, false);
+          const newValue = Number(e.target.value);
+          if (newValue !== last.current) {
+            last.current = newValue;
+            onChange(newValue, false);
+          }
         }}
-        onPointerUp={() => {
-          if (!disabled) onChange(last.current, true);
-        }}
-        onKeyUp={() => {
-          if (!disabled) onChange(last.current, true);
-        }}
-        onBlur={() => {
-          if (!disabled) onChange(last.current, true);
-        }}
+        onPointerUp={handleCommit}
+        onKeyUp={handleCommit}
+        onBlur={handleCommit}
       />
       <input
         type="number"
@@ -126,15 +136,18 @@ export function DevelopSlider({
           if (disabled) return;
           const v = Number(e.target.value);
           if (Number.isFinite(v)) {
-            last.current = Math.min(max, Math.max(min, v));
-            onChange(last.current, false);
+            const newValue = Math.min(max, Math.max(min, v));
+            if (newValue !== last.current) {
+              last.current = newValue;
+              onChange(newValue, false);
+            }
           }
         }}
-        onBlur={() => {
-          if (!disabled) onChange(last.current, true);
-        }}
+        onBlur={handleCommit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
         }}
       />
     </div>
@@ -534,6 +547,19 @@ export function DevelopControls({
   browserOnly?: boolean;
 }) {
   const [hslIndex, setHslIndex] = useState(0);
+  
+  // Reset HSL index when photo changes to avoid state sync issues
+  useEffect(() => {
+    setHslIndex(0);
+  }, [photoId]);
+  
+  // Validate mask selection - clear if mask no longer exists
+  useEffect(() => {
+    if (maskId && !value.masks.find(m => m.id === maskId)) {
+      onMask(null);
+    }
+  }, [maskId, value.masks, onMask]);
+  
   const defaults = defaultDevelopSettings();
   const scalar = (
     key: keyof DevelopSettings,
@@ -556,6 +582,73 @@ export function DevelopControls({
       onChange={(n, c) => change({ ...value, [key]: n }, label, c)}
     />
   );
+  
+  const parametricScalar = (
+    childKey: keyof DevelopSettings["parametricCurve"],
+    label: string,
+    min = -100,
+    max = 100,
+    step = 1,
+    options: { displayLabel?: string; help?: string; disabled?: boolean } = {},
+  ) => (
+    <DevelopSlider
+      key={`parametric.${childKey}`}
+      id={`slider-parametric-${String(childKey)}`}
+      label={label}
+      {...options}
+      value={(value.parametricCurve?.[childKey] ?? 0) as number}
+      min={min}
+      max={max}
+      step={step}
+      reset={0}
+      onChange={(n, c) => {
+        if (value.parametricCurve) {
+          change({ 
+            ...value, 
+            parametricCurve: { ...value.parametricCurve, [childKey]: n } 
+          }, label, c);
+        }
+      }}
+    />
+  );
+  
+  const lensScalar = (
+    section: "chromaticAberration" | "vignetteCorrection" | "transform",
+    childKey: string,
+    label: string,
+    min = -100,
+    max = 100,
+    step = 1,
+    options: { displayLabel?: string; help?: string; disabled?: boolean; reset?: number } = {},
+  ) => {
+    const sectionValue = value.lensCorrection[section];
+    const currentValue = sectionValue && typeof sectionValue === 'object' && childKey in sectionValue 
+      ? (sectionValue as any)[childKey] 
+      : 0;
+    
+    return (
+      <DevelopSlider
+        key={`lens.${section}.${childKey}`}
+        id={`slider-lens-${section}-${childKey}`}
+        label={label}
+        {...options}
+        value={currentValue as number}
+        min={min}
+        max={max}
+        step={step}
+        reset={options.reset ?? 0}
+        onChange={(n, c) => {
+          change({ 
+            ...value, 
+            lensCorrection: { 
+              ...value.lensCorrection, 
+              [section]: { ...(value.lensCorrection[section] as any), [childKey]: n } 
+            } 
+          }, label, c);
+        }}
+      />
+    );
+  };
   const crop = value.crop;
   const cropAspect = (sourceAspect * crop.width) / crop.height;
   const aspects = [
@@ -565,7 +658,7 @@ export function DevelopControls({
     { id: "3:2", label: "3 × 2", ratio: 3 / 2 },
     { id: "16:9", label: "16 × 9", ratio: 16 / 9 },
   ];
-  const currentAspect = aspects.find((a) => Math.abs(a.ratio - cropAspect) < 0.015)?.id ?? "custom";
+  const currentAspect = aspects.find((a) => Math.abs(a.ratio - cropAspect) < 0.001)?.id ?? "custom";
   const setCrop = (patch: Partial<typeof crop>, label: string, c = true) =>
     change({ ...value, crop: { ...crop, ...patch } }, label, c);
   const mask = value.masks.find((m) => m.id === maskId) ?? value.masks[0];
@@ -639,6 +732,53 @@ export function DevelopControls({
         {scalar("saturation", "Saturation")}
       </Panel>
       <Panel title="Tone Curve" disabled={browserOnly}>
+        <div className="develop-inline">
+          <span>Curve Type</span>
+          <select
+            aria-label="Curve type"
+            value={value.parametricCurve ? "parametric" : "point"}
+            onChange={(e) => {
+              const type = e.target.value;
+              if (type === "parametric") {
+                change({ 
+                  ...value, 
+                  parametricCurve: {
+                    highlights: 0,
+                    lights: 0,
+                    darks: 0,
+                    shadows: 0,
+                    pointCurve: value.curve,
+                  }
+                }, "Enable parametric curve");
+              } else {
+                change({ 
+                  ...value, 
+                  parametricCurve: undefined 
+                }, "Use point curve only");
+              }
+            }}
+          >
+            <option value="point">Point curve</option>
+            <option value="parametric">Parametric + Point</option>
+          </select>
+        </div>
+        {value.parametricCurve && (
+          <div className="develop-parametric-controls">
+            <p className="develop-control-heading">Parametric Regions</p>
+            {parametricScalar("highlights", "Parametric Highlights", -100, 100, 1, {
+              help: "Adjust the brightest tonal regions"
+            })}
+            {parametricScalar("lights", "Parametric Lights", -100, 100, 1, {
+              help: "Adjust the light tonal regions"
+            })}
+            {parametricScalar("darks", "Parametric Darks", -100, 100, 1, {
+              help: "Adjust the dark tonal regions"
+            })}
+            {parametricScalar("shadows", "Parametric Shadows", -100, 100, 1, {
+              help: "Adjust the darkest tonal regions"
+            })}
+          </div>
+        )}
         <ToneCurve key={photoId} value={value} change={change} />
       </Panel>
       <Panel title="Color Mixer" id="panel-mixer" disabled={browserOnly}>
@@ -821,6 +961,128 @@ export function DevelopControls({
             }}
           />
         ))}
+      </Panel>
+      <Panel title="Lens Correction" disabled={browserOnly}>
+        <div className="develop-inline">
+          <span>Enable</span>
+          <label>
+            <input
+              type="checkbox"
+              checked={value.lensCorrection.enabled}
+              onChange={(e) => change({ 
+                ...value, 
+                lensCorrection: { ...value.lensCorrection, enabled: e.target.checked } 
+              }, "Enable lens correction")}
+            />
+            Lens correction
+          </label>
+        </div>
+        <div className="develop-inline">
+          <span>Profile</span>
+          <select
+            aria-label="Lens profile"
+            value={value.lensCorrection.profile}
+            onChange={(e) => change({ 
+              ...value, 
+              lensCorrection: { ...value.lensCorrection, profile: e.target.value as any } 
+            }, "Lens profile")}
+          >
+            <option value="none">None</option>
+            <option value="auto">Auto</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <p className="develop-control-heading">Chromatic Aberration</p>
+        <div className="develop-inline">
+          <span>Enable</span>
+          <label>
+            <input
+              type="checkbox"
+              checked={value.lensCorrection.chromaticAberration.enabled}
+              onChange={(e) => change({ 
+                ...value, 
+                lensCorrection: { 
+                  ...value.lensCorrection, 
+                  chromaticAberration: { ...value.lensCorrection.chromaticAberration, enabled: e.target.checked } 
+                } 
+              }, "Enable chromatic aberration")}
+            />
+            Chromatic aberration
+          </label>
+        </div>
+        {lensScalar("chromaticAberration", "amount", "Amount", 0, 100, 1, {
+          help: "Amount of chromatic aberration correction",
+          reset: 50,
+          disabled: !value.lensCorrection.chromaticAberration.enabled
+        })}
+        <p className="develop-control-heading">Vignette Correction</p>
+        <div className="develop-inline">
+          <span>Enable</span>
+          <label>
+            <input
+              type="checkbox"
+              checked={value.lensCorrection.vignetteCorrection.enabled}
+              onChange={(e) => change({ 
+                ...value, 
+                lensCorrection: { 
+                  ...value.lensCorrection, 
+                  vignetteCorrection: { ...value.lensCorrection.vignetteCorrection, enabled: e.target.checked } 
+                } 
+              }, "Enable vignette correction")}
+            />
+            Vignette correction
+          </label>
+        </div>
+        {lensScalar("vignetteCorrection", "amount", "Amount", -100, 100, 1, {
+          help: "Amount of vignette correction",
+          disabled: !value.lensCorrection.vignetteCorrection.enabled
+        })}
+        <p className="develop-control-heading">Transform (Upright)</p>
+        <div className="develop-inline">
+          <span>Upright</span>
+          <select
+            aria-label="Upright mode"
+            value={value.lensCorrection.transform.upright}
+            onChange={(e) => change({ 
+              ...value, 
+              lensCorrection: { 
+                ...value.lensCorrection, 
+                transform: { ...value.lensCorrection.transform, upright: e.target.value as any } 
+              } 
+            }, "Upright mode")}
+          >
+            <option value="off">Off</option>
+            <option value="auto">Auto</option>
+            <option value="level">Level</option>
+            <option value="vertical">Vertical</option>
+            <option value="full">Full</option>
+          </select>
+        </div>
+        {lensScalar("transform", "rotation", "Rotation", -45, 45, 0.1, {
+          help: "Manual rotation adjustment",
+          reset: 0,
+          disabled: !value.lensCorrection.enabled || value.lensCorrection.transform.upright !== "off"
+        })}
+        {lensScalar("transform", "aspect", "Aspect", -100, 100, 1, {
+          help: "Aspect ratio adjustment",
+          reset: 0,
+          disabled: !value.lensCorrection.enabled || value.lensCorrection.transform.upright !== "off"
+        })}
+        {lensScalar("transform", "scale", "Scale", 50, 150, 1, {
+          help: "Scale adjustment",
+          reset: 100,
+          disabled: !value.lensCorrection.enabled
+        })}
+        {lensScalar("transform", "x", "X offset", -100, 100, 1, {
+          help: "Horizontal offset",
+          reset: 0,
+          disabled: !value.lensCorrection.enabled
+        })}
+        {lensScalar("transform", "y", "Y offset", -100, 100, 1, {
+          help: "Vertical offset",
+          reset: 0,
+          disabled: !value.lensCorrection.enabled
+        })}
       </Panel>
       <Panel title="Masking" open={tool === "mask"} disabled={browserOnly}>
         <div className="develop-button-row">

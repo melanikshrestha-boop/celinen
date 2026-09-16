@@ -48,6 +48,16 @@
   isolation: isolate;
   position: relative;
 }
+
+.develop-parametric-controls {
+  padding: 8px 0;
+  border-top: 1px solid var(--dv-line);
+  margin-top: 8px;
+}
+
+.develop-lens-controls {
+  padding: 8px 0;
+}
 html.dark .foto-develop {
   --dv-bg: #202020;
   --dv-panel: #292929;
