@@ -53,6 +53,9 @@ export function MarketingFooter() {
               <Link to="/docs">Docs</Link>
             </li>
             <li>
+              <Link to="/changelog">Changelog</Link>
+            </li>
+            <li>
               <Link to="/blog">Blog</Link>
             </li>
           </ul>

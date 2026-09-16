@@ -60,6 +60,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
               <IntegrationsMenu />
               <Link to="/pricing">Pricing</Link>
               <Link to="/docs">Docs</Link>
+              <Link to="/changelog">Changelog</Link>
             </nav>
           </NavMenuProvider>
           <div className="marketing-nav__actions">
@@ -87,7 +88,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
                   { to: "/pricing", label: "Pricing" },
                   { to: "/docs", label: "Docs" },
                   { to: "/blog", label: "Blog" },
-                  { to: "/changelog", label: "What’s new" },
+                  { to: "/changelog", label: "Changelog" },
                   { to: "/security", label: "Security" },
                 ].map((link) => (
                   <DropdownMenuItem key={link.to} asChild>

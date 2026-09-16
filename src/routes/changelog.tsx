@@ -3,7 +3,7 @@ import { PublicPage } from "@/components/marketing/PublicPage";
 import { fotoReleases, publicContentHead, publicDateLabel } from "@/lib/public-content";
 import "@/components/marketing/public-editorial.css";
 
-const description = "Recent improvements, with the limits made clear.";
+const description = "What shipped, with the limits made clear.";
 
 export const Route = createFileRoute("/changelog")({
   head: () => publicContentHead("Changelog", description, "/changelog"),
@@ -12,11 +12,7 @@ export const Route = createFileRoute("/changelog")({
 
 export function ChangelogPage() {
   return (
-    <PublicPage
-      eyebrow="Changelog"
-      title="A little better, every release."
-      description={description}
-    >
+    <PublicPage title="What's new">
       <div className="public-editorial public-editorial__releases">
         {fotoReleases.map((release) => (
           <article key={release.id} aria-labelledby={`release-${release.id}`} data-reveal>

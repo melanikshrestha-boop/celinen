@@ -373,6 +373,31 @@ export function publicDateLabel(value: string): string {
 
 export const fotoReleases = [
   {
+    id: "0363502",
+    date: "2026-09-16",
+    title: "A teacher in Develop",
+    description: "Ask for a look. A buddy points at the real sliders and says why.",
+    changes: [
+      "Type a look on the canvas — warmer, cinematic, sonder — or hold Talk.",
+      "A blue triangle flies to Temp, Tint, Highlights, and the rest. One beat, then it waits.",
+      "Color theory is drawn on the photograph: person, windows, street, skin.",
+      "Show points. Do moves the slider. Undo is one history row.",
+    ],
+    note: "Hosted Develop uses the browser renderer for basic tone. Color wheels and HSL still need the local C++ engine.",
+  },
+  {
+    id: "2a37ad8",
+    date: "2026-09-15",
+    title: "Calendar that opens Maps",
+    description: "Bookings sit in week, day, month, and year. Locations go to Google Maps.",
+    changes: [
+      "Week, day, month, quarter, and year share one calendar.",
+      "Event locations save as Google Maps search links.",
+      "Drag to create. All-day events open. The now-line crosses today.",
+    ],
+    note: "Places search uses Nominatim. A Google Maps API key is not required for search URLs.",
+  },
+  {
     id: "c079f4f",
     date: "2026-09-09",
     title: "Safer editing between photographs",

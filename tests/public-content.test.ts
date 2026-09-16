@@ -38,11 +38,19 @@ if (!process.argv.includes(flag)) {
       expect(findFotoArticle(slug)).toBeUndefined();
   });
 
-  test("changelog contains only the two verified release checkpoints, with explicit limits", () => {
-    expect(fotoReleases.map((release) => release.id)).toEqual(["c079f4f", "6948a8f"]);
-    expect(fotoReleases.every((release) => release.date === "2026-09-09")).toBe(true);
-    expect(fotoReleases[0].note).toContain("not a bulk RAW speed guarantee");
-    expect(fotoReleases[1].note).toContain("does not change your private workspace theme");
+  test("changelog lists verified ships newest first, with explicit limits", () => {
+    expect(fotoReleases.map((release) => release.id)).toEqual([
+      "0363502",
+      "2a37ad8",
+      "c079f4f",
+      "6948a8f",
+    ]);
+    expect(fotoReleases[0].date).toBe("2026-09-16");
+    expect(fotoReleases[1].date).toBe("2026-09-15");
+    expect(fotoReleases[2].note).toContain("not a bulk RAW speed guarantee");
+    expect(fotoReleases[3].note).toContain("does not change your private workspace theme");
+    expect(fotoReleases[0].note).toContain("local C++ engine");
+    expect(fotoReleases[1].note).toContain("Nominatim");
     const copy = JSON.stringify(fotoReleases);
     expect(copy).not.toMatch(
       /[0-9,]+\s+(active users|customers|photographers)|1000 photos|1,000 photos|3 seconds|100%|roadmap complete/i,
@@ -215,8 +223,11 @@ if (!process.argv.includes(flag)) {
   assert.ok(missing.includes("That article isn’t here."));
   assert.ok(missing.includes('href="/blog"'));
   const releaseHtml = render(changelog.ChangelogPage);
+  assert.ok(releaseHtml.includes('id="release-0363502"'));
+  assert.ok(releaseHtml.includes('id="release-2a37ad8"'));
   assert.ok(releaseHtml.includes('id="release-c079f4f"'));
   assert.ok(releaseHtml.includes('id="release-6948a8f"'));
+  assert.match(releaseHtml, /What(?:'|&#39;|&#x27;|&apos;)s new/);
   assert.ok(!releaseHtml.includes("Lightroom parity achieved"));
   console.log("PUBLIC_CONTENT_OK");
 }
