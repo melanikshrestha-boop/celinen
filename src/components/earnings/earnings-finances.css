@@ -1,4 +1,4 @@
-/* Books keeps its compact financial layout and shares the FOTO interface face. */
+/* Books keeps its compact financial layout and shares the Celinen interface face. */
 .iris-finances {
   --fx-bg: var(--wb-bg, #ffffff);
   --fx-strong: var(--wb-text, #1a1c22);

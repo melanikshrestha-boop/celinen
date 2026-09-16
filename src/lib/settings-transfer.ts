@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { preferencesSchema, type AccountPreferences } from "./account-preferences";
 import { workspaceLanguage } from "./workspace-language";
+import { PRODUCT_TITLE } from "./product";
 
 const transferSchema = z
   .object({
-    product: z.literal("LensLabs"),
+    product: z.union([z.literal(PRODUCT_TITLE), z.literal("LensLabs")]),
     version: z.literal(1),
     preferences: preferencesSchema,
   })
@@ -12,7 +13,7 @@ const transferSchema = z
 export const SETTINGS_FILE_MAX_BYTES = 32_768;
 export function exportSettings(preferences: AccountPreferences) {
   const text = JSON.stringify(
-    transferSchema.parse({ product: "LensLabs", version: 1, preferences }),
+    transferSchema.parse({ product: PRODUCT_TITLE, version: 1, preferences }),
     null,
     2,
   );
@@ -22,11 +23,11 @@ export function exportSettings(preferences: AccountPreferences) {
 }
 export function importSettings(text: string): AccountPreferences {
   if (new TextEncoder().encode(text).byteLength > SETTINGS_FILE_MAX_BYTES)
-    throw new Error("Choose a LensLabs settings file smaller than 32 KB.");
+    throw new Error(`Choose a ${PRODUCT_TITLE} settings file smaller than 32 KB.`);
   try {
     return transferSchema.parse(JSON.parse(text)).preferences;
   } catch {
-    throw new Error("This is not a supported LensLabs settings file. Nothing was changed.");
+    throw new Error(`This is not a supported ${PRODUCT_TITLE} settings file. Nothing was changed.`);
   }
 }
 /** Transfers may customize appearance, never expand consent or device permissions. */

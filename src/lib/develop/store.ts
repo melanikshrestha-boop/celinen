@@ -548,7 +548,7 @@ function checkedRecovery(input: unknown, target: DevelopRecoveryTarget): Develop
     .strict()
     .safeParse(input);
   if (!header.success)
-    throw new Error("This is not a supported version 1 FOTO Develop recovery file.");
+    throw new Error("This is not a supported version 1 Celinen Develop recovery file.");
   if (header.data.namespace !== namespace)
     throw new Error(
       "This recovery belongs to a different workspace or project. Open its original Develop library.",
@@ -1023,7 +1023,7 @@ export async function developPhotoFromFile(
   if (file.size > DEVELOP_ENGINE_LIMITS.maxFileBytes)
     throw new Error("Choose a photo smaller than 128 MB for Develop.");
   if (!globalThis.crypto?.subtle)
-    throw new Error("Secure photo fingerprinting is unavailable. Open FOTO on localhost or HTTPS.");
+    throw new Error("Secure photo fingerprinting is unavailable. Open Celinen on localhost or HTTPS.");
   const bytes = await readDevelopSource(file, signal);
   signal?.throwIfAborted();
   // Web Crypto cannot cancel a digest. Await it rather than leaving expensive
@@ -1223,7 +1223,7 @@ function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
       blocked = true;
       reject(
         new DevelopStorageUnavailable(
-          "Another FOTO tab is blocking local storage. Close the other tab and retry.",
+          "Another Celinen tab is blocking local storage. Close the other tab and retry.",
         ),
       );
     };

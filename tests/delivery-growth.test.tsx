@@ -33,7 +33,7 @@ const draft = () =>
     now,
   );
 const url = `https://gallery.example/review/${id()}#${"a".repeat(43)}`;
-const brand = { studioName: "Céline Nova", showLensLabsCredit: false };
+const brand = { studioName: "Céline Nova", showCelinenCredit: false };
 
 describe("permissioned gallery growth", () => {
   test("observed rotation or closure invalidates the cached invitation generation", () => {
@@ -114,7 +114,7 @@ describe("permissioned gallery growth", () => {
   test("old records retain defaults without migration", () => {
     const state = draft();
     expect(state.presentation).toBeUndefined();
-    expect(galleryPresentation(state)).toEqual({ studioName: "", showLensLabsCredit: true });
+    expect(galleryPresentation(state)).toEqual({ studioName: "", showCelinenCredit: true });
     expect(sameGalleryPresentation(state, { presentation: galleryPresentation(state) })).toBe(true);
   });
   test("presentation is bounded, Unicode-safe, and not a tracking payload", () => {
@@ -123,7 +123,7 @@ describe("permissioned gallery growth", () => {
       { ...brand, studioName: "x".repeat(101) },
       { ...brand, studioName: "hi\nthere" },
       { ...brand, token: "secret" },
-      { ...brand, showLensLabsCredit: "false" },
+      { ...brand, showCelinenCredit: "false" },
     ])
       expect(galleryPresentationSchema.safeParse(value).success).toBe(false);
   });
@@ -156,14 +156,14 @@ describe("permissioned gallery growth", () => {
       "October 1, 2026 (UTC)",
     ])
       expect(text).toContain(value);
-    expect(text).not.toContain("Delivered with LensLabs");
+    expect(text).not.toContain("Delivered with Celinen");
     expect(
       galleryInvitation(
-        { ...state, presentation: { ...brand, showLensLabsCredit: true } },
+        { ...state, presentation: { ...brand, showCelinenCredit: true } },
         url,
         now,
       ),
-    ).toContain("Delivered with LensLabs");
+    ).toContain("Delivered with Celinen");
   });
   test("closed, expired and malformed links cannot be called ready", () => {
     expect(() => galleryInvitation(draft(), url, now)).toThrow("publish");

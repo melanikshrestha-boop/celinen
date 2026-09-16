@@ -36,7 +36,7 @@ const pages = {
       "Celinen can learn from the photos you import and the edits you keep (saved snapshots and presets), so the tool gets more useful for you over time. That learning stays in your workspace. Original files remain read-only and are not copied into the style log. Celinen does not use your originals to train a shared model for other photographers.",
       "You can turn this off at any time in Settings → Privacy. Turning it off stops new samples and deletes the local style log.",
       "A full published privacy policy (retention periods, subprocessors, and regional rights) has not been configured for this build beyond the statement above. This page is not a substitute for a lawyer-reviewed policy.",
-      "Analytics cookies run only after you Accept. Reject keeps the site working and does not record visits. The choice is stored in the foto_consent cookie for one year.",
+      "Analytics cookies run only after you Accept. Reject keeps the site working and does not record visits. The choice is stored in the celinen_consent cookie for one year.",
     ],
   },
   terms: {

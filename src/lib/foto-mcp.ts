@@ -203,7 +203,7 @@ export function fotoMcpInitialize(protocolVersion?: string) {
     capabilities: { tools: {} },
     serverInfo: { name: "foto", version: "1.0.0" },
     instructions:
-      "Photography tools for FOTO. Originals stay local unless the photographer publishes a gallery copy.",
+      "Photography tools for Celinen. Originals stay local unless the photographer publishes a gallery copy.",
   };
 }
 

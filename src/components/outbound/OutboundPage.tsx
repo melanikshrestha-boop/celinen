@@ -192,11 +192,11 @@ export function OutboundPage({ scope }: { scope: string }) {
     setNotice("Exported your prospect records. CSV contains private contact data.");
   };
   return (
-    <section className="outbound-page" aria-label="FOTO outbound desk">
+    <section className="outbound-page" aria-label="Celinen outbound desk">
       <header className="out-head">
         <div>
           <h1>Outbound</h1>
-          <p>FOTO growth · private, on this device · drafts only</p>
+          <p>Celinen growth · private, on this device · drafts only</p>
         </div>
         <div className="out-actions">
           <button
@@ -351,7 +351,7 @@ export function OutboundPage({ scope }: { scope: string }) {
               <p>
                 {prospects.length
                   ? "Try another view or search."
-                  : "Add a photographer, a source link, and a specific reason FOTO might fit their work. Review the draft before sharing it."}
+                  : "Add a photographer, a source link, and a specific reason Celinen might fit their work. Review the draft before sharing it."}
               </p>
               {!prospects.length && (
                 <button className="out-button" onClick={() => setModal("add")}>
@@ -436,7 +436,7 @@ export function OutboundPage({ scope }: { scope: string }) {
               : modal === "edit"
                 ? "Edit prospect"
                 : modal === "campaign"
-                  ? "FOTO campaign"
+                  ? "Celinen campaign"
                   : modal === "import"
                     ? "Import prospects"
                     : modal === "contact"
@@ -455,7 +455,7 @@ export function OutboundPage({ scope }: { scope: string }) {
                 : modal === "suppress"
                   ? "This blocks new drafts and outreach for this contact. Their history stays intact."
                   : modal === "contact"
-                    ? "Log a message you actually sent outside FOTO. This is not a delivery receipt."
+                    ? "Log a message you actually sent outside Celinen. This is not a delivery receipt."
                     : "Saved privately on this device. Nothing is sent from this form."}
           </DialogDescription>
           {(modal === "add" || modal === "edit") && (
@@ -622,7 +622,7 @@ function ProspectDetail({
         </a>
       )}{" "}
       {p.observedOn && <span className="out-muted"> · {p.observedOn}</span>}
-      <h3>Why FOTO</h3>
+      <h3>Why Celinen</h3>
       <p>{p.fitReason || "Add a specific fit rationale."}</p>
       <ul className="out-reasons">
         {status.reasons.map((reason) => (
@@ -997,7 +997,7 @@ function ActivityForm({
           onChange={(event) => setConfirmed(event.target.checked)}
         />
         {kind === "contact"
-          ? "I actually sent this message outside FOTO."
+          ? "I actually sent this message outside Celinen."
           : kind === "suppress"
             ? "Block future outreach to this contact. Keep the record and history."
             : "This outcome actually happened. I’m recording it manually."}

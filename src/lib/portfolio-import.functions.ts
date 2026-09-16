@@ -5,7 +5,7 @@ export const importPortfolio = createServerFn({ method: "POST" })
   .inputValidator((_data: unknown) => null)
   .handler(async () => {
     throw new Error(
-      "Live website cloning is not supported. Open Portfolio import and choose saved HTML, a Pixieset folder CSV, or a FOTO migration-plan JSON to review locally.",
+      "Live website cloning is not supported. Open Portfolio import and choose saved HTML, a Pixieset folder CSV, or a Celinen migration-plan JSON to review locally.",
     );
   });
 

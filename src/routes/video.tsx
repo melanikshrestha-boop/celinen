@@ -685,7 +685,7 @@ function VideoReview() {
     const payload = {
       format: "lenslabs-video-selects/v1",
       exportedAt: new Date().toISOString(),
-      note: "References original local files. LensLabs did not upload, modify, or transcode media.",
+      note: "References original local files. Celinen did not upload, modify, or transcode media.",
       clips: keepers.map((clip) => ({
         filename: clip.name,
         durationSeconds: Number(clip.duration.toFixed(3)),
@@ -910,7 +910,7 @@ function VideoReview() {
                       </span>
                       <span className="mt-2 text-[12px] leading-relaxed text-moss">
                         Review marks and metadata were restored. Choose the matching original files
-                        to resume playback; LensLabs never stored the video bytes.
+                        to resume playback; Celinen never stored the video bytes.
                       </span>
                     </button>
                   )}
@@ -980,7 +980,7 @@ function VideoReview() {
                   Drop footage here.
                 </h1>
                 <p className="mt-2 max-w-[460px] text-[13px] leading-relaxed text-moss">
-                  LensLabs reads local metadata and plays formats your browser supports. It does not
+                  Celinen reads local metadata and plays formats your browser supports. It does not
                   upload, modify, or transcode originals.
                 </p>
                 <span className="mt-6 rounded-lg bg-ink px-4 py-2 text-[12px] font-medium text-paper2">

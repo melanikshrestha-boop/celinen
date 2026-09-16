@@ -30,8 +30,8 @@ function import(name)
   } end
   return {}
 end
-package.preload['LensLabsConfig'] = function() return { endpoint='https://example.invalid/bridge', workspace='qa-workspace', token='qa-token-not-real' } end
-local Bridge = assert(loadstring(${literal(source("LensLabsBridge"))}))()
+package.preload['CelinenConfig'] = function() return { endpoint='https://example.invalid/bridge', workspace='qa-workspace', token='qa-token-not-real' } end
+local Bridge = assert(loadstring(${literal(source("CelinenBridge"))}))()
 local result, message = Bridge.${method}(${method === "post" ? "{ kind='push', frames={{file='IMG.ARW', path='/Photos/Card/IMG.ARW'}} }" : ""})
 print(JSON:encode({ result=result or false, message=message or '', calls=calls }))
 `),
@@ -202,9 +202,9 @@ function import(name)
   } end } end
   return {}
 end
-package.preload['LensLabsConfig'] = function() return { endpoint='https://example.invalid', workspace='qa-workspace', token='qa-only' } end
-package.preload['LensLabsBridge'] = assert(loadstring(${literal(source("LensLabsBridge"))}))
-local Bridge = require 'LensLabsBridge'
+package.preload['CelinenConfig'] = function() return { endpoint='https://example.invalid', workspace='qa-workspace', token='qa-only' } end
+package.preload['CelinenBridge'] = assert(loadstring(${literal(source("CelinenBridge"))}))
+local Bridge = require 'CelinenBridge'
 Bridge.readPhoto = function() return { file='IMG.ARW', path='/Photos/Card/IMG.ARW' } end
 Bridge.writeSidecar = function() end
 local run1 = Bridge.startWatch()
@@ -215,19 +215,19 @@ local run2 = Bridge.startWatch()
 Bridge.stopWatch(run1)
 assert(run2.active)
 Bridge.stopWatch(run2)
-assert(loadstring(${literal(source("LensLabsPush"))}))() tasks[#tasks]()
+assert(loadstring(${literal(source("CelinenPush"))}))() tasks[#tasks]()
 local pushMessage = table.concat(messages, ' ')
 assert(pushMessage:find('not confirmed') and not pushMessage:find('bridge received'))
 messages = {}
-assert(loadstring(${literal(source("LensLabsWatch"))}))() tasks[#tasks]()
+assert(loadstring(${literal(source("CelinenWatch"))}))() tasks[#tasks]()
 assert(table.concat(messages, ' '):find('Live sync paused'))
 assert(Bridge.liveRun == nil)
 Bridge.startWatch()
-assert(loadstring(${literal(source("LensLabsStop"))}))()
+assert(loadstring(${literal(source("CelinenStop"))}))()
 assert(Bridge.liveRun == nil)
 messages = {}
 response = '{"ok":true,"received":1,"workspace":"qa-workspace","at":1788792001123}'
-assert(loadstring(${literal(source("LensLabsPush"))}))() tasks[#tasks]()
+assert(loadstring(${literal(source("CelinenPush"))}))() tasks[#tasks]()
 assert(table.concat(messages, ' '):find('bridge received 1 frames'))
 print('ok')`),
     ).toBe("ok");

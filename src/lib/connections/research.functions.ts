@@ -7,7 +7,7 @@ const connectionAuth = createMiddleware({ type: "function" }).client(async ({ ne
   const { data } = await supabase.auth.getSession();
   if (!data.session)
     throw new Error(
-      "Sign in to LensLabs to use in-app web search. You can still open the search on the web.",
+      "Sign in to Celinen to use in-app web search. You can still open the search on the web.",
     );
   return next({ headers: { Authorization: `Bearer ${data.session.access_token}` } });
 });
@@ -26,7 +26,7 @@ export const searchWorkspaceWeb = createServerFn({ method: "POST" })
     const key = process.env["BRAVE_SEARCH_API_KEY"];
     if (!key)
       throw new Error(
-        "In-app web search needs the search provider connected in LensLabs hosting settings.",
+        "In-app web search needs the search provider connected in Celinen hosting settings.",
       );
     return (await import("./research.server")).admittedWebSearch(context.userId, data.query, key);
   });

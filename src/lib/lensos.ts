@@ -1,5 +1,5 @@
 /**
- * LensLabs production data model + seeded mock job.
+ * Celinen production data model + seeded mock job.
  * Pick (the cull studio) is treated as already shipped; this models everything around it.
  */
 

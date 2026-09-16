@@ -195,7 +195,7 @@ export function SocialExport({
     }
     try {
       await navigator.share({ files: [file], ...(caption ? { text: caption } : {}) });
-      setMessage("Handed to your device’s share sheet. Posting is not confirmed by LensLabs.");
+      setMessage("Handed to your device’s share sheet. Posting is not confirmed by Celinen.");
     } catch (error) {
       setMessage(
         error instanceof Error && error.name === "AbortError"

@@ -163,7 +163,7 @@ export function ShortcutSettings() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {reset
-                ? "Restore the LensLabs bindings. Other preferences remain unchanged."
+                ? "Restore the Celinen bindings. Other preferences remain unchanged."
                 : "Choose an available combination, or focus the recorder and press it. Conflicting bindings are rejected."}
             </AlertDialogDescription>
           </AlertDialogHeader>

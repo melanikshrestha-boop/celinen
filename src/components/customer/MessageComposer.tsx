@@ -74,7 +74,7 @@ export function MessageComposer({
                 try {
                   await navigator.share({ title, text });
                   guard();
-                  setNotice("Share handoff finished. FOTO cannot confirm message delivery.");
+                  setNotice("Share handoff finished. Celinen cannot confirm message delivery.");
                 } finally {
                   if (alive.current) setSharing(false);
                 }

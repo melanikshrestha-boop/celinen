@@ -14,8 +14,8 @@ export function friendInvitation(configuredOrigin = APPLICATION_ORIGIN) {
     "/auth?next=%2Fworkspace&mode=signup",
     local ? PRODUCTION_ORIGIN : origin,
   );
-  const title = "Join me on LensLabs";
-  const text = "Try LensLabs for your photography workflow. Create your own account here:";
+  const title = "Join me on Celinen";
+  const text = "Try Celinen for your photography workflow. Create your own account here:";
   return {
     url,
     title,

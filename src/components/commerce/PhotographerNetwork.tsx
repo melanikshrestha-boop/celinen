@@ -291,7 +291,7 @@ export function PhotographerDirectory({
             {kind === "booking" ? "Ask about a shoot" : "Propose a collaboration"}
           </DialogTitle>
           <DialogDescription>
-            To {target?.displayName}. Your display name and message will be shared in their LensLabs
+            To {target?.displayName}. Your display name and message will be shared in their Celinen
             inbox. No payment or booking is created.
           </DialogDescription>
           <form onSubmit={send} className="commerce-desk">
@@ -412,7 +412,7 @@ export function PhotographerNetwork({ api = defaultAPI }: { api?: API }) {
       parsed.visible &&
       !JSON.parse(baseline).visible &&
       !window.confirm(
-        "Publish this profile in the public LensLabs directory? Your private account details and shoots will not be shared.",
+        "Publish this profile in the public Celinen directory? Your private account details and shoots will not be shared.",
       )
     )
       return;

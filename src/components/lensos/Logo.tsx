@@ -41,7 +41,7 @@ export function IrisGlyph() {
 }
 
 /**
- * LensLabs mark — a six-blade aperture iris.
+ * Celinen mark — a six-blade aperture iris.
  * Monochrome: inherits `currentColor`, blades alternate opacity for depth.
  */
 export function LogoMark({ size = 26, className = "" }: LogoProps) {

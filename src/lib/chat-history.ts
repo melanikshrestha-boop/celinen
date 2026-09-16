@@ -115,7 +115,7 @@ export function localChatRepository(
       resolve(request.result);
     };
     request.onerror = () => reject(request.error ?? new Error("Chat storage could not open."));
-    request.onblocked = () => reject(new Error("Close older LensLabs tabs to open chat storage."));
+    request.onblocked = () => reject(new Error("Close older Celinen tabs to open chat storage."));
   });
   return {
     async remove(id, project, revision) {

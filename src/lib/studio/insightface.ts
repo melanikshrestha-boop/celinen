@@ -1,8 +1,8 @@
 /**
- * InsightFace matching in FOTO.
+ * InsightFace matching in Celinen.
  *
  * Code (matching math) is MIT. buffalo_* / antelopev2 pretrained weights are
- * non-commercial research unless separately licensed. FOTO never auto-downloads
+ * non-commercial research unless separately licensed. Celinen never auto-downloads
  * those packs. See native/INSIGHTFACE.md and
  * https://github.com/deepinsight/insightface
  */
@@ -105,7 +105,7 @@ function integer(value: unknown, max: number): value is number {
 }
 
 export const INSIGHTFACE_WEIGHTS_NOTE =
-  "InsightFace code is MIT. buffalo_* and antelopev2 pretrained weights are non-commercial research unless separately licensed. FOTO never auto-downloads them.";
+  "InsightFace code is MIT. buffalo_* and antelopev2 pretrained weights are non-commercial research unless separately licensed. Celinen never auto-downloads them.";
 
 export function insightfacePackStatus(
   env: Record<string, string | undefined> = {},
@@ -118,8 +118,8 @@ export function insightfacePackStatus(
     recognizer: false,
     complete: false,
     note: dir
-      ? `Looking for det_10g.onnx and w600k_r50.onnx in ${dir}. Place a commercially licensed pack there. FOTO will not fetch buffalo weights.`
-      : "No InsightFace pack directory. Set FOTO_INSIGHTFACE_DIR after you obtain a commercial license. FOTO never auto-downloads buffalo weights. Matching still runs on local 512-d descriptors.",
+      ? `Looking for det_10g.onnx and w600k_r50.onnx in ${dir}. Place a commercially licensed pack there. Celinen will not fetch buffalo weights.`
+      : "No InsightFace pack directory. Set FOTO_INSIGHTFACE_DIR after you obtain a commercial license. Celinen never auto-downloads buffalo weights. Matching still runs on local 512-d descriptors.",
   };
 }
 

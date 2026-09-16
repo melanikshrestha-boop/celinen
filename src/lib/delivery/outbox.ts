@@ -221,7 +221,7 @@ function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
     ),
   );
 }
-/** Reuse LensLabs' existing non-destructive renderer. Originals and RAW files are never uploaded. */
+/** Reuse Celinen' existing non-destructive renderer. Originals and RAW files are never uploaded. */
 export async function prepareUpload(
   galleryId: string,
   file: File,

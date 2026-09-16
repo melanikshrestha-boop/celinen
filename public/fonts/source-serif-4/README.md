@@ -1,6 +1,6 @@
 # Source Serif 4
 
-FOTO uses the same interface family as Wonder, served from its own origin so
+Celinen uses the same interface family as Wonder, served from its own origin so
 rendering does not depend on a third-party font service. Large financial values
 and graph axes use the separate system-monospaced token; this family is for
 interface labels, navigation, headings, form controls and prose.

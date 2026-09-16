@@ -25,7 +25,7 @@ export const Route = createFileRoute("/portal")({
       {
         name: "description",
         content:
-          "Sign in to your LensLabs client portal to see your shoots, galleries and invoices in one place.",
+          "Sign in to your Celinen client portal to see your shoots, galleries and invoices in one place.",
       },
       { property: "og:title", content: "Client portal — Celinen" },
       {

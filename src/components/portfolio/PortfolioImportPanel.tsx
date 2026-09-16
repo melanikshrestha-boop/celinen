@@ -121,7 +121,7 @@ export function PortfolioImportPanel({
           }}
           className="mt-1"
         />
-        <span>I own this content or have permission to copy it into FOTO.</span>
+        <span>I own this content or have permission to copy it into Celinen.</span>
       </label>
       <div className="flex flex-wrap gap-2">
         <label
@@ -262,7 +262,7 @@ export function PortfolioImportPanel({
         <div className="mt-2 space-y-2 text-xs text-moss">
           <p>
             HTML: text from one saved page. Pixieset folder CSV: collection names and links only.
-            JSON: FOTO migration plan v1. Maximum 2 MiB / 1,000 collections.
+            JSON: Celinen migration plan v1. Maximum 2 MiB / 1,000 collections.
           </p>
           <p>
             No photos, video, styling, fonts, working navigation, forms or scripts are imported.

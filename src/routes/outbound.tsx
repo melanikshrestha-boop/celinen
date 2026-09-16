@@ -14,7 +14,7 @@ export const Route = createFileRoute("/outbound")({
 export function OutboundWorkspace() {
   const account = useAccount();
   if (!isLocalSingleUserMode)
-    return <p>FOTO’s founder outreach desk is available in the private local workspace.</p>;
+    return <p>Celinen’s founder outreach desk is available in the private local workspace.</p>;
   if (!account?.scope) return <p>Opening outbound…</p>;
   return <OutboundPage key={account.scope} scope={account.scope} />;
 }

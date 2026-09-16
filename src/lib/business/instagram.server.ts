@@ -8,7 +8,7 @@ function config() {
     origin = process.env["PUBLISH_ORIGIN"],
     key = process.env["SOCIAL_TOKEN_KEY"];
   if (!id || !secret || !origin || !key || !/^[a-fA-F0-9]{64}$/.test(key))
-    throw new Error("Instagram needs its app connection configured in LensLabs hosting settings.");
+    throw new Error("Instagram needs its app connection configured in Celinen hosting settings.");
   const url = new URL(origin);
   if (
     url.protocol !== "https:" ||

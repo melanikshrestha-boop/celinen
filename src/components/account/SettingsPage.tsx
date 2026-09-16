@@ -261,7 +261,7 @@ function SettingsDetails({ section }: { section: Section }) {
           <>
             <Row
               title="Learn from your photos and edits"
-              note="On: FOTO remembers looks you save (snapshots and presets) so the tool gets closer to your eye. Original files stay read-only and are not stored in that log. This is your workspace only — not a shared model for other photographers. Off: no new samples, and the log is deleted."
+              note="On: Celinen remembers looks you save (snapshots and presets) so the tool gets closer to your eye. Original files stay read-only and are not stored in that log. This is your workspace only — not a shared model for other photographers. Off: no new samples, and the log is deleted."
             >
               <Switch
                 aria-label="Learn from your photos and edits"
@@ -288,7 +288,7 @@ function SettingsDetails({ section }: { section: Section }) {
             </Row>
             <Row
               title="Browser storage"
-              note="An estimate for this entire LensLabs origin, across local profiles. Not cloud usage or a subscription allowance."
+              note="An estimate for this entire Celinen origin, across local profiles. Not cloud usage or a subscription allowance."
             >
               <span>
                 {storage?.usage !== undefined
@@ -441,7 +441,7 @@ function Connections() {
         title="Web search"
         note={
           search === true
-            ? "Brave Search is configured. A LensLabs sign-in is required for in-app results."
+            ? "Brave Search is configured. A Celinen sign-in is required for in-app results."
             : search === false
               ? "In-app search needs the search provider configured in hosting settings. You can still open a search on the web."
               : note || "Checking configuration…"

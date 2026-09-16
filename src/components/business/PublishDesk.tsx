@@ -264,7 +264,7 @@ export function PublishDesk() {
         setInstagram(false);
         setInstagramStory(false);
         setNotice(
-          "Disconnected from LensLabs. You can also revoke access in Instagram’s Apps and websites settings.",
+          "Disconnected from Celinen. You can also revoke access in Instagram’s Apps and websites settings.",
         );
         await refresh();
       } else {
@@ -615,7 +615,7 @@ export function PublishDesk() {
                       operation.current = null;
                     }}
                   />
-                  <Globe size={18} /> LensLabs portfolio
+                  <Globe size={18} /> Celinen portfolio
                 </label>
                 <label>
                   <input
@@ -890,7 +890,7 @@ export function PublishDesk() {
             <DialogDescription>
               {title} ·{" "}
               {[
-                portfolio && "LensLabs portfolio",
+                portfolio && "Celinen portfolio",
                 instagram && `Instagram @${status?.connection?.username}`,
                 instagramStory && `Instagram Story @${status?.connection?.username}`,
                 facebookStory &&

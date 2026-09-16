@@ -137,7 +137,7 @@ export function GmailConnection({ children }: { children: ReactNode }) {
         email: null,
         note: removed
           ? "Gmail access revoked."
-          : "Disconnected locally. Google could not confirm revocation; remove LensLabs access in your Google account settings.",
+          : "Disconnected locally. Google could not confirm revocation; remove Celinen access in your Google account settings.",
       });
   };
   return (

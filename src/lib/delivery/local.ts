@@ -125,7 +125,7 @@ function openDatabase(): Promise<IDBDatabase> {
     };
     request.onerror = () =>
       reject(request.error ?? new Error("Could not open local gallery storage."));
-    request.onblocked = () => reject(new Error("Close other LensLabs tabs, then try again."));
+    request.onblocked = () => reject(new Error("Close other Celinen tabs, then try again."));
   });
 }
 

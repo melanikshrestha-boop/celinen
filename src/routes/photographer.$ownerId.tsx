@@ -29,7 +29,7 @@ function PortfolioIndex() {
       </div>
       {!stories.length && <p>No public stories yet.</p>}
       <footer>
-        Photography shared with LensLabs · <a href="/">Start your own portfolio ↗</a>
+        Photography shared with Celinen · <a href="/">Start your own portfolio ↗</a>
       </footer>
     </main>
   );

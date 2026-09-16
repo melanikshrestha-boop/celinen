@@ -43,7 +43,7 @@ function Adobe() {
 
   const steps: [string, boolean, string][] = [
     ["Import Lightroom folder in the studio", active.sources.length > 0, "Studio → Lightroom folder (reads .xmp sidecars)"],
-    ["Plugin installed and pushing", active.lightroom.returns > 0 || active.lightroom.handoff, "Library → Plug-in Extras → Push selection to LensLabs"],
+    ["Plugin installed and pushing", active.lightroom.returns > 0 || active.lightroom.handoff, "Library → Plug-in Extras → Push selection to Celinen"],
     ["Picks rated and metadata approved", active.picks.some((p) => p.approved), "Metadata desk → approve"],
     ["Package created and filled", active.packages.length > 0 && picks.length > 0, "Packages → assign picks"],
     ["Edits synced back into the package", active.lightroom.returns > 0, "Import returns below, scoped to one package"],
@@ -53,8 +53,8 @@ function Adobe() {
     <Shell>
       <SectionTitle
         kicker="Adobe"
-        title="Honest handoff. LensLabs does not edit your photos."
-        sub="LensLabs writes XMP and a manifest. Lightroom stays the authority for develop and crop after handoff."
+        title="Honest handoff. Celinen does not edit your photos."
+        sub="Celinen writes XMP and a manifest. Lightroom stays the authority for develop and crop after handoff."
       />
 
       <Card className="mb-4">
@@ -95,7 +95,7 @@ function Adobe() {
               onClick={() => {
                 void bridgeCredentials().then((creds) => {
                   const endpoint = downloadLightroomPlugin(creds);
-                  push(`LensLabs.lrplugin downloaded · bridge endpoint ${endpoint}`);
+                  push(`Celinen.lrplugin downloaded · bridge endpoint ${endpoint}`);
                 });
               }}
             >
@@ -153,8 +153,8 @@ function Adobe() {
           </div>
 
           <p className="mt-4 text-[12px] text-moss">
-            LensLabs never edits a .lrcat file. Sync happens through XMP sidecars, a manifest and the
-            LensLabs Lightroom plugin — the same path Lightroom itself trusts.
+            Celinen never edits a .lrcat file. Sync happens through XMP sidecars, a manifest and the
+            Celinen Lightroom plugin — the same path Lightroom itself trusts.
           </p>
         </Card>
 
@@ -180,7 +180,7 @@ function Adobe() {
                             resolved[key] === "lens" ? "border-rust bg-rust/8" : "border-input"
                           }`}
                         >
-                          <span className="block font-mono text-[10px] uppercase text-moss">LensLabs</span>
+                          <span className="block font-mono text-[10px] uppercase text-moss">Celinen</span>
                           {c.lens}
                         </button>
                         <button

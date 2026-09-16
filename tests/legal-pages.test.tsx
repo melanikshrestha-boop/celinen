@@ -46,7 +46,7 @@ if (process.env["FOTO_LEGAL_PAGES_TEST_PROCESS"] !== "1") {
     expect(html).toContain("Privacy Policy");
     expect(html).toContain("GDPR");
     expect(html).toContain("EEA");
-    expect(html).toContain("foto_consent");
+    expect(html).toContain("celinen_consent");
     expect(html).toContain("hello@lenslab.dev");
     expect(html).not.toContain("viral");
     expect(html).not.toContain("TikTok");

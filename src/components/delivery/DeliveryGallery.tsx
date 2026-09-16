@@ -217,12 +217,12 @@ export function DeliveryGallery({
     try {
       if (!navigator.clipboard?.writeText)
         throw new Error(
-          "Clipboard access is unavailable. Download the LensLabs selection CSV instead.",
+          "Clipboard access is unavailable. Download the Celinen selection CSV instead.",
         );
       const lookup = submittedEditorLookup(state, target);
       await navigator.clipboard.writeText(lookup.text);
       setSelectionNote(
-        `Copied ${lookup.filenames.length} ${target === "lightroom" ? "Lightroom" : "Capture One"} filename${lookup.filenames.length === 1 ? "" : "s"}. The LensLabs CSV remains the exact selection record.`,
+        `Copied ${lookup.filenames.length} ${target === "lightroom" ? "Lightroom" : "Capture One"} filename${lookup.filenames.length === 1 ? "" : "s"}. The Celinen CSV remains the exact selection record.`,
       );
     } catch (error) {
       setActionError(messageOf(error));
@@ -456,7 +456,7 @@ export function DeliveryGallery({
                         "gallery-selection.csv",
                       );
                       setSelectionNote(
-                        "Selection CSV handed to your browser with exact LensLabs photo and version IDs.",
+                        "Selection CSV handed to your browser with exact Celinen photo and version IDs.",
                       );
                     } catch (error) {
                       setActionError(messageOf(error));
