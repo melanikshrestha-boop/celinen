@@ -58,6 +58,16 @@ html.dark .celinen-ios-cal__inspect {
 html.dark .celinen-ios-cal__views button[aria-selected="true"] {
   color: #f2f2f2;
 }
+html.dark .celinen-ios-cal__weekheads button.is-end,
+html.dark .celinen-ios-cal__lanes > div.is-end,
+html.dark .celinen-ios-cal__col.is-end {
+  background: rgba(255, 255, 255, 0.03);
+}
+html.dark .celinen-ios-cal__weekheads button.is-selected,
+html.dark .celinen-ios-cal__lanes > div.is-selected,
+html.dark .celinen-ios-cal__col.is-selected {
+  background: rgba(255, 255, 255, 0.055);
+}
 html.dark .celinen-ios-cal__qday.is-end {
   background: rgba(255, 255, 255, 0.04);
 }
@@ -759,16 +769,17 @@ html.dark .celinen-dash__cal {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #fff;
+  background: var(--cal-canvas);
 }
 .celinen-ios-cal__weekheads button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  min-height: 40px;
-  padding: 8px 0 4px;
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px 4px 8px;
   border: 0;
+  border-left: 1px solid var(--ios-line);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -777,21 +788,36 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__weekheads button small {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 .celinen-ios-cal__weekheads button b {
-  font-size: 13px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--ios-ink);
+  line-height: 1;
 }
 .celinen-ios-cal__weekheads button.is-today b {
   color: #fff;
   background: #2f6fed;
   border-radius: 999px;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
   display: grid;
   place-items: center;
+}
+.celinen-ios-cal__weekheads button.is-end,
+.celinen-ios-cal__lanes > div.is-end,
+.celinen-ios-cal__col.is-end {
+  background: rgba(0, 0, 0, 0.028);
+}
+.celinen-ios-cal__weekheads button.is-selected,
+.celinen-ios-cal__lanes > div.is-selected,
+.celinen-ios-cal__col.is-selected {
+  background: rgba(0, 0, 0, 0.045);
+}
+.celinen-ios-cal__weekheads button.is-today {
+  background: transparent;
 }
 .celinen-ios-cal__weekheads--day button small {
   font-size: 12px;
@@ -858,7 +884,22 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__lanes {
   display: grid;
-  min-height: 28px;
+  min-height: 32px;
+  border-bottom: 1px solid var(--ios-line);
+}
+.celinen-ios-cal__allday {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  color: var(--ios-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.celinen-ios-cal__lanes > div {
+  min-height: 32px;
+  border-left: 1px solid var(--ios-line);
 }
 .celinen-ios-cal__lanes em,
 .celinen-ios-cal__lane {
@@ -889,9 +930,9 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__hours {
   display: grid;
   grid-template-rows: repeat(16, minmax(48px, 1fr));
-  width: 48px;
-  min-width: 48px;
-  max-width: 48px;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
   color: var(--ios-muted);
   font-size: 11px;
   text-align: right;
@@ -901,6 +942,7 @@ html.dark .celinen-dash__cal {
   position: relative;
   display: grid;
   grid-template-rows: repeat(16, minmax(48px, 1fr));
+  border-left: 1px solid var(--ios-line);
   touch-action: none;
   user-select: none;
 }
@@ -965,7 +1007,7 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__now {
   position: absolute;
-  left: 48px;
+  left: 56px;
   right: 0;
   z-index: 3;
   height: 1px;
@@ -992,15 +1034,14 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__now em {
   position: absolute;
-  left: 10px;
+  right: calc(100% + 6px);
   top: 50%;
   z-index: 1;
-  display: none;
+  display: block;
   transform: translateY(-50%);
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: #c45c5c;
-  color: #fff;
+  padding: 0;
+  background: none;
+  color: #c45c5c;
   font-size: 11px;
   font-style: normal;
   font-weight: 600;

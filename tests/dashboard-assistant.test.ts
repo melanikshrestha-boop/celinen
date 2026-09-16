@@ -200,8 +200,8 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
     "utf8",
   );
   expect(source).toContain("minmax(48px, 1fr)");
-  expect(source).toContain("minWidth: 48 + dayColumns.length * 48");
-  expect(source).toContain("`48px repeat(${dayColumns.length}, minmax(48px, 1fr))`");
+  expect(source).toContain("minWidth: 56 + dayColumns.length * 48");
+  expect(source).toContain("`56px repeat(${dayColumns.length}, minmax(48px, 1fr))`");
   expect(source).not.toContain("key={`r-${hour}`}");
   expect(source.match(/className="celinen-ios-cal__hours"/g)?.length).toBe(1);
   expect(source.match(/style=\{timedGrid\}/g)?.length).toBeGreaterThanOrEqual(3);
@@ -246,7 +246,8 @@ test("now line shows the clock on hover and today is a blue dot", () => {
   expect(source).toContain("clockLabel(clock)");
   expect(source).toContain("celinen-ios-cal__now");
   expect(css).toContain(".celinen-ios-cal__now:hover em");
-  expect(css).toContain("left: 48px");
+  expect(css).toContain("left: 56px");
+  expect(css).toContain("celinen-ios-cal__allday");
   expect(source).toContain("dayColumns.some((day) => sameDay(day, today))");
   expect(css).toMatch(/button\.is-today b\s*\{[^}]*background: #2f6fed/);
 });

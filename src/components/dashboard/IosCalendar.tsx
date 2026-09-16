@@ -215,8 +215,8 @@ export function IosCalendar() {
   const week = weekDays(selected);
   const dayColumns = view === "day" ? [selected] : week;
   const timedGrid = {
-    gridTemplateColumns: `48px repeat(${dayColumns.length}, minmax(48px, 1fr))`,
-    minWidth: 48 + dayColumns.length * 48,
+    gridTemplateColumns: `56px repeat(${dayColumns.length}, minmax(48px, 1fr))`,
+    minWidth: 56 + dayColumns.length * 48,
   };
   const preview = ask.trim() ? parseShootNote(ask, { now: new Date(), selected, accent: "#2f6fed" }) : null;
   const inspected = events.find((event) => event.id === inspect) ?? null;
@@ -917,11 +917,13 @@ export function IosCalendar() {
                 <span />
                 {dayColumns.map((day) => {
                   const on = sameDay(day, today);
+                  const sel = sameDay(day, selected);
+                  const end = day.getDay() === 0 || day.getDay() === 6;
                   return (
                     <button
                       key={day.toISOString()}
                       type="button"
-                      className={on ? "is-today" : undefined}
+                      className={`${on ? "is-today" : ""}${sel ? " is-selected" : ""}${end ? " is-end" : ""}`}
                       onClick={() => setSelected(day)}
                     >
                       {view === "day" ? (
@@ -943,9 +945,12 @@ export function IosCalendar() {
                 })}
               </div>
               <div className="celinen-ios-cal__lanes" style={timedGrid}>
-                <span />
+                <span className="celinen-ios-cal__allday">all-day</span>
                 {dayColumns.map((day) => (
-                  <div key={`lane-${day.toISOString()}`}>
+                  <div
+                    key={`lane-${day.toISOString()}`}
+                    className={`${sameDay(day, selected) ? " is-selected" : ""}${day.getDay() === 0 || day.getDay() === 6 ? " is-end" : ""}`}
+                  >
                     {eventsOnDay(events, day)
                       .filter((event) => event.allDay)
                       .map((event) => (
@@ -974,7 +979,7 @@ export function IosCalendar() {
                 {dayColumns.map((day) => (
                   <div
                     key={`col-${day.toISOString()}`}
-                    className="celinen-ios-cal__col"
+                    className={`celinen-ios-cal__col${sameDay(day, today) ? " is-today" : ""}${sameDay(day, selected) ? " is-selected" : ""}${day.getDay() === 0 || day.getDay() === 6 ? " is-end" : ""}`}
                     onDoubleClick={(event) => createAt(day, event.clientY, event.currentTarget)}
                     onPointerDown={(event) => paintStart(event, day)}
                     onPointerMove={paintMove}
