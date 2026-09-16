@@ -1,9 +1,11 @@
 import { cloneDevelopSettings, type DevelopSettings } from "./contract";
 
 export type TutorSet = { path: string; delta: number };
+export type TutorDraw = "subject" | "world" | "windows" | "skin";
 export type TutorBeat = {
   open?: string;
   point?: string;
+  draw?: TutorDraw;
   say: string;
   sets: TutorSet[];
   wait: boolean;
@@ -116,16 +118,23 @@ export function parseBeats(text: string): TutorBeat[] {
   const beats: TutorBeat[] = [];
   let current: TutorBeat = { say: "", sets: [], wait: false, done: false };
   const push = () => {
-    if (current.say || current.sets.length || current.point || current.open) beats.push(current);
+    if (current.say || current.sets.length || current.point || current.open || current.draw)
+      beats.push(current);
     current = { say: "", sets: [], wait: false, done: false };
   };
   for (const line of lines) {
     const open = line.match(/^\[OPEN:([^\]]+)\]$/i);
     const point = line.match(/^\[POINT:#?([^\]]+)\]$/i);
+    const draw = line.match(/^\[DRAW:photo\.(subject|world|windows|skin)\]$/i);
     const set = line.match(/^\[SET:([^:]+):([+-]?\d+(?:\.\d+)?)\]$/i);
     if (open) {
       if (current.say || current.sets.length) push();
       current.open = open[1]!.replace(/^panel\./, "panel-");
+      continue;
+    }
+    if (draw) {
+      if (current.say || current.sets.length) push();
+      current.draw = draw[1]!.toLowerCase() as TutorDraw;
       continue;
     }
     if (point) {
@@ -189,6 +198,7 @@ Warm the person. Leave the street cold.
   const beats: string[] = ["[OPEN:panel.basic]"];
   if (alreadyWarm) {
     beats.push(
+      "[DRAW:photo.windows]",
       "[POINT:#slider-highlights]",
       "Hold the windows so warmth does not go cheap.",
       "[SET:highlights:-20]",
@@ -196,6 +206,7 @@ Warm the person. Leave the street cold.
     );
   } else {
     beats.push(
+      "[DRAW:photo.subject]",
       "[POINT:#slider-temp]",
       "Warm the person. Leave the street cold.",
       "[SET:temp:+18]",
@@ -210,6 +221,7 @@ Warm the person. Leave the street cold.
   );
   if (!alreadyWarm) {
     beats.push(
+      "[DRAW:photo.windows]",
       "[POINT:#slider-highlights]",
       "Hold the windows or the warmth turns cheap.",
       "[SET:highlights:-20]",
@@ -217,6 +229,7 @@ Warm the person. Leave the street cold.
     );
   }
   beats.push(
+    "[DRAW:photo.world]",
     "[POINT:#slider-shadows]",
     "Lift just enough to see strangers in the back.",
     "[SET:shadows:+15]",
@@ -231,6 +244,7 @@ Warm the person. Leave the street cold.
       "[SET:wheel.shadows.sat:12]",
       "[WAIT]",
       "[OPEN:panel.mixer]",
+      "[DRAW:photo.skin]",
       "[POINT:#hsl-orange-sat]",
       "Don't tan the skin. We're done.",
       "[SET:hsl.orange.sat:-8]",
@@ -245,4 +259,42 @@ Warm the person. Leave the street cold.
     );
   }
   return parseBeats(beats.join("\n")).slice(0, 6);
+}
+
+export function pointerLabel(id?: string) {
+  if (!id) return "right here";
+  if (id.includes("temp")) return "temp";
+  if (id.includes("tint")) return "tint";
+  if (id.includes("highlights")) return "highlights";
+  if (id.includes("shadows") && id.includes("wheel")) return "teal";
+  if (id.includes("shadows")) return "shadows";
+  if (id.includes("blacks")) return "blacks";
+  if (id.includes("orange")) return "skin lock";
+  return id.replace(/^slider-|^hsl-|^wheel-/, "").replace(/-/g, " ");
+}
+
+/** Clicky flight: quadratic arc, smoothstep, scale pulse, rotate to travel. */
+export function bezierArc(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  linear: number,
+) {
+  const t = linear * linear * (3 - 2 * linear);
+  const midX = (start.x + end.x) / 2;
+  const midY = (start.y + end.y) / 2;
+  const distance = Math.hypot(end.x - start.x, end.y - start.y);
+  const arc = Math.min(distance * 0.2, 80);
+  const cx = midX;
+  const cy = midY - arc;
+  const u = 1 - t;
+  const x = u * u * start.x + 2 * u * t * cx + t * t * end.x;
+  const y = u * u * start.y + 2 * u * t * cy + t * t * end.y;
+  const tangentX = 2 * u * (cx - start.x) + 2 * t * (end.x - cx);
+  const tangentY = 2 * u * (cy - start.y) + 2 * t * (end.y - cy);
+  return {
+    x,
+    y,
+    rotation: (Math.atan2(tangentY, tangentX) * 180) / Math.PI + 90,
+    scale: 1 + Math.sin(linear * Math.PI) * 0.3,
+  };
 }

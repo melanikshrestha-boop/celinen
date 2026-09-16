@@ -3,9 +3,11 @@ import { defaultDevelopSettings } from "../src/lib/develop/contract";
 import {
   applyLook,
   applySet,
+  bezierArc,
   compileLook,
   lookTitle,
   parseBeats,
+  pointerLabel,
   pointId,
 } from "../src/lib/develop/tutor";
 
@@ -54,7 +56,43 @@ Green in the shade will fight the warmth.
       { path: "wheel.shadows.sat", delta: 12 },
     ]);
     expect(beats[5]?.done).toBe(true);
+    expect(beats[0]?.draw).toBe("subject");
+    expect(beats[2]?.draw).toBe("windows");
+    expect(beats[3]?.draw).toBe("world");
+    expect(beats[5]?.draw).toBe("skin");
     expect(lookTitle(sonderAsk)).toBe("Look · Sonder dusk");
+  });
+
+  test("DRAW tags sit on the same beat as POINT and never leak into speech", () => {
+    const beats = parseBeats(`
+[DRAW:photo.subject]
+[POINT:#slider-temp]
+Warm the person. Leave the street cold.
+[SET:temp:+18]
+[WAIT]
+    `);
+    expect(beats).toHaveLength(1);
+    expect(beats[0]).toMatchObject({ draw: "subject", point: "slider-temp" });
+    expect(beats[0]?.say).not.toMatch(/\[/);
+    expect(pointerLabel("slider-temp")).toBe("temp");
+    expect(pointerLabel("wheel-shadows")).toBe("teal");
+  });
+
+  test("pointer labels stay one to three words like Clicky tags", () => {
+    expect(pointerLabel("slider-highlights").split(" ").length).toBeLessThanOrEqual(3);
+    expect(pointerLabel("hsl-orange-sat")).toBe("skin lock");
+  });
+
+  test("buddy flight arcs and lands on the target", () => {
+    const start = { x: 0, y: 100 };
+    const end = { x: 400, y: 100 };
+    const mid = bezierArc(start, end, 0.5);
+    const land = bezierArc(start, end, 1);
+    expect(mid.y).toBeLessThan(start.y);
+    expect(mid.scale).toBeGreaterThan(1.1);
+    expect(land.x).toBeCloseTo(400, 5);
+    expect(land.y).toBeCloseTo(100, 5);
+    expect(land.scale).toBeCloseTo(1, 5);
   });
 
   test("already-warm photos skip Temp and do not repeat Highlights", () => {
