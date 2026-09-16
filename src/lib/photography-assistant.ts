@@ -11,11 +11,18 @@ export function isPhotographyConversation(input: string): boolean {
     )
   )
     return false;
-  return (
+  if (/^(?:review|compare|show)(?: my| the)? (?:bursts|similar frames)[.!]?$/i.test(text))
+    return false;
+  if (
     /^(?:(?:hi|hello|hey|thanks|thank you)\b|(?:what|why|where|when|who|which|how|should|could|would|can|is|are|do|does)\b|(?:please\s+)?(?:brainstorm|plan|suggest|recommend|explain|discuss|describe|compare|draft|write|research|find|book|reserve)\b|(?:help me|tell me|let's|lets|i want|i need|i'm|i am|we want|we need)\b)/i.test(
       text,
-    ) && !/^(?:review|compare|show)(?: my| the)? (?:bursts|similar frames)[.!]?$/i.test(text)
-  );
+    )
+  )
+    return true;
+  // Lyrics, other-language hellos, half-lines: chat, not a studio command.
+  if (/[^\x00-\x7F]/.test(text) || /[,']/.test(text) || /\b(lyric|lyrics|song|verse|chorus|come with)\b/i.test(text))
+    return true;
+  return false;
 }
 
 export const PHOTOGRAPHY_ASSISTANT_POLICY = LENSLAB_PERSONALITY;

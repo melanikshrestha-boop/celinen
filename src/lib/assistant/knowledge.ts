@@ -51,6 +51,30 @@ export const PHOTOGRAPHY_KNOWLEDGE: KnowledgeDoc[] = [
     tags: ["licensing", "rights", "business", "contract"],
     body: "Personal use is not commercial use. A school, a brand, or a wire needs a written license: who, where, how long, exclusive or not. Do not tell a photographer they can 'just post it' for a client without a grant of rights.",
   },
+  {
+    id: "wedding-light",
+    title: "Wedding ceremony and reception light",
+    tags: ["wedding", "ceremony", "reception", "flash", "aisle", "bounce"],
+    body: "Ceremony: no-flash rules are common; 50/85 at f/1.8–f/2.2, 1/250 or faster for walking, ISO as needed, expose for faces not windows. Recessional: same lens, slightly more shutter. Reception: bounce off a ceiling or wall, gel to the room (CTO on tungsten), don't nuke the dance floor with direct on-camera. First dance: one bounced key plus ambient so it still looks like the room.",
+  },
+  {
+    id: "portrait-light",
+    title: "Portrait lighting patterns",
+    tags: ["portrait", "rembrandt", "loop", "butterfly", "split", "beauty"],
+    body: "Loop: small shadow off the nose, workhorse for most faces. Rembrandt: triangle on the far cheek, more drama. Butterfly/Paramount: light high on axis, glamour and beauty. Split: half the face in light, editorial or music. Catchlights in both eyes unless you are hiding one on purpose. Distance and size of the source beat modifier brand names.",
+  },
+  {
+    id: "kelvin",
+    title: "White balance in kelvin",
+    tags: ["kelvin", "wb", "white", "balance", "tungsten", "daylight", "color"],
+    body: "Daylight ~5200–5600 K, open shade ~7000–8000 K (cool), tungsten ~2800–3200 K (warm unless you correct). Mixed practicals: pick the key and let the rest go, or gel the flash. Skin too orange is often WB too warm or a gel mismatch, not 'just add teal'. Lock a custom WB from a gray card when the room will not change.",
+  },
+  {
+    id: "bounce-flash",
+    title: "Bounce flash",
+    tags: ["bounce", "flash", "ceiling", "gel", "event"],
+    body: "Point the head at a ceiling or wall, not the face. White or light surfaces only; green walls tint skin. Dial flash exposure compensation after you see the histogram, not from the LCD glow. A card or MagMod sphere is fill, not the key. If the ceiling is high and black, bounce is dead — switch to a modifier or raise ISO.",
+  },
 ];
 
 function tokens(value: string): string[] {

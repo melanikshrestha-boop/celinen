@@ -18,6 +18,8 @@ describe("Lenslab intelligence", () => {
     expect(fastTalk("lol")).toBe("What do you need — cull, an edit, events, or a lens?");
     expect(fastTalk("help me find some events")).toBeNull();
     expect(fastTalk("Plan a shoot")).toBeNull();
+    expect(fastTalk("Olá, come with us")).toBeNull();
+    expect(fastTalk("come with us now")).toBeNull();
   });
   test("routes knowledge, taste, action, diagnostic, and research", () => {
     expect(classifyAssistantIntent("What does HSS mean?")).toBe("knowledge");
@@ -34,6 +36,10 @@ describe("Lenslab intelligence", () => {
     expect(af[0]?.id).toBe("helmet-af");
     const soft = retrievePhotographyKnowledge("Why are all my basketball photos soft?");
     expect(soft.some((doc) => doc.id === "sports-shutter")).toBe(true);
+    expect(retrievePhotographyKnowledge("bounce the flash off the ceiling")[0]?.id).toBe(
+      "bounce-flash",
+    );
+    expect(retrievePhotographyKnowledge("Rembrandt vs loop lighting")[0]?.id).toBe("portrait-light");
   });
 
   test("taste engine prefers peak action over a cleaner empty portrait", () => {

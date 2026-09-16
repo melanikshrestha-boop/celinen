@@ -357,9 +357,17 @@ describe("photographer conversation, not command fragments", () => {
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Both are good depending on your preference");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("You are Lenslab");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Never introduce yourself unless asked");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("not a rapper");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("finish it in one breath");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Cursor for photographers");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).not.toContain(
       "I'm here to help with any questions related to photography",
     );
+  });
+  test("lyrics and half-lines are conversation, not cull commands", () => {
+    expect(isPhotographyConversation("Olá, come with us")).toBe(true);
+    expect(isPhotographyConversation("come with us")).toBe(true);
+    expect(isPhotographyConversation("cull this shoot")).toBe(false);
   });
 });
 
