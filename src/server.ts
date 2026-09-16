@@ -44,6 +44,45 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "accelerometer=(), camera=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()",
+  // Allowlist for Celinen: self assets, Supabase auth/API, Google OAuth, PostHog.
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self' https://accounts.google.com https://*.supabase.co",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://us.i.posthog.com https://eu.i.posthog.com https://accounts.google.com https://api.stripe.com",
+    "frame-src 'self' https://accounts.google.com https://js.stripe.com https://hooks.stripe.com https://*.supabase.co",
+    "worker-src 'self' blob:",
+    "media-src 'self' blob:",
+  ].join("; "),
+};
+
+function withSecurityHeaders(response: Response, extra?: Record<string, string>): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    if (!headers.has(key)) headers.set(key, value);
+  }
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
@@ -52,21 +91,28 @@ export default {
       const normalized = await normalizeCatastrophicSsrResponse(response);
       // Private gallery pages and RPC responses must never be cached by intermediaries.
       const path = new URL(request.url).pathname;
-      if (path.startsWith("/review/") || path.startsWith("/_serverFn/") || path.startsWith("/p/") || path.startsWith("/photographer/") || path === "/publish") {
-        const headers = new Headers(normalized.headers);
-        headers.set("Cache-Control", "private, no-store");
-        headers.set("Referrer-Policy", "no-referrer");
-        headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-        headers.set("X-Content-Type-Options", "nosniff");
-        return new Response(normalized.body, { status: normalized.status, statusText: normalized.statusText, headers });
+      if (
+        path.startsWith("/review/") ||
+        path.startsWith("/_serverFn/") ||
+        path.startsWith("/p/") ||
+        path.startsWith("/photographer/") ||
+        path === "/publish"
+      ) {
+        return withSecurityHeaders(normalized, {
+          "Cache-Control": "private, no-store",
+          "Referrer-Policy": "no-referrer",
+          "X-Robots-Tag": "noindex, nofollow, noarchive",
+        });
       }
-      return normalized;
+      return withSecurityHeaders(normalized);
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      return withSecurityHeaders(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
     }
   },
 };
