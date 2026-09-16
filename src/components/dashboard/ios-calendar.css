@@ -13,19 +13,28 @@
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 268px;
   overflow: hidden;
   padding: 0;
   background: var(--cal-canvas);
   color: var(--ios-ink);
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
 }
+.celinen-ios-cal__main {
+  order: 1;
+}
+.celinen-ios-cal__side {
+  order: 2;
+}
+.celinen-ios-cal__bookings {
+  order: 3;
+}
 .celinen-ios-cal.is-slim,
 .celinen-ios-cal.celinen-ios-cal__shell.is-slim {
   grid-template-columns: minmax(0, 1fr);
 }
 .celinen-ios-cal.celinen-ios-cal__shell:has(.celinen-ios-cal__bookings) {
-  grid-template-columns: 268px minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr) 268px 260px;
 }
 .celinen-ios-cal.is-slim.celinen-ios-cal__shell:has(.celinen-ios-cal__bookings) {
   grid-template-columns: minmax(0, 1fr) 260px;
@@ -74,6 +83,7 @@ html.dark .celinen-dash__cal {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  order: 1;
   background: var(--cal-canvas);
 }
 .celinen-ios-cal__bar {
@@ -371,10 +381,12 @@ html.dark .celinen-dash__cal {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  order: 2;
   padding: 16px 12px 16px 16px;
   overflow: auto;
   background: var(--cal-side);
   color: var(--cal-side-text);
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 .celinen-ios-cal__mini {
   flex: 0 0 auto;
