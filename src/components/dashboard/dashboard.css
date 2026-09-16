@@ -610,6 +610,7 @@ html.dark .celinen-dash__body.is-cal {
 }
 .celinen-dash__body.is-cal .celinen-dash__theme {
   top: 22px;
+  right: 280px;
 }
 html.dark .celinen-dash__brand,
 html.dark .celinen-dash__brand svg,

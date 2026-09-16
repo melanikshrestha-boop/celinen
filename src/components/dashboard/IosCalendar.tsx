@@ -628,6 +628,7 @@ export function IosCalendar() {
       ) : null}
       <div className="celinen-ios-cal__main">
       <div className="celinen-ios-cal__bar">
+        <div className="celinen-ios-cal__bar-nav">
         <button type="button" aria-label="Previous" onClick={() => step(-1)}>
           <ChevronLeft size={16} strokeWidth={1.75} />
         </button>
@@ -637,6 +638,7 @@ export function IosCalendar() {
         <button type="button" aria-label="Next" onClick={() => step(1)}>
           <ChevronRight size={16} strokeWidth={1.75} />
         </button>
+        </div>
         <div className="celinen-ios-cal__views" role="tablist" aria-label="View" ref={viewsRef}>
           {VIEWS.map((item) => (
             <button
@@ -655,6 +657,7 @@ export function IosCalendar() {
             </button>
           ))}
         </div>
+        <div className="celinen-ios-cal__bar-tools">
         <div className="celinen-ios-cal__tasks-wrap">
             <button
               type="button"
@@ -775,6 +778,7 @@ export function IosCalendar() {
         <button type="button" className="celinen-ios-cal__rail" aria-label={open ? "Hide sidebar" : "Show sidebar"} onClick={() => setOpen((value) => !value)}>
           <PanelLeft size={16} />
         </button>
+        </div>
       </div>
         <div className="celinen-ios-cal__board">
           {view === "year" ? (
