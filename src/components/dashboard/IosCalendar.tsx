@@ -628,9 +628,6 @@ export function IosCalendar() {
       ) : null}
       <div className="celinen-ios-cal__main">
       <div className="celinen-ios-cal__bar">
-        <button type="button" className="celinen-ios-cal__rail" aria-label={open ? "Hide sidebar" : "Show sidebar"} onClick={() => setOpen((value) => !value)}>
-          <PanelLeft size={16} />
-        </button>
         <button type="button" aria-label="Previous" onClick={() => step(-1)}>
           <ChevronLeft size={16} strokeWidth={1.75} />
         </button>
@@ -774,6 +771,9 @@ export function IosCalendar() {
           }}
         >
           +
+        </button>
+        <button type="button" className="celinen-ios-cal__rail" aria-label={open ? "Hide sidebar" : "Show sidebar"} onClick={() => setOpen((value) => !value)}>
+          <PanelLeft size={16} />
         </button>
       </div>
         <div className="celinen-ios-cal__board">

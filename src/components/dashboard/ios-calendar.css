@@ -483,6 +483,9 @@ html.dark .celinen-dash__cal {
   color: var(--ios-muted);
   font-size: 13px;
 }
+.celinen-ios-cal__rail {
+  margin-left: 4px;
+}
 .celinen-ios-cal__sets {
   display: flex;
   gap: 12px;
