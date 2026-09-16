@@ -1,7 +1,7 @@
 import { LENSLAB_PERSONALITY } from "./personality";
 import { classifyAssistantIntent } from "./intent";
 import { formatKnowledgeForPrompt, retrievePhotographyKnowledge } from "./knowledge";
-import { formatCultureForPrompt, retrieveCulture, wantsCulture } from "./culture";
+import { formatCultureForPrompt, loadCulture, wantsFun, type CultureBrief } from "./culture";
 import { defaultAssistantMemory, formatMemoryForPrompt, type AssistantMemory } from "./memory";
 import { formatToolsForPrompt } from "./tools";
 import { LENSLAB_TASTE } from "./taste";
@@ -17,6 +17,7 @@ export async function assembleAssistantMessages(input: {
   style?: string;
   now?: Date;
   loadLive?: typeof loadLiveSportsBrief;
+  loadCulture?: (query: string) => Promise<CultureBrief>;
 }): Promise<ChatTurn[]> {
   const lastUser = [...input.messages].reverse().find((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return false;
@@ -57,8 +58,11 @@ export async function assembleAssistantMessages(input: {
     const block = formatKnowledgeForPrompt(docs);
     if (block) extra.push({ role: "system", content: `PHOTOGRAPHY KNOWLEDGE\n${block}` });
   }
-  if (intent === "creative" || wantsCulture(ask)) {
-    const culture = formatCultureForPrompt(retrieveCulture(ask));
+  if (intent === "creative" || wantsFun(ask)) {
+    const brief = await (input.loadCulture ?? ((query: string) => loadCulture(query, { now: input.now })))(
+      ask,
+    );
+    const culture = formatCultureForPrompt(brief.hooks, brief.vibe);
     if (culture) extra.push({ role: "system", content: `CULTURE MEMORY\n${culture}` });
   }
 

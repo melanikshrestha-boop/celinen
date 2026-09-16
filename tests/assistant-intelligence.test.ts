@@ -9,7 +9,12 @@ import {
   recordTemperatureCorrection,
 } from "../src/lib/assistant/memory";
 import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
-import { retrieveCulture } from "../src/lib/assistant/culture";
+import {
+  cultureApiUrl,
+  loadCulture,
+  parseCultureResponse,
+  retrieveCulture,
+} from "../src/lib/assistant/culture";
 import { fastTalk } from "../src/lib/assistant/talk";
 
 describe("Lenslab intelligence", () => {
@@ -112,6 +117,17 @@ describe("Lenslab intelligence", () => {
     expect(research.some((row) => row.content.includes("Never invent a match"))).toBe(true);
   });
 
+  test("hi is not a canned shoot menu", async () => {
+    const assembled = await assembleAssistantMessages({
+      messages: [{ role: "user", content: "hi" }],
+      workRole: "sports",
+      loadLive: async () => "",
+      now: new Date("2026-09-16T12:00:00Z"),
+    });
+    expect(assembled.some((row) => /what's the shoot/i.test(row.content))).toBe(false);
+    expect(assembled.some((row) => row.content.includes("VIBE"))).toBe(true);
+  });
+
   test("she said hola / konichiwa is Kent Jones Don't Mind, not a culture lecture", async () => {
     expect(retrieveCulture("she said hola coma estas")[0]?.id).toBe("dont-mind");
     expect(retrieveCulture("she said conichiwa")[0]?.id).toBe("dont-mind");
@@ -122,5 +138,29 @@ describe("Lenslab intelligence", () => {
     });
     expect(assembled.some((row) => row.content.includes("Don't Mind"))).toBe(true);
     expect(assembled.some((row) => row.content.includes("Konnichiwa"))).toBe(true);
+  });
+
+  test("a hosted culture API can add hooks; a dead URL falls back", async () => {
+    expect(cultureApiUrl({ LENSLAB_CULTURE_API: "javascript:alert(1)" })).toBe("");
+    expect(parseCultureResponse({ hooks: [{ id: "x", title: "X", body: "Y", needles: ["a"] }] }).hooks[0]?.id).toBe(
+      "x",
+    );
+    const remote = await loadCulture("custom hook please", {
+      url: "https://culture.example/fun",
+      fetch: (async () =>
+        Response.json({
+          hooks: [{ id: "custom", title: "Custom", needles: ["custom"], body: "From your API." }],
+          vibe: "Be fun.",
+        })) as typeof fetch,
+    });
+    expect(remote.hooks[0]?.id).toBe("custom");
+    expect(remote.vibe).toBe("Be fun.");
+    const down = await loadCulture("she said hola coma estas", {
+      url: "https://culture.example/fun",
+      fetch: (async () => {
+        throw new Error("offline");
+      }) as typeof fetch,
+    });
+    expect(down.hooks[0]?.id).toBe("dont-mind");
   });
 });
