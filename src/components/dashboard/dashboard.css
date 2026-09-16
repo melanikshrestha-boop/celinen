@@ -608,9 +608,8 @@ html.dark .celinen-embedded-studio {
 html.dark .celinen-dash__body.is-cal {
   background: #111111;
 }
-.celinen-dash__body.is-cal .celinen-dash__theme {
-  top: 22px;
-  right: 280px;
+.celinen-dash__body.is-cal > .celinen-dash__theme {
+  display: none;
 }
 html.dark .celinen-dash__brand,
 html.dark .celinen-dash__brand svg,

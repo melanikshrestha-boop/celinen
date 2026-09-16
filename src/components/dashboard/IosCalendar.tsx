@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, PanelLeft } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Moon, PanelLeft, Sun } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { parseShootNote } from "@/lib/calendar-assist";
 import {
@@ -121,6 +121,7 @@ function MiniMonth({
   events,
   onPick,
   heading = true,
+  layout = "side",
 }: {
   month: Date;
   today: Date;
@@ -128,17 +129,21 @@ function MiniMonth({
   events: CalendarEvent[];
   onPick: (day: Date) => void;
   heading?: boolean;
+  layout?: "side" | "year";
 }) {
   const cells = monthGrid(month.getFullYear(), month.getMonth());
+  const year = layout === "year";
   return (
-    <div className="celinen-ios-cal__mini">
-      {heading ? <p>{month.toLocaleString("en-US", { month: "long", year: "numeric" })}</p> : null}
-      <div className="celinen-ios-cal__mini-week">
-        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+    <div className={year ? "celinen-ios-cal__ymonth" : "celinen-ios-cal__mini"}>
+      {heading ? (
+        <p>{month.toLocaleString("en-US", { month: year ? "long" : "long", year: year ? undefined : "numeric" })}</p>
+      ) : null}
+      <div className={year ? "celinen-ios-cal__ymonth-week" : "celinen-ios-cal__mini-week"}>
+        {(year ? WEEK : ["S", "M", "T", "W", "T", "F", "S"]).map((d, i) => (
           <span key={`${d}-${i}`}>{d}</span>
         ))}
       </div>
-      <div className="celinen-ios-cal__mini-grid">
+      <div className={year ? "celinen-ios-cal__ymonth-grid" : "celinen-ios-cal__mini-grid"}>
         {cells.map((cell) => {
           const hits = eventsOnDay(events, cell.date);
           const on = sameDay(cell.date, today);
@@ -565,6 +570,24 @@ export function IosCalendar() {
               <h2>
                 {monthName} <span>{yearName}</span>
               </h2>
+              <div className="celinen-dash__theme celinen-ios-cal__theme" role="group" aria-label="Appearance">
+                <button
+                  type="button"
+                  aria-label="Light"
+                  aria-pressed={account?.preferences.theme === "light"}
+                  onClick={() => account?.savePreferences({ theme: "light" })}
+                >
+                  <Sun size={14} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dark"
+                  aria-pressed={account?.preferences.theme === "dark"}
+                  onClick={() => account?.savePreferences({ theme: "dark" })}
+                >
+                  <Moon size={14} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              </div>
             </div>
             <MiniMonth
               month={new Date(selected.getFullYear(), selected.getMonth(), 1)}
@@ -783,19 +806,23 @@ export function IosCalendar() {
         <div className="celinen-ios-cal__board">
           {view === "year" ? (
             <div className="celinen-ios-cal__year">
-              {Array.from({ length: 12 }, (_, index) => new Date(selected.getFullYear(), index, 1)).map((month) => (
-                <MiniMonth
-                  key={month.toISOString()}
-                  month={month}
-                  today={today}
-                  selected={selected}
-                  events={events}
-                  onPick={(day) => {
-                    setSelected(day);
-                    setView("week");
-                  }}
-                />
-              ))}
+              <p className="celinen-ios-cal__year-label">{selected.getFullYear()}</p>
+              <div className="celinen-ios-cal__year-grid">
+                {Array.from({ length: 12 }, (_, index) => new Date(selected.getFullYear(), index, 1)).map((month) => (
+                  <MiniMonth
+                    key={month.toISOString()}
+                    month={month}
+                    today={today}
+                    selected={selected}
+                    events={events}
+                    layout="year"
+                    onPick={(day) => {
+                      setSelected(day);
+                      setView("week");
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           ) : view === "quarter" ? (
             <div className="celinen-ios-cal__quarter">

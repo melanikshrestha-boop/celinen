@@ -206,6 +206,10 @@ test("calendar timed rows share readable minimum tracks and scroll together", ()
   expect(source.match(/className="celinen-ios-cal__hours"/g)?.length).toBe(1);
   expect(source.match(/style=\{timedGrid\}/g)?.length).toBeGreaterThanOrEqual(3);
   expect(css).toContain("grid-template-columns: minmax(0, 1fr) 268px");
+  expect(css).toContain(".celinen-ios-cal__year-grid");
+  expect(css).toContain("repeat(4, minmax(0, 1fr))");
+  expect(source).toContain('layout="year"');
+  expect(source).toContain("celinen-ios-cal__theme");
   expect(css).toContain("@container (max-width: 700px)");
   expect(css).toContain("width: max-content");
   expect(css).toContain(".celinen-ios-cal__quarter");

@@ -347,7 +347,10 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
   margin: 0 0 12px;
 }
 .celinen-ios-cal__brand h2 {
@@ -355,10 +358,19 @@ html.dark .celinen-dash__cal {
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.04em;
+  line-height: 1;
   color: #fff;
 }
 .celinen-ios-cal__brand span {
   color: #e24b4b;
+}
+.celinen-ios-cal__theme {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: 2;
+  flex: 0 0 auto;
+  align-self: center;
 }
 .celinen-ios-cal__plus {
   min-width: 28px;
@@ -454,6 +466,88 @@ html.dark .celinen-dash__cal {
   height: 3px;
   border-radius: 999px;
   transform: translateX(-50%);
+}
+.celinen-ios-cal__year {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-height: 100%;
+  padding: 12px 28px 40px;
+  overflow: auto;
+}
+.celinen-ios-cal__year-label {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: #e24b4b;
+}
+.celinen-ios-cal__year-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 36px 32px;
+}
+.celinen-ios-cal__ymonth p {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.celinen-ios-cal__ymonth-week,
+.celinen-ios-cal__ymonth-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.celinen-ios-cal__ymonth-week {
+  margin-bottom: 6px;
+  color: var(--ios-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.celinen-ios-cal__ymonth-grid button {
+  position: relative;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ios-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.celinen-ios-cal__ymonth-grid button.is-out {
+  color: color-mix(in srgb, var(--ios-ink) 28%, transparent);
+}
+.celinen-ios-cal__ymonth-grid button.is-today {
+  color: #fff;
+  background: #2f6fed;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.celinen-ios-cal__ymonth-grid button.is-selected:not(.is-today) {
+  font-weight: 700;
+}
+.celinen-ios-cal__ymonth-grid button i {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+@container (max-width: 1100px) {
+  .celinen-ios-cal__year-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container (max-width: 780px) {
+  .celinen-ios-cal__year-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .celinen-ios-cal__list {
   margin: 0;
