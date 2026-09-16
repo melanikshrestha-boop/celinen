@@ -13,6 +13,10 @@ function key(scope: string) {
   return `celinen.calendar.v1:${scope}`;
 }
 
+export function isCalendarDeleteCommand(title: string) {
+  return /^\s*delete\s*$/i.test(title);
+}
+
 export function emptyCalendarState(): CalendarState {
   return { feedUrl: "", feedEvents: [], localEvents: [], accent: "#ff3b30" };
 }

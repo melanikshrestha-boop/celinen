@@ -9,6 +9,14 @@ import {
   quarterWeeks,
   sameDay,
 } from "../src/lib/calendar-ics";
+import { isCalendarDeleteCommand } from "../src/lib/calendar-store";
+
+test("typing Delete on a note is a delete command", () => {
+  expect(isCalendarDeleteCommand("Delete")).toBe(true);
+  expect(isCalendarDeleteCommand(" delete ")).toBe(true);
+  expect(isCalendarDeleteCommand("dih")).toBe(false);
+  expect(isCalendarDeleteCommand("Delete later")).toBe(false);
+});
 
 test("Google and Calendar iCal hosts are accepted, junk is not", () => {
   expect(
@@ -87,6 +95,7 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(cal).toContain("Quarter");
   expect(cal).toContain("All Tasks");
   expect(cal).toContain("onDoubleClick");
+  expect(cal).toContain('event.key === "Delete"');
   expect(cal).toContain('"week"');
   expect(cal).toContain('"quarter"');
   expect(cal).toContain("Day");

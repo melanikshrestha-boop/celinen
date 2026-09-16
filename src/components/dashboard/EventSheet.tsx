@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { mapsSearchUrl, searchPlaces, type MapPlace } from "@/lib/maps-places";
+import { isCalendarDeleteCommand } from "@/lib/calendar-store";
 
 export type EventSheetValue = {
   id?: string;
@@ -73,13 +74,31 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault();
+          if (onDelete && isCalendarDeleteCommand(value.title)) {
+            onDelete();
+            return;
+          }
           onSave();
         }}
       >
         <input
           ref={titleRef}
           value={value.title}
-          onChange={(event) => onChange({ ...value, title: event.target.value })}
+          onChange={(event) => {
+            const title = event.target.value;
+            if (onDelete && mode === "edit" && isCalendarDeleteCommand(title)) {
+              onDelete();
+              return;
+            }
+            onChange({ ...value, title });
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Delete" && onDelete && mode === "edit") {
+              event.preventDefault();
+              event.stopPropagation();
+              onDelete();
+            }
+          }}
           placeholder="Add Title"
           aria-label="Add Title"
         />

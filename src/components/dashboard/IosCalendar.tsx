@@ -21,6 +21,7 @@ import {
 import {
   allCalendarEvents,
   emptyCalendarState,
+  isCalendarDeleteCommand,
   readCalendarState,
   writeCalendarState,
 } from "@/lib/calendar-store";
@@ -350,12 +351,16 @@ export function IosCalendar() {
 
   function openSheet(mode: "create" | "edit", value: EventSheetValue, el: HTMLElement) {
     const box = el.getBoundingClientRect();
-    setInspect(null);
+    setInspect(value.id ?? null);
     setSheet({ mode, value, anchor: { top: box.bottom + 8, left: box.left } });
   }
 
   function saveSheet() {
     if (!sheet) return;
+    if (sheet.mode === "edit" && sheet.value.id && isCalendarDeleteCommand(sheet.value.title)) {
+      removeEvent(sheet.value.id);
+      return;
+    }
     const title = sheet.value.title.trim() || "Shoot";
     const location = sheet.value.location.trim();
     const mapsUrl = (sheet.value.mapsUrl.trim() || (location ? mapsSearchUrl(location) : "")).slice(0, 2000);
@@ -416,7 +421,20 @@ export function IosCalendar() {
     .slice(0, 18);
 
   function onKey(event: KeyboardEvent) {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+    const inField =
+      event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+    const selectedId = sheet?.value.id || inspect;
+    if (event.key === "Delete" && selectedId) {
+      event.preventDefault();
+      removeEvent(selectedId);
+      return;
+    }
+    if (event.key === "Backspace" && selectedId && !inField) {
+      event.preventDefault();
+      removeEvent(selectedId);
+      return;
+    }
+    if (inField) {
       if (event.key === "Escape") (event.target as HTMLElement).blur();
       return;
     }
@@ -444,9 +462,6 @@ export function IosCalendar() {
       setTasksOpen(false);
       setViewsOpen(false);
       unlockViews();
-    }
-    else if (event.key === "Delete" || event.key === "Backspace") {
-      if (sheet?.value.id) removeEvent(sheet.value.id);
     }
   }
 
@@ -967,6 +982,7 @@ export function IosCalendar() {
                             setSelected(day);
                             openSheet("edit", valueFromEvent(event), click.currentTarget);
                           }}
+                          onDoubleClick={(click) => click.stopPropagation()}
                         >
                           {event.title}
                         </button>
@@ -1035,6 +1051,13 @@ export function IosCalendar() {
                           onPointerCancel={endMove}
                           onClick={(click) => {
                             setSelected(day);
+                            setInspect(event.id);
+                            openSheet("edit", valueFromEvent(event), click.currentTarget);
+                          }}
+                          onDoubleClick={(click) => {
+                            click.stopPropagation();
+                            setSelected(day);
+                            setInspect(event.id);
                             openSheet("edit", valueFromEvent(event), click.currentTarget);
                           }}
                         >
