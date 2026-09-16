@@ -177,6 +177,9 @@ export function DevelopViewer({
               src={displayedUrl ?? undefined}
               alt={before ? "Before adjustments" : "Developed photo"}
               draggable={false}
+              onError={(e) => {
+                e.currentTarget.removeAttribute("src");
+              }}
               onLoad={(e) => {
                 const img = e.currentTarget;
                 if (img.currentSrc !== displayedUrl) return;

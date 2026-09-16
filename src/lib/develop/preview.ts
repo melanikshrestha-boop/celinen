@@ -1,7 +1,13 @@
 import { BROWSER_DEVELOP_ENGINE } from "./browser-render";
 import { defaultDevelopSettings } from "./contract";
 import { developEngineStatus, renderDevelop } from "./client";
-import { asDevelopPreviewBlob, decodeDevelopPreview } from "./decode-preview";
+import {
+  asDevelopPreviewBlob,
+  decodeDevelopPreview,
+  isWebDevelopPreview,
+  jpegFromBitmap,
+  sniffDevelopPreviewType,
+} from "./decode-preview";
 
 export type DevelopPreviewResult = {
   previewBlob: Blob;
@@ -9,6 +15,17 @@ export type DevelopPreviewResult = {
   width: number;
   height: number;
 };
+
+async function webPreviewBlob(blob: Blob): Promise<Blob> {
+  const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+  if (isWebDevelopPreview(sniffDevelopPreviewType(header))) return asDevelopPreviewBlob(blob);
+  const bitmap = await decodeDevelopPreview(blob);
+  try {
+    return await jpegFromBitmap(bitmap);
+  } finally {
+    bitmap.close();
+  }
+}
 
 async function measurePreview(preview: Blob, signal: AbortSignal) {
   signal.throwIfAborted();
@@ -27,8 +44,25 @@ export async function rasterDevelopPreview(
   file: Blob,
   signal: AbortSignal,
 ): Promise<DevelopPreviewResult> {
-  const size = await measurePreview(file, signal);
-  return { previewBlob: await asDevelopPreviewBlob(file), previewOrigin: "raster", ...size };
+  signal.throwIfAborted();
+  const bitmap = await decodeDevelopPreview(file);
+  try {
+    signal.throwIfAborted();
+    if (!bitmap.width || !bitmap.height) throw new Error("This photo could not be decoded.");
+    const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const sniffed = sniffDevelopPreviewType(header);
+    const previewBlob = isWebDevelopPreview(sniffed)
+      ? await asDevelopPreviewBlob(file)
+      : await jpegFromBitmap(bitmap);
+    return {
+      previewBlob,
+      previewOrigin: "raster",
+      width: bitmap.width,
+      height: bitmap.height,
+    };
+  } finally {
+    bitmap.close();
+  }
 }
 
 /**
@@ -52,7 +86,7 @@ export async function prepareDevelopPreview(
     });
     const size = await measurePreview(preview, signal);
     return {
-      previewBlob: await asDevelopPreviewBlob(preview),
+      previewBlob: await webPreviewBlob(preview),
       previewOrigin: input.isRaw ? "unknown" : "raster",
       ...size,
     };
@@ -67,7 +101,7 @@ export async function prepareDevelopPreview(
         ...(options.priority ? { priority: options.priority } : {}),
       });
       const size = await measurePreview(preview, signal);
-      return { previewBlob: await asDevelopPreviewBlob(preview), previewOrigin: "raw-demosaic", ...size };
+      return { previewBlob: await webPreviewBlob(preview), previewOrigin: "raw-demosaic", ...size };
     }
     try {
       return await rasterDevelopPreview(file, signal);

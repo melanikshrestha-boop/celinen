@@ -44,10 +44,10 @@ function stamp(day: Date, hours: number, minutes: number) {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hours, minutes, 0, 0).getTime();
 }
 
-function nextWeekday(from: Date, weekday: number) {
-  const delta = (weekday - from.getDay() + 7) % 7;
-  const next = new Date(from.getFullYear(), from.getMonth(), from.getDate() + delta);
-  return next;
+function nextWeekday(from: Date, weekday: number, skipToday = false) {
+  let delta = (weekday - from.getDay() + 7) % 7;
+  if (skipToday && delta === 0) delta = 7;
+  return new Date(from.getFullYear(), from.getMonth(), from.getDate() + delta);
 }
 
 function takeTime(rest: string): {
@@ -130,12 +130,14 @@ function takeDate(rest: string, now: Date, selected: Date): { rest: string; day:
       };
     }
   }
+  const wantsNext = /\bnext\b/i.test(rest);
+  rest = rest.replace(/\bnext\b/i, " ").replace(/\s+/g, " ").trim();
   for (const [index, name] of WEEKDAYS.entries()) {
     const re = new RegExp(`\\b${name}\\b`, "i");
     if (re.test(rest)) {
       return {
         rest: rest.replace(re, " ").replace(/\s+/g, " ").trim(),
-        day: nextWeekday(now, index),
+        day: nextWeekday(now, index, wantsNext),
       };
     }
   }

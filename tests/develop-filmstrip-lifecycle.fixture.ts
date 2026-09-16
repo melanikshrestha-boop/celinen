@@ -198,7 +198,8 @@ globalThis.getComputedStyle = () =>
   }) as CSSStyleDeclaration;
 const { DevelopFilmstrip, DevelopFilmstripThumb } =
   await import("../src/components/develop/DevelopFilmstrip");
-const original = new Blob(["small saved preview"]);
+const jpegBytes = Uint8Array.of(0xff, 0xd8, 0xff, 0xd9, 0x00);
+const original = new Blob([jpegBytes], { type: "image/jpeg" });
 const photos = Array.from({ length: 1000 }, (_, i): DevelopPhoto => ({
   id: `qa:${i}`,
   name: `Authored ${i}.jpg`,
@@ -225,8 +226,8 @@ props = {
     root.dirty = true;
   },
 };
-function flush() {
-  for (let pass = 0; pass < 20; pass++) {
+async function flush() {
+  for (let pass = 0; pass < 40; pass++) {
     group = root.render(DevelopFilmstrip, props) as Element;
     (group.props!.ref as { current: unknown }).current = container;
     const rows = nodes(group).filter(
@@ -258,6 +259,7 @@ function flush() {
       value.thumb.commit();
     }
     root.commit();
+    for (let spin = 0; spin < 20; spin++) await Promise.resolve();
     if (
       !root.dirty &&
       [...mounted.values()].every((value) => !value.frame.dirty && !value.thumb.dirty)
@@ -266,18 +268,18 @@ function flush() {
   }
   throw new Error("Filmstrip did not settle after bounded render passes");
 }
-function frame() {
+async function frame() {
   const callbacks = [...rafs.values()];
   rafs.clear();
   callbacks.forEach((callback) => callback(0));
-  flush();
+  await flush();
 }
-function scroll(left: number) {
+async function scroll(left: number) {
   container.scrollLeft = left;
   (group.props!.onScroll as () => void)();
-  frame();
+  await frame();
 }
-flush();
+await flush();
 check(group.props?.["data-photo-count"] === 1000, "Logical count was replaced by mounted count");
 check(
   mounted.size === 12 && liveUrls.size === mounted.size,
@@ -302,7 +304,7 @@ check(
 );
 const initialUrl = [...liveUrls.keys()][0]!;
 mounted.get("qa:0")!.button.focus();
-flush();
+await flush();
 // React StrictMode replays mounted effects without resetting hook state or DOM refs.
 // Parent cleanup precedes descendants; descendant setups precede parent layouts.
 root.replayCleanup();
@@ -316,7 +318,7 @@ for (const value of mounted.values()) {
   value.thumb.replaySetup();
 }
 root.replaySetup();
-flush();
+await flush();
 check(
   liveUrls.size === mounted.size,
   "StrictMode replay did not reacquire exactly its mounted URLs",
@@ -329,7 +331,7 @@ const priorSchedules = scheduled;
 container.scrollLeft = 111114;
 for (let i = 0; i < 100; i++) (group.props!.onScroll as () => void)();
 check(scheduled === priorSchedules + 1 && rafs.size === 1, "Scroll events are not RAF-coalesced");
-frame();
+await frame();
 check(
   mounted.has("qa:999") && mounted.has("qa:0"),
   "Scrolling lost the last frame or unmounted focused row",
@@ -344,7 +346,7 @@ check(
 );
 check(selections.length === 0 && props.selected === "qa:0", "Scrolling selected a photograph");
 props = { ...props, photos: [...props.photos] };
-flush();
+await flush();
 check(
   container.scrollLeft === 111114 && mounted.has("qa:999"),
   "An unrelated parent array render snapped scroll back to selected",
@@ -354,7 +356,7 @@ check(
   currentTarget: container,
 });
 documentState.activeElement = new FakeNode();
-flush();
+await flush();
 check(
   !mounted.has("qa:0") && revoked.includes(initialUrl),
   "Blur did not release the offscreen focused thumbnail URL",
@@ -375,7 +377,7 @@ let prevented = false,
   metaKey: false,
   ctrlKey: false,
 });
-flush();
+await flush();
 check(
   prevented && stopped && props.selected === "qa:999",
   "End did not perform real last-photo selection",
@@ -397,7 +399,7 @@ check(
   metaKey: false,
   ctrlKey: false,
 });
-flush();
+await flush();
 check(
   props.selected === "qa:0" && selections.at(-1)?.multi,
   "Home lost multi-select modifier behavior",
@@ -410,7 +412,7 @@ const beforeArrow = selections.length;
 (group.props!.onKeyDown as (event: unknown) => void)({ key: "ArrowRight" });
 check(selections.length === beforeArrow, "Filmstrip intercepted the existing global arrow handler");
 props = { ...props, selected: "qa:500", selectedIds: new Set(["qa:500"]) };
-flush();
+await flush();
 check(
   mounted.has("qa:500") && documentState.activeElement === mounted.get("qa:500")?.button,
   "Controlled global navigation did not reveal/focus selected row",
@@ -425,20 +427,20 @@ const chosen = mounted.get("qa:500")!;
   metaKey: true,
   ctrlKey: false,
 });
-flush();
+await flush();
 check(
   selections.at(-1)?.id === "qa:500" && selections.at(-1)?.multi,
   "Meta click changed selection semantics",
 );
 const oldUrls = new Set(liveUrls.keys()),
-  replacement = new Blob(["updated preview"]);
+  replacement = new Blob([Uint8Array.of(0xff, 0xd8, 0xff, 0xd8, 0x00)], { type: "image/jpeg" });
 props = {
   ...props,
   photos: props.photos.map((photo) =>
     photo.id === "qa:500" ? { ...photo, previewBlob: replacement } : photo,
   ),
 };
-flush();
+await flush();
 check(
   [...liveUrls.values()].includes(replacement),
   "Changed source did not get its own thumbnail URL",
@@ -450,7 +452,7 @@ check(
 width = 390;
 itemWidth = 95;
 resize?.();
-frame();
+await frame();
 check(group.props?.["data-item-stride"] === 97, "Responsive item width was not measured");
 check(
   mounted.size <= Math.ceil(390 / 97) + 10,
@@ -463,7 +465,7 @@ props = {
   selected: "qa:501",
   selectedIds: new Set(["qa:501"]),
 };
-flush();
+await flush();
 check(
   mounted.has("qa:501") && documentState.activeElement === mounted.get("qa:501")?.button,
   "Filtering a focused row stranded focus on body",
@@ -473,14 +475,14 @@ check(
   "Filtered global index is not logical-list based",
 );
 props = { ...props, photos: [], selected: null, selectedIds: new Set() };
-flush();
+await flush();
 check(mounted.size === 0 && liveUrls.size === 0, "Empty filter retained every photo URL");
 check(
   group.props?.tabIndex === 0 && group.props?.["data-photo-count"] === 0,
   "Empty group is not accessible",
 );
 props = { ...props, photos, selected: "qa:999", selectedIds: new Set(["qa:999"]) };
-flush();
+await flush();
 check(
   mounted.has("qa:999") && container.scrollLeft > 0,
   "Initial/offscreen selected photo did not become visible",

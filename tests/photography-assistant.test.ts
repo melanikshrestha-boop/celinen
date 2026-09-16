@@ -45,7 +45,8 @@ describe("direct Cloudflare AI transport", () => {
         expect(new Headers(init?.headers).get("authorization")).toBe("Bearer synthetic-secret");
         const body = JSON.parse(String(init?.body));
         expect(body.max_tokens).toBe(2048);
-        expect(body.model).toBe("@cf/meta/llama-3.1-8b-instruct-fast");
+        expect(body.model).toBe("@cf/deepseek-ai/deepseek-v4-flash-0731");
+        expect(body.voice).toBeUndefined();
         return Response.json({
           choices: [
             {
@@ -55,6 +56,38 @@ describe("direct Cloudflare AI transport", () => {
               },
             },
           ],
+        });
+      }) as typeof fetch,
+    );
+    expect(result.status).toBe(200);
+  });
+  test("human chat uses Grok when XAI_API_KEY is set and returns choices", async () => {
+    const result = await requestCloudflareChat(
+      { messages: [{ role: "user", content: "she said hola coma estas" }], voice: "human" },
+      { ...config, XAI_API_KEY: "synthetic-xai" },
+      (async (url, init) => {
+        expect(String(url)).toBe("https://api.x.ai/v1/chat/completions");
+        const body = JSON.parse(String(init?.body));
+        expect(body.model).toBe("grok-4.6");
+        expect(body.voice).toBeUndefined();
+        return Response.json({
+          choices: [{ message: { role: "assistant", content: 'She said "Hola, ¿cómo estás?"' } }],
+        });
+      }) as typeof fetch,
+    );
+    expect(result.status).toBe(200);
+    const data = (await result.json()) as { choices: Array<{ message: { content: string } }> };
+    expect(data.choices[0]?.message.content).toContain("cómo estás");
+  });
+  test("fast voice stays on the on-site 8B", async () => {
+    const result = await requestCloudflareChat(
+      { messages: [{ role: "user", content: "hi" }], voice: "fast" },
+      config,
+      (async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.model).toBe("@cf/meta/llama-3.1-8b-instruct-fast");
+        return Response.json({
+          choices: [{ message: { role: "assistant", content: "Hey." } }],
         });
       }) as typeof fetch,
     );
@@ -131,7 +164,7 @@ describe("production Workers AI binding", () => {
         AI: {
           run: async (model, input, options) => {
             calls++;
-            expect(model).toBe("@cf/meta/llama-3.1-8b-instruct-fast");
+            expect(model).toBe("@cf/deepseek-ai/deepseek-v4-flash-0731");
             expect(input.messages).toEqual([{ role: "user", content: "hi" }]);
             expect(options.returnRawResponse).toBe(true);
             expect(options.signal).toBeInstanceOf(AbortSignal);

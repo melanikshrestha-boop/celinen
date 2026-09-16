@@ -1279,7 +1279,7 @@ function Personalization({
         </Row>
         <Row
           title="Chat voice"
-          note="Human uses Grok when the studio key is present. Fast stays on-site."
+          note="Human is the full chat model. Fast is the quicker on-site one."
         >
           <Choice
             label="Chat voice"

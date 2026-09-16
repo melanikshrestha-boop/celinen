@@ -4,6 +4,7 @@ import {
   clientTranscript,
   chatShareHtml,
   chatShareFile,
+  chatCopyText,
   dashboardChatRecord,
 } from "../src/lib/chat-sharing";
 import {
@@ -82,6 +83,7 @@ describe("Conversation controls and creative preferences", () => {
       messages: [{ role: "assistant", text: "She said Konnichiwa." }],
     });
     expect(chatShareHtml(home)).toContain("She said Konnichiwa.");
+    expect(chatCopyText(home)).toBe("Celinen\nShe said Konnichiwa.");
   });
   test("sharing escapes executable markup and retains transcript text", () => {
     const attack = '<img src=x onerror="alert(1)"></script><script>alert(2)</script>&';

@@ -1,6 +1,22 @@
-/** JPEG/PNG/WebP only. Never pass untyped engine bytes to createImageBitmap. */
+/** Browser-viewable stills. RAW sensor files never become an <img> URL. */
 
-export type DevelopPreviewMime = "image/jpeg" | "image/png" | "image/webp";
+export type DevelopPreviewMime =
+  | "image/jpeg"
+  | "image/png"
+  | "image/webp"
+  | "image/heic"
+  | "image/avif";
+
+const HEIC_BRANDS = new Set(["heic", "heix", "hevc", "hevx", "mif1", "msf1", "heif", "heis"]);
+const AVIF_BRANDS = new Set(["avif", "avis"]);
+const WEB_PREVIEW = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+function ftypBrand(header: Uint8Array): string | null {
+  if (header.length < 12) return null;
+  if (header[4] !== 0x66 || header[5] !== 0x74 || header[6] !== 0x79 || header[7] !== 0x70)
+    return null;
+  return String.fromCharCode(header[8]!, header[9]!, header[10]!, header[11]!).toLowerCase();
+}
 
 export function sniffDevelopPreviewType(header: Uint8Array): DevelopPreviewMime | null {
   if (header.length >= 2 && header[0] === 0xff && header[1] === 0xd8) return "image/jpeg";
@@ -24,23 +40,54 @@ export function sniffDevelopPreviewType(header: Uint8Array): DevelopPreviewMime 
     header[11] === 0x50
   )
     return "image/webp";
+  const brand = ftypBrand(header);
+  if (brand && HEIC_BRANDS.has(brand)) return "image/heic";
+  if (brand && AVIF_BRANDS.has(brand)) return "image/avif";
   return null;
 }
 
-function isPreviewMime(type: string): type is DevelopPreviewMime {
-  return type === "image/jpeg" || type === "image/png" || type === "image/webp";
+export function isWebDevelopPreview(type: string | null | undefined): type is "image/jpeg" | "image/png" | "image/webp" {
+  return Boolean(type && WEB_PREVIEW.has(type));
+}
+
+async function retag(blob: Blob, type: DevelopPreviewMime): Promise<Blob> {
+  if (blob.type === type) return blob;
+  return new Blob([await blob.arrayBuffer()], { type });
 }
 
 /** IndexedDB and some engine receipts drop MIME. Canvas and thumbs need a real image type. */
 export async function asDevelopPreviewBlob(blob: Blob): Promise<Blob> {
   const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
   const sniffed = sniffDevelopPreviewType(header);
-  if (sniffed) {
-    if (blob.type === sniffed) return blob;
-    return new Blob([await blob.arrayBuffer()], { type: sniffed });
-  }
-  if (isPreviewMime(blob.type)) return blob;
+  if (sniffed) return retag(blob, sniffed);
   return blob;
+}
+
+export async function jpegFromBitmap(bitmap: ImageBitmap): Promise<Blob> {
+  const canvas =
+    typeof OffscreenCanvas !== "undefined"
+      ? new OffscreenCanvas(bitmap.width, bitmap.height)
+      : typeof document !== "undefined"
+        ? Object.assign(document.createElement("canvas"), {
+            width: bitmap.width,
+            height: bitmap.height,
+          })
+        : null;
+  if (!canvas) throw new Error("This photo could not be decoded.");
+  const ctx = canvas.getContext("2d");
+  if (!ctx || typeof ctx.drawImage !== "function") throw new Error("This photo could not be decoded.");
+  ctx.drawImage(bitmap, 0, 0);
+  if ("convertToBlob" in canvas && typeof canvas.convertToBlob === "function")
+    return canvas.convertToBlob({ type: "image/jpeg", quality: 0.92 });
+  if (!("toBlob" in canvas)) throw new Error("This photo could not be decoded.");
+  return new Promise((resolve, reject) => {
+    (canvas as HTMLCanvasElement).toBlob(
+      (next) =>
+        next ? resolve(next) : reject(new Error("This photo could not be decoded.")),
+      "image/jpeg",
+      0.92,
+    );
+  });
 }
 
 /** Null when the bytes are not a JPEG/PNG/WebP. Never hand a broken-image `?` a URL. */
@@ -48,9 +95,8 @@ export async function asDevelopViewBlob(blob: Blob | null | undefined): Promise<
   if (!blob?.size) return null;
   const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
   const sniffed = sniffDevelopPreviewType(header);
-  if (!sniffed) return null;
-  if (blob.type === sniffed) return blob;
-  return new Blob([await blob.arrayBuffer()], { type: sniffed });
+  if (!isWebDevelopPreview(sniffed)) return null;
+  return retag(blob, sniffed);
 }
 
 export async function developBlobIsViewable(blob: Blob | null | undefined): Promise<boolean> {

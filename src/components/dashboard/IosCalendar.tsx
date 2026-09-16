@@ -473,7 +473,7 @@ export function IosCalendar() {
     } else if (event.key === "n" || event.key === "N") {
       event.preventDefault();
       setComposing(true);
-      requestAnimationFrame(() => askRef.current?.focus());
+      askRef.current?.focus();
     } else if (event.key === "d" || event.key === "D") lockView("day");
     else if (event.key === "w" || event.key === "W") lockView("week");
     else if (event.key === "m" || event.key === "M") lockView("month");
@@ -821,10 +821,35 @@ export function IosCalendar() {
             ) : null}
           </div>
         </div>
-        <label className="celinen-ios-cal__find">
-          <span className="sr-only">Search</span>
-          <input type="search" placeholder="Search" />
-        </label>
+        <form
+          className="celinen-ios-cal__find"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitAsk();
+          }}
+        >
+          <label>
+            <span className="sr-only">Add or find</span>
+            <input
+              ref={askRef}
+              type="search"
+              value={ask}
+              placeholder="Tomorrow 2pm shoot at the park"
+              onChange={(event) => setAsk(event.target.value)}
+            />
+          </label>
+          {preview ? (
+            <span className="celinen-ios-cal__ask-preview">
+              {preview.title}
+              {preview.allDay
+                ? " · All day"
+                : ` · ${new Date(preview.start).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}`}
+            </span>
+          ) : null}
+        </form>
         <button type="button" className="celinen-ios-cal__today" onClick={() => setBookOpen((value) => !value)}>
           Book
         </button>

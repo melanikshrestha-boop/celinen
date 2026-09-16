@@ -7,6 +7,7 @@ import {
   clientOnNorm,
   compileLook,
   driveSet,
+  lookMetricsFromHistogram,
   lookTitle,
   parseBeats,
   pointerLabel,
@@ -163,6 +164,31 @@ Warm the person. Leave the street cold.
     expect(look.vignette).toBe(-18);
     expect(look.sharpening).toBe(32);
     expect(beats.length).toBeGreaterThan(6);
+  });
+
+  test("cinematic tone SETs follow histogram clip and mid", () => {
+    const cold = lookMetricsFromHistogram({
+      channels: [
+        Array.from({ length: 256 }, (_, i) => (i === 20 ? 100 : 0)),
+        Array.from({ length: 256 }, (_, i) => (i === 20 ? 100 : 0)),
+        Array.from({ length: 256 }, (_, i) => (i === 200 ? 100 : 0)),
+      ],
+      encodedLuminance: Array.from({ length: 256 }, (_, i) => (i === 20 ? 100 : 0)),
+      luminance: Array(1024).fill(0),
+      maximum: Array(256).fill(0),
+      pixels: 100,
+      shadows: 8,
+      shadowClipped: 8,
+      highlights: 6,
+    });
+    expect(cold.clipHi).toBeGreaterThan(0.03);
+    expect(cold.clipLo).toBeGreaterThan(0.04);
+    expect(cold.warmth).toBeLessThan(-0.06);
+    const beats = compileLook("cinematic", defaultDevelopSettings(), { metrics: cold });
+    const look = applyLook(defaultDevelopSettings(), beats, beats.length - 1);
+    expect(look.highlights).toBe(-42);
+    expect(look.shadows).toBe(22);
+    expect(look.temperature).toBe(12);
   });
 
   test("plain asks start a RAW tone pass instead of only Temp", () => {

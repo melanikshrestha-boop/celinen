@@ -28,6 +28,11 @@ describe("Develop preview MIME", () => {
       ),
     ).toBe("image/webp");
     expect(sniffDevelopPreviewType(Uint8Array.of(0, 1, 2, 3))).toBeNull();
+    expect(
+      sniffDevelopPreviewType(
+        Uint8Array.of(0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63),
+      ),
+    ).toBe("image/heic");
   });
 
   test("view blobs never mint a URL for non-image bytes", async () => {

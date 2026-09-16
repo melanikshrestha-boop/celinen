@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import type { DevelopDocument, DevelopPhoto } from "@/lib/develop/store";
+import { asDevelopViewBlob } from "@/lib/develop/decode-preview";
 import {
   libraryGridWindow,
   libraryGridScrollToIndex,
@@ -14,21 +15,42 @@ export const DevelopLibraryThumbnail = memo(function DevelopLibraryThumbnail({
 }: {
   photo: DevelopPhoto;
 }) {
-  const blob = photo.previewBlob ?? (!photo.isRaw ? photo.sourceBlob : null);
-  const [owner, setOwner] = useState<{ blob: Blob; url: string } | null>(null);
+  const [owner, setOwner] = useState<{ url: string } | null>(null);
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
-    if (!blob?.size) {
-      setOwner(null);
-      return;
-    }
-    const url = URL.createObjectURL(blob);
-    setOwner({ blob, url });
-    return () => URL.revokeObjectURL(url);
-  }, [blob]);
+    setBroken(false);
+    let cancelled = false;
+    let url: string | null = null;
+    void (async () => {
+      const preview = await asDevelopViewBlob(photo.previewBlob);
+      const typed = preview ?? (photo.isRaw ? null : await asDevelopViewBlob(photo.sourceBlob));
+      if (cancelled) return;
+      if (!typed) {
+        setOwner(null);
+        return;
+      }
+      url = URL.createObjectURL(typed);
+      if (cancelled) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setOwner({ url });
+    })();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [photo, photo.previewBlob, photo.sourceBlob, photo.isRaw]);
   return (
     <div className="develop-library-thumbnail">
-      {owner && owner.blob === blob ? (
-        <img src={owner.url} alt="" loading="lazy" decoding="async" />
+      {owner && !broken ? (
+        <img
+          src={owner.url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setBroken(true)}
+        />
       ) : (
         <ImagePlus size={18} />
       )}

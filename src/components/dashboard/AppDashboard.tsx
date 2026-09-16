@@ -31,7 +31,7 @@ import { DashboardContext } from "./context";
 import { IosCalendar } from "./IosCalendar";
 import { VoiceMic } from "./VoiceMic";
 import { requestDashboardReply } from "@/lib/dashboard-assistant";
-import { chatShareFile, dashboardChatRecord } from "@/lib/chat-sharing";
+import { chatCopyText, chatShareFile, dashboardChatRecord } from "@/lib/chat-sharing";
 import { isPhotographyConversation } from "@/lib/photography-assistant";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { queueStudioImport } from "@/lib/studio/pending-import";
@@ -243,6 +243,16 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [replying, setReplying] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  async function copyText(label: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      window.setTimeout(() => setCopied((current) => (current === label ? null : current)), 1600);
+    } catch {
+      /* clipboard may be denied */
+    }
+  }
   const pendingReply = useRef<AbortController | null>(null);
   const currentScope = useRef(account?.scope);
   currentScope.current = account?.scope;
@@ -601,13 +611,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     <div className="celinen-dash__thread-tools">
                       <button
                         type="button"
-                        onClick={() => {
-                          const text = active.messages.map((m) => m.text).join("\n\n");
-                          void navigator.clipboard?.writeText(text);
-                        }}
+                        onClick={() =>
+                          void copyText("chat", chatCopyText(dashboardChatRecord(active)))
+                        }
                       >
                         <Copy size={14} />
-                        Copy chat
+                        {copied === "chat" ? "Copied" : "Copy chat"}
                       </button>
                       <button
                         type="button"
@@ -642,10 +651,11 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                         <p data-role={message.role}>{message.text}</p>
                         <button
                           type="button"
-                          aria-label="Copy"
-                          onClick={() => void navigator.clipboard?.writeText(message.text)}
+                          aria-label={copied === message.id ? "Copied" : "Copy"}
+                          onClick={() => void copyText(message.id, message.text)}
                         >
                           <Copy size={13} />
+                          {copied === message.id ? "Copied" : "Copy"}
                         </button>
                       </div>
                     ))}

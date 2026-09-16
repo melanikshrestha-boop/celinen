@@ -112,10 +112,14 @@ export const Route = createFileRoute("/api/chat")({
 
         const data = (await upstream.json()) as {
           choices?: Array<{ message?: unknown }>;
+          message?: unknown;
         };
-        return new Response(JSON.stringify({ message: data.choices?.[0]?.message ?? null }), {
-          headers: responseHeaders,
-        });
+        return new Response(
+          JSON.stringify({ message: data.choices?.[0]?.message ?? data.message ?? null }),
+          {
+            headers: responseHeaders,
+          },
+        );
       },
     },
   },

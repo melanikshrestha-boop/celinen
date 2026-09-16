@@ -14,14 +14,22 @@ export type TutorBeat = {
 };
 export type TutorCompileOptions = {
   advanced?: boolean;
-  metrics?: { clipHi: number; clipLo: number; mid: number };
+  metrics?: { clipHi: number; clipLo: number; mid: number; warmth: number };
 };
 
 export function lookMetricsFromHistogram(histogram: DevelopHistogramData) {
+  const pixels = histogram.pixels || 0;
+  const mean = (channel: number[] | undefined) => {
+    if (!pixels || !channel?.length) return 0;
+    let sum = 0;
+    for (let i = 0; i < channel.length; i++) sum += (channel[i] ?? 0) * i;
+    return sum / pixels / Math.max(1, channel.length - 1);
+  };
   return {
-    clipHi: histogram.pixels ? histogram.highlights / histogram.pixels : 0,
-    clipLo: histogram.pixels ? histogram.shadows / histogram.pixels : 0,
+    clipHi: pixels ? histogram.highlights / pixels : 0,
+    clipLo: pixels ? histogram.shadows / pixels : 0,
     mid: histogramPercentile(histogram.encodedLuminance, 0.5),
+    warmth: mean(histogram.channels[0]) - mean(histogram.channels[2]),
   };
 }
 
@@ -427,9 +435,12 @@ function compileCinematic(
   const shadows = metrics && metrics.clipLo > 0.04 ? 22 : 14;
   const exposure =
     metrics && metrics.mid < 0.35 ? 0.35 : metrics && metrics.mid > 0.65 ? -0.25 : 0;
+  const temp =
+    metrics && metrics.warmth < -0.06 ? 12 : metrics && metrics.warmth > 0.1 ? -8 : 0;
   const beats = [
     "[OPEN:panel.basic]",
     "[DRAW:photo.windows]",
+    ...(temp ? ["[POINT:#slider-temp]", `[SET:temp:${temp > 0 ? "+" : ""}${temp}]`] : []),
     ...(exposure
       ? ["[POINT:#slider-exposure]", `[SET:exposure:${exposure > 0 ? "+" : ""}${exposure}]`]
       : []),

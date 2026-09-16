@@ -44,6 +44,17 @@ test("blank notes do not invent a shoot", () => {
   expect(parseShootNote("   ", opts)).toBeNull();
 });
 
+test("next Friday lands on the following weekday", () => {
+  const event = parseShootNote("next Friday 2pm shoot at the park", opts);
+  const start = new Date(event!.start);
+  expect(event?.title).toBe("shoot");
+  expect(event?.location).toBe("the park");
+  expect(start.getDay()).toBe(5);
+  expect(start.getDate()).toBe(18);
+  expect(start.getHours()).toBe(14);
+  expect(event?.allDay).toBe(false);
+});
+
 test("slash targeting and photographer verbs set kind", () => {
   expect(parseShootNote("USC vs UCLA Friday 7pm at Coliseum /shoot", opts)?.kind).toBe("shoot");
   expect(parseShootNote("edit Lakers game tomorrow 10-12", opts)?.kind).toBe("edit");

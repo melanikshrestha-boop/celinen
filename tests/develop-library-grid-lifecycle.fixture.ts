@@ -208,7 +208,8 @@ globalThis.getComputedStyle = () =>
 const { DevelopLibraryGrid, DevelopLibraryThumbnail } =
   await import("../src/components/develop/DevelopLibraryGrid");
 
-const original = new Blob(["small saved preview"]);
+const jpegBytes = Uint8Array.of(0xff, 0xd8, 0xff, 0xd9, 0x00);
+const original = new Blob([jpegBytes], { type: "image/jpeg" });
 const photos = Array.from({ length: 1000 }, (_, i): DevelopPhoto => ({
   id: `qa:${i}`,
   name: `Authored ${i}.jpg`,
@@ -241,8 +242,8 @@ props = {
     opened.push(id);
   },
 };
-function flush() {
-  for (let pass = 0; pass < 20; pass++) {
+async function flush() {
+  for (let pass = 0; pass < 40; pass++) {
     group = root.render(DevelopLibraryGrid, props) as Element;
     (group.props!.ref as { current: unknown }).current = container;
     const rows = nodes(group).filter(
@@ -274,6 +275,7 @@ function flush() {
       value.thumb.commit();
     }
     root.commit();
+    for (let spin = 0; spin < 20; spin++) await Promise.resolve();
     if (
       !root.dirty &&
       [...mounted.values()].every((value) => !value.frame.dirty && !value.thumb.dirty)
@@ -282,18 +284,18 @@ function flush() {
   }
   throw new Error("Library grid did not settle after bounded render passes");
 }
-function frame() {
+async function frame() {
   const callbacks = [...rafs.values()];
   rafs.clear();
   callbacks.forEach((callback) => callback(0));
-  flush();
+  await flush();
 }
-function scroll(left: number) {
+async function scroll(left: number) {
   container.scrollTop = left;
   (group.props!.onScroll as () => void)();
-  frame();
+  await frame();
 }
-flush();
+await flush();
 check(group.props?.["data-photo-count"] === 1000, "Logical count replaced by mounted count");
 check(
   group.props?.["data-column-count"] === 5 && group.props?.["data-row-stride"] === 198,
@@ -330,7 +332,7 @@ check(
 );
 const initialUrls = [...liveUrls.keys()];
 mounted.get("qa:0")!.button.focus();
-flush();
+await flush();
 root.replayCleanup();
 for (const v of mounted.values()) {
   v.frame.replayCleanup();
@@ -342,20 +344,20 @@ for (const v of mounted.values()) {
   v.thumb.replaySetup();
 }
 root.replaySetup();
-flush();
+await flush();
 check(liveUrls.size === 24, "StrictMode replay did not reacquire only mounted URLs");
 check(documentState.activeElement === mounted.get("qa:0")?.button, "StrictMode replay lost focus");
 const priorSchedules = scheduled;
 container.scrollTop = 39123;
 for (let i = 0; i < 100; i++) (group.props!.onScroll as () => void)();
 check(scheduled === priorSchedules + 1 && rafs.size === 1, "Scroll is not one RAF");
-frame();
+await frame();
 check(mounted.has("qa:999") && mounted.has("qa:0"), "End scroll lost last or focused card");
 check(mounted.size <= 36 && liveUrls.size <= 35, "Scroll/focus window unbounded");
 check(documentState.activeElement === mounted.get("qa:0")!.button, "Scroll stole focus");
 check(selections.length === 0 && props.selected === "qa:0", "Scroll selected a photograph");
 props = { ...props, photos: [...props.photos] };
-flush();
+await flush();
 check(
   container.scrollTop === 39123 && mounted.has("qa:999"),
   "Parent rerender snapped manual scroll",
@@ -365,7 +367,7 @@ check(
   currentTarget: container,
 });
 documentState.activeElement = new FakeNode();
-flush();
+await flush();
 check(!mounted.has("qa:0"), "Offscreen focus retained after leaving grid");
 check(
   initialUrls.every((url) => revoked.includes(url)),
@@ -387,7 +389,7 @@ let prevented = false,
   metaKey: false,
   ctrlKey: false,
 });
-flush();
+await flush();
 check(prevented && stopped && props.selected === "qa:999", "End did not select logical last");
 check(documentState.activeElement === mounted.get("qa:999")?.button, "End did not focus real card");
 check(
@@ -396,7 +398,7 @@ check(
 );
 (mounted.get("qa:999")!.node.props!.onDoubleClick as () => void)();
 check(opened.at(-1) === "qa:999", "Double-click opened wrong logical photograph");
-function verticalKey(key: string, multi = false) {
+async function verticalKey(key: string, multi = false) {
   let prevented = false;
   (group.props!.onKeyDown as (event: unknown) => void)({
     key,
@@ -409,47 +411,47 @@ function verticalKey(key: string, multi = false) {
     metaKey: false,
     ctrlKey: false,
   });
-  flush();
+  await flush();
   return prevented;
 }
 const bottomSelections = selections.length,
   bottomScroll = container.scrollTop;
 check(
-  verticalKey("ArrowDown") &&
+  (await verticalKey("ArrowDown")) &&
     props.selected === "qa:999" &&
     selections.length === bottomSelections &&
     container.scrollTop === bottomScroll,
   "Down at bottom row wrapped, selected again, or allowed native scrolling",
 );
-check(verticalKey("ArrowUp") && props.selected === "qa:994", "Up did not move by five columns");
+check((await verticalKey("ArrowUp")) && props.selected === "qa:994", "Up did not move by five columns");
 props = {
   ...props,
   photos: photos.slice(0, 998),
   selected: "qa:994",
   selectedIds: new Set(["qa:994"]),
 };
-flush();
+await flush();
 check(
-  verticalKey("ArrowDown", true) && props.selected === "qa:997" && selections.at(-1)?.multi,
+  (await verticalKey("ArrowDown", true)) && props.selected === "qa:997" && selections.at(-1)?.multi,
   "Down into partial final row did not clamp/add selection",
 );
 props = { ...props, photos, selected: "qa:2", selectedIds: new Set(["qa:2"]) };
-flush();
+await flush();
 const topSelections = selections.length,
   topScroll = container.scrollTop;
 check(
-  verticalKey("ArrowUp") &&
+  (await verticalKey("ArrowUp")) &&
     props.selected === "qa:2" &&
     selections.length === topSelections &&
     container.scrollTop === topScroll,
   "Up at top row changed column or scrolled",
 );
 check(
-  verticalKey("ArrowDown") && props.selected === "qa:7",
+  (await verticalKey("ArrowDown")) && props.selected === "qa:7",
   "Down did not preserve the same column",
 );
 props = { ...props, selected: "qa:999", selectedIds: new Set(["qa:999"]) };
-flush();
+await flush();
 const beforeArrow = selections.length;
 (group.props!.onKeyDown as (e: unknown) => void)({ key: "ArrowRight" });
 check(selections.length === beforeArrow, "Grid intercepted global arrow navigation");
@@ -462,14 +464,14 @@ check(selections.length === beforeArrow, "Grid intercepted global arrow navigati
   metaKey: false,
   ctrlKey: false,
 });
-flush();
+await flush();
 check(props.selected === "qa:0" && selections.at(-1)?.multi, "Home changed modifier selection");
 check(
   container.scrollTop === 0 && documentState.activeElement === mounted.get("qa:0")?.button,
   "Home did not reveal missing original",
 );
 props = { ...props, selected: "qa:500", selectedIds: new Set(["qa:500"]) };
-flush();
+await flush();
 check(
   mounted.has("qa:500") && documentState.activeElement === mounted.get("qa:500")?.button,
   "External selection failed to reveal/focus",
@@ -480,15 +482,15 @@ check(mounted.get("qa:500")?.node.props?.className === "is-active", "Active clas
   metaKey: true,
   ctrlKey: false,
 });
-flush();
+await flush();
 check(selections.at(-1)?.id === "qa:500" && selections.at(-1)?.multi, "Meta click semantics lost");
-const replacement = new Blob(["new preview"]),
+const replacement = new Blob([Uint8Array.of(0xff, 0xd8, 0xff, 0xd8, 0x00)], { type: "image/jpeg" }),
   oldUrls = new Set(liveUrls.keys());
 props = {
   ...props,
   photos: props.photos.map((p) => (p.id === "qa:500" ? { ...p, previewBlob: replacement } : p)),
 };
-flush();
+await flush();
 check([...liveUrls.values()].includes(replacement), "Replaced preview not adopted");
 check(
   [...oldUrls].filter((url) => !liveUrls.has(url)).length === 1,
@@ -497,7 +499,7 @@ check(
 width = 390;
 height = 350;
 resize?.();
-frame();
+await frame();
 check(group.props?.["data-column-count"] === 2, "Responsive auto-fill columns wrong");
 check(mounted.size <= (Math.ceil(height / 198) + 5) * 2 + 1, "Mobile grid unbounded");
 const selectedStyle = mounted.get("qa:500")!.node.props!.style as { width: number; left: number };
@@ -507,7 +509,7 @@ check(
 );
 check(liveUrls.size === mounted.size, "Resize leaked preview URLs");
 check(
-  verticalKey("ArrowDown") && props.selected === "qa:502",
+  (await verticalKey("ArrowDown")) && props.selected === "qa:502",
   "Vertical keyboard step did not follow responsive two-column layout",
 );
 props = {
@@ -516,7 +518,7 @@ props = {
   selected: "qa:501",
   selectedIds: new Set(["qa:501"]),
 };
-flush();
+await flush();
 check(
   mounted.has("qa:501") && documentState.activeElement === mounted.get("qa:501")?.button,
   "Filter removal stranded focus",
@@ -526,14 +528,14 @@ check(
   "Filtered index is not logical",
 );
 props = { ...props, photos: [], selected: null, selectedIds: new Set() };
-flush();
+await flush();
 check(!mounted.size && !liveUrls.size, "Empty filter retains thumbnails");
 check(
   group.props?.tabIndex === 0 && group.props?.["data-photo-count"] === 0,
   "Empty grid inaccessible",
 );
 props = { ...props, photos, selected: "qa:999", selectedIds: new Set(["qa:999"]) };
-flush();
+await flush();
 check(
   mounted.has("qa:999") && container.scrollTop > 0,
   "Offscreen initial selection did not reveal",

@@ -43,6 +43,13 @@ export function dashboardChatRecord(thread: {
   });
 }
 
+export function chatCopyText(record: ChatRecord) {
+  const transcript = clientTranscript(record);
+  return transcript.messages
+    .map((message) => `${message.role === "user" ? "You" : "Celinen"}\n${message.text}`)
+    .join("\n\n");
+}
+
 export function chatShareFile(record: ChatRecord) {
   const name =
     record.title

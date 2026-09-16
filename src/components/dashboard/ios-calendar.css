@@ -342,10 +342,14 @@ html.dark .celinen-dash__cal {
   white-space: nowrap;
 }
 .celinen-ios-cal__find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   margin-left: 12px;
 }
 .celinen-ios-cal__find input {
-  width: 120px;
+  width: min(280px, 36vw);
   min-height: 28px;
   padding: 0 10px 0 28px;
   border: 1px solid var(--ios-line);
@@ -354,6 +358,14 @@ html.dark .celinen-dash__cal {
   color: inherit;
   font: inherit;
   font-size: 12px;
+}
+.celinen-ios-cal__ask-preview {
+  overflow: hidden;
+  max-width: 180px;
+  color: #8a8a8e;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .celinen-ios-cal__brand {
   display: flex;

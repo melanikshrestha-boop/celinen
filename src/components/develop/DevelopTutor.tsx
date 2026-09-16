@@ -470,7 +470,7 @@ export function DevelopTutor({
     setVoice("teaching");
     const planned = compileLook(line, recipe.current, {
       advanced,
-      metrics: histogram ? lookMetricsFromHistogram(histogram) : undefined,
+      ...(histogram ? { metrics: lookMetricsFromHistogram(histogram) } : {}),
     });
     if (!planned.length) return;
     const snapshot = cloneDevelopSettings(recipe.current);

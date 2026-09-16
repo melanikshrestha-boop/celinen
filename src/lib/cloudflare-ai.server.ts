@@ -1,5 +1,7 @@
-/** Hosted chat: Grok when XAI_API_KEY is set, else Workers AI. */
+/** Fast on-site model. Human chat uses Grok, else DeepSeek on Workers AI. */
 export const CHAT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+export const FAST_CHAT_MODEL = CHAT_MODEL;
+export const HUMAN_CHAT_MODEL = "@cf/deepseek-ai/deepseek-v4-flash-0731";
 export const GROK_CHAT_MODEL = "grok-4.6";
 type ChatInput = {
   messages: unknown[];
@@ -100,6 +102,7 @@ export async function requestCloudflareChat(
     started = performance.now();
   const transport = env.AI || bindingRequired ? "binding" : "rest";
   const headers = { "Cache-Control": "no-store", "X-Chat-Request-Id": requestId };
+  let activeModel: string = FAST_CHAT_MODEL;
   const log = (fields: LogEntry) => {
     // Never log input, arbitrary provider text, tokens, user identity or tool arguments.
     try {
@@ -107,7 +110,7 @@ export async function requestCloudflareChat(
         event: "chat_ai",
         request_id: requestId,
         provider: "workers_ai",
-        model: CHAT_MODEL,
+        model: activeModel,
         transport,
         processing_ms: Math.round(performance.now() - started),
         ...fields,
@@ -133,20 +136,24 @@ export async function requestCloudflareChat(
   const signal = AbortSignal.timeout(25_000);
   try {
     const payload = {
-      ...input,
+      messages: input.messages,
       max_tokens: Math.min(2048, Math.max(1, input.max_tokens ?? 1200)),
       stream: false,
     };
     const grokKey = env.XAI_API_KEY || (process.env as ChatEnv).XAI_API_KEY;
+    const workersModel =
+      input.voice === "fast" || input.tools?.length ? FAST_CHAT_MODEL : HUMAN_CHAT_MODEL;
+    activeModel = workersModel;
     if (grokKey && input.voice !== "fast" && !input.tools?.length) {
       try {
+        activeModel = GROK_CHAT_MODEL;
         const grok = await send("https://api.x.ai/v1/chat/completions", {
           method: "POST",
           headers: { authorization: `Bearer ${grokKey}`, "content-type": "application/json" },
           signal,
           body: JSON.stringify({
             model: GROK_CHAT_MODEL,
-            messages: input.messages,
+            messages: payload.messages,
             max_tokens: payload.max_tokens,
             stream: false,
           }),
@@ -161,32 +168,50 @@ export async function requestCloudflareChat(
             model: GROK_CHAT_MODEL,
             upstream_status: grok.status,
           });
-          return Response.json({ message: normalizeMessage(data) }, { headers });
+          return Response.json({ choices: [{ message: normalizeMessage(data) }] }, { headers });
         }
       } catch {
         /* Fall through to Workers AI. */
       }
+      activeModel = workersModel;
     }
-    const response = env.AI
-      ? await env.AI.run(
-          CHAT_MODEL,
-          {
-            ...payload,
-            ...(input.tools?.length
-              ? { tools: input.tools.map((tool) => object(tool).function ?? tool) }
-              : {}),
-          },
-          { returnRawResponse: true, signal },
-        )
-      : await send(
-          `https://api.cloudflare.com/client/v4/accounts/${account}/ai/v1/chat/completions`,
-          {
-            method: "POST",
-            headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-            signal,
-            body: JSON.stringify({ ...payload, model: CHAT_MODEL }),
-          },
-        );
+    const invoke = (model: string) => {
+      activeModel = model;
+      return env.AI
+        ? env.AI.run(
+            model,
+            {
+              ...payload,
+              ...(input.tools?.length
+                ? { tools: input.tools.map((tool) => object(tool).function ?? tool) }
+                : {}),
+            },
+            { returnRawResponse: true, signal },
+          )
+        : send(
+            `https://api.cloudflare.com/client/v4/accounts/${account}/ai/v1/chat/completions`,
+            {
+              method: "POST",
+              headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+              signal,
+              body: JSON.stringify({ ...payload, model }),
+            },
+          );
+    };
+    let response: unknown;
+    try {
+      response = await invoke(workersModel);
+      if (
+        workersModel !== FAST_CHAT_MODEL &&
+        response instanceof Response &&
+        !response.ok &&
+        response.status !== 429
+      )
+        response = await invoke(FAST_CHAT_MODEL);
+    } catch (error) {
+      if (workersModel === FAST_CHAT_MODEL) throw error;
+      response = await invoke(FAST_CHAT_MODEL);
+    }
     stage = "serialization";
     if (!(response instanceof Response)) throw Error("invalid_response");
     upstreamStatus = response.status;
