@@ -1,4 +1,5 @@
 import { assistantUnavailable, requireAssistantMessage } from "./photography-assistant";
+import { fastTalk } from "./assistant/talk";
 import { isLocalSingleUserMode } from "./app-mode";
 
 type Message = { role: "user" | "assistant"; text: string };
@@ -29,6 +30,9 @@ export async function requestDashboardReply(
     },
   },
 ): Promise<string> {
+  const last = [...input.messages].reverse().find((row) => row.role === "user");
+  const quick = last ? fastTalk(last.text) : null;
+  if (quick) return quick;
   if (dependencies.local) throw new Error(assistantUnavailable("local"));
   if (!input.enabled) throw new Error(assistantUnavailable("disabled"));
   input.signal.throwIfAborted();

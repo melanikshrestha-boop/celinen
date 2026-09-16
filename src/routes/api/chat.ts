@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PHOTOGRAPHY_ASSISTANT_POLICY } from "@/lib/photography-assistant";
 import { requestCloudflareChat } from "@/lib/cloudflare-ai.server";
 import { assembleAssistantMessages } from "@/lib/assistant/orchestrator";
+import { fastTalk } from "@/lib/assistant/talk";
 
 type Body = {
   messages?: unknown;
@@ -47,6 +48,18 @@ export const Route = createFileRoute("/api/chat")({
             status: 400,
             headers: { "content-type": "application/json" },
           });
+        }
+        if (mode === "conversation") {
+          const last = [...messages].reverse().find((item) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+            return (item as { role?: unknown }).role === "user";
+          }) as { content?: unknown } | undefined;
+          const quick = typeof last?.content === "string" ? fastTalk(last.content) : null;
+          if (quick)
+            return new Response(JSON.stringify({ message: { role: "assistant", content: quick } }), {
+              status: 200,
+              headers: { "content-type": "application/json", "cache-control": "no-store" },
+            });
         }
         const assembled =
           mode === "conversation"

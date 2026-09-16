@@ -10,6 +10,7 @@ import { studioCommandRefusal, studioToolBoundary } from "../src/lib/studio/comm
 import { parseLocalCommand } from "../src/lib/studio/commands";
 import { requestCloudflareChat } from "../src/lib/cloudflare-ai.server";
 import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
+import { fastTalk } from "../src/lib/assistant/talk";
 
 describe("direct Cloudflare AI transport", () => {
   const config = {
@@ -355,6 +356,10 @@ describe("photographer conversation, not command fragments", () => {
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("If I had to choose");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Both are good depending on your preference");
     expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("You are Lenslab");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).toContain("Never introduce yourself unless asked");
+    expect(PHOTOGRAPHY_ASSISTANT_POLICY).not.toContain(
+      "I'm here to help with any questions related to photography",
+    );
   });
 });
 
@@ -566,6 +571,7 @@ test("actual server route removes tools in conversation mode and installs the ph
     },
     PHOTOGRAPHY_ASSISTANT_POLICY,
     assembleAssistantMessages,
+    fastTalk,
     fixtureAuth: {
       createClient: () => ({
         auth: { getClaims: async () => ({ data: { claims: { sub: "synthetic-owner" } } }) },

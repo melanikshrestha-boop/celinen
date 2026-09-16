@@ -9,8 +9,16 @@ import {
   recordTemperatureCorrection,
 } from "../src/lib/assistant/memory";
 import { assembleAssistantMessages } from "../src/lib/assistant/orchestrator";
+import { fastTalk } from "../src/lib/assistant/talk";
 
 describe("Lenslab intelligence", () => {
+  test("greetings never hit the model", () => {
+    expect(fastTalk("hey gang")).toBe("Hey. What's the shoot?");
+    expect(fastTalk("hi")).toBe("Hey. What's the shoot?");
+    expect(fastTalk("lol")).toBe("What do you need — cull, an edit, events, or a lens?");
+    expect(fastTalk("help me find some events")).toBeNull();
+    expect(fastTalk("Plan a shoot")).toBeNull();
+  });
   test("routes knowledge, taste, action, diagnostic, and research", () => {
     expect(classifyAssistantIntent("What does HSS mean?")).toBe("knowledge");
     expect(classifyAssistantIntent("Which image do you like?")).toBe("creative");
