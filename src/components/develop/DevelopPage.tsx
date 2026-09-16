@@ -49,10 +49,11 @@ import {
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
-import { prepareDevelopPreview } from "@/lib/develop/preview";
+import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
   asDevelopViewBlob,
   decodeDevelopPreview,
+  developBlobIsViewable,
   developPhotoViewBlob,
 } from "@/lib/develop/decode-preview";
 import { DevelopTutor } from "./DevelopTutor";
@@ -293,6 +294,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     jobId: null,
     selected: false,
   });
+  const cookedIds = useRef(new Set<string>());
   const [library, setLibrary] = useState<DevelopLibrary>({
     photos: [],
     documents: {},
@@ -836,6 +838,35 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           `${importState.saved} photos saved · ${importState.failed} failed · ${importState.duplicates} duplicates`,
       );
   }, [importState, importing]);
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    void (async () => {
+      for (const photo of library.photos) {
+        if (cancelled || cookedIds.current.has(photo.id)) continue;
+        if (await developBlobIsViewable(photo.previewBlob)) {
+          cookedIds.current.add(photo.id);
+          continue;
+        }
+        const jpeg = await cookDevelopPhotoPreview(photo);
+        cookedIds.current.add(photo.id);
+        if (cancelled || !jpeg) continue;
+        try {
+          const saved = await store.replacePreview(photo.id, jpeg);
+          if (cancelled) return;
+          setLibrary((current) => ({
+            ...current,
+            photos: current.photos.map((item) => (item.id === saved.id ? saved : item)),
+          }));
+        } catch {
+          /* Keep the row; filmstrip still paints a cooked object URL. */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, library.photos, store]);
   useEffect(() => {
     if (!ready || !hydration.current.ready || failed.current || pendingRef.current) return;
     let cancelled = false;

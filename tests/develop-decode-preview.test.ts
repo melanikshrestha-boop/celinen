@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   asDevelopPreviewBlob,
@@ -5,6 +6,7 @@ import {
   cullBitmapStillCurrent,
   decodeDevelopPreview,
   developPhotoViewBlob,
+  mintDevelopPreviewJpeg,
   sniffDevelopPreviewType,
 } from "../src/lib/develop/decode-preview";
 
@@ -76,6 +78,25 @@ describe("Develop preview MIME", () => {
       ),
     ).toBe(false);
     expect(cullBitmapStillCurrent(undefined, { previewBlob: blob, file })).toBe(false);
+  });
+
+  test("mint keeps a sniffed JPEG without requiring canvas", async () => {
+    const blob = new Blob([jpeg], { type: "image/jpeg" });
+    expect(await mintDevelopPreviewJpeg(blob)).toBe(blob);
+  });
+
+  test("filmstrip cooks missing JPEGs through the develop engine", () => {
+    const source = readFileSync(
+      new URL("../src/components/develop/DevelopFilmstrip.tsx", import.meta.url),
+      "utf8",
+    );
+    const page = readFileSync(
+      new URL("../src/components/develop/DevelopPage.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("cookDevelopPhotoPreview");
+    expect(page).toContain("replacePreview");
+    expect(page).toContain("cookDevelopPhotoPreview");
   });
 
   test("decode passes a JPEG MIME to createImageBitmap", async () => {

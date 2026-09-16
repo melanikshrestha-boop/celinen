@@ -8,6 +8,7 @@ import {
   type FilmstripMetrics,
 } from "@/lib/develop/filmstrip-window";
 import { asDevelopViewBlob } from "@/lib/develop/decode-preview";
+import { cookDevelopPhotoPreview } from "@/lib/develop/preview";
 import "./develop-filmstrip.css";
 
 /** Blob ownership is local to a mounted thumbnail, never the whole logical library. */
@@ -25,7 +26,9 @@ export const DevelopFilmstripThumb = memo(function DevelopFilmstripThumb({
     void (async () => {
       const preview = await asDevelopViewBlob(photo.previewBlob);
       const typed =
-        preview ?? (photo.isRaw ? null : await asDevelopViewBlob(photo.sourceBlob));
+        preview ??
+        (photo.isRaw ? null : await asDevelopViewBlob(photo.sourceBlob)) ??
+        (await cookDevelopPhotoPreview(photo));
       if (cancelled) return;
       if (!typed) {
         setOwner(null);

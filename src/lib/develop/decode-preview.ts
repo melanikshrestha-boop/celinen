@@ -139,14 +139,34 @@ async function bitmapFromImageUrl(url: string, revoke = false): Promise<ImageBit
 
 export async function decodeDevelopPreview(blob: Blob): Promise<ImageBitmap> {
   const typed = await asDevelopPreviewBlob(blob);
-  try {
-    const bitmap = await createImageBitmap(typed, { imageOrientation: "from-image" });
-    if (bitmap.width && bitmap.height) return bitmap;
-    bitmap.close();
-  } catch {
-    /* Image element can still paint a blob the filmstrip already shows. */
+  const sources = typed === blob ? [typed] : [typed, blob];
+  for (const source of sources) {
+    for (const options of [{ imageOrientation: "from-image" as const }, {}]) {
+      try {
+        const bitmap = await createImageBitmap(source, options);
+        if (bitmap.width && bitmap.height) return bitmap;
+        bitmap.close();
+      } catch {
+        /* Safari ImageIO and untyped IDB blobs disagree on orientation. */
+      }
+    }
   }
-  return bitmapFromImageUrl(URL.createObjectURL(typed), true);
+  const url = URL.createObjectURL(isWebDevelopPreview(typed.type) ? typed : blob);
+  return bitmapFromImageUrl(url, true);
+}
+
+/** Force a browser-paintable JPEG. C++/ImageIO stills that are not JPEG/PNG/WebP get recoded. */
+export async function mintDevelopPreviewJpeg(blob: Blob): Promise<Blob> {
+  const view = await asDevelopViewBlob(blob);
+  if (view) return view;
+  const bitmap = await decodeDevelopPreview(blob);
+  try {
+    const jpeg = await jpegFromBitmap(bitmap);
+    if (!jpeg.size) throw new Error("This preview could not be decoded.");
+    return jpeg.type === "image/jpeg" ? jpeg : new Blob([jpeg], { type: "image/jpeg" });
+  } finally {
+    bitmap.close();
+  }
 }
 
 /** Same pixels the filmstrip <img> already painted. */

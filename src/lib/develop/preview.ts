@@ -4,10 +4,13 @@ import { developEngineStatus, renderDevelop } from "./client";
 import {
   asDevelopPreviewBlob,
   decodeDevelopPreview,
+  developBlobIsViewable,
   isWebDevelopPreview,
   jpegFromBitmap,
+  mintDevelopPreviewJpeg,
   sniffDevelopPreviewType,
 } from "./decode-preview";
+import type { DevelopPhoto } from "./store";
 
 export type DevelopPreviewResult = {
   previewBlob: Blob;
@@ -110,4 +113,44 @@ export async function prepareDevelopPreview(
       throw error;
     }
   }
+}
+
+/**
+ * Existing library rows may hold engine/IDB bytes that are not a web image.
+ * C++ when local; otherwise recode through the browser decoder to JPEG.
+ */
+const cooking = new Map<string, Promise<Blob | null>>();
+
+export async function cookDevelopPhotoPreview(
+  photo: Pick<DevelopPhoto, "id" | "name" | "isRaw" | "previewBlob" | "sourceBlob">,
+  signal: AbortSignal = AbortSignal.timeout(30_000),
+): Promise<Blob | null> {
+  const pending = cooking.get(photo.id);
+  if (pending) return pending;
+  const work = (async () => {
+    if (await developBlobIsViewable(photo.previewBlob)) return photo.previewBlob;
+    const source = photo.sourceBlob?.size ? photo.sourceBlob : photo.previewBlob;
+    if (!source?.size) return null;
+    const file =
+      source instanceof File
+        ? source
+        : new File([source], photo.name || "photo.jpg", { type: source.type || "application/octet-stream" });
+    try {
+      const cooked = await prepareDevelopPreview(file, { isRaw: Boolean(photo.isRaw) }, signal);
+      if (await developBlobIsViewable(cooked.previewBlob)) return cooked.previewBlob;
+    } catch {
+      signal.throwIfAborted();
+    }
+    try {
+      return await mintDevelopPreviewJpeg(source);
+    } catch {
+      signal.throwIfAborted();
+      return null;
+    }
+  })();
+  cooking.set(photo.id, work);
+  void work.finally(() => {
+    if (cooking.get(photo.id) === work) cooking.delete(photo.id);
+  });
+  return work;
 }

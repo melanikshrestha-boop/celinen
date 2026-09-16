@@ -1870,6 +1870,38 @@ export function createDevelopStore(options: DevelopStoreOptions) {
         db.close();
       }
     },
+    /** Replace an unreadable stored preview with a JPEG. Original bytes stay untouched. */
+    async replacePreview(photoId: string, previewBlob: Blob): Promise<DevelopPhoto> {
+      if (!(previewBlob instanceof Blob) || !previewBlob.size || previewBlob.size > 32 * 1024 * 1024)
+        throw new Error("Develop needs a valid JPEG preview.");
+      const viewable = await developBlobIsViewable(previewBlob);
+      if (!viewable) throw new Error("Develop needs a JPEG, PNG, or WebP preview.");
+      const db = await database();
+      try {
+        const result = await transaction(db, [STORES.photos], "readwrite", async (tx) => {
+          const photos = tx.objectStore(STORES.photos);
+          const record = (await requestResult(photos.get(key(photoId)))) as PhotoRecord | undefined;
+          if (!record || record.namespace !== namespace)
+            throw new Error("This photo is no longer available in this library.");
+          const previous = checkedPhoto(record.value);
+          if (previous.id !== photoId) throw new Error("The saved photo index is invalid.");
+          const value: DevelopPhoto = {
+            ...record.value,
+            previewBlob,
+            previewOrigin: previous.previewOrigin === "raw-demosaic" ? "raw-demosaic" : "raster",
+            sourceAvailable: Boolean(previous.sourceBlob),
+            width: previous.width,
+            height: previous.height,
+          };
+          photos.put({ key: key(photoId), namespace, value } satisfies PhotoRecord);
+          return value;
+        });
+        notify({ kind: "photos", ids: [photoId] });
+        return result;
+      } finally {
+        db.close();
+      }
+    },
     /** One atomic local insert, using the saved source revision and never modifying its original. */
     async createVirtualCopy(
       sourcePhotoId: string,
