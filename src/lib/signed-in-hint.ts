@@ -2,7 +2,7 @@
 export const SIGNED_IN_HINT_KEY = "celinen.signed-in";
 export const SIGNED_IN_COOKIE = "celinen_in";
 
-export const SIGNED_IN_HINT_SCRIPT = `(function(){try{if(localStorage.getItem("${SIGNED_IN_HINT_KEY}")==="1"||document.cookie.indexOf("${SIGNED_IN_COOKIE}=1")!==-1)document.documentElement.setAttribute("data-entry","in");}catch(e){}})();`;
+export const SIGNED_IN_HINT_SCRIPT = `(function(){try{if(localStorage.getItem("${SIGNED_IN_HINT_KEY}")==="1"||document.cookie.indexOf("${SIGNED_IN_COOKIE}=1")!==-1){document.documentElement.setAttribute("data-entry","in");return;}for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k||k.indexOf("auth-token")===-1)continue;var v=localStorage.getItem(k);if(v&&v.indexOf("access_token")!==-1){document.documentElement.setAttribute("data-entry","in");return;}}}catch(e){}})();`;
 
 export function rememberSignedIn(signedIn: boolean) {
   if (typeof document === "undefined") return;
