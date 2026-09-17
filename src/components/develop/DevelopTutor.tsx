@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   applyLook,
   applySet,
@@ -31,6 +32,8 @@ type Props = {
   photoId?: string | null;
   advanced?: boolean;
   histogram?: DevelopHistogramData | null;
+  /** Where the look bar sits. Without one it floats over the page. */
+  barSlot?: HTMLElement | null;
 };
 
 type Ring = { x: number; y: number; w: number; h: number; label: string };
@@ -85,7 +88,12 @@ function summaryBox(id: string) {
   const summary = document.querySelector(`#${CSS.escape(id)} summary`);
   if (!(summary instanceof HTMLElement)) return null;
   const box = summary.getBoundingClientRect();
-  return { x: box.left + Math.min(48, box.width / 2), y: box.top + box.height / 2, box, node: summary };
+  return {
+    x: box.left + Math.min(48, box.width / 2),
+    y: box.top + box.height / 2,
+    box,
+    node: summary,
+  };
 }
 
 function rangeThumb(id: string) {
@@ -96,7 +104,7 @@ function rangeThumb(id: string) {
   const max = Number(input.max);
   const val = Number(input.value);
   const box = input.getBoundingClientRect();
-  const t = (val - min) / ((max - min) || 1);
+  const t = (val - min) / (max - min || 1);
   return { x: box.left + box.width * t, y: box.top + box.height / 2, box, node: input };
 }
 
@@ -159,6 +167,7 @@ export function DevelopTutor({
   photoId,
   advanced = true,
   histogram = null,
+  barSlot = null,
 }: Props) {
   const [ask, setAsk] = useState("");
   const [beats, setBeats] = useState<TutorBeat[]>([]);
@@ -300,8 +309,10 @@ export function DevelopTutor({
       const canSlide = Boolean(input && fromVal !== null && toVal !== null);
       const canCurve = Boolean(svg && curveStart && svg.getBoundingClientRect().width > 0);
       const canWheel = Boolean(wheel && wheelStart && wheel.getBoundingClientRect().width > 0);
-      if (canCurve && svg && curveStart) dispatchPointer(svg, "pointerdown", curveStart.x, curveStart.y);
-      if (canWheel && wheel && wheelStart) dispatchPointer(wheel, "pointerdown", wheelStart.x, wheelStart.y);
+      if (canCurve && svg && curveStart)
+        dispatchPointer(svg, "pointerdown", curveStart.x, curveStart.y);
+      if (canWheel && wheel && wheelStart)
+        dispatchPointer(wheel, "pointerdown", wheelStart.x, wheelStart.y);
       setPress(true);
       await new Promise<void>((resolve) => {
         const tick = (now: number) => {
@@ -324,11 +335,7 @@ export function DevelopTutor({
             const cx = box.left + box.width / 2;
             const cy = box.top + box.height / 2;
             const range = set.path.match(/^wheel\.(shadows|midtones|highlights|global)/)?.[1] as
-              | "shadows"
-              | "midtones"
-              | "highlights"
-              | "global"
-              | undefined;
+              "shadows" | "midtones" | "highlights" | "global" | undefined;
             const fromGrade = range ? start.grading[range] : null;
             const toGrade = range ? target.grading[range] : null;
             const hue =
@@ -408,14 +415,12 @@ export function DevelopTutor({
                 node,
               };
             })()
-        : id
-          ? rangeThumb(id) || controlBox(id)
-          : null;
+          : id
+            ? rangeThumb(id) || controlBox(id)
+            : null;
     const markBox = mark ? photoMark(mark) : null;
     setDraw(
-      markBox
-        ? { ...markBox, ...pin(markBox.x, markBox.y), w: markBox.w, h: markBox.h }
-        : null,
+      markBox ? { ...markBox, ...pin(markBox.x, markBox.y), w: markBox.w, h: markBox.h } : null,
     );
     if (!target) {
       parkBuddy();
@@ -436,8 +441,7 @@ export function DevelopTutor({
     const start = originRef.current;
     const planned = beatsRef.current;
     if (!start || !planned.length) return;
-    const next =
-      modeRef.current === "do" || commit ? applyLook(start, planned, through) : start;
+    const next = modeRef.current === "do" || commit ? applyLook(start, planned, through) : start;
     onChange(next, label, commit);
   }
 
@@ -618,103 +622,107 @@ export function DevelopTutor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beat, index]);
 
+  const lookbar = (
+    <form
+      ref={bar}
+      className="develop-lookbar"
+      onSubmit={(event) => {
+        event.preventDefault();
+        startLook();
+      }}
+    >
+      {canTalk ? (
+        <button
+          type="button"
+          className={voice === "listening" ? "is-on" : undefined}
+          aria-pressed={voice === "listening"}
+          aria-label="Hold to talk"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            heard.current = "";
+            holdTalk(true);
+          }}
+          onPointerUp={() => {
+            holdTalk(false);
+            window.setTimeout(() => {
+              if (heard.current.trim()) startLook(heard.current.trim());
+            }, 120);
+          }}
+          onPointerCancel={() => holdTalk(false)}
+        >
+          Talk
+        </button>
+      ) : null}
+      <input
+        value={ask}
+        onChange={(event) => setAsk(event.target.value)}
+        placeholder="warmer, cinematic, sonder"
+        aria-label="Look"
+      />
+      <button type="submit">Go</button>
+      <button
+        type="button"
+        className={mode === "show" ? "is-on" : undefined}
+        aria-pressed={mode === "show"}
+        onClick={() => setMode(mode === "do" ? "show" : "do")}
+      >
+        {mode === "do" ? "Do" : "Show"}
+      </button>
+    </form>
+  );
+
   if (!enabled) return null;
   return (
     <div className="develop-tutor" aria-label="Look tutor">
       <div className="develop-tutor-layer" aria-hidden="true">
-      <div
-        className={`develop-tutor-buddy${teaching ? " is-teaching" : ""}${voice === "listening" ? " is-listening" : ""}${press ? " is-press" : ""}`}
-        style={{
-          transform: `translate(${buddy.x - 8}px, ${buddy.y - 8}px) rotate(${buddy.rotation}deg) scale(${buddy.scale})`,
-        }}
-      >
-        {voice === "listening" ? (
-          <span className="develop-tutor-wave" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
-        ) : (
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-            <polygon points="8,1 15,14 1,14" />
-          </svg>
-        )}
-      </div>
-      {teaching && ring ? (
         <div
-          key={`ring-${index}`}
-          className="develop-tutor-ring"
+          className={`develop-tutor-buddy${teaching ? " is-teaching" : ""}${voice === "listening" ? " is-listening" : ""}${press ? " is-press" : ""}`}
           style={{
-            transform: `translate(${ring.x}px, ${ring.y}px)`,
-            width: ring.w,
-            height: ring.h,
+            transform: `translate(${buddy.x - 8}px, ${buddy.y - 8}px) rotate(${buddy.rotation}deg) scale(${buddy.scale})`,
           }}
         >
-          <span>{ring.label}</span>
+          {voice === "listening" ? (
+            <span className="develop-tutor-wave" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
+          ) : (
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <polygon points="8,1 15,14 1,14" />
+            </svg>
+          )}
         </div>
-      ) : null}
-      {teaching && draw ? (
-        <div
-          key={`draw-${index}`}
-          className="develop-tutor-draw"
-          style={{
-            transform: `translate(${draw.x}px, ${draw.y}px)`,
-            width: draw.w,
-            height: draw.h,
-          }}
-        >
-          <span>{draw.label}</span>
-        </div>
-      ) : null}
-      </div>
-      <form
-        ref={bar}
-        className="develop-lookbar"
-        onSubmit={(event) => {
-          event.preventDefault();
-          startLook();
-        }}
-      >
-        {canTalk ? (
-          <button
-            type="button"
-            className={voice === "listening" ? "is-on" : undefined}
-            aria-pressed={voice === "listening"}
-            aria-label="Hold to talk"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              heard.current = "";
-              holdTalk(true);
+        {teaching && ring ? (
+          <div
+            key={`ring-${index}`}
+            className="develop-tutor-ring"
+            style={{
+              transform: `translate(${ring.x}px, ${ring.y}px)`,
+              width: ring.w,
+              height: ring.h,
             }}
-            onPointerUp={() => {
-              holdTalk(false);
-              window.setTimeout(() => {
-                if (heard.current.trim()) startLook(heard.current.trim());
-              }, 120);
-            }}
-            onPointerCancel={() => holdTalk(false)}
           >
-            Talk
-          </button>
+            <span>{ring.label}</span>
+          </div>
         ) : null}
-        <input
-          value={ask}
-          onChange={(event) => setAsk(event.target.value)}
-          placeholder="warmer, cinematic, sonder"
-          aria-label="Look"
-        />
-        <button type="submit">Go</button>
-        <button
-          type="button"
-          className={mode === "show" ? "is-on" : undefined}
-          aria-pressed={mode === "show"}
-          onClick={() => setMode(mode === "do" ? "show" : "do")}
-        >
-          {mode === "do" ? "Do" : "Show"}
-        </button>
-      </form>
+        {teaching && draw ? (
+          <div
+            key={`draw-${index}`}
+            className="develop-tutor-draw"
+            style={{
+              transform: `translate(${draw.x}px, ${draw.y}px)`,
+              width: draw.w,
+              height: draw.h,
+            }}
+          >
+            <span>{draw.label}</span>
+          </div>
+        ) : null}
+      </div>
+      {barSlot ? createPortal(lookbar, barSlot) : lookbar}
       {teaching && beat ? (
         <div className="develop-lesson">
           <p>
