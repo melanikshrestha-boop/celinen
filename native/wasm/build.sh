@@ -3,7 +3,7 @@
 #   sh native/wasm/build.sh        (from the repository root)
 # Needs Emscripten's em++ on PATH, or EMSDK pointing at an activated emsdk.
 # The .wasm outputs are committed so deploys and CI never need the toolchain;
-# rebuild and commit them whenever native/src/develop*.cpp or voice.cpp change.
+# rebuild and commit them whenever native/src/develop*.cpp, look_match.cpp or voice.cpp change.
 # tests/develop-wasm.test.ts and tests/voice-wasm.test.ts run the committed binaries.
 set -eu
 cd "$(dirname "$0")/../.."
@@ -27,8 +27,8 @@ COMMON="-std=c++20 -O3 -DNDEBUG -Inative/include -fwasm-exceptions
 # allocation and the engine reports it instead of crashing.
 # shellcheck disable=SC2086
 em++ $COMMON -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=2147483648 \
-  native/src/develop.cpp native/src/develop_auto.cpp native/wasm/develop_wasm.cpp \
-  -sEXPORTED_FUNCTIONS=_celinen_error,_celinen_engine,_celinen_alloc,_celinen_release,_celinen_source,_celinen_develop,_celinen_result_width,_celinen_result_height,_celinen_result_pixels,_celinen_result_release,_celinen_suggest \
+  native/src/develop.cpp native/src/develop_auto.cpp native/src/look_match.cpp native/wasm/develop_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_error,_celinen_engine,_celinen_alloc,_celinen_release,_celinen_source,_celinen_develop,_celinen_result_width,_celinen_result_height,_celinen_result_pixels,_celinen_result_release,_celinen_suggest,_celinen_look_size,_celinen_look_describe,_celinen_look_inputs,_celinen_look_match \
   -o src/lib/develop/wasm/celinen-develop.wasm
 
 # The cull engine: measured per frame in the analysis worker, then one

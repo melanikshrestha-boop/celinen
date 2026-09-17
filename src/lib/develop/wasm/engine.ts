@@ -4,6 +4,15 @@
  */
 import type { DevelopSettings } from "../contract";
 import { developProtocol } from "../protocol";
+import {
+  isLookDescriptor,
+  LOOK_DESCRIPTOR_SIZE,
+  LOOK_MAX_INSPIRATIONS,
+  LOOK_RESULT_SIZE,
+  lookMatchResult,
+  type LookDescriptor,
+  type LookMatchResult,
+} from "../look-match";
 
 type Exports = {
   memory: WebAssembly.Memory;
@@ -19,6 +28,15 @@ type Exports = {
   celinen_result_pixels: () => number;
   celinen_result_release: () => void;
   celinen_suggest: () => number;
+  celinen_look_size: () => number;
+  celinen_look_describe: () => number;
+  celinen_look_inputs: (count: number) => number;
+  celinen_look_match: (
+    count: number,
+    protocol: number,
+    length: number,
+    outputEdge: number,
+  ) => number;
 };
 
 export type DevelopWasmImage = {
@@ -54,6 +72,16 @@ export type DevelopWasmEngine = {
   source(width: number, height: number): Uint8ClampedArray;
   develop(settings: DevelopSettings, highResolution?: boolean): DevelopWasmImage;
   suggest(): DevelopAutoSuggestion;
+  /** Measure the loaded source as an inspiration. */
+  describeLook(): LookDescriptor;
+  /** Solve a recipe that gives the loaded source the combined look of `looks`,
+   * keeping everything a look never touches from `settings`.
+   */
+  matchLook(
+    looks: readonly LookDescriptor[],
+    settings: DevelopSettings,
+    outputEdge: number,
+  ): LookMatchResult;
 };
 
 // The engine is pure computation. Its only imports are the WASI stubs libc++
@@ -132,6 +160,49 @@ export async function instantiateDevelopWasm(
           vibrance: v[8]!,
         },
       };
+    },
+    describeLook() {
+      if (wasm.celinen_look_size() !== LOOK_DESCRIPTOR_SIZE)
+        throw new Error(
+          "The Develop engine and page disagree on the look format. Reload the page.",
+        );
+      const pointer = wasm.celinen_look_describe();
+      if (!pointer) throw failure();
+      // Copied out: the next describe reuses this memory.
+      return new Float64Array(new Float64Array(wasm.memory.buffer, pointer, LOOK_DESCRIPTOR_SIZE));
+    },
+    matchLook(looks, settings, outputEdge) {
+      if (!looks.length || looks.length > LOOK_MAX_INSPIRATIONS || !looks.every(isLookDescriptor))
+        throw new Error("Drop an inspiration photo first.");
+      const inputs = wasm.celinen_look_inputs(looks.length);
+      if (!inputs) throw failure();
+      const room = new Float64Array(
+        wasm.memory.buffer,
+        inputs,
+        looks.length * LOOK_DESCRIPTOR_SIZE,
+      );
+      looks.forEach((look, index) => room.set(look, index * LOOK_DESCRIPTOR_SIZE));
+      const protocol = new TextEncoder().encode(developProtocol(settings));
+      const pointer = wasm.celinen_alloc(protocol.length);
+      if (!pointer)
+        throw new Error("This photo is too large for the browser's memory at this size.");
+      let result: number;
+      try {
+        new Uint8Array(wasm.memory.buffer, pointer, protocol.length).set(protocol);
+        result = wasm.celinen_look_match(
+          looks.length,
+          pointer,
+          protocol.length,
+          Math.max(1, Math.round(outputEdge)),
+        );
+      } finally {
+        wasm.celinen_release(pointer);
+      }
+      if (!result) throw failure();
+      return lookMatchResult(
+        settings,
+        new Float64Array(wasm.memory.buffer, result, LOOK_RESULT_SIZE),
+      );
     },
   };
 }

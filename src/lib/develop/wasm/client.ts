@@ -4,6 +4,7 @@
  */
 import type { DevelopSettings } from "../contract";
 import { decodeDevelopPreview } from "../decode-preview";
+import { LOOK_SOURCE_EDGE, type LookDescriptor, type LookMatchResult } from "../look-match";
 import type { DevelopAutoSuggestion } from "./engine";
 import type { DevelopWasmReply, DevelopWasmRequest } from "./messages";
 
@@ -138,6 +139,39 @@ export async function renderDevelopWasm(
   if (settled.kind !== "rendered")
     throw new DOMException("Develop render cancelled.", "AbortError");
   return settled.blob;
+}
+
+/** Measure an inspiration photo's look. Throws when the engine is unavailable. */
+export async function describeLookWasm(
+  source: Blob,
+  signal?: AbortSignal,
+): Promise<LookDescriptor> {
+  const settled = await submit(
+    source,
+    LOOK_SOURCE_EDGE,
+    (base) => ({ ...base, kind: "look-describe" }),
+    signal,
+  );
+  if (settled.kind !== "look") throw new DOMException("Look measurement cancelled.", "AbortError");
+  return settled.descriptor;
+}
+
+/** Solve this photo's own recipe for the combined look of `looks`. */
+export async function matchLookWasm(
+  source: Blob,
+  looks: LookDescriptor[],
+  settings: DevelopSettings,
+  options: { outputEdge: number; signal?: AbortSignal },
+): Promise<LookMatchResult> {
+  const settled = await submit(
+    source,
+    LOOK_SOURCE_EDGE,
+    (base) => ({ ...base, kind: "look-match", looks, settings, outputEdge: options.outputEdge }),
+    options.signal,
+  );
+  if (settled.kind !== "look-matched")
+    throw new DOMException("Look match cancelled.", "AbortError");
+  return settled.match;
 }
 
 /** Measured Auto for the photo's working pixels. Null when the engine is unavailable. */

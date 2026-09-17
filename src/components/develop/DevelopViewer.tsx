@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { type DevelopSettings } from "@/lib/develop/contract";
 import { type DevelopChange, type DevelopTool } from "./DevelopControls";
 import { developImageReady } from "./develop-state";
@@ -28,6 +28,7 @@ export function DevelopViewer({
   knownHistogram,
   onPixelSample = ignorePixelSample,
   clipping,
+  overlay = null,
 }: {
   url: string | null;
   blob: Blob | null;
@@ -48,6 +49,8 @@ export function DevelopViewer({
   knownHistogram?: DevelopHistogramData | null;
   onPixelSample?: (sample: DevelopPixelSample | null) => void;
   clipping: { shadows: boolean; highlights: boolean };
+  /** Drawn over the stage, outside the photo's zoom and pan. */
+  overlay?: ReactNode;
 }) {
   const stage = useRef<HTMLDivElement>(null),
     sampleImage = useRef<HTMLImageElement>(null),
@@ -335,6 +338,7 @@ export function DevelopViewer({
       ) : (
         <p className="develop-hint">{emptyLabel}</p>
       )}
+      {overlay}
     </div>
   );
 }
