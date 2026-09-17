@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { verifiedSessionReceiver } from "@/lib/account-access";
+import { SESSION_RESTORE_DEADLINE_MS, verifiedSessionReceiver } from "@/lib/account-access";
 import { profileInputSchema, readAccountProfile, type ProfileInput } from "@/lib/account-profile";
 import { avatarStorageKey, readLocalAvatar, writeLocalAvatar } from "@/lib/account-avatar";
 import type { PhotographerWorkRole } from "@/lib/photographer-work-roles";
@@ -73,6 +73,17 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   useEffect(() => {
+    const restoreFailed = () => {
+      clearTimeout(deadline);
+      receiver.cancel();
+      setUser(null);
+      setStatus("out");
+      rememberSignedIn(false);
+      setError("Your saved sign-in could not be restored. Sign in again to continue.");
+    };
+    // Auth that never answers (stalled storage lock, dead network) still ends signed out,
+    // so private pages redirect to Sign In instead of holding their loader forever.
+    const deadline = setTimeout(restoreFailed, SESSION_RESTORE_DEADLINE_MS);
     const receiver = verifiedSessionReceiver(
       async (token) => {
         const startedAt = profileEpoch.current;
@@ -92,6 +103,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return data.user;
       },
       (verified) => {
+        clearTimeout(deadline);
         // Fence pending analytics before React installs a new verified account.
         disconnectProductAnalytics(verified?.id);
         if (confirmedProfile.current?.owner !== verified?.id) confirmedProfile.current = null;
@@ -114,15 +126,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         return data.session;
       },
       receiver.receive,
-      () => {
-        receiver.cancel();
-        setUser(null);
-        setStatus("out");
-        rememberSignedIn(false);
-        setError("Your saved sign-in could not be restored. Sign in again to continue.");
-      },
+      restoreFailed,
     );
     return () => {
+      clearTimeout(deadline);
       receiver.cancel();
       stop();
     };

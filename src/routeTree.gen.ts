@@ -19,6 +19,7 @@ import { Route as BookSiteRouteImport } from './routes/book-site'
 import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as BusinessRouteImport } from './routes/business'
 import { Route as ChangelogRouteImport } from './routes/changelog'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CompareRouteImport } from './routes/compare'
@@ -35,6 +36,7 @@ import { Route as HelpRouteImport } from './routes/help'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MailRouteImport } from './routes/mail'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as MetadataRouteImport } from './routes/metadata'
@@ -53,6 +55,7 @@ import { Route as ProductRouteImport } from './routes/product'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as PublishRouteImport } from './routes/publish'
 import { Route as RatesRouteImport } from './routes/rates'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as SendRouteImport } from './routes/send'
@@ -60,15 +63,19 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ShootRouteImport } from './routes/shoot'
 import { Route as ShootsRouteImport } from './routes/shoots'
 import { Route as ShopRouteImport } from './routes/shop'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TonightRouteImport } from './routes/tonight'
 import { Route as UseCasesRouteImport } from './routes/use-cases'
 import { Route as VideoRouteImport } from './routes/video'
+import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCultureRouteImport } from './routes/api/culture'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiPlacesRouteImport } from './routes/api/places'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
@@ -93,6 +100,7 @@ import { Route as VsSlugRouteImport } from './routes/vs.$slug'
 import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
+import { Route as ApiVoicePolishRouteImport } from './routes/api/voice/polish'
 import { Route as ApiVoiceSttRouteImport } from './routes/api/voice/stt'
 import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
 import { Route as ShootsIdCullRouteImport } from './routes/shoots.$id.cull'
@@ -152,6 +160,11 @@ const BusinessRoute = BusinessRouteImport.update({
 const ChangelogRoute = ChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClientsRoute = ClientsRouteImport.update({
@@ -232,6 +245,11 @@ const JobsRoute = JobsRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MailRoute = MailRouteImport.update({
@@ -324,6 +342,11 @@ const RatesRoute = RatesRouteImport.update({
   path: '/rates',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
@@ -359,6 +382,16 @@ const ShopRoute = ShopRouteImport.update({
   path: '/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -389,6 +422,11 @@ const VideoRoute = VideoRouteImport.update({
   path: '/video',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WaitlistRoute = WaitlistRouteImport.update({
+  id: '/waitlist',
+  path: '/waitlist',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
@@ -402,6 +440,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
 const ApiCultureRoute = ApiCultureRouteImport.update({
   id: '/api/culture',
   path: '/api/culture',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpRoute = ApiMcpRouteImport.update({
@@ -524,6 +567,11 @@ const ApiPublicTrafficRoute = ApiPublicTrafficRouteImport.update({
   path: '/api/public/traffic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVoicePolishRoute = ApiVoicePolishRouteImport.update({
+  id: '/api/voice/polish',
+  path: '/api/voice/polish',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVoiceSttRoute = ApiVoiceSttRouteImport.update({
   id: '/api/voice/stt',
   path: '/api/voice/stt',
@@ -589,6 +637,7 @@ export interface FileRoutesByFullPath {
   '/bookings': typeof BookingsRoute
   '/business': typeof BusinessRoute
   '/changelog': typeof ChangelogRoute
+  '/checkout': typeof CheckoutRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/compare': typeof CompareRouteWithChildren
@@ -605,6 +654,7 @@ export interface FileRoutesByFullPath {
   '/integrations': typeof IntegrationsRouteWithChildren
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
+  '/login': typeof LoginRoute
   '/mail': typeof MailRoute
   '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
@@ -623,6 +673,7 @@ export interface FileRoutesByFullPath {
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
+  '/register': typeof RegisterRoute
   '/research': typeof ResearchRoute
   '/security': typeof SecurityRoute
   '/send': typeof SendRoute
@@ -630,15 +681,19 @@ export interface FileRoutesByFullPath {
   '/shoot': typeof ShootRoute
   '/shoots': typeof ShootsRouteWithChildren
   '/shop': typeof ShopRoute
+  '/sign-in': typeof SignInRoute
+  '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/tonight': typeof TonightRoute
   '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
+  '/waitlist': typeof WaitlistRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/culture': typeof ApiCultureRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
@@ -663,6 +718,7 @@ export interface FileRoutesByFullPath {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
@@ -685,6 +741,7 @@ export interface FileRoutesByTo {
   '/bookings': typeof BookingsRoute
   '/business': typeof BusinessRoute
   '/changelog': typeof ChangelogRoute
+  '/checkout': typeof CheckoutRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/cookie-policy': typeof CookiePolicyRoute
@@ -699,6 +756,7 @@ export interface FileRoutesByTo {
   '/help': typeof HelpRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
+  '/login': typeof LoginRoute
   '/mail': typeof MailRoute
   '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
@@ -717,21 +775,26 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
+  '/register': typeof RegisterRoute
   '/research': typeof ResearchRoute
   '/security': typeof SecurityRoute
   '/send': typeof SendRoute
   '/settings': typeof SettingsRoute
   '/shoot': typeof ShootRoute
   '/shop': typeof ShopRoute
+  '/sign-in': typeof SignInRoute
+  '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/tonight': typeof TonightRoute
   '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
+  '/waitlist': typeof WaitlistRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/culture': typeof ApiCultureRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
@@ -755,6 +818,7 @@ export interface FileRoutesByTo {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
@@ -778,6 +842,7 @@ export interface FileRoutesById {
   '/bookings': typeof BookingsRoute
   '/business': typeof BusinessRoute
   '/changelog': typeof ChangelogRoute
+  '/checkout': typeof CheckoutRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/compare': typeof CompareRouteWithChildren
@@ -794,6 +859,7 @@ export interface FileRoutesById {
   '/integrations': typeof IntegrationsRouteWithChildren
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
+  '/login': typeof LoginRoute
   '/mail': typeof MailRoute
   '/mcp': typeof McpRoute
   '/metadata': typeof MetadataRoute
@@ -812,6 +878,7 @@ export interface FileRoutesById {
   '/projects': typeof ProjectsRoute
   '/publish': typeof PublishRoute
   '/rates': typeof RatesRoute
+  '/register': typeof RegisterRoute
   '/research': typeof ResearchRoute
   '/security': typeof SecurityRoute
   '/send': typeof SendRoute
@@ -819,15 +886,19 @@ export interface FileRoutesById {
   '/shoot': typeof ShootRoute
   '/shoots': typeof ShootsRouteWithChildren
   '/shop': typeof ShopRoute
+  '/sign-in': typeof SignInRoute
+  '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/tonight': typeof TonightRoute
   '/use-cases': typeof UseCasesRoute
   '/video': typeof VideoRoute
+  '/waitlist': typeof WaitlistRoute
   '/workspace': typeof WorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/culture': typeof ApiCultureRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/places': typeof ApiPlacesRoute
   '/api/version': typeof ApiVersionRoute
@@ -852,6 +923,7 @@ export interface FileRoutesById {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
   '/shoots/$id/develop': typeof ShootsIdDevelopRoute
@@ -876,6 +948,7 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/business'
     | '/changelog'
+    | '/checkout'
     | '/clients'
     | '/community'
     | '/compare'
@@ -892,6 +965,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jobs'
     | '/library'
+    | '/login'
     | '/mail'
     | '/mcp'
     | '/metadata'
@@ -910,6 +984,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/publish'
     | '/rates'
+    | '/register'
     | '/research'
     | '/security'
     | '/send'
@@ -917,15 +992,19 @@ export interface FileRouteTypes {
     | '/shoot'
     | '/shoots'
     | '/shop'
+    | '/sign-in'
+    | '/signin'
     | '/signup'
     | '/studio'
     | '/terms'
     | '/tonight'
     | '/use-cases'
     | '/video'
+    | '/waitlist'
     | '/workspace'
     | '/api/chat'
     | '/api/culture'
+    | '/api/health'
     | '/api/mcp'
     | '/api/places'
     | '/api/version'
@@ -950,6 +1029,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
@@ -972,6 +1052,7 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/business'
     | '/changelog'
+    | '/checkout'
     | '/clients'
     | '/community'
     | '/cookie-policy'
@@ -986,6 +1067,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/jobs'
     | '/library'
+    | '/login'
     | '/mail'
     | '/mcp'
     | '/metadata'
@@ -1004,21 +1086,26 @@ export interface FileRouteTypes {
     | '/projects'
     | '/publish'
     | '/rates'
+    | '/register'
     | '/research'
     | '/security'
     | '/send'
     | '/settings'
     | '/shoot'
     | '/shop'
+    | '/sign-in'
+    | '/signin'
     | '/signup'
     | '/studio'
     | '/terms'
     | '/tonight'
     | '/use-cases'
     | '/video'
+    | '/waitlist'
     | '/workspace'
     | '/api/chat'
     | '/api/culture'
+    | '/api/health'
     | '/api/mcp'
     | '/api/places'
     | '/api/version'
@@ -1042,6 +1129,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
@@ -1064,6 +1152,7 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/business'
     | '/changelog'
+    | '/checkout'
     | '/clients'
     | '/community'
     | '/compare'
@@ -1080,6 +1169,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jobs'
     | '/library'
+    | '/login'
     | '/mail'
     | '/mcp'
     | '/metadata'
@@ -1098,6 +1188,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/publish'
     | '/rates'
+    | '/register'
     | '/research'
     | '/security'
     | '/send'
@@ -1105,15 +1196,19 @@ export interface FileRouteTypes {
     | '/shoot'
     | '/shoots'
     | '/shop'
+    | '/sign-in'
+    | '/signin'
     | '/signup'
     | '/studio'
     | '/terms'
     | '/tonight'
     | '/use-cases'
     | '/video'
+    | '/waitlist'
     | '/workspace'
     | '/api/chat'
     | '/api/culture'
+    | '/api/health'
     | '/api/mcp'
     | '/api/places'
     | '/api/version'
@@ -1138,6 +1233,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
     | '/shoots/$id/develop'
@@ -1161,6 +1257,7 @@ export interface RootRouteChildren {
   BookingsRoute: typeof BookingsRoute
   BusinessRoute: typeof BusinessRoute
   ChangelogRoute: typeof ChangelogRoute
+  CheckoutRoute: typeof CheckoutRoute
   ClientsRoute: typeof ClientsRoute
   CommunityRoute: typeof CommunityRoute
   CompareRoute: typeof CompareRouteWithChildren
@@ -1177,6 +1274,7 @@ export interface RootRouteChildren {
   IntegrationsRoute: typeof IntegrationsRouteWithChildren
   JobsRoute: typeof JobsRoute
   LibraryRoute: typeof LibraryRoute
+  LoginRoute: typeof LoginRoute
   MailRoute: typeof MailRoute
   McpRoute: typeof McpRoute
   MetadataRoute: typeof MetadataRoute
@@ -1195,6 +1293,7 @@ export interface RootRouteChildren {
   ProjectsRoute: typeof ProjectsRoute
   PublishRoute: typeof PublishRoute
   RatesRoute: typeof RatesRoute
+  RegisterRoute: typeof RegisterRoute
   ResearchRoute: typeof ResearchRoute
   SecurityRoute: typeof SecurityRoute
   SendRoute: typeof SendRoute
@@ -1202,15 +1301,19 @@ export interface RootRouteChildren {
   ShootRoute: typeof ShootRoute
   ShootsRoute: typeof ShootsRouteWithChildren
   ShopRoute: typeof ShopRoute
+  SignInRoute: typeof SignInRoute
+  SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
   TonightRoute: typeof TonightRoute
   UseCasesRoute: typeof UseCasesRoute
   VideoRoute: typeof VideoRoute
+  WaitlistRoute: typeof WaitlistRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCultureRoute: typeof ApiCultureRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiPlacesRoute: typeof ApiPlacesRoute
   ApiVersionRoute: typeof ApiVersionRoute
@@ -1229,6 +1332,7 @@ export interface RootRouteChildren {
   ApiNativeV2Route: typeof ApiNativeV2Route
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
+  ApiVoicePolishRoute: typeof ApiVoicePolishRoute
   ApiVoiceSttRoute: typeof ApiVoiceSttRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
   ApiPublicStripeConnectWebhookRoute: typeof ApiPublicStripeConnectWebhookRoute
@@ -1305,6 +1409,13 @@ declare module '@tanstack/react-router' {
       path: '/changelog'
       fullPath: '/changelog'
       preLoaderRoute: typeof ChangelogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/clients': {
@@ -1417,6 +1528,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mail': {
@@ -1545,6 +1663,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RatesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/research': {
       id: '/research'
       path: '/research'
@@ -1594,6 +1719,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -1636,6 +1775,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VideoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/waitlist': {
+      id: '/waitlist'
+      path: '/waitlist'
+      fullPath: '/waitlist'
+      preLoaderRoute: typeof WaitlistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workspace': {
       id: '/workspace'
       path: '/workspace'
@@ -1655,6 +1801,13 @@ declare module '@tanstack/react-router' {
       path: '/api/culture'
       fullPath: '/api/culture'
       preLoaderRoute: typeof ApiCultureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp': {
@@ -1825,6 +1978,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTrafficRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/voice/polish': {
+      id: '/api/voice/polish'
+      path: '/api/voice/polish'
+      fullPath: '/api/voice/polish'
+      preLoaderRoute: typeof ApiVoicePolishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/voice/stt': {
       id: '/api/voice/stt'
       path: '/api/voice/stt'
@@ -1971,6 +2131,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookingsRoute: BookingsRoute,
   BusinessRoute: BusinessRoute,
   ChangelogRoute: ChangelogRoute,
+  CheckoutRoute: CheckoutRoute,
   ClientsRoute: ClientsRoute,
   CommunityRoute: CommunityRoute,
   CompareRoute: CompareRouteWithChildren,
@@ -1987,6 +2148,7 @@ const rootRouteChildren: RootRouteChildren = {
   IntegrationsRoute: IntegrationsRouteWithChildren,
   JobsRoute: JobsRoute,
   LibraryRoute: LibraryRoute,
+  LoginRoute: LoginRoute,
   MailRoute: MailRoute,
   McpRoute: McpRoute,
   MetadataRoute: MetadataRoute,
@@ -2005,6 +2167,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsRoute: ProjectsRoute,
   PublishRoute: PublishRoute,
   RatesRoute: RatesRoute,
+  RegisterRoute: RegisterRoute,
   ResearchRoute: ResearchRoute,
   SecurityRoute: SecurityRoute,
   SendRoute: SendRoute,
@@ -2012,15 +2175,19 @@ const rootRouteChildren: RootRouteChildren = {
   ShootRoute: ShootRoute,
   ShootsRoute: ShootsRouteWithChildren,
   ShopRoute: ShopRoute,
+  SignInRoute: SignInRoute,
+  SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,
   TonightRoute: TonightRoute,
   UseCasesRoute: UseCasesRoute,
   VideoRoute: VideoRoute,
+  WaitlistRoute: WaitlistRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCultureRoute: ApiCultureRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiPlacesRoute: ApiPlacesRoute,
   ApiVersionRoute: ApiVersionRoute,
@@ -2039,6 +2206,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeV2Route: ApiNativeV2Route,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicTrafficRoute: ApiPublicTrafficRoute,
+  ApiVoicePolishRoute: ApiVoicePolishRoute,
   ApiVoiceSttRoute: ApiVoiceSttRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
   ApiPublicStripeConnectWebhookRoute: ApiPublicStripeConnectWebhookRoute,
