@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Check, ImageOff, Layers, X } from "lucide-react";
+import { Check, ImageOff, Layers, Tag, X } from "lucide-react";
 import type { CullFrame } from "@/lib/studio/cull/session";
 import { CULL_REASON_LABELS, effectiveVerdict } from "@/lib/studio/cull/session";
 import {
@@ -17,6 +17,8 @@ const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLa
 const GRID_SIZES = { minCardWidth: 176, cardHeight: 164, gap: 8, padding: 16 } as const;
 
 export type CullViewport = { width: number; height: number };
+
+const NONE_PICKED: ReadonlySet<string> = new Set();
 
 /** Reads one frame's stored thumbnail. Must keep its identity across renders. */
 export type CullThumbnailSource = (frameId: string) => Promise<Blob | null>;
@@ -105,6 +107,49 @@ export function CullMark({ frame, size = 12 }: { frame: CullFrame; size?: number
   );
 }
 
+/** A long file name loses its middle, not its end: the frame number and
+ * extension a photographer scans for stay readable, and the score stays put. */
+export function CullName({ name }: { name: string }) {
+  const tail = name.length > 14 ? name.slice(-10) : "";
+  return (
+    <span className="cull-name" title={name}>
+      <span className="cull-name-head">{tail ? name.slice(0, -10) : name}</span>
+      {tail && <span className="cull-name-tail">{tail}</span>}
+    </span>
+  );
+}
+
+/** Stars, color label and tag, as small as they can be and still read. */
+export function CullMarks({ frame }: { frame: CullFrame }) {
+  const stars = frame.rating ?? 0;
+  if (!stars && !frame.label && !frame.tagged) return null;
+  return (
+    <span className="cull-marks">
+      {frame.label && (
+        <span
+          className="cull-label"
+          data-label={frame.label}
+          role="img"
+          aria-label={`${frame.label[0]!.toUpperCase()}${frame.label.slice(1)} label`}
+        />
+      )}
+      {stars > 0 && (
+        <span className="cull-stars" role="img" aria-label={`${stars} stars`}>
+          {`${stars}★`}
+        </span>
+      )}
+      {frame.tagged && (
+        <span className="cull-tag" role="img" aria-label="Tagged">
+          <Tag size={10} strokeWidth={2.5} aria-hidden="true" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** How a click on a card changes the selection: ⌘ adds or removes one, ⇧ takes a range. */
+export type CullSelectMode = "replace" | "toggle" | "range";
+
 // Every prop is a primitive or an object the controller replaces only when it
 // changes, so a new snapshot re-renders only the cards that actually changed.
 type CardProps = {
@@ -118,8 +163,10 @@ type CardProps = {
   top: number;
   width: number;
   selected: boolean;
+  /** Part of a multi-frame selection. */
+  picked: boolean;
   thumbnail: CullThumbnailSource;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, mode: CullSelectMode) => void;
   onOpen: (id: string) => void;
   onToggleStack: (stackId: string) => void;
 };
@@ -135,6 +182,7 @@ const Card = memo(function Card({
   top,
   width,
   selected,
+  picked,
   thumbnail,
   onSelect,
   onOpen,
@@ -143,6 +191,7 @@ const Card = memo(function Card({
   const reason = frame.suggestion?.reason ?? "none";
   const classes = ["cull-card"];
   if (selected) classes.push("is-selected");
+  if (picked) classes.push("is-picked");
   if (stackId) classes.push("is-stacked");
   if (expanded) classes.push("is-open");
   if (expanded && !lead) classes.push("is-stack-member");
@@ -159,8 +208,14 @@ const Card = memo(function Card({
         className="cull-card-hit"
         aria-label={`${index + 1}. ${frame.name}`}
         aria-current={selected ? "true" : undefined}
+        aria-pressed={picked || undefined}
         tabIndex={selected ? 0 : -1}
-        onClick={() => onSelect(frame.id)}
+        onClick={(event) =>
+          onSelect(
+            frame.id,
+            event.shiftKey ? "range" : event.metaKey || event.ctrlKey ? "toggle" : "replace",
+          )
+        }
         onDoubleClick={() => onOpen(frame.id)}
       >
         <span className="cull-thumb">
@@ -175,7 +230,8 @@ const Card = memo(function Card({
           )}
         </span>
         <span className="cull-card-meta font-mono text-[10px]">
-          <span>{frame.name}</span>
+          <CullName name={frame.name} />
+          <CullMarks frame={frame} />
           {frame.error ? (
             <span className="text-rust">Unreadable</span>
           ) : frame.suggestion ? (
@@ -205,7 +261,9 @@ export type CullGridProps = {
   thumbnail: CullThumbnailSource;
   /** Index into `cells` of the frame in hand. */
   selectedIndex: number | null;
-  onSelect: (id: string) => void;
+  /** Frames picked together for a bulk mark or compare; empty for none. */
+  picked?: ReadonlySet<string> | undefined;
+  onSelect: (id: string, mode: CullSelectMode) => void;
   onOpen: (id: string) => void;
   onToggleStack: (stackId: string) => void;
   /** Told whenever the column count changes, so ↑ ↓ can move a whole row. */
@@ -224,6 +282,7 @@ export const CullGrid = memo(function CullGrid({
   cells,
   thumbnail,
   selectedIndex,
+  picked = NONE_PICKED,
   onSelect,
   onOpen,
   onToggleStack,
@@ -356,6 +415,7 @@ export const CullGrid = memo(function CullGrid({
             top={layout.padding + Math.floor(index / layout.columns) * layout.rowStride}
             width={layout.cardWidth}
             selected={index === selectedIndex}
+            picked={picked.has(cell.frame.id)}
             thumbnail={thumbnail}
             onSelect={onSelect}
             onOpen={onOpen}

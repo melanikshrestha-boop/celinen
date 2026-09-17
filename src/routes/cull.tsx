@@ -87,6 +87,7 @@ function CullSessionHost({ scope }: { scope: string }) {
         });
         unsubscribe = owned.subscribe(setSnapshot);
         setController(owned);
+        void owned.loadCodes();
         // Photos dropped on Home start culling the moment the store is open.
         const queued = takeStudioImport();
         if (queued.length)
@@ -138,9 +139,23 @@ function CullSessionHost({ scope }: { scope: string }) {
     [controller, report, refreshSessions],
   );
   const onCancelImport = useCallback(() => controller?.cancelImport(), [controller]);
-  const onDecide = useCallback(
-    (ids: readonly string[], verdict: Parameters<CullController["decide"]>[1]) =>
-      void controller?.decide(ids, verdict).catch(report),
+  const onMark = useCallback(
+    (ids: readonly string[], marks: Parameters<CullController["mark"]>[1]) =>
+      void controller?.mark(ids, marks).catch(report),
+    [controller, report],
+  );
+  const onKeepTarget = useCallback(
+    (target: number | null) => controller?.setKeepTarget(target),
+    [controller],
+  );
+  // The code panel reports its own problems next to the file it could not read.
+  const onAddCodes = useCallback(
+    (input: Parameters<CullController["addCodes"]>[0]) =>
+      controller ? controller.addCodes(input) : Promise.reject(new Error("Cull is not ready.")),
+    [controller],
+  );
+  const onRemoveCodes = useCallback(
+    (id: string) => void controller?.removeCodes(id).catch(report),
     [controller, report],
   );
   const onUndo = useCallback(() => void controller?.undo().catch(report), [controller, report]);
@@ -190,8 +205,11 @@ function CullSessionHost({ scope }: { scope: string }) {
       snapshot={shown}
       onImport={onImport}
       onCancelImport={onCancelImport}
-      onDecide={onDecide}
+      onMark={onMark}
       onUndo={onUndo}
+      onKeepTarget={onKeepTarget}
+      onAddCodes={onAddCodes}
+      onRemoveCodes={onRemoveCodes}
       thumbnail={thumbnail}
       preview={preview}
       onReconnect={onReconnect}
