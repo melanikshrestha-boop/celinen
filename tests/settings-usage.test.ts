@@ -40,6 +40,7 @@ describe("settings usage tally and compact profile buttons", () => {
     const original = globalThis.localStorage;
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
+      writable: true,
       value: {
         getItem: (key: string) => store.get(key) ?? null,
         setItem: (key: string, value: string) => {
@@ -56,7 +57,7 @@ describe("settings usage tally and compact profile buttons", () => {
       writeLocalAvatar("device-local", "");
       expect(store.get("lenslabs.avatar.v1")).toBe("");
     } finally {
-      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: original });
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, writable: true, value: original });
     }
   });
 

@@ -16,7 +16,7 @@ import {
   nativeStudioPlugin,
 } from "../src/server/native-studio-plugin";
 import { decodeNativeFrame } from "../src/lib/studio/native-client";
-import { DEFAULT_SOCIAL_FRAME } from "../src/lib/social-frame";
+import { DEFAULT_SOCIAL_FRAME, prepareSocialFrame, socialFrameSchema } from "../src/lib/social-frame";
 import { jpegDimensions } from "../src/lib/delivery/media-integrity";
 
 const token = "a".repeat(64);
@@ -110,6 +110,43 @@ describe("native transport authorization", () => {
         authorizeNativeRequest(mockRequest({ "x-lenslabs-token": "é".repeat(64) }), 8080, token),
       403,
     );
+  });
+  test("the browser social client speaks the header names this bridge authorizes", async () => {
+    // A brand sweep once renamed only the client's headers: every export then died with 403.
+    const sent: { method: string; headers: Headers }[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: string, init: RequestInit = {}) => {
+      sent.push({ method: init.method ?? "GET", headers: new Headers(init.headers) });
+      return sent.length === 1
+        ? Response.json({ socialReady: true, token })
+        : new Response(new Uint8Array(64), {
+            headers: { "Content-Type": "image/jpeg", "X-LensLabs-Engine": "cpp" },
+          });
+    }) as typeof fetch;
+    try {
+      const blob = await prepareSocialFrame(new Blob([new Uint8Array(64)]), DEFAULT_SOCIAL_FRAME);
+      expect(blob.size).toBe(64);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    expect(sent.map((call) => call.method)).toEqual(["GET", "POST"]);
+    for (const call of sent)
+      expect(() =>
+        authorizeNativeRequest(
+          mockRequest(
+            {
+              "x-lenslabs-request": call.headers.get("x-lenslabs-request") ?? undefined,
+              "x-lenslabs-token": call.headers.get("x-lenslabs-token") ?? undefined,
+            },
+            call.method,
+          ),
+          8080,
+          token,
+        ),
+      ).not.toThrow();
+    expect(
+      socialFrameSchema.parse(JSON.parse(sent[1]!.headers.get("x-lenslabs-frame") ?? "null")),
+    ).toEqual(DEFAULT_SOCIAL_FRAME);
   });
 });
 

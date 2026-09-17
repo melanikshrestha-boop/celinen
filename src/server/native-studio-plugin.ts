@@ -533,6 +533,7 @@ export function nativeStudioPlugin(): Plugin {
             socialBusy = true;
             let directory: string | null = null;
             let path: string | null = null;
+            let jpeg: Buffer;
             try {
               const bytes = await readBounded(req, 16 * 1024 * 1024, signal);
               if (!bytes.length) throw new NativeBridgeError(400, "The photo is empty.");
@@ -544,21 +545,23 @@ export function nativeStudioPlugin(): Plugin {
               } finally {
                 await file.close();
               }
-              const jpeg = await runNativeSocial(socialBinary, path, input, signal);
+              jpeg = await runNativeSocial(socialBinary, path, input, signal);
               if (signal.aborted) throw abortError();
-              res.writeHead(200, {
-                "Content-Type": "image/jpeg",
-                "Content-Length": jpeg.length,
-                "Cache-Control": "no-store",
-                "X-Content-Type-Options": "nosniff",
-                "X-Celinen-Engine": "cpp",
-              });
-              res.end(jpeg);
             } finally {
               if (path) await unlink(path).catch(() => {});
               if (directory) await rmdir(directory).catch(() => {});
               socialBusy = false;
             }
+            // Answer only after the slot is free: a client that sends its next format the
+            // moment this one lands must not be refused by our own temp-file cleanup.
+            res.writeHead(200, {
+              "Content-Type": "image/jpeg",
+              "Content-Length": jpeg.length,
+              "Cache-Control": "no-store",
+              "X-Content-Type-Options": "nosniff",
+              "X-LensLabs-Engine": "cpp",
+            });
+            res.end(jpeg);
             return;
           }
           if (route === "/__native/bursts") {
@@ -583,7 +586,7 @@ export function nativeStudioPlugin(): Plugin {
               res.writeHead(200, {
                 "Content-Type": "application/json",
                 "Cache-Control": "no-store",
-                "X-Celinen-Engine": "cpp",
+                "X-LensLabs-Engine": "cpp",
               });
               res.end(output);
             } finally {
@@ -622,7 +625,7 @@ export function nativeStudioPlugin(): Plugin {
               res.writeHead(200, {
                 "Content-Type": "application/json",
                 "Cache-Control": "no-store",
-                "X-Celinen-Engine": "cpp",
+                "X-LensLabs-Engine": "cpp",
               });
               res.end(output);
             } finally {
@@ -643,6 +646,8 @@ export function nativeStudioPlugin(): Plugin {
           lane.busy = true;
           let directory: string | null = null;
           let path: string | null = null;
+          let frame: Frame;
+          let cached: boolean;
           try {
             directory = await mkdtemp(join(tmpdir(), "lenslabs-native-upload-"));
             path = join(directory, "source");
@@ -676,33 +681,33 @@ export function nativeStudioPlugin(): Plugin {
               lane.binaryIdentity = identity;
             }
             const key = `cpp-0.1:${identity}:1280:${hash.digest("hex")}`;
-            const cached = cache.get(key);
-            const frame = cached ?? (await lane.process.run(path, signal));
+            const hit = cache.get(key);
+            cached = Boolean(hit);
+            frame = hit ?? (await lane.process.run(path, signal));
             if (signal.aborted) throw abortError();
             if (frame.metadata["ok"] !== true)
               throw new NativeBridgeError(
                 422,
                 "The C++ decoder could not read this photo. Its source was not changed.",
               );
-            if (!cached) cache.set(key, frame);
-            const header = Buffer.from(
-              JSON.stringify({ ...frame.metadata, cached: Boolean(cached) }) + "\n",
-            );
-            res.writeHead(200, {
-              "Content-Type": "application/x-lenslabs-frame",
-              "Cache-Control": "no-store",
-              "X-Content-Type-Options": "nosniff",
-              "X-Celinen-Engine": "cpp",
-              "Content-Length": header.length + frame.jpeg.length,
-            });
-            res.write(header);
-            res.end(frame.jpeg);
+            if (!hit) cache.set(key, frame);
           } finally {
             // Remove only the two exact disposable paths created by this request.
             if (path) await unlink(path).catch(() => {});
             if (directory) await rmdir(directory).catch(() => {});
             lane.busy = false;
           }
+          // Answer only after the lane is free, so the client's next photo finds it idle.
+          const header = Buffer.from(JSON.stringify({ ...frame.metadata, cached }) + "\n");
+          res.writeHead(200, {
+            "Content-Type": "application/x-lenslabs-frame",
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "X-LensLabs-Engine": "cpp",
+            "Content-Length": header.length + frame.jpeg.length,
+          });
+          res.write(header);
+          res.end(frame.jpeg);
         })().catch((error: unknown) => {
           sendJson(res, error instanceof NativeBridgeError ? error.status : 500, {
             error:
