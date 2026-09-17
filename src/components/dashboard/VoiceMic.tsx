@@ -1,13 +1,11 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { Mic } from "lucide-react";
 import { useVoiceFlow } from "@/lib/voice/useVoiceFlow";
-import {
-  dictationCaretOf,
-  registerDictationHotkey,
-} from "@/lib/voice/dictation-hotkey";
+import { dictationCaretOf, registerDictationHotkey } from "@/lib/voice/dictation-hotkey";
+import { warmVoiceCapture } from "@/lib/voice/voice-capture";
 import "./voice-mic.css";
 
-/** Tap to dictate, hold to talk, Control+Space in the composer. */
+/** Tap to dictate, hold to talk; triple-tap Space or hold Control+Space from the keyboard. */
 export function VoiceMic({
   value,
   onChange,
@@ -27,6 +25,12 @@ export function VoiceMic({
   valueRef.current = value;
 
   useEffect(() => {
+    // Compile the C++ voice engine once the page has settled so the first take starts instantly.
+    const timer = window.setTimeout(warmVoiceCapture, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     return registerDictationHotkey({
       armed: () => {
         const button = buttonRef.current;
@@ -37,10 +41,14 @@ export function VoiceMic({
         const root = button.closest("form, .workbench-composer, .social-post__composer");
         return Boolean(root && root.contains(active));
       },
+      present: () => Boolean(buttonRef.current?.offsetParent),
       listening: () => flowRef.current.listening,
-      down: () => {
-        const caret = dictationCaretOf(inputRef?.current ?? null, valueRef.current);
-        flowRef.current.begin(caret);
+      down: (caret) => {
+        // Started from outside the composer: put the caret where the words will land.
+        if (!caret) inputRef?.current?.focus();
+        void flowRef.current.begin(
+          caret ?? dictationCaretOf(inputRef?.current ?? null, valueRef.current),
+        );
       },
       up: () => {
         void flowRef.current.stop();
@@ -64,7 +72,7 @@ export function VoiceMic({
       className={`voice-mic${flow.listening ? " is-listening" : ""}${flow.busy ? " is-busy" : ""}${flow.error ? " is-error" : ""}`}
       aria-label={label}
       title={label}
-      aria-keyshortcuts="Control+Space"
+      aria-keyshortcuts="Space Space Space Control+Space"
       aria-pressed={flow.listening}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
