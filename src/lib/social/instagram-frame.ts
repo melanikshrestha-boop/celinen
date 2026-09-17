@@ -13,7 +13,8 @@ import { instantiateSocialWasm, type FeedFrame, type SocialWasmEngine } from "./
 let pending: Promise<SocialWasmEngine> | null = null;
 function socialEngine() {
   pending ??= (async () => {
-    if (typeof WebAssembly === "undefined") throw new Error("This browser cannot run the framing engine.");
+    if (typeof WebAssembly === "undefined")
+      throw new Error("This browser cannot run the framing engine.");
     // Lazy URL inside a function: SSR and bun test never evaluate it.
     const response = await fetch(new URL("./wasm/celinen-social.wasm", import.meta.url));
     if (!response.ok) throw new Error("The framing engine could not be downloaded.");
@@ -63,7 +64,12 @@ export async function frameForInstagram(
   const jpeg = engine.frame(pixels.data, pixels.width, pixels.height, frame);
   const size = jpegDimensions(jpeg);
   const expected = INSTAGRAM_FEED_FORMATS[frame.format];
-  if (!size || size.width !== expected.width || size.height !== expected.height || jpeg.byteLength > INSTAGRAM_IMAGE_BYTES)
+  if (
+    !size ||
+    size.width !== expected.width ||
+    size.height !== expected.height ||
+    jpeg.byteLength > INSTAGRAM_IMAGE_BYTES
+  )
     throw new Error("The framing engine returned an invalid photo.");
   return {
     blob: new Blob([jpeg], { type: "image/jpeg" }),

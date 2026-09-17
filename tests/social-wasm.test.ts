@@ -26,16 +26,32 @@ describe("C++ social framing compiled to wasm", () => {
   });
 
   test("frames a landscape photo to a 4:5 feed JPEG Instagram accepts", async () => {
-    const jpeg = engine.frame(gradient(3000, 2000), 3000, 2000, { format: "portrait", x: 0.5, y: 0.5, zoom: 1 });
+    const jpeg = engine.frame(gradient(3000, 2000), 3000, 2000, {
+      format: "portrait",
+      x: 0.5,
+      y: 0.5,
+      zoom: 1,
+    });
     expect(jpeg[0]).toBe(0xff);
     expect(jpeg[1]).toBe(0xd8);
     expect(jpegDimensions(jpeg)).toEqual({ width: 1080, height: 1350 });
-    const item = { sha256: await sha256Hex(jpeg), bytes: jpeg.byteLength, width: 1080, height: 1350 };
+    const item = {
+      sha256: await sha256Hex(jpeg),
+      bytes: jpeg.byteLength,
+      width: 1080,
+      height: 1350,
+    };
     expect(instagramPostItem.safeParse(item).success).toBe(true);
   });
 
   test("square format, and the same input always encodes the same bytes", async () => {
-    const run = () => engine.frame(gradient(1200, 1800), 1200, 1800, { format: "square", x: 0.2, y: 0.8, zoom: 1.5 });
+    const run = () =>
+      engine.frame(gradient(1200, 1800), 1200, 1800, {
+        format: "square",
+        x: 0.2,
+        y: 0.8,
+        zoom: 1.5,
+      });
     const a = run(),
       b = run();
     expect(jpegDimensions(a)).toEqual({ width: 1080, height: 1080 });
@@ -43,11 +59,23 @@ describe("C++ social framing compiled to wasm", () => {
   });
 
   test("rejects out-of-range framing and oversize sources without poisoning the instance", () => {
-    expect(() => engine.frame(gradient(40, 40), 40, 40, { format: "portrait", x: 2, y: 0.5, zoom: 1 })).toThrow(
-      "Invalid framing controls",
-    );
-    expect(() => engine.frame(new Uint8ClampedArray(4), 9000, 1, { format: "square", x: 0.5, y: 0.5, zoom: 1 })).toThrow();
-    const jpeg = engine.frame(gradient(64, 64), 64, 64, { format: "square", x: 0.5, y: 0.5, zoom: 1 });
+    expect(() =>
+      engine.frame(gradient(40, 40), 40, 40, { format: "portrait", x: 2, y: 0.5, zoom: 1 }),
+    ).toThrow("Invalid framing controls");
+    expect(() =>
+      engine.frame(new Uint8ClampedArray(4), 9000, 1, {
+        format: "square",
+        x: 0.5,
+        y: 0.5,
+        zoom: 1,
+      }),
+    ).toThrow();
+    const jpeg = engine.frame(gradient(64, 64), 64, 64, {
+      format: "square",
+      x: 0.5,
+      y: 0.5,
+      zoom: 1,
+    });
     expect(jpegDimensions(jpeg)).toEqual({ width: 1080, height: 1080 });
   });
 });

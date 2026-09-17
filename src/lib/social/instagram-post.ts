@@ -65,7 +65,9 @@ export const instagramPostInput = z
     const problem = captionProblem(value.caption);
     if (problem) context.addIssue({ code: "custom", message: problem, path: ["caption"] });
     const expected = INSTAGRAM_FEED_FORMATS[value.format];
-    if (value.items.some((item) => item.width !== expected.width || item.height !== expected.height))
+    if (
+      value.items.some((item) => item.width !== expected.width || item.height !== expected.height)
+    )
       context.addIssue({
         code: "custom",
         message: "Every photo in a post must be framed to the same feed size.",
@@ -113,9 +115,7 @@ export type InstagramPostRecord = {
 };
 
 export const isInstagramPostRecord = (value: unknown): value is InstagramPostRecord =>
-  !!value &&
-  typeof value === "object" &&
-  (value as { kind?: unknown }).kind === "instagram-post";
+  !!value && typeof value === "object" && (value as { kind?: unknown }).kind === "instagram-post";
 
 /** The post id is the idempotency key; the same id must always mean the same post. */
 export function sameInstagramPost(record: InstagramPostRecord, input: InstagramPostInput) {

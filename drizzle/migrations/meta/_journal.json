@@ -148,6 +148,13 @@
       "when": 1789161600000,
       "tag": "0023_gallery_photo_folder",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789603200000,
+      "tag": "0024_instagram_account_management",
+      "breakpoints": true
     }
   ]
 }
