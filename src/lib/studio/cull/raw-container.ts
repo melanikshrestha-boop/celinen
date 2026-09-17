@@ -141,10 +141,19 @@ export function rawApiFromExports(exports: object): RawApi {
         wasm.celinen_raw_describe(index, bytes.length);
       }
       const ranked = wasm.celinen_raw_rank();
-      const order = Array.from(new Int32Array(wasm.memory.buffer, wasm.celinen_raw_order(), ranked));
+      const order = Array.from(
+        new Int32Array(wasm.memory.buffer, wasm.celinen_raw_order(), ranked),
+      );
       const previews = order.map((index) => {
         const { offset, length, width, height, source } = candidate(index);
-        return { offset, length, width, height, source, orientation: wasm.celinen_raw_orientation(index) };
+        return {
+          offset,
+          length,
+          width,
+          height,
+          source,
+          orientation: wasm.celinen_raw_orientation(index),
+        };
       });
       return {
         kind: KINDS[wasm.celinen_raw_kind()] ?? "unknown",
@@ -169,7 +178,9 @@ export function rawApiFromExports(exports: object): RawApi {
 
 const WASI_ENOSYS = 52;
 
-export async function instantiateRawWasm(binary: BufferSource | WebAssembly.Module): Promise<RawApi> {
+export async function instantiateRawWasm(
+  binary: BufferSource | WebAssembly.Module,
+): Promise<RawApi> {
   const module = binary instanceof WebAssembly.Module ? binary : await WebAssembly.compile(binary);
   const imports: Record<string, Record<string, WebAssembly.ImportValue>> = {};
   for (const entry of WebAssembly.Module.imports(module)) {
@@ -250,7 +261,11 @@ export async function inspectRawFile(
  */
 export async function orientedPreview(file: Blob, preview: RawPreview, api: RawApi): Promise<Blob> {
   const end = preview.offset + preview.length;
-  const head = await read(file, preview.offset, preview.offset + Math.min(preview.length, PREVIEW_HEADER_BYTES));
+  const head = await read(
+    file,
+    preview.offset,
+    preview.offset + Math.min(preview.length, PREVIEW_HEADER_BYTES),
+  );
   const retagged = api.retag(head, preview.orientation);
   if (!retagged) throw new Error("The preview inside this RAW file is not a JPEG.");
   const body = file.slice(preview.offset + retagged.consumed, end);

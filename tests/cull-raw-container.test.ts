@@ -120,8 +120,15 @@ describe("RAW previews: orientation, from the container", () => {
       expect(result.frame.height > result.frame.width).toBe(turned);
     }
     // The same frame as a bare JPEG is never turned: the RAW's tag is what changed it.
-    expect((await readPhoto(new File([landscape as Uint8Array<ArrayBuffer>], "a.jpg", { type: "image/jpeg" }), {}, deps())).frame
-      .width).toBeGreaterThan(0);
+    expect(
+      (
+        await readPhoto(
+          new File([landscape as Uint8Array<ArrayBuffer>], "a.jpg", { type: "image/jpeg" }),
+          {},
+          deps(),
+        )
+      ).frame.width,
+    ).toBeGreaterThan(0);
   });
 
   test("the container's orientation wins over the preview's own, and is never applied twice", async () => {
@@ -137,11 +144,7 @@ describe("RAW previews: orientation, from the container", () => {
     // A preview the camera already turned (portrait pixels, landscape sensor)
     // is left alone, whatever the container says.
     const portrait = photo("volleyball-portrait-cc0.jpg"); // 4000x3000, orientation 6
-    const preRotated = await readPhoto(
-      arw(portrait, 8, { sensor: [6000, 4000] }),
-      {},
-      deps(),
-    );
+    const preRotated = await readPhoto(arw(portrait, 8, { sensor: [6000, 4000] }), {}, deps());
     expect(preRotated.frame.height).toBeGreaterThan(preRotated.frame.width);
   });
 
@@ -188,7 +191,9 @@ describe("RAW previews: orientation, from the container", () => {
     expect(inspection.containerOrientation).toBe(8);
     expect(inspection.previews[0]).toMatchObject({ width: 4256, height: 2832, orientation: 8 });
     const blob = await orientedPreview(file, inspection.previews[0]!, raw);
-    expect(jpegGeometry(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()))!.orientation).toBe(8);
+    expect(
+      jpegGeometry(new Uint8Array(await blob.slice(0, 65536).arrayBuffer()))!.orientation,
+    ).toBe(8);
   });
 });
 
@@ -204,17 +209,25 @@ describe("nothing is unreadable while something can decode it", () => {
       sourceWidth: 4256,
       sourceHeight: 2832,
     };
-    const webp = new File([new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 1, 2, 3])], "a.webp", {
-      type: "image/webp",
-    });
-    let asked: Blob | null = null;
-    const result = await readPhoto(webp, {}, {
-      engine,
-      decodePixels: async (file) => {
-        asked = file;
-        return pixels;
+    const webp = new File(
+      [new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 1, 2, 3])],
+      "a.webp",
+      {
+        type: "image/webp",
       },
-    });
+    );
+    let asked: Blob | null = null;
+    const result = await readPhoto(
+      webp,
+      {},
+      {
+        engine,
+        decodePixels: async (file) => {
+          asked = file;
+          return pixels;
+        },
+      },
+    );
     expect(asked).toBe(webp);
     expect(result.route).toBe("browser");
     expect([result.width, result.height]).toEqual([4256, 2832]);
@@ -225,9 +238,13 @@ describe("nothing is unreadable while something can decode it", () => {
   });
 
   test("only when every decoder has failed is a file called unreadable, and it says why", async () => {
-    const webp = new File([new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])], "a.webp", {
-      type: "image/webp",
-    });
+    const webp = new File(
+      [new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])],
+      "a.webp",
+      {
+        type: "image/webp",
+      },
+    );
     await expect(readPhoto(webp, {}, deps())).rejects.toThrow(/WebP file.*could not be decoded/i);
     const heic = new File(
       [new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63, 0, 0, 0, 0])],
@@ -247,16 +264,25 @@ describe("nothing is unreadable while something can decode it", () => {
 
   test("a cut-off JPEG is read, marked damaged and explained, not silently scored", async () => {
     const whole = photo("basketball-hangar-usnavy-pd.jpg");
-    const cut = new File([whole.slice(0, Math.floor(whole.length * 0.6)) as Uint8Array<ArrayBuffer>], "cut.jpg", {
-      type: "image/jpeg",
-    });
+    const cut = new File(
+      [whole.slice(0, Math.floor(whole.length * 0.6)) as Uint8Array<ArrayBuffer>],
+      "cut.jpg",
+      {
+        type: "image/jpeg",
+      },
+    );
     const result = await readPhoto(cut, {}, deps());
     expect(result.damaged).toMatch(/cut short/i);
     expect(result.reading.acuitySubject).toBeGreaterThan(0);
     // The next photo is not described by the last one's damage.
     expect(
-      (await readPhoto(new File([whole as Uint8Array<ArrayBuffer>], "whole.jpg", { type: "image/jpeg" }), {}, deps()))
-        .damaged,
+      (
+        await readPhoto(
+          new File([whole as Uint8Array<ArrayBuffer>], "whole.jpg", { type: "image/jpeg" }),
+          {},
+          deps(),
+        )
+      ).damaged,
     ).toBeUndefined();
   });
 
@@ -298,7 +324,11 @@ describe("nothing is unreadable while something can decode it", () => {
     ]);
     bytes.set(cut, 8192);
     bytes.set(small, 8192 + cut.length);
-    const result = await readPhoto(new File([bytes as Uint8Array<ArrayBuffer>], "b.ARW"), {}, deps());
+    const result = await readPhoto(
+      new File([bytes as Uint8Array<ArrayBuffer>], "b.ARW"),
+      {},
+      deps(),
+    );
     expect(result.damaged).toBeUndefined();
     expect([result.width, result.height]).toEqual([2256, 1420]);
     expect(result.frame.height).toBeGreaterThan(result.frame.width); // still turned by the container

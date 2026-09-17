@@ -149,8 +149,7 @@ export class PreviewQueue {
         let reply = await encoder.encode(request);
         if (reply.kind === "quota") {
           // The estimate was optimistic; take a fresh one, make real room, retry once.
-          if (!(await library.reserve(estimate * 4, open, true)))
-            return { ...result, end: "full" };
+          if (!(await library.reserve(estimate * 4, open, true))) return { ...result, end: "full" };
           reply = await encoder.encode(request);
           if (reply.kind === "quota") return { ...result, end: "full" };
         }

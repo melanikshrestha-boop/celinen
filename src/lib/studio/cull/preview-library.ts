@@ -32,8 +32,7 @@ export function previewEdge(
 ): number {
   const display = screen ?? (typeof globalThis === "undefined" ? undefined : globalThis.screen);
   const ratio =
-    devicePixelRatio ??
-    (typeof globalThis === "undefined" ? 1 : globalThis.devicePixelRatio || 1);
+    devicePixelRatio ?? (typeof globalThis === "undefined" ? 1 : globalThis.devicePixelRatio || 1);
   const pixels = display ? Math.max(display.width, display.height) * ratio : 0;
   if (!(pixels > 0)) return PREVIEW_MIN_EDGE;
   return Math.min(PREVIEW_MAX_EDGE, Math.max(PREVIEW_MIN_EDGE, Math.ceil(pixels)));

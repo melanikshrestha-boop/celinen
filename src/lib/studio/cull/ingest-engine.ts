@@ -115,7 +115,11 @@ export type IngestEngine = {
   /** Measures a photo the browser decoded, with the same C++ as `read`.
    * `metadata` is the file's first bytes, for capture time, camera and AF area.
    * Undefined in binaries built before the browser-decode fallback. */
-  readPixels?: (pixels: DecodedPixels, options?: IngestOptions, metadata?: Uint8Array) => IngestResult;
+  readPixels?: (
+    pixels: DecodedPixels,
+    options?: IngestOptions,
+    metadata?: Uint8Array,
+  ) => IngestResult;
   /** The RAW container API linked into the same binary; null in older binaries. */
   raw: RawApi | null;
   /** Hands every buffer back between cards. */
