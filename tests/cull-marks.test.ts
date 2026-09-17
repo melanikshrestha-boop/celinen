@@ -10,6 +10,7 @@ import {
   targetRow,
 } from "../src/lib/studio/cull/keepers";
 import {
+  CULL_FILTERS,
   countFrames,
   effectiveVerdict,
   filterFrames,
@@ -18,7 +19,7 @@ import {
   type CullFrame,
 } from "../src/lib/studio/cull/session";
 import { openCullStore } from "../src/lib/studio/cull/store";
-import { cullFrame, cullReading, cullRow } from "./cull-review.fixture";
+import { cullFrame, cullReading, cullRow, smallGame } from "./cull-review.fixture";
 
 const hit = (verdict: FocusHit["verdict"], confidence: number): FocusHit => ({
   hit: confidence,
@@ -61,6 +62,24 @@ describe("photographer marks", () => {
     expect(counts["missed-focus"]).toBe(1);
     expect(counts["not-in-shoot"]).toBe(1);
     expect(counts.invalid).toBe(1);
+  });
+
+  test("the one-pass counts say exactly what the filters would", () => {
+    const frames = [
+      ...smallGame(),
+      cullFrame("m", {}, { focusHit: hit("missed", 0.1) }),
+      cullFrame("s", {}, { membership: { inShoot: false, reason: "Last week" } }),
+      cullFrame("i", {}, { validity: { status: "suspect", reason: "Screenshot" } }),
+      cullFrame("e", null, { error: "Unreadable", reading: undefined }),
+    ];
+    const counts = countFrames(frames);
+    for (const filter of CULL_FILTERS)
+      expect([filter, counts[filter]]).toEqual([
+        filter,
+        frames.filter((frame) => matchesFilter(frame, filter)).length,
+      ]);
+    expect(counts.unreadable).toBe(1);
+    expect(counts.measured).toBe(frames.length - 1);
   });
 
   test("rating, label and tag narrow any filter", () => {

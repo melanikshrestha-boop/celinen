@@ -233,8 +233,28 @@ export function countFrames(frames: readonly CullFrame[]): CullCounts {
   const counts = Object.fromEntries(CULL_FILTERS.map((filter) => [filter, 0])) as CullCounts;
   counts.measured = 0;
   counts.unreadable = 0;
+  // Every chip counted in one pass, reading each frame's verdict and reason
+  // once: asking matchesFilter twelve times per frame costs several
+  // milliseconds on a ten-thousand frame card, on every keypress.
+  // cull-review's tests hold this in step with matchesFilter.
   for (const frame of frames) {
-    for (const filter of CULL_FILTERS) if (matchesFilter(frame, filter)) counts[filter] += 1;
+    const suggestion = frame.suggestion;
+    const verdict = frame.decided ? frame.verdict : (suggestion?.verdict ?? "undecided");
+    const reason = suggestion?.reason;
+    counts.all += 1;
+    if (verdict === "keep") counts.keepers += 1;
+    else if (verdict === "reject") counts.rejects += 1;
+    else counts.undecided += 1;
+    if (reason !== undefined && reason !== "none") {
+      if (reason === "out-of-focus" || reason === "missed-focus") counts["out-of-focus"] += 1;
+      else if (reason === "motion-blur") counts["motion-blur"] += 1;
+      else if (reason === "eyes-closed") counts["eyes-closed"] += 1;
+      else if (reason === "exposure") counts.exposure += 1;
+    }
+    if (suggestion && (suggestion.duplicate || suggestion.bestOfGroup)) counts.duplicates += 1;
+    if (missedFocus(frame)) counts["missed-focus"] += 1;
+    if (frame.membership?.inShoot === false) counts["not-in-shoot"] += 1;
+    if (frame.validity !== undefined && frame.validity.status !== "valid") counts.invalid += 1;
     if (frame.reading) counts.measured += 1;
     if (frame.error) counts.unreadable += 1;
   }
@@ -255,29 +275,47 @@ export type CullGroup = {
  * looking at ten thousand frames and looking at eight hundred decisions.
  */
 export function groupFrames(frames: readonly CullFrame[]): CullGroup[] {
-  const groups = new Map<string, CullFrame[]>();
-  const order: string[] = [];
+  // Built in place: on a ten-thousand frame card this runs on every keypress,
+  // so a frame that stands alone costs one group and nothing else, and a burst
+  // is ordered by moving its best frame to the front rather than by sorting and
+  // copying the whole burst.
+  const bursts = new Map<number, CullGroup>();
+  const out: CullGroup[] = [];
   for (const frame of frames) {
     const group = frame.suggestion?.group;
-    const key = group === undefined || group === null ? `solo:${frame.id}` : `burst:${group}`;
-    const existing = groups.get(key);
-    if (existing) existing.push(frame);
+    if (group === undefined || group === null) {
+      out.push({ id: `solo:${frame.id}`, frames: [frame], bestId: frame.id });
+      continue;
+    }
+    const existing = bursts.get(group);
+    if (existing) existing.frames.push(frame);
     else {
-      groups.set(key, [frame]);
-      order.push(key);
+      const started: CullGroup = { id: `burst:${group}`, frames: [frame], bestId: frame.id };
+      bursts.set(group, started);
+      out.push(started);
     }
   }
-  return order.map((key) => {
-    const members = groups.get(key)!;
-    const best =
-      members.find((frame) => frame.suggestion?.bestOfGroup) ??
-      [...members].sort((a, b) => (b.suggestion?.score ?? 0) - (a.suggestion?.score ?? 0))[0]!;
-    return {
-      id: key,
-      frames: [best, ...members.filter((frame) => frame.id !== best.id)],
-      bestId: best.id,
-    };
-  });
+  for (const burst of bursts.values()) {
+    const members = burst.frames;
+    if (members.length < 2) continue;
+    // The engine's own pick, else the highest score; first one wins a tie.
+    let flagged = -1;
+    let top = 0;
+    let topScore = members[0]!.suggestion?.score ?? 0;
+    for (let index = 0; index < members.length; index++) {
+      const suggestion = members[index]!.suggestion;
+      if (flagged < 0 && suggestion?.bestOfGroup) flagged = index;
+      const score = suggestion?.score ?? 0;
+      if (score > topScore) {
+        top = index;
+        topScore = score;
+      }
+    }
+    const best = flagged < 0 ? top : flagged;
+    if (best > 0) members.unshift(members.splice(best, 1)[0]!);
+    burst.bestId = members[0]!.id;
+  }
+  return out;
 }
 
 /** How far along a card is, and how much longer it has. */
