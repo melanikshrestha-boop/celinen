@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bitmapDecodeSupported, decodeScaled } from "@/lib/studio/cull/decode";
 import { DecodedLru } from "@/lib/studio/cull/loupe-cache";
 import type { LoupeImage, LoupeSourceKind } from "@/lib/studio/cull/loupe-source";
+import { findPortraitFace, loupeFaceCrop, type PortraitFace } from "@/lib/studio/cull/portrait-face";
 import type { CullFrame } from "@/lib/studio/cull/session";
 import { CullThumb, type CullThumbnailSource } from "./CullGrid";
 
@@ -40,6 +41,7 @@ export function CullLoupePicture({
   neighbors,
   epoch,
   onKind,
+  onFace,
 }: {
   frame: CullFrame;
   thumbnail: CullThumbnailSource;
@@ -49,6 +51,7 @@ export function CullLoupePicture({
   /** Changes when better sources may have appeared (a reconnect), so the frame is asked again. */
   epoch: string;
   onKind?: ((kind: LoupeSourceKind | null) => void) | undefined;
+  onFace?: ((box: PortraitFace) => void) | undefined;
 }) {
   const cache = useMemo(
     () => new DecodedLru<ImageBitmap>(CACHE_FRAMES, (bitmap) => bitmap.close()),
@@ -134,18 +137,50 @@ export function CullLoupePicture({
     return () => URL.revokeObjectURL(shown.url);
   }, [shown]);
 
+  const foundFace = useRef<{ id: string; box: PortraitFace } | null>(null);
+
   useLayoutEffect(() => {
     const element = canvas.current;
     if (!element || !shown || !("bitmap" in shown)) return;
     try {
-      if (element.width !== shown.bitmap.width) element.width = shown.bitmap.width;
-      if (element.height !== shown.bitmap.height) element.height = shown.bitmap.height;
-      element.getContext("2d")?.drawImage(shown.bitmap, 0, 0);
+      const bitmap = shown.bitmap;
+      let box = frame.reading?.faceBox;
+      if (!box && shown.frameId === frame.id) {
+        if (foundFace.current?.id === frame.id) box = foundFace.current.box;
+        else {
+          const scale = Math.min(1, 320 / Math.max(bitmap.width, bitmap.height));
+          const w = Math.max(16, Math.round(bitmap.width * scale));
+          const h = Math.max(16, Math.round(bitmap.height * scale));
+          const probe = document.createElement("canvas");
+          probe.width = w;
+          probe.height = h;
+          const probeCtx = probe.getContext("2d");
+          if (probeCtx) {
+            probeCtx.drawImage(bitmap, 0, 0, w, h);
+            const found = findPortraitFace(probeCtx.getImageData(0, 0, w, h).data, w, h);
+            if (found) {
+              foundFace.current = { id: frame.id, box: found };
+              box = found;
+              onFace?.(found);
+            }
+          }
+        }
+      }
+      const crop = loupeFaceCrop(box, Boolean(box), bitmap.width, bitmap.height);
+      const width = crop ? Math.max(1, Math.round(crop.w)) : bitmap.width;
+      const height = crop ? Math.max(1, Math.round(crop.h)) : bitmap.height;
+      if (element.width !== width) element.width = width;
+      if (element.height !== height) element.height = height;
+      const ctx = element.getContext("2d");
+      if (!ctx) return;
+      ctx.imageSmoothingQuality = "high";
+      if (crop) ctx.drawImage(bitmap, crop.x, crop.y, crop.w, crop.h, 0, 0, width, height);
+      else ctx.drawImage(bitmap, 0, 0);
     } catch {
       // Released from the cache before it painted: ask for the frame again.
       setShown(null);
     }
-  }, [shown]);
+  }, [shown, frame.id, frame.reading?.faceBox, onFace]);
 
   if (!shown || shown.frameId !== frame.id)
     return <CullThumb frame={frame} thumbnail={thumbnail} />;

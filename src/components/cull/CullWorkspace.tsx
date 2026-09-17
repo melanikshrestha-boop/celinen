@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { CullSnapshot } from "@/lib/studio/cull/controller";
 import type { CullVerdict } from "@/lib/studio/cull/engine";
+import type { PortraitFace } from "@/lib/studio/cull/portrait-face";
 import {
   CULL_FILTER_LABELS,
   CULL_FILTERS,
@@ -54,6 +55,7 @@ export type CullWorkspaceProps = {
   sessions?: readonly CullSessionSummary[] | undefined;
   onOpenSession?: ((sessionId: string) => void) | undefined;
   viewport?: CullViewport | undefined;
+  onFace?: ((frameId: string, box: PortraitFace) => void) | undefined;
 };
 
 const number = (value: number) => value.toLocaleString("en-US");
@@ -70,6 +72,7 @@ export function CullWorkspace({
   sessions = [],
   onOpenSession,
   viewport,
+  onFace,
 }: CullWorkspaceProps) {
   const { frames, progress, notice, canUndo } = snapshot;
   const [filter, setFilter] = useState<CullFilter>("all");
@@ -564,6 +567,7 @@ export function CullWorkspace({
           onStep={move}
           onSelect={selectMember}
           onClose={() => setLoupe(false)}
+          onFace={onFace ? (box) => onFace(current.frame.id, box) : undefined}
         />
       )}
     </div>

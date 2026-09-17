@@ -4,6 +4,7 @@
  */
 import { cullEngine } from "./studio/cull/client";
 import type { CullReading } from "./studio/cull/engine";
+import { findPortraitFace } from "./studio/cull/portrait-face";
 import { validReviewRating } from "./studio/review-metadata";
 import type { PhotoSubject } from "./studio/people";
 
@@ -373,6 +374,8 @@ export interface FaceReading {
   eyesOpen: boolean | null;
   /** normalised (0-1) centre of the largest face — used to bias smart crops */
   center?: { x: number; y: number } | undefined;
+  /** normalised box of the largest face, when one was measured */
+  box?: { x: number; y: number; width: number; height: number } | undefined;
 }
 
 /** Tone statistics used by Auto Refine (Lightroom's "Auto" equivalent). */
@@ -677,18 +680,34 @@ function lapVariance(data: Uint8ClampedArray, w: number, h: number) {
  * engine ships one. Face sharpness is a laplacian variance inside the face
  * box; eye state is the local contrast around each reported eye landmark
  * (an open eye contains a dark iris against a bright sclera, a closed lid
- * is flat). Returns null when the browser has no detector.
+ * is flat). Safari has no FaceDetector; a skin-region fallback still finds a
+ * portrait so the loupe can crop to the face.
  */
 export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | null> {
   const det = getDetector();
-  if (!det) return null;
   let faces: DetectedFace[] = [];
-  try {
-    faces = await det.detect(bitmap);
-  } catch {
-    return null;
+  if (det) {
+    try {
+      faces = await det.detect(bitmap);
+    } catch {
+      faces = [];
+    }
   }
-  if (!faces.length) return { count: 0, faceSharpness: 0, eyesOpen: null, center: undefined };
+  if (!faces.length) {
+    const w = bitmap.width;
+    const h = bitmap.height;
+    const { ctx } = scratchCanvas(w, h);
+    ctx.drawImage(bitmap, 0, 0);
+    const found = findPortraitFace(ctx.getImageData(0, 0, w, h).data, w, h);
+    if (!found) return { count: 0, faceSharpness: 0, eyesOpen: null, center: undefined };
+    return {
+      count: 1,
+      faceSharpness: 0,
+      eyesOpen: null,
+      center: { x: found.x + found.width / 2, y: found.y + found.height * 0.42 },
+      box: found,
+    };
+  }
 
   const biggest = faces.reduce((a, b) =>
     a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height
@@ -730,7 +749,18 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
     // biased slightly up so the crop keeps headroom, not chin
     y: (box.y + box.height * 0.42) / bitmap.height,
   };
-  return { count: faces.length, faceSharpness, eyesOpen, center };
+  return {
+    count: faces.length,
+    faceSharpness,
+    eyesOpen,
+    center,
+    box: {
+      x: box.x / bitmap.width,
+      y: box.y / bitmap.height,
+      width: box.width / bitmap.width,
+      height: box.height / bitmap.height,
+    },
+  };
 }
 
 /** Measures the decoded frame with the C++ engine, handing it whatever the
@@ -751,26 +781,36 @@ export async function measureCullFrame(
     const h = Math.max(32, Math.round(bitmap.height * scale));
     const { ctx } = scratchCanvas(w, h);
     ctx.drawImage(bitmap, 0, 0, w, h);
-    const box = faces?.center && faces.count > 0 ? faces : null;
-    return engine.measure(
+    const found = faces?.count && faces.count > 0 ? faces : null;
+    const region = found?.box
+      ? found.box
+      : found?.center
+        ? {
+            x: Math.max(0, found.center.x - 0.12),
+            y: Math.max(0, found.center.y - 0.16),
+            width: 0.24,
+            height: 0.32,
+          }
+        : null;
+    const reading = engine.measure(
       ctx.getImageData(0, 0, w, h).data,
       w,
       h,
-      box?.center
+      region
         ? [
             {
-              // The detector reports one centre, not a box; a head is roughly a
-              // quarter of the frame's width at portrait distance.
-              x: Math.max(0, box.center.x - 0.12),
-              y: Math.max(0, box.center.y - 0.16),
-              width: 0.24,
-              height: 0.32,
-              sharpness: box.faceSharpness,
-              eyesOpen: box.eyesOpen,
+              x: region.x,
+              y: region.y,
+              width: region.width,
+              height: region.height,
+              sharpness: found?.faceSharpness ?? -1,
+              eyesOpen: found?.eyesOpen ?? null,
             },
           ]
         : [],
     );
+    if (region) reading.faceBox = region;
+    return reading;
   } catch {
     // A frame that the engine cannot measure still gets the canvas analysis.
     return null;

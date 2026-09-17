@@ -172,6 +172,7 @@ function CullSessionHost({ scope }: { scope: string }) {
       onReconnect={onReconnect}
       sessions={sessions}
       onOpenSession={onOpenSession}
+      onFace={(id, box) => controller?.noteFace(id, box)}
     />
   );
 }

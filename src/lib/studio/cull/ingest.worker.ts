@@ -6,9 +6,11 @@
  * Which decoder reads which file is decided in readPhoto(): the engine for
  * JPEGs and RAW previews, the browser's own decoder for everything else.
  */
+import { cullEngine } from "./client";
 import { instantiateIngestWasm, type IngestEngine } from "./ingest-engine";
 import type { IngestReply, IngestRequest } from "./ingest-messages";
 import { browserPixels, readPhoto } from "./ingest-read";
+import { cullFaceFromBox, findPortraitFace } from "./portrait-face";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -31,6 +33,25 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
       engine: wasm,
       decodePixels: browserPixels,
     });
+    if (!result.reading.hasFace) {
+      const found = findPortraitFace(result.frame.rgba, result.frame.width, result.frame.height);
+      if (found) {
+        const engine = await cullEngine();
+        if (engine) {
+          result.reading = engine.measure(result.frame.rgba, result.frame.width, result.frame.height, [
+            cullFaceFromBox(found),
+          ]);
+        } else {
+          result.reading = {
+            ...result.reading,
+            hasFace: true,
+            subjectX: found.x + found.width / 2,
+            subjectY: found.y + found.height * 0.42,
+          };
+        }
+        result.reading.faceBox = found;
+      }
+    }
     const reply: IngestReply = {
       id,
       kind: "read",

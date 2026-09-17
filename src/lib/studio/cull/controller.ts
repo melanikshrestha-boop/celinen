@@ -6,6 +6,7 @@
 import { cullEngine } from "./client";
 import type { CullRow, CullVerdict } from "./engine";
 import { pickLoupeImage, type LoupeImage } from "./loupe-source";
+import type { PortraitFace } from "./portrait-face";
 import { ingestFiles } from "./pool";
 import type { PreviewLibrary } from "./preview-library";
 import type { PreviewQueue } from "./preview-queue";
@@ -444,6 +445,27 @@ export class CullController {
     // stored measurements, and saving them here would rewrite thousands of rows
     // a second while a card reads. Only the photographer's decisions persist.
     this.replace(applySuggestions(this.frames, suggestions));
+  }
+
+  /** A face the loupe found on a frame ingest missed (Safari has no FaceDetector). */
+  noteFace(id: string, box: PortraitFace): void {
+    const index = this.byId.get(id);
+    if (index === undefined) return;
+    const frame = this.frames[index]!;
+    if (!frame.reading || (frame.reading.hasFace && frame.reading.faceBox)) return;
+    const next = [...this.frames];
+    next[index] = {
+      ...frame,
+      reading: {
+        ...frame.reading,
+        hasFace: true,
+        faceBox: box,
+        subjectX: box.x + box.width / 2,
+        subjectY: box.y + box.height * 0.42,
+      },
+    };
+    this.replace(next);
+    void this.persist([next[index]!]);
   }
 
   /** Records the photographer's decision on these frames. Undoable. */

@@ -8,6 +8,7 @@ import { CULL_REASON_LABELS } from "@/lib/studio/cull/session";
 import { plainReading } from "./cull-review";
 import { CullMark, CullThumb, type CullThumbnailSource } from "./CullGrid";
 import { CullLoupePicture, type CullLoupeSource } from "./CullLoupePicture";
+import type { PortraitFace } from "@/lib/studio/cull/portrait-face";
 
 export type CullLoupeProps = {
   frame: CullFrame;
@@ -28,6 +29,7 @@ export type CullLoupeProps = {
   onStep: (step: 1 | -1) => void;
   onSelect: (id: string) => void;
   onClose: () => void;
+  onFace?: ((box: PortraitFace) => void) | undefined;
 };
 
 const NO_NEIGHBORS: readonly string[] = [];
@@ -52,6 +54,7 @@ export function CullLoupe({
   onStep,
   onSelect,
   onClose,
+  onFace,
 }: CullLoupeProps) {
   const dialog = useRef<HTMLDivElement>(null);
   // Focus follows the loupe in, so Tab stays inside it and not on the grid behind.
@@ -132,6 +135,7 @@ export function CullLoupe({
             neighbors={neighbors}
             epoch={originals ?? ""}
             onKind={setShownKind}
+            onFace={onFace}
           />
         ) : (
           <CullThumb frame={frame} thumbnail={thumbnail} />

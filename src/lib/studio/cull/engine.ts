@@ -69,6 +69,8 @@ export type CullReading = {
   hasFace: boolean;
   eyesClosed: boolean;
   faceSoft: boolean;
+  /** Normalized box of the measured face, when one was found. */
+  faceBox?: { x: number; y: number; width: number; height: number };
   /** 4x4 grid of mean RGB. */
   color: Uint8Array;
 };
