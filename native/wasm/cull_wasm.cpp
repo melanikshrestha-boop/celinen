@@ -19,11 +19,31 @@ std::vector<double> buffer;  // shared scratch: faces in, reading/frames in, row
 std::vector<std::int32_t> rows;
 std::string error;
 
-constexpr std::size_t reading_fields = 23;
+constexpr std::size_t reading_fields = 27;
 constexpr std::size_t color_bytes = 48;
 constexpr std::size_t reading_doubles = reading_fields + color_bytes;
 constexpr std::size_t frame_doubles = reading_doubles + 3; // capture time, verdict, unreadable
 constexpr std::size_t row_fields = 6;
+constexpr std::size_t face_doubles = 9;
+
+// Faces written by the caller into the shared buffer (layout: celinen_cull_faces).
+void read_faces(std::uint32_t count) {
+  faces.clear();
+  for (std::uint32_t i = 0; i < count && (i + 1) * face_doubles <= buffer.size(); ++i) {
+    const double* in = buffer.data() + std::size_t(i) * face_doubles;
+    lenslabs::CullFace face;
+    face.x = in[0];
+    face.y = in[1];
+    face.width = in[2];
+    face.height = in[3];
+    face.sharpness = in[4];
+    face.eyes_open = int(in[5]);
+    face.score = in[6];
+    face.closed_probability = in[7];
+    face.confidence = in[8];
+    faces.push_back(face);
+  }
+}
 
 template <class Work> int guarded(Work work) {
   try {
@@ -65,6 +85,10 @@ void write_reading(const lenslabs::CullReading& r, double* out) {
   out[20] = r.has_face ? 1 : 0;
   out[21] = r.eyes_closed ? 1 : 0;
   out[22] = r.face_soft ? 1 : 0;
+  out[23] = r.face_count;
+  out[24] = r.eyes_uncertain ? 1 : 0;
+  out[25] = r.eyes_closed_probability;
+  out[26] = r.eyes_confidence;
   for (std::size_t i = 0; i < color_bytes; ++i) out[reading_fields + i] = r.color[i];
 }
 
@@ -92,6 +116,10 @@ lenslabs::CullReading read_reading(const double* in) {
   r.has_face = in[20] != 0;
   r.eyes_closed = in[21] != 0;
   r.face_soft = in[22] != 0;
+  r.face_count = int(in[23]);
+  r.eyes_uncertain = in[24] != 0;
+  r.eyes_closed_probability = in[25];
+  r.eyes_confidence = in[26];
   for (std::size_t i = 0; i < color_bytes; ++i)
     r.color[i] = std::uint8_t(in[reading_fields + i]);
   return r;
@@ -117,11 +145,13 @@ std::uint8_t* celinen_cull_source(std::uint32_t width, std::uint32_t height) {
   return sized ? source.rgba.data() : nullptr;
 }
 
-// Six doubles per face: x, y, width, height (normalized), sharpness, eyes
-// (-1 unknown, 0 closed, 1 open). Returns the buffer to write them into.
+// Nine doubles per face: x, y, width, height (normalized), sharpness, legacy
+// eyes (-1 unknown, 0 closed, 1 open), detector score, closed probability,
+// confidence (negative score and probability when unknown). Returns the buffer
+// to write them into.
 double* celinen_cull_faces(std::uint32_t count) {
   if (count > 64) return nullptr;
-  const bool sized = guarded([&] { buffer.assign(std::size_t(count) * 6, 0); });
+  const bool sized = guarded([&] { buffer.assign(std::size_t(count) * face_doubles, 0); });
   return sized ? buffer.data() : nullptr;
 }
 
@@ -130,23 +160,33 @@ double* celinen_cull_faces(std::uint32_t count) {
 const double* celinen_cull_measure(std::uint32_t face_count) {
   const bool measured = guarded([&] {
     if (!source.width) throw std::invalid_argument("No frame is loaded.");
-    faces.clear();
-    for (std::uint32_t i = 0; i < face_count && (i + 1) * 6 <= buffer.size(); ++i) {
-      const double* in = buffer.data() + std::size_t(i) * 6;
-      lenslabs::CullFace face;
-      face.x = in[0];
-      face.y = in[1];
-      face.width = in[2];
-      face.height = in[3];
-      face.sharpness = in[4];
-      face.eyes_open = int(in[5]);
-      faces.push_back(face);
-    }
+    read_faces(face_count);
     const auto reading = lenslabs::measure_cull(source, faces);
     buffer.assign(reading_doubles, 0);
     write_reading(reading, buffer.data());
   });
   return measured ? buffer.data() : nullptr;
+}
+
+/** Decides the eyes of the faces last written, with explicit thresholds: the
+ * engine's own rule, re-run at other operating points by the evaluation.
+ * Returns state * 256 + primary + 1 (state 0 unknown, 1 open, 2 uncertain,
+ * 3 closed; primary -1 when there are no faces), or -1 with the error set.
+ */
+int celinen_cull_judge_eyes(std::uint32_t face_count, double frame_aspect, double closed_probability,
+                            double min_confidence, double uncertain_probability, double companion_prominence) {
+  int result = -1;
+  const bool judged = guarded([&] {
+    read_faces(face_count);
+    lenslabs::EyeThresholds thresholds;
+    thresholds.closed_probability = closed_probability;
+    thresholds.min_confidence = min_confidence;
+    thresholds.uncertain_probability = uncertain_probability;
+    thresholds.companion_prominence = companion_prominence;
+    const auto verdict = lenslabs::judge_eyes(faces, frame_aspect, thresholds);
+    result = int(verdict.state) * 256 + verdict.primary + 1;
+  });
+  return judged ? result : -1;
 }
 
 // Room for `count` packed frames; the caller fills it and calls the pass below.
