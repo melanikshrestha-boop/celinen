@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { publicEntry } from "../src/lib/public-entry";
 import { isWorkbenchRoute, safeSignInPath } from "../src/lib/workbench";
@@ -20,6 +21,16 @@ describe("public entry without replacing the remembered workspace", () => {
       label: "Open local workspace",
     });
   });
+  test("a remembered session paints Dashboard before auth finishes restoring", () => {
+    const nav = readFileSync(new URL("../src/components/Nav.tsx", import.meta.url), "utf8");
+    const root = readFileSync(new URL("../src/routes/__root.tsx", import.meta.url), "utf8");
+    const hint = readFileSync(new URL("../src/lib/signed-in-hint.ts", import.meta.url), "utf8");
+    expect(nav).toContain("PublicEntryCta");
+    expect(root).toContain("SIGNED_IN_HINT_SCRIPT");
+    expect(hint).toContain("data-entry");
+    expect(hint).toContain("celinen.signed-in");
+  });
+
   test("new and unresolved visitors enter through auth, not a private route", () => {
     for (const status of [undefined, "loading", "out"] as const) {
       expect(publicEntry(status).to).toBe("/auth");

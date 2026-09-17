@@ -27,6 +27,7 @@ import {
   readPreferences,
   type AccountPreferences,
 } from "@/lib/account-preferences";
+import { rememberSignedIn } from "@/lib/signed-in-hint";
 type Account = {
   status: "loading" | "in" | "out";
   scope: string | null;
@@ -97,6 +98,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         identityEpoch.current++;
         setUser(verified);
         setStatus(verified ? "in" : "out");
+        rememberSignedIn(Boolean(verified));
         setError(null);
       },
       () => setError("Sign in with a verified email to open your workspace."),
@@ -116,6 +118,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         receiver.cancel();
         setUser(null);
         setStatus("out");
+        rememberSignedIn(false);
         setError("Your saved sign-in could not be restored. Sign in again to continue.");
       },
     );
@@ -255,6 +258,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setUser(null);
       identityEpoch.current++;
       setStatus("out");
+      rememberSignedIn(false);
       return true;
     } catch (error) {
       setError(error instanceof Error ? error.message : "Sign-out failed. Try again.");

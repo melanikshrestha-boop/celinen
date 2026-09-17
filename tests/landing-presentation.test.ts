@@ -227,6 +227,11 @@ if (!process.argv.includes(fixtureFlag)) {
       links.filter((match) => text(match[2]!).startsWith(label));
     if (current === "in") {
       assert.equal(startsWith("Dashboard").length, 4);
+      assert.equal(startsWith("Sign In").length, 0);
+    } else if (current === "loading") {
+      assert.equal(startsWith("Sign In").length, 1, "Nav still has Sign In while auth restores");
+      assert.equal(startsWith("Get started").length, 3, "Hero, savings, and closing stay Get started");
+      assert.equal(startsWith("Dashboard").length, 4, "Dashboard is already in the DOM for a remembered session");
     } else {
       assert.equal(startsWith("Get started").length, 3, "Hero, savings, and closing stay Get started");
       assert.equal(startsWith("Sign In").length, 1, "Nav CTA is Sign In");

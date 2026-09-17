@@ -15,6 +15,7 @@ import { LensProvider } from "@/lib/lensos-store";
 import { WorkbenchBoundary } from "@/components/workbench/Workbench";
 import { AccountProvider, useAccount } from "@/components/account/AccountProvider";
 import { ProductAnalytics } from "@/components/account/ProductAnalytics";
+import { SIGNED_IN_HINT_SCRIPT } from "@/lib/signed-in-hint";
 
 function NotFoundComponent() {
   return (
@@ -108,6 +109,7 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: SIGNED_IN_HINT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

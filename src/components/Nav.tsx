@@ -19,6 +19,7 @@ import { UseCasesMenu } from "@/components/marketing/UseCasesMenu";
 import { NavMenuProvider } from "@/components/marketing/nav-menu";
 
 import { Footer as SiteFooter } from "@/components/lensos/Footer";
+import { PublicEntryCta } from "@/components/PublicEntryCta";
 
 const LINKS: { to: string; label: string; exact?: boolean }[] = [
   { to: "/", label: "Home", exact: true },
@@ -45,7 +46,6 @@ export function Nav({ landing = false }: { landing?: boolean }) {
   }, []);
 
   if (landing) {
-    const signedIn = account?.status === "in";
     return (
       <div className="marketing-nav-shell">
         <header className="marketing-nav">
@@ -64,16 +64,22 @@ export function Nav({ landing = false }: { landing?: boolean }) {
             </nav>
           </NavMenuProvider>
           <div className="marketing-nav__actions">
-            <Link
-              to={signedIn ? entry.to : "/auth"}
-              search={
-                signedIn ? entry.search : { next: "/dashboard", mode: "signin" }
-              }
+            <PublicEntryCta
               className="marketing-nav-cta"
-            >
-              {signedIn ? entry.label : "Sign In"}
-              <ArrowRight size={16} aria-hidden="true" />
-            </Link>
+              guestMode="signin"
+              guestLabel={
+                <>
+                  Sign In
+                  <ArrowRight size={16} aria-hidden="true" />
+                </>
+              }
+              memberLabel={
+                <>
+                  Dashboard
+                  <ArrowRight size={16} aria-hidden="true" />
+                </>
+              }
+            />
             <DropdownMenu modal={false} open={mobileOpen} onOpenChange={setMobileOpen}>
               <DropdownMenuTrigger aria-label="Open menu" className="marketing-nav__more">
                 <Menu size={20} aria-hidden="true" />
@@ -172,13 +178,11 @@ export function Nav({ landing = false }: { landing?: boolean }) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Link
-            to={entry.to}
-            search={entry.search}
+          <PublicEntryCta
             className="shrink-0 whitespace-nowrap rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 transition-opacity hover:opacity-85"
-          >
-            {entry.label} →
-          </Link>
+            guestLabel={`${entry.label} →`}
+            memberLabel="Dashboard →"
+          />
         </div>
       </header>
     </div>

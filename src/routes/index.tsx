@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useAccount } from "@/components/account/AccountProvider";
 import { Nav } from "@/components/Nav";
 import { SavingsSection } from "@/components/marketing/SavingsSection";
 import { PossibilitiesSection } from "@/components/marketing/PossibilitiesSection";
@@ -12,7 +11,7 @@ import { HomePricing } from "@/components/marketing/HomePricing";
 import { MarketingStats } from "@/components/marketing/MarketingStats";
 import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
-import { publicEntry } from "@/lib/public-entry";
+import { PublicEntryCta } from "@/components/PublicEntryCta";
 import { PRODUCT_HEADLINE } from "@/lib/product";
 import { ArrowRight, Check, Heart, Images } from "lucide-react";
 import "@/components/marketing/marketing-page.css";
@@ -42,8 +41,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const account = useAccount();
-  const entry = publicEntry(account?.status);
   const motion = useMarketingMotion();
   return (
     <div className="marketing-page" ref={motion}>
@@ -70,14 +67,21 @@ function Index() {
               good light takes you.
             </h1>
             <div className="marketing-actions">
-              <Link
-                to={entry.to}
-                search={entry.search}
+              <PublicEntryCta
                 className="marketing-action marketing-action--primary"
-              >
-                {entry.label}
-                <span aria-hidden="true">→</span>
-              </Link>
+                guestLabel={
+                  <>
+                    Get started
+                    <span aria-hidden="true">→</span>
+                  </>
+                }
+                memberLabel={
+                  <>
+                    Dashboard
+                    <span aria-hidden="true">→</span>
+                  </>
+                }
+              />
             </div>
             <p className="marketing-hero__note">Made for the person behind the camera.</p>
           </div>
@@ -109,14 +113,21 @@ function Index() {
         </SectionGuard>
         <SectionGuard>
         <SavingsSection>
-          <Link
-            to={entry.to}
-            search={entry.search}
+          <PublicEntryCta
             className="marketing-action marketing-action--primary"
-          >
-            {entry.label}
-            <span aria-hidden="true">→</span>
-          </Link>
+            guestLabel={
+              <>
+                Get started
+                <span aria-hidden="true">→</span>
+              </>
+            }
+            memberLabel={
+              <>
+                Dashboard
+                <span aria-hidden="true">→</span>
+              </>
+            }
+          />
         </SavingsSection>
         </SectionGuard>
         <SectionGuard>
@@ -151,14 +162,21 @@ function Index() {
             </h2>
           </div>
           <div className="marketing-handoff__body" data-reveal>
-            <Link
-              to={entry.to}
-              search={entry.search}
+            <PublicEntryCta
               className="marketing-action marketing-action--primary"
-            >
-              {entry.label}
-              <ArrowRight size={18} />
-            </Link>
+              guestLabel={
+                <>
+                  Get started
+                  <ArrowRight size={18} />
+                </>
+              }
+              memberLabel={
+                <>
+                  Dashboard
+                  <ArrowRight size={18} />
+                </>
+              }
+            />
           </div>
         </section>
         </SectionGuard>
