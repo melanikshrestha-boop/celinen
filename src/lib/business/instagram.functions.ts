@@ -51,7 +51,7 @@ export const startInstagramConnection = createServerFn({ method: "POST" })
 
 export const finishInstagramConnection = createServerFn({ method: "POST" })
   .middleware(auth)
-  .inputValidator(
+  .validator(
     z
       .object({ code: z.string().min(1).max(4000), state: z.string().regex(/^[A-Za-z0-9_-]{43}$/) })
       .strict(),
@@ -62,28 +62,28 @@ export const finishInstagramConnection = createServerFn({ method: "POST" })
 
 export const createInstagramPost = createServerFn({ method: "POST" })
   .middleware(auth)
-  .inputValidator(instagramPostInput)
+  .validator(instagramPostInput)
   .handler(async ({ context, data }) =>
     (await import("./instagram-post.server")).createInstagramPost(context.userId, data),
   );
 
 export const advanceInstagramPost = createServerFn({ method: "POST" })
   .middleware(auth)
-  .inputValidator(z.object({ id: z.string().uuid() }).strict())
+  .validator(z.object({ id: z.string().uuid() }).strict())
   .handler(async ({ context, data }) =>
     (await import("./instagram-post.server")).advanceInstagramPost(context.userId, data.id),
   );
 
 export const discardInstagramPost = createServerFn({ method: "POST" })
   .middleware(auth)
-  .inputValidator(z.object({ id: z.string().uuid() }).strict())
+  .validator(z.object({ id: z.string().uuid() }).strict())
   .handler(async ({ context, data }) =>
     (await import("./instagram-post.server")).discardInstagramPost(context.userId, data.id),
   );
 
 export const instagramMedia = createServerFn({ method: "GET" })
   .middleware(auth)
-  .inputValidator(z.object({ after: graphCursor.nullable() }).strict())
+  .validator(z.object({ after: graphCursor.nullable() }).strict())
   .handler(async ({ context, data }) =>
     (await import("./instagram-manage.server")).listInstagramMedia(
       context.userId,
@@ -94,7 +94,7 @@ export const instagramMedia = createServerFn({ method: "GET" })
 
 export const instagramComments = createServerFn({ method: "GET" })
   .middleware(auth)
-  .inputValidator(z.object({ mediaId: graphId, after: graphCursor.nullable() }).strict())
+  .validator(z.object({ mediaId: graphId, after: graphCursor.nullable() }).strict())
   .handler(async ({ context, data }) =>
     (await import("./instagram-manage.server")).listInstagramComments(
       context.userId,
@@ -106,7 +106,7 @@ export const instagramComments = createServerFn({ method: "GET" })
 
 export const instagramCommentAction = createServerFn({ method: "POST" })
   .middleware(auth)
-  .inputValidator(commentAction)
+  .validator(commentAction)
   .handler(async ({ context, data }) =>
     (await import("./instagram-manage.server")).actOnInstagramComment(
       context.userId,
@@ -117,7 +117,7 @@ export const instagramCommentAction = createServerFn({ method: "POST" })
 
 export const instagramInsights = createServerFn({ method: "GET" })
   .middleware(auth)
-  .inputValidator(z.object({ mediaId: graphId }).strict())
+  .validator(z.object({ mediaId: graphId }).strict())
   .handler(async ({ context, data }) =>
     (await import("./instagram-manage.server")).instagramMediaInsights(
       context.userId,

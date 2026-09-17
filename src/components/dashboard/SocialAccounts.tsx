@@ -41,6 +41,7 @@ import {
   readSocialDraft,
   type SocialPost,
 } from "@/lib/social-post";
+import { InstagramAccount } from "@/components/social/InstagramAccount";
 import "./social-accounts.css";
 
 const TONES = ["Professional", "Casual", "Warm"] as const;
@@ -362,6 +363,7 @@ export function SocialAccounts() {
             {status ? <p className="social-post__hint">{status}</p> : null}
           </div>
         ) : null}
+        <InstagramAccount />
         <div className="social-post__suggest">
           <span>Suggestions</span>
           {SUGGEST.map((item) => {

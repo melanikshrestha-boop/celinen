@@ -18,6 +18,7 @@ import {
   Crop,
   Grid2X2,
   ImagePlus,
+  Instagram,
   Layers2,
   Maximize,
   Plus,
@@ -135,6 +136,7 @@ import {
   type ExportNightKitStore,
 } from "@/lib/develop/export-night-kit";
 import { useDevelopPointer } from "./useDevelopPointer";
+import { InstagramComposer, type InstagramCandidate } from "@/components/social/InstagramComposer";
 import {
   currentDevelopRender,
   currentDevelopExportProof,
@@ -2105,6 +2107,37 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     return () => window.removeEventListener("keydown", handler);
   });
 
+  // Instagram: the selected photos (or the one in hand), each rendered through the
+  // same C++ Develop engine as Export, with the live recipe for the active photo.
+  const [instagramIds, setInstagramIds] = useState<string[] | null>(null);
+  const instagramCandidates = useMemo<InstagramCandidate[]>(() => {
+    if (!instagramIds) return [];
+    return instagramIds.flatMap((id) => {
+      const entry = library.photos.find((p) => p.id === id);
+      if (!entry) return [];
+      return [
+        {
+          id,
+          name: entry.name,
+          thumbnail: async () => (entry.previewBlob?.size ? entry.previewBlob : null),
+          source: async () => {
+            const { source: pixels, sourceMode } = developProcessingSource(entry, exportSourceMode);
+            const document = docs.current[id];
+            if (!pixels || (!document && id !== selectedRef.current)) return null;
+            const recipe =
+              id === selectedRef.current
+                ? cloneDevelopSettings(draftRef.current)
+                : currentRecipe(document!);
+            // 2160px long edge: twice Instagram's 1080px frame, so the crop stays sharp.
+            return renderDevelop(pixels, recipe, { edge: 2160, quality: 0.95, sourceMode });
+          },
+        },
+      ];
+    });
+    // The candidate list is fixed while the composer is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instagramIds]);
+
   if (loadError)
     return (
       <div className="foto-develop develop-loading">
@@ -2237,6 +2270,20 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             >
               <ArrowDownToLine size={14} />
               Export
+            </button>
+          )}
+          {availablePhotos.length > 0 && (
+            <button
+              disabled={!!busy || !!saveError || !selected}
+              onClick={() => {
+                const chosen = filmstripPhotos
+                  .filter((p) => p.id === selected || selectedSet.has(p.id))
+                  .map((p) => p.id);
+                setInstagramIds(chosen.length ? chosen : selected ? [selected] : []);
+              }}
+            >
+              <Instagram size={14} />
+              Instagram
             </button>
           )}
         </div>
@@ -3599,6 +3646,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               )}
           </section>
         </div>
+      )}
+      {instagramIds && (
+        <InstagramComposer
+          open
+          onOpenChange={(open) => (open ? undefined : setInstagramIds(null))}
+          origin="develop"
+          candidates={instagramCandidates}
+          initial={instagramIds}
+        />
       )}
     </section>
   );
