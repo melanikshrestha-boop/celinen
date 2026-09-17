@@ -326,7 +326,8 @@ export function DevelopViewer({
                   if (drawing) {
                     // A tap is not a guide: it must span some of the frame.
                     if (Math.hypot(drawing.x2 - drawing.x1, drawing.y2 - drawing.y1) > 0.03) {
-                      setGuides([...guides, drawing], true);
+                      // The Upright measurement commits this step.
+                      setGuides([...guides, drawing], false);
                       onGuide?.(guides.length);
                     }
                     setDrawing(null);
@@ -354,36 +355,37 @@ export function DevelopViewer({
               >
                 {tool === "guided" ? (
                   <>
-                    {[...guides.map((g, index) => ({ g, index })), ...(drawing ? [{ g: drawing, index: -1 }] : [])].map(
-                      ({ g, index }) => (
-                        <g key={index} className="develop-guide" aria-hidden="true">
-                          <line
-                            x1={g.x1 * 1000}
-                            y1={g.y1 * 1000}
-                            x2={g.x2 * 1000}
-                            y2={g.y2 * 1000}
-                            stroke={index === guide ? "#ffd479" : "#8fd0ff"}
-                            strokeWidth={index === guide ? 3 : 2}
+                    {[
+                      ...guides.map((g, index) => ({ g, index })),
+                      ...(drawing ? [{ g: drawing, index: -1 }] : []),
+                    ].map(({ g, index }) => (
+                      <g key={index} className="develop-guide" aria-hidden="true">
+                        <line
+                          x1={g.x1 * 1000}
+                          y1={g.y1 * 1000}
+                          x2={g.x2 * 1000}
+                          y2={g.y2 * 1000}
+                          stroke={index === guide ? "#ffd479" : "#8fd0ff"}
+                          strokeWidth={index === guide ? 3 : 2}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        {[
+                          [g.x1, g.y1],
+                          [g.x2, g.y2],
+                        ].map(([x, y], end) => (
+                          <circle
+                            key={end}
+                            cx={x! * 1000}
+                            cy={y! * 1000}
+                            r="5"
+                            fill={index === guide ? "#ffd479" : "#8fd0ff"}
+                            stroke="#111"
+                            strokeWidth="1"
                             vectorEffect="non-scaling-stroke"
                           />
-                          {[
-                            [g.x1, g.y1],
-                            [g.x2, g.y2],
-                          ].map(([x, y], end) => (
-                            <circle
-                              key={end}
-                              cx={x! * 1000}
-                              cy={y! * 1000}
-                              r="5"
-                              fill={index === guide ? "#ffd479" : "#8fd0ff"}
-                              stroke="#111"
-                              strokeWidth="1"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                          ))}
-                        </g>
-                      ),
-                    )}
+                        ))}
+                      </g>
+                    ))}
                   </>
                 ) : tool === "crop" ? (
                   <>

@@ -22,9 +22,7 @@ const unit = z.number().finite().min(0).max(1);
 const signed = z.number().finite().min(-100).max(100);
 const angle = z.number().finite().min(-45).max(45);
 
-export const uprightGuideSchema = z
-  .object({ x1: unit, y1: unit, x2: unit, y2: unit })
-  .strict();
+export const uprightGuideSchema = z.object({ x1: unit, y1: unit, x2: unit, y2: unit }).strict();
 export type UprightGuide = z.infer<typeof uprightGuideSchema>;
 
 export const uprightSolutionSchema = z
@@ -82,7 +80,9 @@ export function defaultDevelopGeometry(): DevelopGeometry {
 
 const sameGuides = (a: readonly UprightGuide[], b: readonly UprightGuide[]) =>
   a.length === b.length &&
-  a.every((g, i) => g.x1 === b[i]!.x1 && g.y1 === b[i]!.y1 && g.x2 === b[i]!.x2 && g.y2 === b[i]!.y2);
+  a.every(
+    (g, i) => g.x1 === b[i]!.x1 && g.y1 === b[i]!.y1 && g.x2 === b[i]!.x2 && g.y2 === b[i]!.y2,
+  );
 
 /** The solution that applies to the current mode and guides, or null when a solve is due. */
 export function currentUprightSolution(geometry: DevelopGeometry): UprightSolution | null {
@@ -165,7 +165,8 @@ export function uprightSolutionFromValues(
   request: UprightSolveRequest,
 ): UprightSolution {
   const mode = UPRIGHT_MODES[values[1]!] ?? "off";
-  const clampAngle = (value: number) => Math.min(45, Math.max(-45, Math.round(value * 1000) / 1000 + 0));
+  const clampAngle = (value: number) =>
+    Math.min(45, Math.max(-45, Math.round(value * 1000) / 1000 + 0));
   return uprightSolutionSchema.parse({
     mode: request.mode,
     applied: mode,

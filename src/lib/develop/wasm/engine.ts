@@ -53,7 +53,12 @@ type Exports = {
     values: number,
     count: number,
   ) => number;
-  celinen_upright_solve?: (request: number, count: number, exif: number, exifSize: number) => number;
+  celinen_upright_solve?: (
+    request: number,
+    count: number,
+    exif: number,
+    exifSize: number,
+  ) => number;
 };
 
 export type DevelopWasmImage = {
@@ -131,13 +136,13 @@ export async function instantiateDevelopWasm(
   };
   const failure = () => new Error(text(wasm.celinen_error()) || "Develop failed.");
   // Copy bytes into engine scratch memory for the duration of one call.
-  const withBytes = <T>(bytes: Uint8Array, use: (pointer: number) => T): T => {
+  const withBytes = <T>(bytes: Uint8Array, work: (pointer: number) => T): T => {
     const pointer = bytes.length ? wasm.celinen_alloc(bytes.length) : 0;
     if (bytes.length && !pointer)
       throw new Error("This photo is too large for the browser's memory at this size.");
     try {
       if (bytes.length) new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
-      return use(pointer);
+      return work(pointer);
     } finally {
       if (pointer) wasm.celinen_release(pointer);
     }
@@ -162,7 +167,13 @@ export async function instantiateDevelopWasm(
         const ok =
           upright && uprightDevelop
             ? withBytes(doubles(upright), (values) =>
-                uprightDevelop(pointer, protocol.length, highResolution ? 1 : 0, values, upright.length),
+                uprightDevelop(
+                  pointer,
+                  protocol.length,
+                  highResolution ? 1 : 0,
+                  values,
+                  upright.length,
+                ),
               )
             : wasm.celinen_develop(pointer, protocol.length, highResolution ? 1 : 0);
         if (!ok) throw failure();

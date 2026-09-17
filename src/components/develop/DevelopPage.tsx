@@ -1599,7 +1599,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         }
         const current = draftRef.current.geometry ?? defaultDevelopGeometry();
         // The photographer may have changed mode or guides while it measured.
-        if (current.upright !== request.mode || JSON.stringify(current.guides) !== JSON.stringify(request.guides))
+        if (
+          current.upright !== request.mode ||
+          JSON.stringify(current.guides) !== JSON.stringify(request.guides)
+        )
           return;
         change({ ...draftRef.current, geometry: { ...current, solved: solution } }, "Upright");
       })

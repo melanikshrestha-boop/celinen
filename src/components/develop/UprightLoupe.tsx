@@ -24,7 +24,11 @@ export function UprightLoupe({
   const left = Math.min(Math.max(x * width + 24, 4), Math.max(4, width - SIZE - 4));
   const top = Math.min(Math.max(y * height - SIZE - 24, 4), Math.max(4, height - SIZE - 4));
   return (
-    <div className="develop-loupe" style={{ left, top, width: SIZE, height: SIZE }} aria-hidden="true">
+    <div
+      className="develop-loupe"
+      style={{ left, top, width: SIZE, height: SIZE }}
+      aria-hidden="true"
+    >
       <div
         className="develop-loupe-view"
         style={{

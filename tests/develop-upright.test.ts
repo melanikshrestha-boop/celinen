@@ -87,7 +87,11 @@ describe("Upright settings", () => {
   });
 
   test("a solution only applies to the mode and guides it was measured for", () => {
-    const geometry = { ...defaultDevelopGeometry(), upright: "vertical" as const, solved: solved() };
+    const geometry = {
+      ...defaultDevelopGeometry(),
+      upright: "vertical" as const,
+      solved: solved(),
+    };
     expect(currentUprightSolution(geometry)).toEqual(solved());
     expect(uprightNeedsSolve(geometry)).toBe(false);
     expect(currentUprightSolution({ ...geometry, upright: "full" })).toBeNull();
@@ -122,7 +126,9 @@ describe("Upright settings", () => {
       scale: 105,
       constrainCrop: true,
     };
-    expect(uprightTransformValues(geometry)).toEqual([2.5, -11, 0, 0.81, 0, 0, 0, 0, 0, 105, 0, 0, 1]);
+    expect(uprightTransformValues(geometry)).toEqual([
+      2.5, -11, 0, 0.81, 0, 0, 0, 0, 0, 105, 0, 0, 1,
+    ]);
     expect(uprightProtocolLine(geometry)).toBe("UPRIGHT_1 2.5 -11 0 0.81 0 0 0 0 0 105 0 0 1\n");
     expect(uprightTransformValues({ ...defaultDevelopGeometry(), xOffset: -0 })).toBeNull();
   });
@@ -142,7 +148,9 @@ describe("Upright settings", () => {
 
 // ---------------------------------------------------------------------------
 // The committed WebAssembly engine, measuring a scene with known geometry.
-const binary = readFileSync(new URL("../src/lib/develop/wasm/celinen-develop.wasm", import.meta.url));
+const binary = readFileSync(
+  new URL("../src/lib/develop/wasm/celinen-develop.wasm", import.meta.url),
+);
 let engine: DevelopWasmEngine;
 beforeAll(async () => {
   engine = await instantiateDevelopWasm(binary);
@@ -215,10 +223,26 @@ describe("Upright in the WebAssembly engine", () => {
     engine.source(W, H).set(pixels);
     // Minimal JPEG APP1 with FocalLengthIn35mmFilm = 50 in the Exif IFD.
     const tiff = [
-      0x49, 0x49, 42, 0, 8, 0, 0, 0, 1, 0, 0x69, 0x87, 4, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0,
-      1, 0, 0x05, 0xa4, 3, 0, 1, 0, 0, 0, 50, 0, 0, 0, 0, 0, 0, 0,
+      0x49, 0x49, 42, 0, 8, 0, 0, 0, 1, 0, 0x69, 0x87, 4, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 1,
+      0, 0x05, 0xa4, 3, 0, 1, 0, 0, 0, 50, 0, 0, 0, 0, 0, 0, 0,
     ];
-    const exif = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0, tiff.length + 8, 0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff, 0xff, 0xd9]);
+    const exif = new Uint8Array([
+      0xff,
+      0xd8,
+      0xff,
+      0xe1,
+      0,
+      tiff.length + 8,
+      0x45,
+      0x78,
+      0x69,
+      0x66,
+      0,
+      0,
+      ...tiff,
+      0xff,
+      0xd9,
+    ]);
     const solution = engine.solveUpright({ mode: "vertical", guides: [] }, exif);
     expect(solution.focalSource).toBe("exif");
     expect(solution.focal).toBeCloseTo(50 / Math.hypot(36, 24), 9);

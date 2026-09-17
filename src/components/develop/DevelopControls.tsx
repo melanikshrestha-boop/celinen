@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ChevronDown,
   RotateCcw,
@@ -451,13 +459,7 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
           strokeWidth="1.5"
         />
         {points.map((p, i) => (
-          <circle
-            key={i}
-            id={`curve-point-${i}`}
-            cx={p.x * 200}
-            cy={(1 - p.y) * 200}
-            r="3.3"
-          />
+          <circle key={i} id={`curve-point-${i}`} cx={p.x * 200} cy={(1 - p.y) * 200} r="3.3" />
         ))}
       </svg>
       <div className="develop-inline">
@@ -574,19 +576,19 @@ export function DevelopControls({
   uprightSolving?: boolean;
 }) {
   const [hslIndex, setHslIndex] = useState(0);
-  
+
   // Reset HSL index when photo changes to avoid state sync issues
   useEffect(() => {
     setHslIndex(0);
   }, [photoId]);
-  
+
   // Validate mask selection - clear if mask no longer exists
   useEffect(() => {
-    if (maskId && !value.masks.find(m => m.id === maskId)) {
+    if (maskId && !value.masks.find((m) => m.id === maskId)) {
       onMask(null);
     }
   }, [maskId, value.masks, onMask]);
-  
+
   const defaults = defaultDevelopSettings();
   const scalar = (
     key: keyof DevelopSettings,
@@ -609,7 +611,7 @@ export function DevelopControls({
       onChange={(n, c) => change({ ...value, [key]: n }, label, c)}
     />
   );
-  
+
   const parametric = value.parametricCurve ?? defaults.parametricCurve;
   const parametricScalar = (
     childKey: "highlights" | "lights" | "darks" | "shadows",
@@ -1020,6 +1022,9 @@ export function DevelopControls({
                     solved: mode === geometry.upright ? geometry.solved : null,
                   },
                   `Upright ${label}`,
+                  // The measurement that follows commits this step, so choosing
+                  // a mode is one history entry, not two.
+                  false,
                 );
                 if (mode === "guided") onTool("guided");
                 else if (tool === "guided") onTool("edit");
@@ -1034,7 +1039,6 @@ export function DevelopControls({
             <div className="develop-inline">
               <button
                 aria-pressed={tool === "guided"}
-                disabled={geometry.guides.length >= UPRIGHT_MAX_GUIDES && tool !== "guided"}
                 onClick={() => onTool(tool === "guided" ? "edit" : "guided")}
               >
                 {tool === "guided" ? "Done drawing" : "Draw guides"}
@@ -1087,10 +1091,15 @@ export function DevelopControls({
             <input
               type="checkbox"
               checked={value.lensCorrection.enabled}
-              onChange={(e) => change({ 
-                ...value, 
-                lensCorrection: { ...value.lensCorrection, enabled: e.target.checked } 
-              }, "Enable lens correction")}
+              onChange={(e) =>
+                change(
+                  {
+                    ...value,
+                    lensCorrection: { ...value.lensCorrection, enabled: e.target.checked },
+                  },
+                  "Enable lens correction",
+                )
+              }
             />
             Lens correction
           </label>
@@ -1100,10 +1109,15 @@ export function DevelopControls({
           <select
             aria-label="Lens profile"
             value={value.lensCorrection.profile}
-            onChange={(e) => change({ 
-              ...value, 
-              lensCorrection: { ...value.lensCorrection, profile: e.target.value as any } 
-            }, "Lens profile")}
+            onChange={(e) =>
+              change(
+                {
+                  ...value,
+                  lensCorrection: { ...value.lensCorrection, profile: e.target.value as any },
+                },
+                "Lens profile",
+              )
+            }
           >
             <option value="none">None</option>
             <option value="auto">Auto</option>
@@ -1117,13 +1131,21 @@ export function DevelopControls({
             <input
               type="checkbox"
               checked={value.lensCorrection.chromaticAberration.enabled}
-              onChange={(e) => change({ 
-                ...value, 
-                lensCorrection: { 
-                  ...value.lensCorrection, 
-                  chromaticAberration: { ...value.lensCorrection.chromaticAberration, enabled: e.target.checked } 
-                } 
-              }, "Enable chromatic aberration")}
+              onChange={(e) =>
+                change(
+                  {
+                    ...value,
+                    lensCorrection: {
+                      ...value.lensCorrection,
+                      chromaticAberration: {
+                        ...value.lensCorrection.chromaticAberration,
+                        enabled: e.target.checked,
+                      },
+                    },
+                  },
+                  "Enable chromatic aberration",
+                )
+              }
             />
             Chromatic aberration
           </label>
@@ -1131,7 +1153,7 @@ export function DevelopControls({
         {lensScalar("chromaticAberration", "amount", "Amount", 0, 100, 1, {
           help: "Amount of chromatic aberration correction",
           reset: 50,
-          disabled: !value.lensCorrection.chromaticAberration.enabled
+          disabled: !value.lensCorrection.chromaticAberration.enabled,
         })}
         <p className="develop-control-heading">Vignette Correction</p>
         <div className="develop-inline">
@@ -1140,20 +1162,28 @@ export function DevelopControls({
             <input
               type="checkbox"
               checked={value.lensCorrection.vignetteCorrection.enabled}
-              onChange={(e) => change({ 
-                ...value, 
-                lensCorrection: { 
-                  ...value.lensCorrection, 
-                  vignetteCorrection: { ...value.lensCorrection.vignetteCorrection, enabled: e.target.checked } 
-                } 
-              }, "Enable vignette correction")}
+              onChange={(e) =>
+                change(
+                  {
+                    ...value,
+                    lensCorrection: {
+                      ...value.lensCorrection,
+                      vignetteCorrection: {
+                        ...value.lensCorrection.vignetteCorrection,
+                        enabled: e.target.checked,
+                      },
+                    },
+                  },
+                  "Enable vignette correction",
+                )
+              }
             />
             Vignette correction
           </label>
         </div>
         {lensScalar("vignetteCorrection", "amount", "Amount", -100, 100, 1, {
           help: "Amount of vignette correction",
-          disabled: !value.lensCorrection.vignetteCorrection.enabled
+          disabled: !value.lensCorrection.vignetteCorrection.enabled,
         })}
       </Panel>
       <Panel title="Masking" id="panel-masks" open={tool === "mask"} disabled={browserOnly}>
