@@ -81,6 +81,21 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
   highlights, shadows, whites, blacks, white balance and vibrance against
   `develop.cpp`'s own tone equations (the Auto button). Deterministic statistics,
   not a trained model.
+- `native/src/cull.cpp` → `src/lib/studio/cull/celinen-cull.wasm`. The cull
+  engine, in two halves. `measure_cull()` reads one decoded frame: focus as the
+  ratio of gradient energy at a one-pixel and an eight-pixel stride (resolving
+  power, which cancels out how much contrast a scene carries), measured per tile
+  in four directions so a smear is told apart from defocus, weighted toward the
+  subject so a sharp background behind a soft face is a miss; plus exposure over
+  the subject, a noise estimate, a 32x32 DCT perceptual hash and a colour
+  signature. `cull_shoot()` then compares the frames with each other: it
+  calibrates against the shoot's own range, groups bursts and near-duplicates,
+  picks the best of each group and suggests keep/reject with a reason. Measured
+  in Chromium on an M-series Mac: 4 ms per frame at the 640px analysis size,
+  16 ms at 1280px, and 5 ms to rank 3,000 frames. It never overrules a decision
+  the photographer already made and never judges an unreadable file. Faces and
+  blinks are evidence it accepts from the browser's face detector, which only
+  some browsers ship; the engine never guesses at them.
 - `native/wasm/voice_wasm.cpp` → `src/lib/voice/wasm/celinen-voice.wasm`. The
   dictation front end (`native/src/voice.cpp`): DC removal, band-limited
   resampling to 16 kHz PCM16, adaptive-noise-floor voice activity detection and
@@ -89,12 +104,12 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
 
 ```sh
 sh native/wasm/build.sh        # needs Emscripten (em++ on PATH, or EMSDK set)
-bun test tests/develop-wasm.test.ts tests/voice-wasm.test.ts
+bun test tests/develop-wasm.test.ts tests/cull-engine.test.ts tests/voice-wasm.test.ts
 ```
 
 The `.wasm` files are committed so deploys and CI never need the toolchain.
-Rebuild and commit them whenever `develop*.cpp` or `voice.cpp` change; the two
-test files above execute the committed binaries. The site's CSP allows
+Rebuild and commit them whenever `develop*.cpp`, `cull.cpp` or `voice.cpp` change;
+the test files above execute the committed binaries. The site's CSP allows
 WebAssembly compilation with `'wasm-unsafe-eval'` only; scripts still cannot `eval`.
 
 ## Historical Studio transport and standalone CLI reference

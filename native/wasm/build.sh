@@ -31,6 +31,23 @@ em++ $COMMON -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=2147483648 \
   -sEXPORTED_FUNCTIONS=_celinen_error,_celinen_engine,_celinen_alloc,_celinen_release,_celinen_source,_celinen_develop,_celinen_result_width,_celinen_result_height,_celinen_result_pixels,_celinen_result_release,_celinen_suggest \
   -o src/lib/develop/wasm/celinen-develop.wasm
 
+# The cull engine: measured per frame in the analysis worker, then one
+# shoot-level pass that ranks and groups what it measured.
+# shellcheck disable=SC2086
+em++ $COMMON -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
+  native/src/cull.cpp native/wasm/cull_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_cull_error,_celinen_cull_reading_size,_celinen_cull_frame_size,_celinen_cull_row_size,_celinen_cull_source,_celinen_cull_faces,_celinen_cull_measure,_celinen_cull_frames,_celinen_cull_shoot,_celinen_cull_release \
+  -o src/lib/studio/cull/celinen-cull.wasm
+
+# Ingest: one call per photo — EXIF, a scaled libjpeg decode, the cull
+# measurement and the filmstrip thumbnail, so a ten-thousand frame card never
+# waits on the browser's own decoder. libjpeg is Emscripten's own BSD port.
+# shellcheck disable=SC2086
+em++ $COMMON --use-port=libjpeg -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=1073741824 \
+  native/src/cull.cpp native/src/exif.cpp native/wasm/ingest_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release \
+  -o src/lib/studio/cull/celinen-ingest.wasm
+
 if [ -f native/wasm/voice_wasm.cpp ]; then
   # shellcheck disable=SC2086
   em++ $COMMON -sINITIAL_MEMORY=4194304 -sMAXIMUM_MEMORY=67108864 \
@@ -38,4 +55,4 @@ if [ -f native/wasm/voice_wasm.cpp ]; then
     -sEXPORTED_FUNCTIONS=_celinen_voice_open,_celinen_voice_input,_celinen_voice_push,_celinen_voice_level,_celinen_voice_speaking,_celinen_voice_segment_samples,_celinen_voice_segment,_celinen_voice_segment_release,_celinen_voice_flush \
     -o src/lib/voice/wasm/celinen-voice.wasm
 fi
-ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
+ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
