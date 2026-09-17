@@ -1426,3 +1426,38 @@ html.dark .foto-develop {
     padding: 20px;
   }
 }
+.develop-upright-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 7px 0;
+}
+.develop-upright-modes button {
+  background: var(--dv-button);
+  border-color: var(--dv-input-line);
+}
+.develop-guide {
+  cursor: pointer;
+}
+.develop-loupe {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid #ffffff5c;
+  box-shadow: 0 6px 18px #0000007a;
+  pointer-events: none;
+}
+.develop-loupe-view {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.develop-loupe-cross {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, transparent calc(50% - 1px), #ffd479 50%, transparent calc(50% + 1px)),
+    linear-gradient(to bottom, transparent calc(50% - 1px), #ffd479 50%, transparent calc(50% + 1px));
+  opacity: 0.85;
+}

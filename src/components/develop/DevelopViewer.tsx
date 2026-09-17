@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { type DevelopSettings } from "@/lib/develop/contract";
+import {
+  defaultDevelopGeometry,
+  UPRIGHT_MAX_GUIDES,
+  type UprightGuide,
+} from "@/lib/develop/upright";
+import { UprightLoupe } from "./UprightLoupe";
 import { type DevelopChange, type DevelopTool } from "./DevelopControls";
 import { developImageReady } from "./develop-state";
 import { type DevelopHistogramData } from "@/lib/develop/histogram";
@@ -22,6 +28,8 @@ export function DevelopViewer({
   settings,
   change,
   maskId,
+  guide,
+  onGuide,
   onDimensions,
   onHistogram,
   onHistogramError,
@@ -43,6 +51,9 @@ export function DevelopViewer({
   settings: DevelopSettings;
   change: DevelopChange;
   maskId: string | null;
+  /** Index of the guide the photographer selected, for Backspace. */
+  guide?: number | null;
+  onGuide?: (index: number | null) => void;
   onDimensions: (w: number, h: number) => void;
   onHistogram: (histogram: DevelopHistogramData, url: string) => void;
   onHistogramError?: (message: string, url: string) => void;
@@ -63,6 +74,8 @@ export function DevelopViewer({
     highlights: boolean;
   } | null>(null);
   latest.current = settings;
+  // While a guide is being drawn: its two ends in normalized image coordinates.
+  const [drawing, setDrawing] = useState<UprightGuide | null>(null);
   const [bounds, setBounds] = useState({ width: 640, height: 500 }),
     [imageSize, setImageSize] = useState({ width: 4, height: 3 }),
     [loadedUrl, setLoadedUrl] = useState<string | null>(null);
@@ -160,6 +173,20 @@ export function DevelopViewer({
   const width = Math.max(1, imageSize.width * scale),
     height = Math.max(1, imageSize.height * scale);
   const mask = settings.masks.find((m) => m.id === maskId) ?? settings.masks[0];
+  const geometry = settings.geometry ?? defaultDevelopGeometry();
+  const guides = geometry.guides;
+  const setGuides = (next: UprightGuide[], commit: boolean) => {
+    latest.current = { ...latest.current, geometry: { ...geometry, guides: next, solved: null } };
+    change(latest.current, "Upright guides", commit);
+  };
+  // Distance from a point to a guide, in normalized units, for selection.
+  const guideDistance = (g: UprightGuide, x: number, y: number) => {
+    const dx = g.x2 - g.x1,
+      dy = g.y2 - g.y1;
+    const length = dx * dx + dy * dy;
+    const t = length ? Math.max(0, Math.min(1, ((x - g.x1) * dx + (y - g.y1) * dy) / length)) : 0;
+    return Math.hypot(x - (g.x1 + t * dx), y - (g.y1 + t * dy));
+  };
   return (
     <div
       className={`develop-stage ${zoom === "100" ? "is-zoomed" : ""}`}
@@ -206,9 +233,18 @@ export function DevelopViewer({
                     : "none",
               }}
             />
+            {drawing && displayedUrl && (
+              <UprightLoupe
+                url={displayedUrl}
+                x={drawing.x2}
+                y={drawing.y2}
+                width={width}
+                height={height}
+              />
+            )}
             {compare && <span className="develop-image-label">After</span>}
             {(grid || tool === "crop") && <div className="develop-grid" aria-hidden="true" />}
-            {(tool === "crop" || tool === "mask") && !before && !compare && (
+            {(tool === "crop" || tool === "mask" || tool === "guided") && !before && !compare && (
               <svg
                 className="develop-overlay"
                 viewBox="0 0 1000 1000"
@@ -222,24 +258,48 @@ export function DevelopViewer({
                 aria-label={
                   tool === "crop"
                     ? "Drag on the source photo to draw crop bounds"
-                    : "Drag to position the selected mask"
+                    : tool === "guided"
+                      ? "Drag along a line that should be straight"
+                      : "Drag to position the selected mask"
                 }
                 onPointerDown={(e) => {
                   if (!geometryReady || e.button !== 0) return;
                   const r = e.currentTarget.getBoundingClientRect();
+                  const x = (e.clientX - r.left) / r.width,
+                    y = (e.clientY - r.top) / r.height;
+                  if (tool === "guided") {
+                    // Tapping an existing guide selects it; Backspace removes it.
+                    const near = guides
+                      .map((g, index) => ({ index, distance: guideDistance(g, x, y) }))
+                      .sort((a, b) => a.distance - b.distance)[0];
+                    if (near && near.distance < 0.02) {
+                      onGuide?.(near.index);
+                      return;
+                    }
+                    if (guides.length >= UPRIGHT_MAX_GUIDES) return;
+                    onGuide?.(null);
+                    setDrawing({ x1: x, y1: y, x2: x, y2: y });
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    return;
+                  }
                   gesture.current = {
-                    x: (e.clientX - r.left) / r.width,
-                    y: (e.clientY - r.top) / r.height,
+                    x,
+                    y,
                     settings: structuredClone(settings),
                   };
                   e.currentTarget.setPointerCapture(e.pointerId);
                 }}
                 onPointerMove={(e) => {
                   const g = gesture.current;
-                  if (!g || !geometryReady) return;
+                  if ((!g && !drawing) || !geometryReady) return;
                   const r = e.currentTarget.getBoundingClientRect();
                   const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
                     y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+                  if (drawing) {
+                    setDrawing({ ...drawing, x2: x, y2: y });
+                    return;
+                  }
+                  if (!g) return;
                   if (tool === "crop") {
                     const w = Math.max(0.01, Math.abs(x - g.x)),
                       h = Math.max(0.01, Math.abs(y - g.y));
@@ -263,22 +323,69 @@ export function DevelopViewer({
                   }
                 }}
                 onPointerUp={() => {
+                  if (drawing) {
+                    // A tap is not a guide: it must span some of the frame.
+                    if (Math.hypot(drawing.x2 - drawing.x1, drawing.y2 - drawing.y1) > 0.03) {
+                      setGuides([...guides, drawing], true);
+                      onGuide?.(guides.length);
+                    }
+                    setDrawing(null);
+                    return;
+                  }
                   if (gesture.current)
                     change(latest.current, tool === "crop" ? "Crop" : "Position mask", true);
                   gesture.current = null;
                 }}
                 onPointerCancel={() => {
+                  if (drawing) {
+                    setDrawing(null);
+                    return;
+                  }
                   gesture.current = null;
                   change(latest.current, "Geometry", true);
                 }}
                 onLostPointerCapture={() => {
+                  if (drawing) setDrawing(null);
                   if (gesture.current) {
                     gesture.current = null;
                     change(latest.current, tool === "crop" ? "Crop" : "Position mask", true);
                   }
                 }}
               >
-                {tool === "crop" ? (
+                {tool === "guided" ? (
+                  <>
+                    {[...guides.map((g, index) => ({ g, index })), ...(drawing ? [{ g: drawing, index: -1 }] : [])].map(
+                      ({ g, index }) => (
+                        <g key={index} className="develop-guide" aria-hidden="true">
+                          <line
+                            x1={g.x1 * 1000}
+                            y1={g.y1 * 1000}
+                            x2={g.x2 * 1000}
+                            y2={g.y2 * 1000}
+                            stroke={index === guide ? "#ffd479" : "#8fd0ff"}
+                            strokeWidth={index === guide ? 3 : 2}
+                            vectorEffect="non-scaling-stroke"
+                          />
+                          {[
+                            [g.x1, g.y1],
+                            [g.x2, g.y2],
+                          ].map(([x, y], end) => (
+                            <circle
+                              key={end}
+                              cx={x! * 1000}
+                              cy={y! * 1000}
+                              r="5"
+                              fill={index === guide ? "#ffd479" : "#8fd0ff"}
+                              stroke="#111"
+                              strokeWidth="1"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                          ))}
+                        </g>
+                      ),
+                    )}
+                  </>
+                ) : tool === "crop" ? (
                   <>
                     <path
                       d={`M0 0H1000V1000H0Z M${settings.crop.x * 1000} ${settings.crop.y * 1000}v${settings.crop.height * 1000}h${settings.crop.width * 1000}v${-settings.crop.height * 1000}Z`}

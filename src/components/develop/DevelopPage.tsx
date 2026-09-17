@@ -50,9 +50,19 @@ import {
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
-import { matchLookWasm, suggestDevelopWasm, WASM_DEVELOP_ENGINE } from "@/lib/develop/wasm/client";
+import {
+  matchLookWasm,
+  solveUprightWasm,
+  suggestDevelopWasm,
+  WASM_DEVELOP_ENGINE,
+} from "@/lib/develop/wasm/client";
 import { lookChangedControls } from "@/lib/develop/look-match";
 import { lookDragCount, lookDropFiles, useLookInspirations } from "./useLookInspirations";
+import {
+  defaultDevelopGeometry,
+  uprightNeedsSolve,
+  type UprightSolveRequest,
+} from "@/lib/develop/upright";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
@@ -352,7 +362,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     [lookTour, setLookTour] = useState<{ key: number; paths: string[] } | null>(null);
   const lookAbort = useRef<AbortController | null>(null);
   const [tool, setTool] = useState<DevelopTool>("edit"),
-    [maskId, setMaskId] = useState<string | null>(null);
+    [maskId, setMaskId] = useState<string | null>(null),
+    // The guide Backspace would delete, and whether a measurement is running.
+    [guideIndex, setGuideIndex] = useState<number | null>(null),
+    [uprightSolving, setUprightSolving] = useState(false);
   const [mode, setMode] = useState<"develop" | "library">("develop"),
     [before, setBefore] = useState(false),
     [compare, setCompare] = useState(false),
@@ -1178,10 +1191,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   function changeTool(next: DevelopTool) {
     if (editsLocked() || !source) return;
-    if (browserOnly && next === "mask") {
-      setNotice("Masking requires the local C++ Develop engine. Your saved edits are unchanged.");
+    if (browserOnly && (next === "mask" || next === "guided")) {
+      setNotice(
+        `${next === "mask" ? "Masking" : "Guided Upright"} requires the local C++ Develop engine. Your saved edits are unchanged.`,
+      );
       return;
     }
+    if (next !== "guided") setGuideIndex(null);
     commitDraft();
     setTool(next);
     setCompare(false);
@@ -1190,7 +1206,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   function applyPreset(preset: { name: string; settings: DevelopSettings }) {
     change(
-      { ...cloneDevelopSettings(preset.settings), crop: draft.crop, masks: draft.masks },
+      {
+        ...cloneDevelopSettings(preset.settings),
+        crop: draft.crop,
+        masks: draft.masks,
+        geometry: draft.geometry,
+      },
       `Preset: ${preset.name}`.slice(0, 100),
     );
     setActivePreset(preset.name);
@@ -1432,7 +1453,16 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     renderKey,
   ]);
   const renderRecipe = useMemo(
-    () => (tool === "edit" ? draft : { ...draft, crop: defaultDevelopSettings().crop }),
+    () =>
+      tool === "edit"
+        ? draft
+        : {
+            ...draft,
+            crop: defaultDevelopSettings().crop,
+            // Guides are drawn in the photograph's own coordinates, so the
+            // correction is lifted while they are being drawn.
+            ...(tool === "guided" ? { geometry: defaultDevelopGeometry() } : {}),
+          },
     [draft, tool],
   );
   const neutralRecipe = useMemo(() => isNeutralDevelopRecipe(renderRecipe), [renderRecipe]);
@@ -1539,6 +1569,51 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     renderKey,
     neutralBlob,
   ]);
+
+  // Upright is measured once per photo, mode and guide set, then stored in the
+  // recipe: the export and the local executable warp from the same numbers
+  // without reading the photo's lines again.
+  useEffect(() => {
+    const id = selectedRef.current;
+    const geometry = draft.geometry ?? defaultDevelopGeometry();
+    if (!id || !previewSource || !uprightNeedsSolve(geometry) || editsLocked()) {
+      setUprightSolving(false);
+      return;
+    }
+    const controller = new AbortController();
+    const request: UprightSolveRequest = {
+      mode: geometry.upright as UprightSolveRequest["mode"],
+      guides: geometry.guides.map((guide) => ({ ...guide })),
+    };
+    setUprightSolving(true);
+    void solveUprightWasm(previewSource, exportEdge, request, {
+      exifSource: photo?.sourceBlob ?? previewSource,
+      signal: controller.signal,
+    })
+      .then((solution) => {
+        if (controller.signal.aborted || !alive.current || selectedRef.current !== id) return;
+        setUprightSolving(false);
+        if (!solution) {
+          setNotice("Upright needs the C++ Develop engine. Your saved edits are unchanged.");
+          return;
+        }
+        const current = draftRef.current.geometry ?? defaultDevelopGeometry();
+        // The photographer may have changed mode or guides while it measured.
+        if (current.upright !== request.mode || JSON.stringify(current.guides) !== JSON.stringify(request.guides))
+          return;
+        change({ ...draftRef.current, geometry: { ...current, solved: solution } }, "Upright");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || !alive.current) return;
+        setUprightSolving(false);
+        setNotice(errorMessage(error));
+      });
+    return () => {
+      controller.abort();
+      setUprightSolving(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.geometry, previewSource, selected, exportEdge]);
 
   async function importPhotos(incomingFiles: File[] | DataTransfer) {
     if ((Array.isArray(incomingFiles) && !incomingFiles.length) || dialog) return;
@@ -1826,6 +1901,17 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (key === "\\" && source) {
         e.preventDefault();
         setBefore((v) => !v);
+      }
+      if ((key === "backspace" || key === "delete") && tool === "guided" && guideIndex !== null) {
+        e.preventDefault();
+        const geometry = draftRef.current.geometry ?? defaultDevelopGeometry();
+        const guides = geometry.guides.filter((_, index) => index !== guideIndex);
+        setGuideIndex(null);
+        change(
+          { ...draftRef.current, geometry: { ...geometry, guides, solved: null } },
+          "Delete guide",
+        );
+        return;
       }
       if (key === "g") setMode("library");
       if (key === "d") setMode("develop");
@@ -2277,7 +2363,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 onClick={() =>
                   clipboard &&
                   change(
-                    { ...cloneDevelopSettings(clipboard), crop: draft.crop, masks: draft.masks },
+                    {
+                      ...cloneDevelopSettings(clipboard),
+                      crop: draft.crop,
+                      masks: draft.masks,
+                      geometry: draft.geometry,
+                    },
                     "Paste settings",
                   )
                 }
@@ -2551,6 +2642,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     settings={draft}
                     change={change}
                     maskId={maskId}
+                    guide={guideIndex}
+                    onGuide={setGuideIndex}
                     onDimensions={onDimensions}
                     onHistogram={onHistogram}
                     onHistogramError={onHistogramError}
@@ -2756,6 +2849,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 sourceAspect={sourceAspect}
                 {...(wasmEngine ? {} : { onSuggestCrop: () => openDialog("auto-crop") })}
                 browserOnly={browserOnly}
+                uprightSolving={uprightSolving}
               />
             </fieldset>
             <div className="develop-right-footer">
@@ -2769,7 +2863,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   const p = previous.current ? docs.current[previous.current] : null;
                   if (p)
                     change(
-                      { ...currentRecipe(p), crop: draft.crop, masks: draft.masks },
+                      {
+                        ...currentRecipe(p),
+                        crop: draft.crop,
+                        masks: draft.masks,
+                        geometry: draft.geometry,
+                      },
                       "Previous settings",
                     );
                 }}
