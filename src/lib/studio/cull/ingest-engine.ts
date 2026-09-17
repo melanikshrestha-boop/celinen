@@ -4,12 +4,27 @@
  * is what makes a ten-thousand frame card finish in minutes instead of an hour.
  */
 import type { CullReading } from "./engine";
+import { hasRawExports, rawApiFromExports, type RawApi } from "./raw-container";
 
 type Exports = {
   memory: WebAssembly.Memory;
   _initialize?: () => void;
   celinen_ingest_error: () => number;
+  /** Absent in binaries built before AF-area support. */
+  celinen_ingest_metadata?: (size: number) => number;
+  celinen_ingest_focus?: () => number;
   celinen_ingest_input: (size: number) => number;
+  /** Absent in binaries built before the browser-decode fallback. */
+  celinen_ingest_run_pixels?: (
+    width: number,
+    height: number,
+    sourceWidth: number,
+    sourceHeight: number,
+    measureEdge: number,
+    thumbEdge: number,
+    thumbQuality: number,
+  ) => number;
+  celinen_ingest_damaged?: () => number;
   celinen_ingest_run: (
     size: number,
     measureEdge: number,
@@ -30,6 +45,24 @@ type Exports = {
   celinen_ingest_release: () => void;
 };
 
+/** A rectangle normalized to 0..1 of the upright frame. */
+export type NormalizedRect = { x: number; y: number; w: number; h: number };
+
+export type FocusHitVerdict = "on-subject" | "front-or-back-focus" | "missed" | "unjudged";
+
+/** How the frame's sharpness sits against the camera's own AF area. */
+export type FocusHit = {
+  /** 0..1 confidence that focus landed inside the AF area; >= 0.5 is on subject. */
+  hit: number;
+  /** Resolving power inside the AF area, in CullReading acuity units. */
+  afAcuity: number;
+  /** Resolving power of the sharpest detail anywhere in the frame. */
+  bestAcuity: number;
+  /** Where that sharpest detail is. */
+  bestRegion: NormalizedRect;
+  verdict: FocusHitVerdict;
+};
+
 export type IngestResult = {
   reading: CullReading;
   /** The original's own pixel size, before the scaled decode. */
@@ -45,6 +78,25 @@ export type IngestResult = {
   thumbnail: Blob;
   /** The measured frame, for a caller that wants to look closer. */
   frame: { width: number; height: number; rgba: Uint8ClampedArray<ArrayBuffer> };
+  /** The camera's AF area from its maker note (Sony, Nikon, Canon, Fujifilm),
+   * normalized to the upright frame. Undefined when the file names none. */
+  afPoint?: NormalizedRect | undefined;
+  /** Whether the camera itself reported focus lock there; undefined when it did not say. */
+  afConfirmed?: boolean | undefined;
+  /** Present whenever afPoint is. */
+  focusHit?: FocusHit | undefined;
+  /** Set when the photo decoded but is not whole (a cut-off file, corrupt
+   * data): why, in plain words. Its readings are over partly gray pixels. */
+  damaged?: string | undefined;
+};
+
+/** A photo the browser decoded: upright RGBA plus the original's own size. */
+export type DecodedPixels = {
+  rgba: Uint8Array | Uint8ClampedArray;
+  width: number;
+  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
 };
 
 export type IngestOptions = {
@@ -56,8 +108,20 @@ export type IngestOptions = {
 };
 
 export type IngestEngine = {
-  /** Reads one photo. Throws with the engine's own message on a file it cannot read. */
-  read(bytes: Uint8Array, options?: IngestOptions): IngestResult;
+  /** Reads one photo. Throws with the engine's own message on a file it cannot read.
+   * `container` is the RAW file `bytes` was extracted from (or its first
+   * megabytes), read only for the camera's AF area. */
+  read(bytes: Uint8Array, options?: IngestOptions, container?: Uint8Array): IngestResult;
+  /** Measures a photo the browser decoded, with the same C++ as `read`.
+   * `metadata` is the file's first bytes, for capture time, camera and AF area.
+   * Undefined in binaries built before the browser-decode fallback. */
+  readPixels?: (
+    pixels: DecodedPixels,
+    options?: IngestOptions,
+    metadata?: Uint8Array,
+  ) => IngestResult;
+  /** The RAW container API linked into the same binary; null in older binaries. */
+  raw: RawApi | null;
   /** Hands every buffer back between cards. */
   release(): void;
 };
@@ -65,6 +129,13 @@ export type IngestEngine = {
 const READING_FIELDS = 23;
 const COLOR_BYTES = 48;
 const WASI_ENOSYS = 52;
+const FOCUS_FIELDS = 13;
+const VERDICTS: readonly FocusHitVerdict[] = [
+  "unjudged",
+  "on-subject",
+  "front-or-back-focus",
+  "missed",
+];
 
 export async function instantiateIngestWasm(
   binary: BufferSource | WebAssembly.Module,
@@ -86,78 +157,143 @@ export async function instantiateIngestWasm(
     return new TextDecoder().decode(bytes.subarray(0, end));
   };
 
+  const edges = (options: IngestOptions) => ({
+    measureEdge: options.measureEdge ?? 640,
+    thumbEdge: options.thumbEdge ?? 320,
+    thumbQuality: options.thumbQuality ?? 72,
+  });
+
+  const loadMetadata = (container: Uint8Array | undefined) => {
+    if (!container?.length || !wasm.celinen_ingest_metadata) return;
+    // Copied before the photo is: allocating the photo may grow memory,
+    // which detaches any view of it but never moves what was written.
+    const metadataPointer = wasm.celinen_ingest_metadata(container.length);
+    if (metadataPointer)
+      new Uint8Array(wasm.memory.buffer, metadataPointer, container.length).set(container);
+  };
+
+  const loadInput = (bytes: Uint8Array) => {
+    const pointer = wasm.celinen_ingest_input(bytes.length);
+    if (!pointer) throw new Error(text(wasm.celinen_ingest_error()) || "This photo is too large.");
+    new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
+  };
+
+  /** Everything the engine produced for the photo it just ran. */
+  const collect = (): IngestResult => {
+    const readingPointer = wasm.celinen_ingest_reading();
+    if (!readingPointer) throw new Error("This photo could not be measured.");
+    const v = new Float64Array(wasm.memory.buffer, readingPointer, READING_FIELDS + COLOR_BYTES);
+    const hex = (high: number, low: number) =>
+      (high >>> 0).toString(16).padStart(8, "0") + (low >>> 0).toString(16).padStart(8, "0");
+    const reading: CullReading = {
+      acuitySubject: v[0]!,
+      acuityBest: v[1]!,
+      texture: v[2]!,
+      motion: v[3]!,
+      globalSmear: v[4] === 1,
+      noise: v[5]!,
+      brightness: v[6]!,
+      subjectLuma: v[7]!,
+      clippedHighlights: v[8]!,
+      clippedShadows: v[9]!,
+      subjectClipped: v[10]!,
+      blackPoint: v[11]!,
+      median: v[12]!,
+      whitePoint: v[13]!,
+      subjectX: v[14]!,
+      subjectY: v[15]!,
+      hash: hex(v[16]!, v[17]!),
+      sharpness: v[18]!,
+      quality: v[19]!,
+      hasFace: v[20] === 1,
+      eyesClosed: v[21] === 1,
+      faceSoft: v[22] === 1,
+      color: Uint8Array.from(v.subarray(READING_FIELDS, READING_FIELDS + COLOR_BYTES)),
+    };
+
+    const thumbSize = wasm.celinen_ingest_thumbnail_size();
+    // Copied out of wasm memory: the next photo reuses it, and growth detaches it.
+    const thumbnail = new Uint8Array(
+      new Uint8Array(wasm.memory.buffer, wasm.celinen_ingest_thumbnail(), thumbSize),
+    );
+    const frameWidth = wasm.celinen_ingest_frame_width();
+    const frameHeight = wasm.celinen_ingest_frame_height();
+    const pixels = new Uint8ClampedArray(frameWidth * frameHeight * 4);
+    pixels.set(
+      new Uint8ClampedArray(wasm.memory.buffer, wasm.celinen_ingest_pixels(), pixels.length),
+    );
+    const captureTimeMs = wasm.celinen_ingest_capture_time();
+    const camera = text(wasm.celinen_ingest_camera());
+    const damaged = wasm.celinen_ingest_damaged ? text(wasm.celinen_ingest_damaged()) : "";
+    const focusPointer = wasm.celinen_ingest_focus?.() ?? 0;
+    let afPoint: NormalizedRect | undefined;
+    let afConfirmed: boolean | undefined;
+    let focusHit: FocusHit | undefined;
+    if (focusPointer) {
+      const f = new Float64Array(wasm.memory.buffer, focusPointer, FOCUS_FIELDS);
+      afPoint = { x: f[0]!, y: f[1]!, w: f[2]!, h: f[3]! };
+      afConfirmed = f[4] === 1 ? true : f[4] === 0 ? false : undefined;
+      focusHit = {
+        hit: f[5]!,
+        afAcuity: f[6]!,
+        bestAcuity: f[7]!,
+        bestRegion: { x: f[8]!, y: f[9]!, w: f[10]!, h: f[11]! },
+        verdict: VERDICTS[f[12]!] ?? "unjudged",
+      };
+    }
+    return {
+      reading,
+      width: wasm.celinen_ingest_source_width(),
+      height: wasm.celinen_ingest_source_height(),
+      captureTimeMs: captureTimeMs >= 0 ? captureTimeMs : null,
+      captureTimeBasis:
+        captureTimeMs < 0
+          ? undefined
+          : wasm.celinen_ingest_capture_utc() === 1
+            ? "utc"
+            : "camera_clock",
+      cameraKey: camera || undefined,
+      thumbnail: new Blob([thumbnail], { type: "image/jpeg" }),
+      frame: { width: frameWidth, height: frameHeight, rgba: pixels },
+      ...(afPoint ? { afPoint, afConfirmed, focusHit } : {}),
+      ...(damaged ? { damaged } : {}),
+    };
+  };
+
+  const runPixels = wasm.celinen_ingest_run_pixels;
   return {
-    read(bytes, options = {}) {
-      const measureEdge = options.measureEdge ?? 640;
-      const thumbEdge = options.thumbEdge ?? 320;
-      const thumbQuality = options.thumbQuality ?? 72;
-      const pointer = wasm.celinen_ingest_input(bytes.length);
-      if (!pointer)
-        throw new Error(text(wasm.celinen_ingest_error()) || "This photo is too large.");
-      new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
+    read(bytes, options = {}, container) {
+      const { measureEdge, thumbEdge, thumbQuality } = edges(options);
+      loadMetadata(container);
+      loadInput(bytes);
       if (!wasm.celinen_ingest_run(bytes.length, measureEdge, thumbEdge, thumbQuality))
         throw new Error(text(wasm.celinen_ingest_error()) || "This photo could not be read.");
-
-      const readingPointer = wasm.celinen_ingest_reading();
-      if (!readingPointer) throw new Error("This photo could not be measured.");
-      const v = new Float64Array(wasm.memory.buffer, readingPointer, READING_FIELDS + COLOR_BYTES);
-      const hex = (high: number, low: number) =>
-        (high >>> 0).toString(16).padStart(8, "0") + (low >>> 0).toString(16).padStart(8, "0");
-      const reading: CullReading = {
-        acuitySubject: v[0]!,
-        acuityBest: v[1]!,
-        texture: v[2]!,
-        motion: v[3]!,
-        globalSmear: v[4] === 1,
-        noise: v[5]!,
-        brightness: v[6]!,
-        subjectLuma: v[7]!,
-        clippedHighlights: v[8]!,
-        clippedShadows: v[9]!,
-        subjectClipped: v[10]!,
-        blackPoint: v[11]!,
-        median: v[12]!,
-        whitePoint: v[13]!,
-        subjectX: v[14]!,
-        subjectY: v[15]!,
-        hash: hex(v[16]!, v[17]!),
-        sharpness: v[18]!,
-        quality: v[19]!,
-        hasFace: v[20] === 1,
-        eyesClosed: v[21] === 1,
-        faceSoft: v[22] === 1,
-        color: Uint8Array.from(v.subarray(READING_FIELDS, READING_FIELDS + COLOR_BYTES)),
-      };
-
-      const thumbSize = wasm.celinen_ingest_thumbnail_size();
-      // Copied out of wasm memory: the next photo reuses it, and growth detaches it.
-      const thumbnail = new Uint8Array(
-        new Uint8Array(wasm.memory.buffer, wasm.celinen_ingest_thumbnail(), thumbSize),
-      );
-      const frameWidth = wasm.celinen_ingest_frame_width();
-      const frameHeight = wasm.celinen_ingest_frame_height();
-      const pixels = new Uint8ClampedArray(frameWidth * frameHeight * 4);
-      pixels.set(
-        new Uint8ClampedArray(wasm.memory.buffer, wasm.celinen_ingest_pixels(), pixels.length),
-      );
-      const captureTimeMs = wasm.celinen_ingest_capture_time();
-      const camera = text(wasm.celinen_ingest_camera());
-      return {
-        reading,
-        width: wasm.celinen_ingest_source_width(),
-        height: wasm.celinen_ingest_source_height(),
-        captureTimeMs: captureTimeMs >= 0 ? captureTimeMs : null,
-        captureTimeBasis:
-          captureTimeMs < 0
-            ? undefined
-            : wasm.celinen_ingest_capture_utc() === 1
-              ? "utc"
-              : "camera_clock",
-        cameraKey: camera || undefined,
-        thumbnail: new Blob([thumbnail], { type: "image/jpeg" }),
-        frame: { width: frameWidth, height: frameHeight, rgba: pixels },
-      };
+      return collect();
     },
+    ...(runPixels
+      ? {
+          readPixels(pixels: DecodedPixels, options: IngestOptions = {}, metadata?: Uint8Array) {
+            const { measureEdge, thumbEdge, thumbQuality } = edges(options);
+            loadMetadata(metadata);
+            loadInput(
+              new Uint8Array(pixels.rgba.buffer, pixels.rgba.byteOffset, pixels.rgba.byteLength),
+            );
+            const ok = runPixels(
+              pixels.width,
+              pixels.height,
+              pixels.sourceWidth,
+              pixels.sourceHeight,
+              measureEdge,
+              thumbEdge,
+              thumbQuality,
+            );
+            if (!ok)
+              throw new Error(text(wasm.celinen_ingest_error()) || "This photo could not be read.");
+            return collect();
+          },
+        }
+      : {}),
+    raw: hasRawExports(wasm) ? rawApiFromExports(wasm) : null,
     release: () => wasm.celinen_ingest_release(),
   };
 }

@@ -1,5 +1,5 @@
 import type { CullReading } from "./engine";
-import type { IngestOptions } from "./ingest-engine";
+import type { FocusHit, IngestOptions, NormalizedRect } from "./ingest-engine";
 
 export type IngestRequest = {
   id: string;
@@ -18,5 +18,15 @@ export type IngestReply =
       captureTimeBasis?: "utc" | "camera_clock" | undefined;
       cameraKey?: string | undefined;
       thumbnail: Blob;
+      /** Set when the photo decoded but is not whole (a cut-off file, corrupt
+       * data): why, in plain words. The frame is shown, its readings are not
+       * over a whole picture. */
+      damaged?: string | undefined;
+      /** The camera's AF area, normalized to the upright frame; absent when the file has none. */
+      afPoint?: NormalizedRect | undefined;
+      /** Whether the camera reported focus lock in that area; undefined when it did not say. */
+      afConfirmed?: boolean | undefined;
+      /** Sharpness at the AF area against the frame's sharpest detail. */
+      focusHit?: FocusHit | undefined;
     }
   | { id: string; kind: "failed"; error: string };

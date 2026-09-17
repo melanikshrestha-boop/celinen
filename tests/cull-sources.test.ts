@@ -214,6 +214,20 @@ describe("JPEG geometry", () => {
     }
   });
 
+  test("the first EXIF block wins, the way every browser decoder reads it", () => {
+    // A file that carries two (a tool that prepended its own before the
+    // camera's). Reading the later one would scale a decode against the size of
+    // a frame the browser then turns, which squashes the picture.
+    const first = exifSegment(6, true);
+    const second = exifSegment(1, false);
+    const bytes = new Uint8Array(2 + first.length + second.length + fixture.length - 2);
+    bytes.set([0xff, 0xd8]);
+    bytes.set(first, 2);
+    bytes.set(second, 2 + first.length);
+    bytes.set(fixture.subarray(2), 2 + first.length + second.length);
+    expect(jpegGeometry(bytes)!.orientation).toBe(6);
+  });
+
   test("fits the long edge without enlarging", () => {
     expect(fitLongEdge(6000, 4000, 2048)).toEqual({ width: 2048, height: 1365 });
     expect(fitLongEdge(4000, 6000, 2048)).toEqual({ width: 1365, height: 2048 });

@@ -8,11 +8,12 @@ export function bitmapDecodeSupported(): boolean {
   return typeof createImageBitmap === "function";
 }
 
-/** createImageBitmap, falling back to the browser default when it does not
- * know the `imageOrientation` value (a WebIDL enum it would reject outright). */
-async function bitmap(
+/** createImageBitmap with the file's own EXIF orientation applied, falling back
+ * to the browser default when it does not know the `imageOrientation` value
+ * (a WebIDL enum it would reject outright). */
+export async function orientedBitmap(
   source: ImageBitmapSource,
-  options: ImageBitmapOptions,
+  options: ImageBitmapOptions = {},
 ): Promise<ImageBitmap> {
   try {
     return await createImageBitmap(source, { ...options, imageOrientation: "from-image" });
@@ -38,14 +39,14 @@ export async function decodeScaled(blob: Blob, maxEdge: number): Promise<ImageBi
     if (geometry && geometry.orientation === 1) {
       const target = fitLongEdge(geometry.width, geometry.height, maxEdge);
       if (target.width < geometry.width)
-        return bitmap(blob, {
+        return orientedBitmap(blob, {
           resizeWidth: target.width,
           resizeHeight: target.height,
           resizeQuality: "high",
         });
     }
   }
-  const full = await bitmap(blob, {});
+  const full = await orientedBitmap(blob);
   const target = fitLongEdge(full.width, full.height, maxEdge);
   if (target.width >= full.width) return full;
   try {

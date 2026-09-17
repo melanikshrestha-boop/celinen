@@ -16,6 +16,9 @@ export type IngestedFrame = {
   thumbnail: Blob;
   /** The file it was read from, for a full-quality look later. */
   file: File;
+  /** Set when the photo decoded but is not whole (a cut-off or corrupt file):
+   * why, in plain words. Its readings are partly over gray. */
+  damaged?: string | undefined;
 };
 
 export type IngestHandlers = {
@@ -124,6 +127,7 @@ export async function ingestFiles(
                 },
                 thumbnail: data.thumbnail,
                 file,
+                ...(data.damaged ? { damaged: data.damaged } : {}),
               });
             } else {
               failed += 1;

@@ -1,11 +1,14 @@
 /// <reference lib="webworker" />
 /** One lane of the ingest pool. It holds its own copy of the C++ engine and
- * reads whole files: the page never decodes a photo, so a card of ten thousand
- * frames leaves the interface responsive the entire time.
+ * reads whole files: the page never decodes a photo on the main thread, so a
+ * card of ten thousand frames leaves the interface responsive the entire time.
+ *
+ * Which decoder reads which file is decided in readPhoto(): the engine for
+ * JPEGs and RAW previews, the browser's own decoder for everything else.
  */
 import { instantiateIngestWasm, type IngestEngine } from "./ingest-engine";
 import type { IngestReply, IngestRequest } from "./ingest-messages";
-import { embeddedJpeg } from "./raw-preview";
+import { browserPixels, readPhoto } from "./ingest-read";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -24,14 +27,10 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
   const { id, file, options } = data;
   try {
     const wasm = await load();
-    let bytes: Uint8Array<ArrayBufferLike> = new Uint8Array(await file.arrayBuffer());
-    if (bytes[0] !== 0xff || bytes[1] !== 0xd8) {
-      const jpeg = embeddedJpeg(bytes);
-      if (!jpeg)
-        throw new Error("This file holds no readable preview. Export a JPEG and import that.");
-      bytes = jpeg;
-    }
-    const result = wasm.read(bytes, options ?? {});
+    const result = await readPhoto(file, options ?? {}, {
+      engine: wasm,
+      decodePixels: browserPixels,
+    });
     const reply: IngestReply = {
       id,
       kind: "read",
@@ -42,6 +41,10 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
       captureTimeBasis: result.captureTimeBasis,
       cameraKey: result.cameraKey,
       thumbnail: result.thumbnail,
+      ...(result.damaged ? { damaged: result.damaged } : {}),
+      ...(result.afPoint
+        ? { afPoint: result.afPoint, afConfirmed: result.afConfirmed, focusHit: result.focusHit }
+        : {}),
     };
     scope.postMessage(reply);
   } catch (error) {

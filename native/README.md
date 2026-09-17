@@ -96,6 +96,23 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
   the photographer already made and never judges an unreadable file. Faces and
   blinks are evidence it accepts from the browser's face detector, which only
   some browsers ship; the engine never guesses at them.
+- `native/wasm/ingest_wasm.cpp` → `src/lib/studio/cull/celinen-ingest.wasm`. One
+  call per photo for the ingest lanes: EXIF, a libjpeg decode scaled in the DCT,
+  orientation, the cull measurement, the camera's AF area and the filmstrip
+  thumbnail. A photo libjpeg cannot read (WebP, PNG, AVIF, HEIC in Safari) is
+  decoded by the browser and measured here as upright RGBA
+  (`celinen_ingest_run_pixels`), so every format is scored the same way. A
+  truncated or corrupt file is decoded as far as it goes and reported as
+  `damaged` with the reason, never scored as a soft photo in silence.
+- `native/src/raw_preview.cpp` → linked into the ingest engine and into
+  `src/lib/studio/cull/celinen-raw.wasm` for the loupe and the preview worker.
+  What is inside a RAW and which way up: the embedded JPEGs of TIFF-based RAWs
+  (ARW, NEF, CR2, DNG, PEF, ORF, RW2), Canon CR3 and Fujifilm RAF, ranked by
+  pixels, and the orientation to show them at. The container's orientation wins,
+  the preview's own EXIF counts only when the container is silent, the two are
+  never combined, and a preview the camera already turned is left alone. For the
+  browser it rewrites only the preview's EXIF header, so the picture stays the
+  camera's own bytes.
 - `native/wasm/voice_wasm.cpp` → `src/lib/voice/wasm/celinen-voice.wasm`. The
   dictation front end (`native/src/voice.cpp`): DC removal, band-limited
   resampling to 16 kHz PCM16, adaptive-noise-floor voice activity detection and
@@ -104,11 +121,13 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
 
 ```sh
 sh native/wasm/build.sh        # needs Emscripten (em++ on PATH, or EMSDK set)
-bun test tests/develop-wasm.test.ts tests/cull-engine.test.ts tests/voice-wasm.test.ts
+bun test tests/develop-wasm.test.ts tests/cull-engine.test.ts tests/voice-wasm.test.ts \
+  tests/cull-ingest.test.ts tests/cull-af-point.test.ts tests/cull-raw-container.test.ts
 ```
 
 The `.wasm` files are committed so deploys and CI never need the toolchain.
-Rebuild and commit them whenever `develop*.cpp`, `cull.cpp` or `voice.cpp` change;
+Rebuild and commit them whenever `develop*.cpp`, `cull.cpp`, `exif.cpp`,
+`focus_hit.cpp`, `raw_preview.cpp` or `voice.cpp` change;
 the test files above execute the committed binaries. The site's CSP allows
 WebAssembly compilation with `'wasm-unsafe-eval'` only; scripts still cannot `eval`.
 

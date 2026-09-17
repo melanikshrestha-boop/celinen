@@ -1,26 +1,39 @@
 /// <reference lib="webworker" />
-/** The preview lane: turns an original into a 2048 px review JPEG and writes it
+/** The preview lane: turns an original into the review JPEG this screen can
+ * actually show (its own pixels, capped by what the file holds) and writes it
  * to the private file system. It runs one photo at a time after a card has
  * been read, so it never competes with the ingest pool for cores.
  */
 import { decodeScaled } from "./decode";
+import { ingestRoute } from "./ingest-route";
 import { isQuotaError, openFolder, writeFile, type OpfsDirectory } from "./opfs";
 import type { PreviewReply, PreviewRequest } from "./preview-messages";
-import { embeddedJpeg } from "./raw-preview";
+import { inspectRawFile, orientedPreview, rawApi } from "./raw-container";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
-const PAINTABLE = /^image\/(jpeg|png|webp|gif|avif|bmp)$/;
-
-/** What the browser can decode: the file itself, or the JPEG a RAW carries inside. */
-async function decodable(file: File): Promise<Blob> {
-  if (PAINTABLE.test(file.type)) return file;
-  const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
-  if (head[0] === 0xff && head[1] === 0xd8) return file.slice(0, file.size, "image/jpeg");
-  const jpeg = embeddedJpeg(new Uint8Array(await file.arrayBuffer()));
-  if (jpeg) return new Blob([jpeg as Uint8Array<ArrayBuffer>], { type: "image/jpeg" });
-  // HEIC and friends: let the browser try; Safari can.
-  return file;
+/** What to try decoding, best first: for a RAW, every picture inside it,
+ * largest first and tagged with the container's orientation; otherwise the file
+ * itself, which the browser may well decode (Safari opens HEIC). */
+async function decodable(file: File): Promise<Blob[]> {
+  const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+  const route = ingestRoute(head);
+  if (route === "jpeg") return [file.slice(0, file.size, "image/jpeg")];
+  if (route === "raw") {
+    try {
+      const api = await rawApi();
+      const inspection = await inspectRawFile(file, api);
+      const previews = await Promise.all(
+        inspection.previews.map((preview) => orientedPreview(file, preview, api)),
+      );
+      // The file itself stays last: some browsers decode RAW through the system.
+      return [...previews, file];
+    } catch {
+      return [file];
+    }
+  }
+  // PNG, WebP, GIF, AVIF, BMP and (in Safari) HEIC: the browser's own decoder.
+  return [file];
 }
 
 async function encode(request: PreviewRequest): Promise<PreviewReply> {
@@ -29,22 +42,38 @@ async function encode(request: PreviewRequest): Promise<PreviewReply> {
   let width: number;
   let height: number;
   try {
-    const bitmap = await decodeScaled(await decodable(request.file), request.maxEdge);
-    try {
-      // Drawn at the target size even when the decode was already scaled: an
-      // engine that ignored the resize request still produces the right size.
-      const scale = Math.min(1, request.maxEdge / Math.max(bitmap.width, bitmap.height));
-      width = Math.max(1, Math.round(bitmap.width * scale));
-      height = Math.max(1, Math.round(bitmap.height * scale));
-      const canvas = new OffscreenCanvas(width, height);
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("No 2D canvas in this worker.");
-      context.imageSmoothingQuality = "high";
-      context.drawImage(bitmap, 0, 0, width, height);
-      jpeg = await canvas.convertToBlob({ type: "image/jpeg", quality: request.quality });
-    } finally {
-      bitmap.close();
+    const sources = await decodable(request.file);
+    let failure: unknown = new Error("This photo could not be decoded.");
+    let written: { jpeg: Blob; width: number; height: number } | null = null;
+    for (const source of sources) {
+      try {
+        const bitmap = await decodeScaled(source, request.maxEdge);
+        try {
+          // Drawn at the target size even when the decode was already scaled: an
+          // engine that ignored the resize request still produces the right size.
+          const scale = Math.min(1, request.maxEdge / Math.max(bitmap.width, bitmap.height));
+          const w = Math.max(1, Math.round(bitmap.width * scale));
+          const h = Math.max(1, Math.round(bitmap.height * scale));
+          const canvas = new OffscreenCanvas(w, h);
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("No 2D canvas in this worker.");
+          context.imageSmoothingQuality = "high";
+          context.drawImage(bitmap, 0, 0, w, h);
+          written = {
+            jpeg: await canvas.convertToBlob({ type: "image/jpeg", quality: request.quality }),
+            width: w,
+            height: h,
+          };
+        } finally {
+          bitmap.close();
+        }
+        break;
+      } catch (error) {
+        failure = error;
+      }
     }
+    if (!written) throw failure;
+    ({ jpeg, width, height } = written);
   } catch (error) {
     return {
       id,

@@ -1,24 +1,56 @@
 /** Review-size previews kept on this device, so the loupe shows a real photo
  * after a reload in every browser — not a 320 px thumbnail.
  *
- * Each preview is a 2048 px JPEG in the Origin Private File System, indexed in
- * the cull database. A sports card is ten thousand frames, around five
- * gigabytes of previews, so the library lives inside a budget taken from the
- * browser's own quota and gives space back in the order a photographer would:
- * frames they rejected, then frames the engine would reject, then whole
- * sessions, oldest first. The open session's keepers and undecided frames are
- * never given up for more previews.
+ * Each preview is a JPEG in the Origin Private File System, indexed in the cull
+ * database, and sized to the photographer's own screen: a 4K retina display
+ * gets a 3840 px preview, never more than the picture inside the file holds.
+ * A sports card is ten thousand frames, so the library lives inside a budget
+ * taken from the browser's own quota and gives space back in the order a
+ * photographer would: frames they rejected, then frames the engine would
+ * reject, then whole sessions, oldest first. The open session's keepers and
+ * undecided frames are never given up for more previews.
  */
 import type { CullVerdict } from "./engine";
 import { isNotFound, openFolder, previewFolder, removeEntry, type OpfsDirectory } from "./opfs";
 import type { CullFrame } from "./session";
 import type { CullPreviewRow, CullSessionSummary, CullStore } from "./store";
 
-export const PREVIEW_EDGE = 2048;
-export const PREVIEW_QUALITY = 0.82;
+/** Never smaller than this, whatever the screen says. */
+export const PREVIEW_MIN_EDGE = 2048;
+/** Nor larger: past an 8K screen this is storage spent on nothing. */
+export const PREVIEW_MAX_EDGE = 7680;
+export const PREVIEW_QUALITY = 0.9;
+
+/**
+ * The long edge worth storing: the screen's own pixels, so the loupe shows a
+ * real photograph at 1:1 instead of an upscaled 2048 px one. Capping to what
+ * the original holds happens in the decode, which never enlarges.
+ */
+export function previewEdge(
+  screen?: { width: number; height: number } | undefined,
+  devicePixelRatio?: number | undefined,
+): number {
+  const display = screen ?? (typeof globalThis === "undefined" ? undefined : globalThis.screen);
+  const ratio =
+    devicePixelRatio ?? (typeof globalThis === "undefined" ? 1 : globalThis.devicePixelRatio || 1);
+  const pixels = display ? Math.max(display.width, display.height) * ratio : 0;
+  if (!(pixels > 0)) return PREVIEW_MIN_EDGE;
+  return Math.min(PREVIEW_MAX_EDGE, Math.max(PREVIEW_MIN_EDGE, Math.ceil(pixels)));
+}
+
 /** What a preview is assumed to cost before it exists: a busy 2048 px sports
- * frame at q0.82 is 0.4–0.9 MB, so this errs on the generous side. */
-export const PREVIEW_BYTES_ESTIMATE = 1024 * 1024;
+ * frame at q0.9 is 0.5–1 MB, and area grows with the square of the edge. */
+export function previewBytesEstimate(edge: number): number {
+  const scale = Math.max(1, edge / PREVIEW_MIN_EDGE);
+  return Math.ceil(1024 * 1024 * scale * scale);
+}
+export const PREVIEW_BYTES_ESTIMATE = previewBytesEstimate(PREVIEW_MIN_EDGE);
+
+/** Previews made before this generation are remade when the originals are at
+ * hand again: generation 2 turns RAW previews the way their container says and
+ * is sized to the screen. Older files stay readable until they are replaced,
+ * so a session whose originals are gone keeps the picture it has. */
+export const PREVIEW_GENERATION = 2;
 /** Space left for everything else this origin stores (the cull database's own
  * thumbnails and frames, Studio's saved shoots). */
 const RESERVE_BYTES = 512 * 1024 * 1024;
@@ -151,11 +183,14 @@ export class PreviewLibrary {
     return this.bytes;
   }
 
-  /** Frame ids in this session that already have a preview, or failed to get one. */
+  /** Frame ids in this session that already have a preview of this generation,
+   * or failed to get one. A preview from an older generation is not counted, so
+   * it is remade the next time the originals are at hand. */
   async covered(sessionId: string): Promise<Set<string>> {
     const rows = await this.index();
     const ids = new Set<string>();
-    for (const row of rows.values()) if (row.sessionId === sessionId) ids.add(row.frameId);
+    for (const row of rows.values())
+      if (row.sessionId === sessionId && isCurrentPreview(row.file)) ids.add(row.frameId);
     return ids;
   }
 
@@ -287,10 +322,14 @@ export class PreviewLibrary {
     await this.deps.store.deletePreviews(rows);
   }
 
-  /** Indexes a preview the worker has written. */
+  /** Indexes a preview the worker has written, removing the file it replaces. */
   async record(row: CullPreviewRow) {
     const index = await this.index();
     const previous = index.get(key(row.sessionId, row.frameId));
+    if (previous && previous.file !== row.file) {
+      const folder = await this.folder(row.sessionId, false).catch(() => null);
+      if (folder) await removeEntry(folder, previous.file).catch(() => {});
+    }
     await this.deps.store.putPreview(row);
     if (previous) this.bytes -= previous.bytes;
     index.set(key(row.sessionId, row.frameId), row);
@@ -319,5 +358,12 @@ export async function previewFileName(frameId: string): Promise<string> {
   const hex = Array.from(new Uint8Array(digest).subarray(0, 16), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
-  return `${hex}.jpg`;
+  // The generation rides in the name, so a preview made by an older build is
+  // recognized without a database migration.
+  return `${hex}-${PREVIEW_GENERATION}.jpg`;
+}
+
+/** Whether a stored preview file was made by this build's preview pass. */
+export function isCurrentPreview(file: string): boolean {
+  return file.endsWith(`-${PREVIEW_GENERATION}.jpg`);
 }

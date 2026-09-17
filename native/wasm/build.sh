@@ -39,14 +39,29 @@ em++ $COMMON -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
   -sEXPORTED_FUNCTIONS=_celinen_cull_error,_celinen_cull_reading_size,_celinen_cull_frame_size,_celinen_cull_row_size,_celinen_cull_source,_celinen_cull_faces,_celinen_cull_measure,_celinen_cull_frames,_celinen_cull_shoot,_celinen_cull_release \
   -o src/lib/studio/cull/celinen-cull.wasm
 
+# The RAW container API (which embedded JPEG is best, which way up it goes)
+# is linked into ingest and into its own small module for the loupe and the
+# preview worker, so every surface asks the same C++.
+RAW_EXPORTS="_celinen_raw_input,_celinen_raw_inspect,_celinen_raw_kind,_celinen_raw_container_orientation,_celinen_raw_truncated,_celinen_raw_candidate,_celinen_raw_probe,_celinen_raw_describe,_celinen_raw_rank,_celinen_raw_order,_celinen_raw_orientation,_celinen_raw_retag,_celinen_raw_output,_celinen_raw_output_size,_celinen_raw_release"
+
 # Ingest: one call per photo — EXIF, a scaled libjpeg decode, the cull
 # measurement and the filmstrip thumbnail, so a ten-thousand frame card never
 # waits on the browser's own decoder. libjpeg is Emscripten's own BSD port.
+# The camera's AF area (maker note) and the focus-hit judgment ride along.
+# Photos libjpeg cannot read arrive as browser-decoded RGBA (run_pixels).
 # shellcheck disable=SC2086
 em++ $COMMON --use-port=libjpeg -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=1073741824 \
-  native/src/cull.cpp native/src/exif.cpp native/wasm/ingest_wasm.cpp \
-  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release \
+  native/src/cull.cpp native/src/exif.cpp native/src/focus_hit.cpp native/src/raw_preview.cpp \
+  native/wasm/ingest_wasm.cpp native/wasm/raw_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_metadata,_celinen_ingest_focus,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_run_pixels,_celinen_ingest_damaged,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release,$RAW_EXPORTS \
   -o src/lib/studio/cull/celinen-ingest.wasm
+
+# RAW inspection alone, for the loupe (main thread) and the preview worker.
+# shellcheck disable=SC2086
+em++ $COMMON -sINITIAL_MEMORY=2097152 -sMAXIMUM_MEMORY=268435456 \
+  native/src/exif.cpp native/src/raw_preview.cpp native/wasm/raw_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=$RAW_EXPORTS \
+  -o src/lib/studio/cull/celinen-raw.wasm
 
 if [ -f native/wasm/voice_wasm.cpp ]; then
   # shellcheck disable=SC2086
@@ -55,4 +70,4 @@ if [ -f native/wasm/voice_wasm.cpp ]; then
     -sEXPORTED_FUNCTIONS=_celinen_voice_open,_celinen_voice_input,_celinen_voice_push,_celinen_voice_level,_celinen_voice_speaking,_celinen_voice_segment_samples,_celinen_voice_segment,_celinen_voice_segment_release,_celinen_voice_flush \
     -o src/lib/voice/wasm/celinen-voice.wasm
 fi
-ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
+ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
