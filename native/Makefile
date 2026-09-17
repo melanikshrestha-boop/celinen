@@ -73,6 +73,23 @@ $(BUILD_DIR)/cull-tests: tests/cull_tests.cpp $(BUILD_DIR)/cull.o include/lensla
 
 $(BUILD_DIR)/cull.o: include/lenslabs/cull.hpp
 
+$(BUILD_DIR)/exif-tests: tests/exif_tests.cpp $(BUILD_DIR)/exif.o include/lenslabs/exif.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/exif.o -o $@
+
+$(BUILD_DIR)/exif.o: include/lenslabs/exif.hpp
+
+# Links cull.o too: the tests hold focus_hit's acuity to measure_cull()'s.
+$(BUILD_DIR)/focus-hit-tests: tests/focus_hit_tests.cpp $(BUILD_DIR)/focus_hit.o $(BUILD_DIR)/cull.o include/lenslabs/focus_hit.hpp include/lenslabs/cull.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/focus_hit.o $(BUILD_DIR)/cull.o -o $@
+
+$(BUILD_DIR)/focus_hit.o: include/lenslabs/focus_hit.hpp
+
+.PHONY: focus-tests
+# Just the AF-point parser and focus-hit judge, without LibRaw or the other engines.
+focus-tests: $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests
+	$(BUILD_DIR)/exif-tests
+	$(BUILD_DIR)/focus-hit-tests
+
 $(BUILD_DIR)/voice-tests: tests/voice_tests.cpp $(BUILD_DIR)/voice.o include/lenslabs/voice.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/voice.o -o $@
 
@@ -139,7 +156,7 @@ $(BUILD_DIR)/calendar-tests: tests/calendar_tests.cpp $(BUILD_DIR)/calendar.o in
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests $(BUILD_DIR)/cull-tests $(BUILD_DIR)/look-match-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests $(BUILD_DIR)/cull-tests $(BUILD_DIR)/look-match-tests $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
@@ -158,6 +175,8 @@ test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-t
 	$(BUILD_DIR)/voice-tests
 	$(BUILD_DIR)/cull-tests
 	$(BUILD_DIR)/look-match-tests
+	$(BUILD_DIR)/exif-tests
+	$(BUILD_DIR)/focus-hit-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test
