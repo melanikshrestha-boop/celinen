@@ -52,9 +52,9 @@ export function UseCasesPage() {
   const entry = publicEntry(account?.status);
 
   return (
-    <div className="foto-use-cases">
-      <header className="foto-use-cases__intro" data-reveal>
-        <p className="foto-use-cases__eyebrow">Use cases</p>
+    <div className="celinen-use-cases">
+      <header className="celinen-use-cases__intro" data-reveal>
+        <p className="celinen-use-cases__eyebrow">Use cases</p>
         <h1>Built for the job in front of you.</h1>
         <p>College football on Saturday. A wedding on Sunday. Same night gallery either way.</p>
       </header>
@@ -65,10 +65,10 @@ export function UseCasesPage() {
           <section
             key={item.id}
             id={item.id}
-            className="foto-use-cases__block"
+            className="celinen-use-cases__block"
             data-reveal
           >
-            <span className="foto-use-cases__mark" aria-hidden="true">
+            <span className="celinen-use-cases__mark" aria-hidden="true">
               <UseCaseMark id={item.mark} />
             </span>
             <h2>{detail.heading}</h2>
@@ -77,8 +77,8 @@ export function UseCasesPage() {
         );
       })}
 
-      <section className="foto-use-cases__faq" data-reveal>
-        <p className="foto-use-cases__eyebrow">Questions</p>
+      <section className="celinen-use-cases__faq" data-reveal>
+        <p className="celinen-use-cases__eyebrow">Questions</p>
         <h2>Frequently asked</h2>
         {FAQ.map(([question, answer]) => (
           <details key={question}>
@@ -88,7 +88,7 @@ export function UseCasesPage() {
         ))}
       </section>
 
-      <p className="foto-use-cases__close" data-reveal>
+      <p className="celinen-use-cases__close" data-reveal>
         <Link to={entry.to} search={entry.search} className="marketing-action marketing-action--primary">
           {entry.label}
           <span aria-hidden="true">→</span>

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
-import { paymentsAreConfigured } from "@/lib/payments-available";
+import { paymentsAreLive } from "@/lib/payments-available";
 
 type Cycle = "monthly" | "yearly";
 
@@ -21,7 +21,7 @@ export function PlanCheckout({
   const priceId = `${plan}_${billing}`;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-  if (!paymentsAreConfigured()) {
+  if (!paymentsAreLive()) {
     return (
       <div className="pricing-checkout">
         <Link

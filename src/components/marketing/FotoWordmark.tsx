@@ -22,11 +22,11 @@ function IrisO({ cx }: { cx: number }) {
   );
 }
 
-/** Public foto mark: a normal f and t, the o’s are the iris. */
+/** Public Celinen mark: a normal f and t, the o’s are the iris. */
 export function FotoWordmark({ className = "" }: { className?: string }) {
   return (
     <svg
-      className={`foto-wordmark ${className}`.trim()}
+      className={`celinen-wordmark ${className}`.trim()}
       viewBox="0 0 396 150"
       fill="none"
       aria-hidden="true"

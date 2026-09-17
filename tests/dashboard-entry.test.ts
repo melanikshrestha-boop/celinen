@@ -196,7 +196,8 @@ test("Pick has no Drop the shoot landing; Home plus and drop import photos", () 
   expect(studio).not.toContain("Choose files");
   expect(studio).not.toContain("Choose folder");
   expect(studio).toContain("takeStudioImport");
-  expect(studio).toContain('navigate({ to: "/dashboard" })');
+  expect(studio).not.toContain('navigate({ to: "/dashboard" })');
+  expect(studio).toContain("Import photos");
   expect(studio).not.toContain('return <p role="status">Opening your workspace…</p>');
 });
 

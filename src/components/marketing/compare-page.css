@@ -1,10 +1,10 @@
-.foto-compare {
+.celinen-compare {
   width: min(100% - 48px, 1040px);
   margin: 0 auto;
   padding: 48px 0 96px;
 }
-.foto-compare__intro h1,
-.foto-compare-detail h1 {
+.celinen-compare__intro h1,
+.celinen-compare-detail h1 {
   margin: 0;
   color: #142a36;
   font-family: var(--font-display, "Instrument Serif", serif);
@@ -12,7 +12,7 @@
   font-weight: 400;
   letter-spacing: -0.04em;
 }
-.foto-compare__eyebrow {
+.celinen-compare__eyebrow {
   margin: 0 0 10px;
   color: #4d6fff;
   font-size: 13px;
@@ -20,24 +20,24 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.foto-compare__intro p,
-.foto-compare-detail__lede {
+.celinen-compare__intro p,
+.celinen-compare-detail__lede {
   margin: 16px 0 0;
   max-width: 46rem;
   color: #516570;
   font-size: 17px;
   line-height: 1.45;
 }
-.foto-compare__actions,
-.foto-compare-detail__actions {
+.celinen-compare__actions,
+.celinen-compare-detail__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 22px;
 }
-.foto-compare__actions a,
-.foto-compare-detail__actions a,
-.foto-compare__try a {
+.celinen-compare__actions a,
+.celinen-compare-detail__actions a,
+.celinen-compare__try a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -47,25 +47,25 @@
   font-weight: 600;
   text-decoration: none;
 }
-.foto-compare__actions a:first-child,
-.foto-compare-detail__actions a:first-child,
-.foto-compare__try a:first-child {
+.celinen-compare__actions a:first-child,
+.celinen-compare-detail__actions a:first-child,
+.celinen-compare__try a:first-child {
   background: var(--marketing-neon, #4d6fff);
   color: #fff;
 }
-.foto-compare__actions a:last-child,
-.foto-compare-detail__actions a:last-child,
-.foto-compare__try a:last-child {
+.celinen-compare__actions a:last-child,
+.celinen-compare-detail__actions a:last-child,
+.celinen-compare__try a:last-child {
   border: 1px solid #e6edf3;
   color: #142a36;
 }
-.foto-compare__grid {
+.celinen-compare__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 40px;
 }
-.foto-compare__card {
+.celinen-compare__card {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -75,10 +75,10 @@
   color: inherit;
   text-decoration: none;
 }
-.foto-compare__card:hover {
+.celinen-compare__card:hover {
   background: #f7f8fa;
 }
-.foto-compare__vs {
+.celinen-compare__vs {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -86,46 +86,46 @@
   font-size: 15px;
   font-weight: 650;
 }
-.foto-compare__vs svg,
-.foto-compare__vs img,
-.foto-compare__logo {
+.celinen-compare__vs svg,
+.celinen-compare__vs img,
+.celinen-compare__logo {
   width: 28px;
   height: 28px;
   border-radius: 8px;
   object-fit: contain;
   background: #fff;
 }
-.foto-compare__vs em {
+.celinen-compare__vs em {
   color: #8b919a;
   font-style: normal;
   font-weight: 500;
 }
-.foto-compare__card p {
+.celinen-compare__card p {
   margin: 0;
   color: #516570;
   font-size: 14px;
   line-height: 1.4;
 }
-.foto-compare__card strong {
+.celinen-compare__card strong {
   display: block;
   color: #142a36;
   font-size: 14px;
   font-weight: 650;
   line-height: 1.4;
 }
-.foto-compare__meta {
+.celinen-compare__meta {
   margin-top: auto;
   color: #8b919a;
   font-size: 13px;
 }
-.foto-compare__more,
-.foto-compare__note,
-.foto-compare__try {
+.celinen-compare__more,
+.celinen-compare__note,
+.celinen-compare__try {
   margin-top: 48px;
 }
-.foto-compare__more h2,
-.foto-compare__try h2,
-.foto-compare-detail h2 {
+.celinen-compare__more h2,
+.celinen-compare__try h2,
+.celinen-compare-detail h2 {
   margin: 28px 0 12px;
   color: #142a36;
   font-family: var(--font-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
@@ -133,17 +133,17 @@
   font-weight: 650;
   letter-spacing: -0.02em;
 }
-.foto-compare__note {
+.celinen-compare__note {
   color: #6b7280;
   font-size: 13px;
   line-height: 1.5;
 }
-.foto-compare-detail {
+.celinen-compare-detail {
   width: min(100% - 48px, 920px);
   margin: 0 auto;
   padding: 48px 0 96px;
 }
-.foto-compare-detail__vs {
+.celinen-compare-detail__vs {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -151,22 +151,22 @@
   color: #8b919a;
   font-size: 14px;
 }
-.foto-compare-detail__vs svg,
-.foto-compare-detail__vs img,
-.foto-compare-detail__vs .foto-compare__logo {
+.celinen-compare-detail__vs svg,
+.celinen-compare-detail__vs img,
+.celinen-compare-detail__vs .celinen-compare__logo {
   width: 36px;
   height: 36px;
   border-radius: 8px;
   object-fit: contain;
   background: #fff;
 }
-.foto-compare-detail__score {
+.celinen-compare-detail__score {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 22px;
 }
-.foto-compare-detail__score span {
+.celinen-compare-detail__score span {
   display: inline-flex;
   align-items: center;
   min-height: 32px;
@@ -177,13 +177,13 @@
   font-size: 13px;
   font-weight: 600;
 }
-.foto-compare-detail__table {
+.celinen-compare-detail__table {
   width: 100%;
   margin-top: 28px;
   border-collapse: collapse;
 }
-.foto-compare-detail__table th,
-.foto-compare-detail__table td {
+.celinen-compare-detail__table th,
+.celinen-compare-detail__table td {
   padding: 14px 12px;
   border-bottom: 1px solid #eceff2;
   color: #3a4450;
@@ -192,41 +192,41 @@
   text-align: left;
   vertical-align: top;
 }
-.foto-compare-detail__table th {
+.celinen-compare-detail__table th {
   color: #142a36;
   font-weight: 650;
 }
-.foto-compare-detail__table tr.is-us td:nth-child(1) {
+.celinen-compare-detail__table tr.is-us td:nth-child(1) {
   box-shadow: inset 3px 0 0 #16a34a;
 }
-.foto-compare-detail__table tr.is-them td:nth-child(2) {
+.celinen-compare-detail__table tr.is-them td:nth-child(2) {
   box-shadow: inset 3px 0 0 #9aa3ad;
 }
-.foto-compare-detail__choose {
+.celinen-compare-detail__choose {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 28px;
   margin-top: 40px;
 }
-.foto-compare-detail__choose ul {
+.celinen-compare-detail__choose ul {
   margin: 8px 0 0;
   padding: 0 0 0 18px;
   color: #3a4450;
   font-size: 15px;
   line-height: 1.45;
 }
-.foto-compare-detail__sources {
+.celinen-compare-detail__sources {
   margin-top: 36px;
   color: #8b919a;
   font-size: 13px;
   line-height: 1.5;
 }
-.foto-compare-landing {
+.celinen-compare-landing {
   width: min(100% - 48px, 1040px);
   margin: 0 auto;
   padding: 64px 0 24px;
 }
-.foto-compare-landing h2 {
+.celinen-compare-landing h2 {
   margin: 0;
   color: #142a36;
   font-family: var(--font-display, "Instrument Serif", serif);
@@ -234,7 +234,7 @@
   font-weight: 400;
   letter-spacing: -0.04em;
 }
-.foto-compare-landing > p {
+.celinen-compare-landing > p {
   margin: 14px 0 0;
   max-width: 46rem;
   color: #516570;
@@ -242,12 +242,12 @@
   line-height: 1.45;
 }
 @media (max-width: 760px) {
-  .foto-compare__grid,
-  .foto-compare-detail__choose {
+  .celinen-compare__grid,
+  .celinen-compare-detail__choose {
     grid-template-columns: 1fr;
   }
-  .foto-compare-detail__table th:first-child,
-  .foto-compare-detail__table td:first-child {
+  .celinen-compare-detail__table th:first-child,
+  .celinen-compare-detail__table td:first-child {
     display: none;
   }
 }

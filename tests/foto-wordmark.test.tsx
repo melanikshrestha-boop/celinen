@@ -5,8 +5,8 @@ import { FotoWordmark } from "../src/components/marketing/FotoWordmark";
 
 test("foto wordmark is a lens lockup, not typed display type", () => {
   const html = renderToStaticMarkup(<FotoWordmark className="marketing-footer__mark" />);
-  expect(html).toContain("foto-wordmark");
-  expect(html).toContain('class="foto-wordmark marketing-footer__mark"');
+  expect(html).toContain("celinen-wordmark");
+  expect(html).toContain('class="celinen-wordmark marketing-footer__mark"');
   expect(html.match(/<circle /g)).toHaveLength(4);
   expect(html).toContain("rotate(60 16 16)");
   expect(html).not.toContain("C52 10 26 8 22 30");

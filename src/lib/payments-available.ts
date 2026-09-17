@@ -8,6 +8,7 @@ export function paymentsAreConfigured(): boolean {
   return Boolean(paymentsPublishableKey());
 }
 
+/** Public paid CTAs only when a live publishable key is in the build. pk_test_ is not a live checkout. */
 export function paymentsAreLive(): boolean {
   return Boolean(paymentsPublishableKey()?.startsWith("pk_live_"));
 }

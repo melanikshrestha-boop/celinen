@@ -959,19 +959,6 @@ export function Studio({
   }, [shots.length, progress]);
 
   useEffect(() => {
-    if (!dashboard) return;
-    if (
-      chatIngest.current ||
-      hasStudioImport() ||
-      shots.length ||
-      progress ||
-      sessionStatus === "loading"
-    )
-      return;
-    void navigate({ to: "/dashboard" });
-  }, [dashboard, shots.length, progress, sessionStatus, navigate]);
-
-  useEffect(() => {
     // Fast Refresh replays effects while preserving this live shoot and its refs.
     // Only the first hydration may replace in-memory state.
     if (hydrationCompletedRef.current) return;
@@ -2298,10 +2285,7 @@ export function Studio({
       }}
     >
       {dropActive ? <div className="pointer-events-none fixed inset-0 z-50" aria-hidden="true" /> : null}
-      {dashboard && !shots.length && !progress ? (
-        <div className="min-h-full" aria-busy={sessionStatus === "loading"} />
-      ) : (
-        <>
+      <>
       <header className="sticky top-0 z-30 border-b border-border/70 bg-paper/85 backdrop-blur">
         <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
@@ -2565,7 +2549,15 @@ export function Studio({
           {sessionStatus === "loading" && !shots.length && !progress ? (
             <div className="min-h-[320px]" aria-busy="true" aria-label="Opening Pick" />
           ) : !shots.length && !progress ? (
-            <div className="min-h-[320px]" aria-label="Photos" />
+            <div className="grid min-h-[320px] place-items-center" aria-label="Photos">
+              <button
+                type="button"
+                className="rounded-md bg-ink px-4 py-2 text-sm text-paper2"
+                onClick={() => inputRef.current?.click()}
+              >
+                Import photos
+              </button>
+            </div>
           ) : (
             <div className="rounded-sm bg-paper2 p-5 shadow-2xl ring-1 ring-border md:p-7">
               {/* toolbar */}
@@ -2915,8 +2907,7 @@ export function Studio({
           </aside>
         )}
       </main>
-        </>
-      )}
+      </>
       <BurstReview
         open={burstOpen}
         analyticsScope={storageScope}

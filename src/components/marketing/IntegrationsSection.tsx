@@ -80,15 +80,15 @@ export function IntegrationsSection() {
           aria-hidden="true"
         >
           <defs>
-            <linearGradient id="foto-arc" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="celinen-arc" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#006eaa" stopOpacity="0.08" />
               <stop offset="50%" stopColor="#006eaa" stopOpacity="0.35" />
               <stop offset="100%" stopColor="#006eaa" stopOpacity="0.08" />
             </linearGradient>
           </defs>
-          <path d="M 45 450 A 405 405 0 0 1 855 450" stroke="url(#foto-arc)" strokeWidth="1.5" fill="none" />
-          <path d="M 162 450 A 288 288 0 0 1 738 450" stroke="url(#foto-arc)" strokeWidth="1.5" fill="none" />
-          <path d="M 279 450 A 171 171 0 0 1 621 450" stroke="url(#foto-arc)" strokeWidth="1.5" fill="none" />
+          <path d="M 45 450 A 405 405 0 0 1 855 450" stroke="url(#celinen-arc)" strokeWidth="1.5" fill="none" />
+          <path d="M 162 450 A 288 288 0 0 1 738 450" stroke="url(#celinen-arc)" strokeWidth="1.5" fill="none" />
+          <path d="M 279 450 A 171 171 0 0 1 621 450" stroke="url(#celinen-arc)" strokeWidth="1.5" fill="none" />
         </svg>
         {NODES.map((node, i) => (
           <a

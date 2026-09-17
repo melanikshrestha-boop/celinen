@@ -34,14 +34,14 @@ function IntegrationDetailRoute() {
       </a>
       <Nav landing />
       <main id="main-content" tabIndex={-1} className="marketing-public-page">
-        <article className="foto-integrations__detail" data-reveal>
-          <span className="foto-integrations__detail-mark" aria-hidden="true">
+        <article className="celinen-integrations__detail" data-reveal>
+          <span className="celinen-integrations__detail-mark" aria-hidden="true">
             <BrandMark id={item.id} />
           </span>
           <h1>{item.title}</h1>
-          <small className="foto-integrations__detail-kind">{kind}</small>
+          <small className="celinen-integrations__detail-kind">{kind}</small>
           <p>{item.copy}</p>
-          <div className="foto-integrations__detail-actions">
+          <div className="celinen-integrations__detail-actions">
             <Link to="/publish">Connect {item.title}</Link>
             <Link to="/integrations">All integrations</Link>
           </div>

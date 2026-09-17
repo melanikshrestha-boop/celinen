@@ -17,5 +17,5 @@ export function CompetitorMark({ id }: { id: string }) {
   if (id === "lightroom") return <BrandMark id="lightroom" />;
   const src = FILES[id];
   if (!src) return null;
-  return <img className="foto-compare__logo" src={src} alt="" width={32} height={32} />;
+  return <img className="celinen-compare__logo" src={src} alt="" width={32} height={32} />;
 }

@@ -92,28 +92,28 @@ export function GalleriesPage() {
   const account = useAccount();
   const entry = publicEntry(account?.status);
   return (
-    <div className="foto-galleries">
-      <section className="foto-galleries__hero" data-reveal>
-        <p className="foto-galleries__eyebrow">Galleries</p>
+    <div className="celinen-galleries">
+      <section className="celinen-galleries__hero" data-reveal>
+        <p className="celinen-galleries__eyebrow">Galleries</p>
         <h1>
           Send the gallery
           <br />
           <em>tonight.</em>
         </h1>
-        <p className="foto-galleries__lead">
+        <p className="celinen-galleries__lead">
           Keepers only. Passcode if you want one. Favourites come back. Originals stay on your
           machine.
         </p>
-        <div className="foto-galleries__actions">
+        <div className="celinen-galleries__actions">
           <Link to={entry.to} search={entry.search} className="marketing-action marketing-action--primary">
             {entry.label}
             <span aria-hidden="true">→</span>
           </Link>
-          <Link to="/blog/send-a-gallery-the-same-night" className="foto-galleries__text">
+          <Link to="/blog/send-a-gallery-the-same-night" className="celinen-galleries__text">
             How same-night delivery works
           </Link>
         </div>
-        <ul className="foto-galleries__chips">
+        <ul className="celinen-galleries__chips">
           <li>Pick</li>
           <li>Publish</li>
           <li>Passcode</li>
@@ -123,20 +123,20 @@ export function GalleriesPage() {
         </ul>
       </section>
 
-      <div className="foto-galleries__preview" aria-hidden="true" data-reveal>
+      <div className="celinen-galleries__preview" aria-hidden="true" data-reveal>
         {STILLS.map((src, index) => (
           <img key={`${src}-${index}`} src={src} alt="" />
         ))}
       </div>
 
-      <section className="foto-galleries__block" data-reveal>
-        <p className="foto-galleries__eyebrow">Pick. Publish. Send.</p>
+      <section className="celinen-galleries__block" data-reveal>
+        <p className="celinen-galleries__eyebrow">Pick. Publish. Send.</p>
         <h2>
           From the cull to a link
           <br />
           the client can open.
         </h2>
-        <div className="foto-galleries__pillars">
+        <div className="celinen-galleries__pillars">
           {PILLARS.map((item) => (
             <article key={item.title}>
               <p>{item.label}</p>
@@ -147,19 +147,19 @@ export function GalleriesPage() {
         </div>
       </section>
 
-      <section className="foto-galleries__block" id="who" data-reveal>
-        <p className="foto-galleries__eyebrow">High-volume sports</p>
+      <section className="celinen-galleries__block" id="who" data-reveal>
+        <p className="celinen-galleries__eyebrow">High-volume sports</p>
         <h2>
           Tell me who is in
           <br />
           every photo.
         </h2>
-        <p className="foto-galleries__lead">
+        <p className="celinen-galleries__lead">
           A marathon is 4,000 runners and 80,000 frames. The buyer does not want the card. They
           want Melani Shrestha → 47 photographs of Melani. Tagging every frame by hand is another
           job. PhotoDay FaceFind and Photo Mechanic jersey captions already prove the demand.
         </p>
-        <div className="foto-galleries__pillars">
+        <div className="celinen-galleries__pillars">
           <article>
             <p>In the workspace now</p>
             <h3>Roster, jersey, bib.</h3>
@@ -190,10 +190,10 @@ export function GalleriesPage() {
         </div>
       </section>
 
-      <section className="foto-galleries__block" data-reveal>
-        <p className="foto-galleries__eyebrow">On their phone</p>
+      <section className="celinen-galleries__block" data-reveal>
+        <p className="celinen-galleries__eyebrow">On their phone</p>
         <h2>What the client actually gets.</h2>
-        <div className="foto-galleries__grid">
+        <div className="celinen-galleries__grid">
           {CLIENT.map((item) => (
             <article key={item.title}>
               <h3>{item.title}</h3>
@@ -203,8 +203,8 @@ export function GalleriesPage() {
         </div>
       </section>
 
-      <section className="foto-galleries__block foto-galleries__faq" data-reveal>
-        <p className="foto-galleries__eyebrow">Questions</p>
+      <section className="celinen-galleries__block celinen-galleries__faq" data-reveal>
+        <p className="celinen-galleries__eyebrow">Questions</p>
         <h2>
           Frequently <em>asked</em>
         </h2>
@@ -216,7 +216,7 @@ export function GalleriesPage() {
         ))}
       </section>
 
-      <section className="foto-galleries__close" data-reveal>
+      <section className="celinen-galleries__close" data-reveal>
         <h2>The set is ready. Send it.</h2>
         <Link to={entry.to} search={entry.search} className="marketing-action marketing-action--primary">
           {entry.label}

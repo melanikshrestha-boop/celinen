@@ -4,7 +4,7 @@ import { Footer } from "@/components/lensos/Footer";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { StripeEmbeddedCheckout } from "@/components/StripeEmbeddedCheckout";
 import { BILLING_PLANS } from "@/lib/billing-catalog";
-import { paymentsAreConfigured } from "@/lib/payments-available";
+import { paymentsAreLive } from "@/lib/payments-available";
 import { PRODUCT_NAME, PRODUCT_TITLE } from "@/lib/product";
 
 export const Route = createFileRoute("/signup")({
@@ -13,14 +13,14 @@ export const Route = createFileRoute("/signup")({
       { title: `Start with ${PRODUCT_TITLE}` },
       {
         name: "description",
-        content: paymentsAreConfigured()
+        content: paymentsAreLive()
           ? `Create your ${PRODUCT_TITLE} account: pick a plan, save your email, and pay.`
           : `Create your free ${PRODUCT_TITLE} account and open the studio.`,
       },
       { property: "og:title", content: `Start with ${PRODUCT_TITLE}` },
       {
         property: "og:description",
-        content: paymentsAreConfigured()
+        content: paymentsAreLive()
           ? "Pick your tier, save your email, and start culling tonight."
           : "Sign in with Google and open the studio. Paid plans come later.",
       },
@@ -50,7 +50,7 @@ function SignupPage() {
   const perUser = plan === "crew" || plan === "agency";
   const price = billing === "yearly" ? active.yearly : active.monthly;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const paymentsLive = paymentsAreConfigured();
+  const paymentsLive = paymentsAreLive();
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-ink">

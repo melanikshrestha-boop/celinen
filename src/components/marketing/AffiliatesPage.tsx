@@ -33,16 +33,16 @@ const FAQ: [string, string][] = [
 
 export function AffiliatesPage() {
   return (
-    <div className="foto-affiliates">
-      <header className="foto-affiliates__intro" data-reveal>
-        <p className="foto-affiliates__eyebrow">Earn with us</p>
+    <div className="celinen-affiliates">
+      <header className="celinen-affiliates__intro" data-reveal>
+        <p className="celinen-affiliates__eyebrow">Earn with us</p>
         <h1>Our 30% affiliate program.</h1>
         <p>Earn recurring commission from your referrals. Incentivise your referrals with discounts at checkout.</p>
-        <div className="foto-affiliates__actions">
+        <div className="celinen-affiliates__actions">
           <a href={APPLY}>Start earning</a>
         </div>
       </header>
-      <dl className="foto-affiliates__stats" data-reveal>
+      <dl className="celinen-affiliates__stats" data-reveal>
         <div>
           <dt>30%</dt>
           <dd>Recurring commission, every billing cycle</dd>
@@ -61,23 +61,23 @@ export function AffiliatesPage() {
         </div>
       </dl>
       <section data-reveal>
-        <p className="foto-affiliates__eyebrow">Incentives</p>
+        <p className="celinen-affiliates__eyebrow">Incentives</p>
         <h2>What’s the benefit?</h2>
         <p>
           Anyone who signs up through your unique link gets an exclusive discount. The more you share,
           the more you earn — every single month.
         </p>
-        <div className="foto-affiliates__split">
+        <div className="celinen-affiliates__split">
           <article>
             <h3>They save</h3>
-            <p className="foto-affiliates__figure">20%</p>
+            <p className="celinen-affiliates__figure">20%</p>
             <p>off the full monthly price, automatically applied at checkout.</p>
           </article>
           <article>
             <h3>You earn</h3>
-            <p className="foto-affiliates__figure">30%</p>
+            <p className="celinen-affiliates__figure">30%</p>
             <p>recurring commission based on their plan, every billing cycle.</p>
-            <ul className="foto-affiliates__tx">
+            <ul className="celinen-affiliates__tx">
               <li>
                 <span>Hobby plan referral</span>
                 <strong>$6.00</strong>
@@ -95,9 +95,9 @@ export function AffiliatesPage() {
         </div>
       </section>
       <section data-reveal>
-        <p className="foto-affiliates__eyebrow">Process</p>
+        <p className="celinen-affiliates__eyebrow">Process</p>
         <h2>How does it work?</h2>
-        <ol className="foto-affiliates__steps">
+        <ol className="celinen-affiliates__steps">
           <li>
             <h3>Generate your link</h3>
             <p>Grab your unique referral link from the affiliate desk in seconds.</p>
@@ -116,8 +116,8 @@ export function AffiliatesPage() {
           </li>
         </ol>
       </section>
-      <section className="foto-affiliates__faq" data-reveal>
-        <p className="foto-affiliates__eyebrow">Affiliate FAQ</p>
+      <section className="celinen-affiliates__faq" data-reveal>
+        <p className="celinen-affiliates__eyebrow">Affiliate FAQ</p>
         <h2>Your questions, answered.</h2>
         {FAQ.map(([q, a]) => (
           <details key={q}>
@@ -126,10 +126,10 @@ export function AffiliatesPage() {
           </details>
         ))}
       </section>
-      <section className="foto-affiliates__close" data-reveal>
+      <section className="celinen-affiliates__close" data-reveal>
         <h2>Switch sides. Join us.</h2>
         <p>Import. Pick. Send tonight. Then get paid when the photographers you send stay.</p>
-        <div className="foto-affiliates__actions">
+        <div className="celinen-affiliates__actions">
           <Link to="/auth" search={{ next: "/dashboard", mode: "signin" }}>
             Get started
           </Link>

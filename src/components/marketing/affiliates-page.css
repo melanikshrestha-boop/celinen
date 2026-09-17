@@ -1,13 +1,13 @@
-.foto-affiliates,
-.foto-affiliates-landing {
+.celinen-affiliates,
+.celinen-affiliates-landing {
   width: min(100% - 48px, 920px);
   margin: 0 auto;
   padding: 48px 0 96px;
 }
-.foto-affiliates-landing {
+.celinen-affiliates-landing {
   padding: 64px 0 24px;
 }
-.foto-affiliates__eyebrow {
+.celinen-affiliates__eyebrow {
   margin: 0 0 10px;
   color: #4d6fff;
   font-size: 13px;
@@ -15,8 +15,8 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.foto-affiliates__intro h1,
-.foto-affiliates-landing h2 {
+.celinen-affiliates__intro h1,
+.celinen-affiliates-landing h2 {
   margin: 0;
   color: #142a36;
   font-family: var(--font-display, "Instrument Serif", serif);
@@ -24,34 +24,34 @@
   font-weight: 400;
   letter-spacing: -0.04em;
 }
-.foto-affiliates-landing h2 {
+.celinen-affiliates-landing h2 {
   font-size: clamp(32px, 4vw, 48px);
 }
-.foto-affiliates p,
-.foto-affiliates-landing > p {
+.celinen-affiliates p,
+.celinen-affiliates-landing > p {
   margin: 14px 0 0;
   color: #516570;
   font-size: 17px;
   line-height: 1.45;
 }
-.foto-affiliates section {
+.celinen-affiliates section {
   margin-top: 56px;
 }
-.foto-affiliates section h2,
-.foto-affiliates__close h2 {
+.celinen-affiliates section h2,
+.celinen-affiliates__close h2 {
   margin: 0 0 12px;
   color: #142a36;
   font-family: var(--font-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
   font-size: 22px;
   font-weight: 650;
 }
-.foto-affiliates__actions {
+.celinen-affiliates__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 22px;
 }
-.foto-affiliates__actions a {
+.celinen-affiliates__actions a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -61,47 +61,47 @@
   font-weight: 600;
   text-decoration: none;
 }
-.foto-affiliates__actions a:first-child {
+.celinen-affiliates__actions a:first-child {
   background: var(--marketing-neon, #4d6fff);
   color: #fff;
 }
-.foto-affiliates__actions a:last-child:not(:first-child) {
+.celinen-affiliates__actions a:last-child:not(:first-child) {
   border: 1px solid #e6edf3;
   color: #142a36;
 }
-.foto-affiliates__stats {
+.celinen-affiliates__stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
   margin: 40px 0 0;
 }
-.foto-affiliates__stats dt {
+.celinen-affiliates__stats dt {
   color: #142a36;
   font-family: var(--font-display, "Instrument Serif", serif);
   font-size: clamp(28px, 3vw, 40px);
   letter-spacing: -0.03em;
 }
-.foto-affiliates__stats dd {
+.celinen-affiliates__stats dd {
   margin: 8px 0 0;
   color: #8b919a;
   font-size: 14px;
 }
-.foto-affiliates__split {
+.celinen-affiliates__split {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-top: 24px;
 }
-.foto-affiliates__split article {
+.celinen-affiliates__split article {
   padding: 22px;
   border: 1px solid #eceff2;
   border-radius: 18px;
 }
-.foto-affiliates__split h3 {
+.celinen-affiliates__split h3 {
   margin: 0;
   font-size: 16px;
 }
-.foto-affiliates__figure {
+.celinen-affiliates__figure {
   margin: 8px 0 4px !important;
   color: #142a36 !important;
   font-size: 48px !important;
@@ -109,12 +109,12 @@
   letter-spacing: -0.04em;
   line-height: 1;
 }
-.foto-affiliates__tx {
+.celinen-affiliates__tx {
   margin: 18px 0 0;
   padding: 0;
   list-style: none;
 }
-.foto-affiliates__tx li {
+.celinen-affiliates__tx li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -123,18 +123,18 @@
   color: #3a4450;
   font-size: 14px;
 }
-.foto-affiliates__steps {
+.celinen-affiliates__steps {
   margin: 20px 0 0;
   padding: 0;
   list-style: none;
   counter-reset: step;
 }
-.foto-affiliates__steps li {
+.celinen-affiliates__steps li {
   position: relative;
   padding: 0 0 22px 48px;
   counter-increment: step;
 }
-.foto-affiliates__steps li::before {
+.celinen-affiliates__steps li::before {
   content: counter(step, decimal-leading-zero);
   position: absolute;
   left: 0;
@@ -143,31 +143,31 @@
   font-size: 13px;
   font-weight: 700;
 }
-.foto-affiliates__steps h3 {
+.celinen-affiliates__steps h3 {
   margin: 0;
   font-size: 16px;
 }
-.foto-affiliates__faq details {
+.celinen-affiliates__faq details {
   padding: 14px 0;
   border-bottom: 1px solid #eceff2;
 }
-.foto-affiliates__faq summary {
+.celinen-affiliates__faq summary {
   cursor: pointer;
   font-weight: 600;
 }
-.foto-affiliates__faq p {
+.celinen-affiliates__faq p {
   margin: 10px 0 0;
   font-size: 16px;
 }
 @media (max-width: 760px) {
-  .foto-affiliates__stats,
-  .foto-affiliates__split {
+  .celinen-affiliates__stats,
+  .celinen-affiliates__split {
     grid-template-columns: 1fr 1fr;
   }
 }
 @media (max-width: 540px) {
-  .foto-affiliates__stats,
-  .foto-affiliates__split {
+  .celinen-affiliates__stats,
+  .celinen-affiliates__split {
     grid-template-columns: 1fr;
   }
 }

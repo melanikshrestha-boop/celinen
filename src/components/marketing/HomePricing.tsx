@@ -1,10 +1,10 @@
 import { useState } from "react";
 import "./home-product.css";
 import { Link } from "@tanstack/react-router";
-import { paymentsAreConfigured } from "@/lib/payments-available";
+import { paymentsAreLive } from "@/lib/payments-available";
 
 /** Build-time, so SSR and client agree. Never promise paid access while checkout is off. */
-export const PRICING_LEDE = paymentsAreConfigured()
+export const PRICING_LEDE = paymentsAreLive()
   ? "Choose a monthly or annual plan. Access starts after payment. Cancel anytime."
   : "Pricing shown for reference. No charge until checkout is live.";
 
@@ -19,9 +19,16 @@ type HomePlan = {
   points: readonly Point[];
   cta: string;
   to: "/signup" | "/auth";
-  search: { plan?: string; billing?: string; mode?: string };
+  search: { plan?: string; billing?: string; mode?: string; next?: string };
   popular?: boolean;
 };
+
+const UNPAID_AUTH = { mode: "signup", next: "/studio" } as const;
+
+function planCta(plan: string, billing: "monthly" | "yearly"): Pick<HomePlan, "to" | "search"> {
+  if (paymentsAreLive()) return { to: "/signup", search: { plan, billing } };
+  return { to: "/auth", search: UNPAID_AUTH };
+}
 
 const FAQ: [string, string][] = [
   [
@@ -147,7 +154,7 @@ export function plansForAudience(
     points: [{ label: "Custom credits/month", included: true, accent: true }, ...FULL_POINTS],
     cta: "Choose Enterprise",
     to: "/auth",
-    search: { mode: "signup" },
+    search: UNPAID_AUTH,
   };
   if (audience === "enterprise") return [enterprise];
   if (audience === "teams") {
@@ -161,8 +168,7 @@ export function plansForAudience(
         ...billedFor(40, 32),
         points: [{ label: "5,000 credits/month", included: true, accent: true }, ...HOBBY_POINTS],
         cta: "Choose Crew",
-        to: "/signup",
-        search: { plan: "crew", billing: yearly ? "yearly" : "monthly" },
+        ...planCta("crew", yearly ? "yearly" : "monthly"),
       },
       {
         name: "Studio",
@@ -171,8 +177,7 @@ export function plansForAudience(
         ...billedFor(80, 64),
         points: [{ label: "25,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
         cta: "Choose Studio",
-        to: "/signup",
-        search: { plan: "agency", billing: yearly ? "yearly" : "monthly" },
+        ...planCta("agency", yearly ? "yearly" : "monthly"),
         popular: true,
       },
       enterprise,
@@ -186,8 +191,7 @@ export function plansForAudience(
       ...billedFor(20, 16),
       points: [{ label: "1,000 credits/month", included: true, accent: true }, ...HOBBY_POINTS],
       cta: "Choose Hobby",
-      to: "/signup",
-      search: { plan: "hobby", billing: yearly ? "yearly" : "monthly" },
+      ...planCta("hobby", yearly ? "yearly" : "monthly"),
     },
     {
       name: "Creator",
@@ -196,8 +200,7 @@ export function plansForAudience(
       ...billedFor(30, 24),
       points: [{ label: "5,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
       cta: "Choose Creator",
-      to: "/signup",
-      search: { plan: "creator", billing: yearly ? "yearly" : "monthly" },
+      ...planCta("creator", yearly ? "yearly" : "monthly"),
       popular: true,
     },
     {
@@ -207,8 +210,7 @@ export function plansForAudience(
       ...billedFor(200, 160),
       points: [{ label: "25,000 credits/month", included: true, accent: true }, ...FULL_POINTS],
       cta: "Choose Arena",
-      to: "/signup",
-      search: { plan: "arena", billing: yearly ? "yearly" : "monthly" },
+      ...planCta("arena", yearly ? "yearly" : "monthly"),
     },
     enterprise,
   ];

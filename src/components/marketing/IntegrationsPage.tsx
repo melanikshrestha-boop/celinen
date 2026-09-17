@@ -9,8 +9,8 @@ import "./integrations-page.css";
 
 function Card({ item }: { item: PublicIntegration }) {
   return (
-    <Link to="/integrations/$slug" params={{ slug: item.id }} className="foto-integrations__card">
-      <span className="foto-integrations__mark" aria-hidden="true">
+    <Link to="/integrations/$slug" params={{ slug: item.id }} className="celinen-integrations__card">
+      <span className="celinen-integrations__mark" aria-hidden="true">
         <BrandMark id={item.id} />
       </span>
       <span>
@@ -24,8 +24,8 @@ function Card({ item }: { item: PublicIntegration }) {
 
 export function IntegrationsPage() {
   return (
-    <div className="foto-integrations">
-      <header className="foto-integrations__intro" data-reveal>
+    <div className="celinen-integrations">
+      <header className="celinen-integrations__intro" data-reveal>
         <h1>Integrations.</h1>
       </header>
       {INTEGRATION_GROUPS.map((group) => {
@@ -34,15 +34,15 @@ export function IntegrationsPage() {
           <section
             key={group.id}
             id={group.id}
-            className="foto-integrations__group"
+            className="celinen-integrations__group"
             data-reveal
             aria-labelledby={`${group.id}-heading`}
           >
-            <div className="foto-integrations__group-head">
+            <div className="celinen-integrations__group-head">
               <h2 id={`${group.id}-heading`}>{group.title}</h2>
               <span>{items.length}</span>
             </div>
-            <div className="foto-integrations__grid">
+            <div className="celinen-integrations__grid">
               {items.map((item) => (
                 <Card key={item.id} item={item} />
               ))}
@@ -50,9 +50,9 @@ export function IntegrationsPage() {
           </section>
         );
       })}
-      <section className="foto-integrations__missing" data-reveal>
+      <section className="celinen-integrations__missing" data-reveal>
         <h2>Missing an integration?</h2>
-        <div className="foto-integrations__missing-actions">
+        <div className="celinen-integrations__missing-actions">
           <Link to="/docs">View API</Link>
           <Link to="/mcp">MCP</Link>
         </div>

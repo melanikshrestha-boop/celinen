@@ -204,9 +204,16 @@ export function ShootsHub({
             </section>
           )}
           {!data.loading && !data.error && !data.rows.length && (
-            <p className="shoots-empty">
-              No saved shoots yet. Use New shoot to start with your photos.
-            </p>
+            <div className="shoots-empty">
+              <p>No saved shoots yet.</p>
+              <button
+                type="button"
+                className="shoots-primary-link"
+                onClick={() => void (workbench?.newShoot ? workbench.newShoot() : open("/studio"))}
+              >
+                New shoot
+              </button>
+            </div>
           )}
         </div>
       ) : rows.length > 0 ? (
@@ -233,8 +240,17 @@ export function ShootsHub({
                   : "Your saved albums do not include game schedules. Updated dates are not kickoff times."
                 : query
                   ? "Try another name."
-                  : "Use New shoot to import photos. Your existing originals and edits stay in their current libraries."}
+                  : "Import photos. Your existing originals and edits stay in their current libraries."}
             </p>
+            {!query && view !== "tonight" && (
+              <button
+                type="button"
+                className="shoots-primary-link"
+                onClick={() => void (workbench?.newShoot ? workbench.newShoot() : open("/studio"))}
+              >
+                New shoot
+              </button>
+            )}
             {view === "tonight" && (
               <ShootLink href="/shoots" className="shoots-text-link">
                 Open shoots <ArrowUpRight size={15} />

@@ -6,6 +6,7 @@ import { PUBLIC_SOCIALS } from "@/lib/public-socials";
 import "./public-details.css";
 
 function openCookiePrefs() {
+  window.dispatchEvent(new Event("celinen-cookie-prefs"));
   window.dispatchEvent(new Event("foto-cookie-prefs"));
 }
 
@@ -104,7 +105,7 @@ export function MarketingFooter() {
               <Link to="/mcp">MCP server</Link>
             </li>
             <li>
-              <a href="mailto:hello@lenslab.dev">Contact</a>
+              <a href="mailto:hello@lenslab.dev">hello@lenslab.dev</a>
             </li>
             <li>
               <Link to="/auth" search={{ mode: "signin" }}>

@@ -41,8 +41,12 @@ export function CookieConsent() {
   useEffect(() => {
     setChoice(readConsent() ?? "pending");
     const reopen = () => setChoice("pending");
+    window.addEventListener("celinen-cookie-prefs", reopen);
     window.addEventListener("foto-cookie-prefs", reopen);
-    return () => window.removeEventListener("foto-cookie-prefs", reopen);
+    return () => {
+      window.removeEventListener("celinen-cookie-prefs", reopen);
+      window.removeEventListener("foto-cookie-prefs", reopen);
+    };
   }, []);
 
   useEffect(() => {
