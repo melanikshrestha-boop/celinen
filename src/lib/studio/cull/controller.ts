@@ -5,7 +5,10 @@
  */
 import { cullEngine } from "./client";
 import type { CullRow, CullVerdict } from "./engine";
+import { pickLoupeImage, type LoupeImage } from "./loupe-source";
 import { ingestFiles } from "./pool";
+import type { PreviewLibrary } from "./preview-library";
+import type { PreviewQueue } from "./preview-queue";
 import {
   applySuggestions,
   decide,
@@ -13,7 +16,32 @@ import {
   type CullFrame,
   type CullProgress,
 } from "./session";
+import {
+  OriginalResolver,
+  requestSourcePermission,
+  SourcePermissionError,
+  sourcePermission,
+  type CullPermission,
+  type CullSourceRoot,
+} from "./sources";
 import { createCullWriter, type CullStore } from "./store";
+
+/**
+ * Where the session's originals stand, for the loupe.
+ * - live: this tab imported the card and still holds its files.
+ * - connected: stored handles resolve (permission granted).
+ * - reconnect: stored handles need the photographer's permission again.
+ * - locate: nothing stored, but this browser can pick the folder to find them.
+ * - unavailable: previews and thumbnails only.
+ */
+export type CullOriginals = "live" | "connected" | "reconnect" | "locate" | "unavailable";
+
+export type CullControllerOptions = {
+  /** Review previews in the private file system; absent where the browser cannot keep them. */
+  previews?: { library: PreviewLibrary; queue: PreviewQueue } | null | undefined;
+  /** This browser has a folder picker that returns a handle. */
+  canLocate?: boolean | undefined;
+};
 
 export type CullSnapshot = {
   sessionId: string | null;
@@ -22,6 +50,7 @@ export type CullSnapshot = {
   /** A problem the photographer should know about, such as a failed save. */
   notice: string | null;
   canUndo: boolean;
+  originals: CullOriginals;
 };
 
 type Listener = (snapshot: CullSnapshot) => void;
@@ -30,6 +59,8 @@ type Listener = (snapshot: CullSnapshot) => void;
 // once a second while a card reads keeps suggestions current at no visible cost.
 const RERANK_INTERVAL_MS = 1000;
 const UNDO_DEPTH = 50;
+/** Frames tried when adopting a picked folder as a session's originals. */
+const LOCATE_PROBES = 8;
 
 export class CullController {
   // Mutated in place while a card reads; the screen receives a copy at most once
@@ -44,13 +75,21 @@ export class CullController {
   private undoStack: { frames: CullFrame[] }[] = [];
   private rerankTimer: ReturnType<typeof setTimeout> | null = null;
   private importing: AbortController | null = null;
-  // The originals of the card read in this tab, for a full-quality loupe. A
-  // reopened session has thumbnails only until its folder is imported again:
-  // browsers do not let a page keep file access across a reload.
+  // The originals of the card read in this tab, for a full-quality loupe.
+  // Browsers do not let a page keep a File across a reload; handles (below)
+  // and stored previews cover the loupe after one.
   private originals = new Map<string, File>();
+  // Where the card sits on disk, in browsers that hand out file handles.
+  private roots: readonly CullSourceRoot[] = [];
+  private resolver: OriginalResolver | null = null;
+  private originalsState: CullOriginals = "unavailable";
+  private previewRun: { abort: AbortController; done: Promise<void> } | null = null;
   private emitQueued = false;
 
-  constructor(private readonly store: CullStore) {}
+  constructor(
+    private readonly store: CullStore,
+    private readonly options: CullControllerOptions = {},
+  ) {}
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -66,6 +105,7 @@ export class CullController {
       progress: this.progress,
       notice: this.notice,
       canUndo: this.undoStack.length > 0,
+      originals: this.originalsState,
     };
   }
 
@@ -98,9 +138,15 @@ export class CullController {
     this.emit();
   }
 
+  private frame(frameId: string): CullFrame | undefined {
+    const index = this.byId.get(frameId);
+    return index === undefined ? undefined : this.frames[index];
+  }
+
   async open(sessionId: string): Promise<void> {
     this.cancelImport();
-    if (sessionId !== this.sessionId) this.originals.clear();
+    this.stopPreviews();
+    if (sessionId !== this.sessionId) this.forgetOriginals();
     const frames = await this.store.frames(sessionId);
     this.sessionId = sessionId;
     this.undoStack = [];
@@ -108,27 +154,40 @@ export class CullController {
     this.notice = null;
     this.replace(frames);
     await this.rerank();
+    await this.connectSources(sessionId);
   }
 
-  /** Starts a new session from a card and reads it. Resolves when the card is done. */
-  async importCard(name: string, files: readonly File[]): Promise<void> {
+  /** Starts a new session from a card and reads it. Resolves when the card is done.
+   * `roots` are the handles the card came through, where the browser offers them. */
+  async importCard(
+    name: string,
+    files: readonly File[],
+    roots: readonly CullSourceRoot[] = [],
+  ): Promise<void> {
     this.cancelImport();
+    this.stopPreviews();
     const photos = files.filter((file) => file.size > 0);
     const session = await this.store.create(name);
     this.sessionId = session.id;
     this.undoStack = [];
     this.notice = null;
-    this.originals.clear();
+    this.forgetOriginals();
+    this.originalsState = "live";
+    if (roots.length) {
+      this.roots = [...roots];
+      this.resolver = new OriginalResolver(this.roots);
+      // Not part of the ingest: a browser that cannot store handles still reads the card.
+      void Promise.resolve()
+        .then(() => this.store.saveSources(session.id, roots))
+        .catch(() => {});
+    }
     this.replace([]);
 
     const controller = new AbortController();
     this.importing = controller;
     const writer = createCullWriter(this.store, session.id, {
       // A decision made while a frame still waits in the batch must be what is saved.
-      latest: (frame) => {
-        const index = this.byId.get(frame.id);
-        return index === undefined ? frame : (this.frames[index] ?? frame);
-      },
+      latest: (frame) => this.frame(frame.id) ?? frame,
       onError: () => {
         this.notice =
           "Some frames could not be saved on this device. Keep this tab open until the import finishes.";
@@ -158,11 +217,195 @@ export class CullController {
     }
     this.replace([...this.frames].sort(captureOrder));
     await this.rerank();
+    // Only now, with every core free again, do previews begin.
+    if (this.sessionId === session.id) this.startPreviews();
   }
 
   cancelImport() {
     this.importing?.abort();
     this.importing = null;
+  }
+
+  private forgetOriginals() {
+    this.originals.clear();
+    this.roots = [];
+    this.resolver = null;
+    this.originalsState = "unavailable";
+  }
+
+  /** Learns whether this session's originals can be reached and, if so, resumes
+   * its previews. Never prompts: a prompt needs the photographer's click. */
+  private async connectSources(sessionId: string) {
+    if (this.originals.size) {
+      this.originalsState = "live";
+      this.startPreviews();
+      return this.emit();
+    }
+    // A store that cannot say (an older or partial one) means no stored handles.
+    const roots = await Promise.resolve()
+      .then(() => this.store.sources(sessionId))
+      .catch((): CullSourceRoot[] => []);
+    if (this.sessionId !== sessionId) return;
+    this.roots = roots;
+    if (!roots.length) {
+      this.originalsState = this.options.canLocate ? "locate" : "unavailable";
+      return this.emit();
+    }
+    const permission = await sourcePermission(roots);
+    if (this.sessionId === sessionId) this.applyPermission(permission);
+  }
+
+  private applyPermission(permission: CullPermission) {
+    if (permission === "granted") {
+      this.resolver = new OriginalResolver(this.roots);
+      this.originalsState = "connected";
+      this.startPreviews();
+    } else {
+      this.resolver = null;
+      // A refusal is the photographer's answer; the action is not offered again.
+      this.originalsState = permission === "prompt" ? "reconnect" : "unavailable";
+    }
+    this.emit();
+  }
+
+  /** Asks for access to the stored originals. Call from the photographer's click. */
+  async reconnect(): Promise<CullOriginals> {
+    if (this.originalsState !== "reconnect" || !this.roots.length) return this.originalsState;
+    const sessionId = this.sessionId;
+    const permission = await requestSourcePermission(this.roots);
+    if (this.sessionId === sessionId) this.applyPermission(permission);
+    return this.originalsState;
+  }
+
+  /**
+   * Adopts folders or files the photographer picked as this session's originals.
+   * Accepted only when frames of the session resolve through them with matching
+   * size and date, so picking the wrong folder changes nothing.
+   */
+  async locate(roots: readonly CullSourceRoot[]): Promise<boolean> {
+    const sessionId = this.sessionId;
+    if (!sessionId || !roots.length) return false;
+    const resolver = new OriginalResolver(roots);
+    const readable = this.frames.filter((frame) => !frame.error);
+    // Spread across the card, so a folder holding part of it still counts.
+    const probes =
+      readable.length <= LOCATE_PROBES
+        ? readable
+        : Array.from(
+            { length: LOCATE_PROBES },
+            (_, index) => readable[Math.floor((index * readable.length) / LOCATE_PROBES)]!,
+          );
+    let found = false;
+    for (const frame of probes) {
+      if (await resolver.resolve(frame).catch(() => null)) {
+        found = true;
+        break;
+      }
+    }
+    if (this.sessionId !== sessionId) return false;
+    if (!found) {
+      this.notice = "Those files are not this shoot's originals.";
+      this.emit();
+      return false;
+    }
+    this.notice = null;
+    this.roots = [...roots];
+    await this.store.saveSources(sessionId, roots).catch(() => {});
+    if (this.sessionId === sessionId) this.applyPermission("granted");
+    return true;
+  }
+
+  /** Makes review previews for the open session from whichever originals are at hand. */
+  private startPreviews() {
+    const previews = this.options.previews;
+    const sessionId = this.sessionId;
+    if (!previews || !sessionId) return;
+    if (this.originalsState !== "live" && this.originalsState !== "connected") return;
+    this.stopPreviews();
+    const abort = new AbortController();
+    const resolver = this.resolver;
+    const run = { abort, done: Promise.resolve() };
+    this.previewRun = run;
+    run.done = previews.queue
+      .run({
+        sessionId,
+        frames: () => this.frames,
+        frame: (id) => this.frame(id),
+        original: async (frame) =>
+          this.originals.get(frame.id) ?? (resolver ? resolver.resolve(frame) : null),
+        signal: abort.signal,
+      })
+      .then(
+        (result) => {
+          if (result.end === "permission" && this.resolver === resolver) void this.permissionLost();
+        },
+        // Previews improve the loupe; they are never a failure to report.
+        () => {},
+      )
+      .finally(() => {
+        if (this.previewRun === run) this.previewRun = null;
+      });
+  }
+
+  /** Stops the preview run; resolves once the photo it was writing has landed. */
+  private stopPreviews(): Promise<void> {
+    const run = this.previewRun;
+    this.previewRun = null;
+    if (!run) return Promise.resolve();
+    run.abort.abort();
+    return run.done;
+  }
+
+  /** Access went away mid-session (revoked in site settings). Ask where it stands now. */
+  private async permissionLost() {
+    const sessionId = this.sessionId;
+    this.resolver = null;
+    this.stopPreviews();
+    if (!this.roots.length) return;
+    const permission = await sourcePermission(this.roots);
+    if (this.sessionId !== sessionId) return;
+    this.originalsState = permission === "denied" ? "unavailable" : "reconnect";
+    this.emit();
+  }
+
+  /** The best picture of a frame this browser can paint right now. */
+  loupeImage(frameId: string): Promise<LoupeImage | null> {
+    const sessionId = this.sessionId;
+    const frame = this.frame(frameId);
+    if (!sessionId || !frame) return Promise.resolve(null);
+    const resolver = this.originalsState === "connected" ? this.resolver : null;
+    return pickLoupeImage({
+      live: () => this.originals.get(frameId) ?? null,
+      reconnected: async () => {
+        if (!resolver) return null;
+        try {
+          return await resolver.resolve(frame);
+        } catch (error) {
+          if (error instanceof SourcePermissionError && this.resolver === resolver)
+            void this.permissionLost();
+          return null;
+        }
+      },
+      preview: async () => (await this.options.previews?.library.read(sessionId, frameId)) ?? null,
+      thumbnail: () => this.store.thumbnail(sessionId, frameId),
+    });
+  }
+
+  /** Deletes a session with its thumbnails, stored handles and previews. */
+  async deleteSession(sessionId: string): Promise<void> {
+    if (sessionId === this.sessionId) {
+      this.cancelImport();
+      const stopped = this.stopPreviews();
+      this.forgetOriginals();
+      this.sessionId = null;
+      this.undoStack = [];
+      this.progress = null;
+      this.replace([]);
+      // A preview mid-write would otherwise land after its folder is gone.
+      await stopped;
+    }
+    await this.store.deleteSession(sessionId);
+    await this.options.previews?.library.deleteSession(sessionId);
   }
 
   private scheduleRerank() {
@@ -265,9 +508,10 @@ export class CullController {
 
   dispose() {
     this.cancelImport();
+    this.stopPreviews();
     if (this.rerankTimer) clearTimeout(this.rerankTimer);
     this.listeners.clear();
-    this.originals.clear();
+    this.forgetOriginals();
     this.store.close();
   }
 }

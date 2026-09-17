@@ -15,6 +15,9 @@ export type CullFrame = {
   width: number;
   height: number;
   bytes: number;
+  /** The file's modification time at import; with `bytes`, how a reconnected
+   * original proves it is still the same file. */
+  lastModified?: number | undefined;
   captureTimeMs: number | null;
   captureTimeBasis?: "utc" | "camera_clock" | undefined;
   cameraKey?: string | undefined;

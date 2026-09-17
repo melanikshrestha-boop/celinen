@@ -1,10 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import type { CullOriginals } from "@/lib/studio/cull/controller";
 import type { CullVerdict } from "@/lib/studio/cull/engine";
+import type { LoupeSourceKind } from "@/lib/studio/cull/loupe-source";
 import type { CullFrame } from "@/lib/studio/cull/session";
 import { CULL_REASON_LABELS } from "@/lib/studio/cull/session";
 import { plainReading } from "./cull-review";
 import { CullMark, CullThumb, type CullThumbnailSource } from "./CullGrid";
+import { CullLoupePicture, type CullLoupeSource } from "./CullLoupePicture";
 
 export type CullLoupeProps = {
   frame: CullFrame;
@@ -12,8 +15,13 @@ export type CullLoupeProps = {
   position: number;
   total: number;
   thumbnail: CullThumbnailSource;
-  /** The large picture. Burst members below stay thumbnails. */
-  preview: CullThumbnailSource;
+  /** The large picture. Burst members below stay thumbnails. Without it, the thumbnail. */
+  preview?: CullLoupeSource | undefined;
+  /** Ids of the frames one step back and forward, decoded ahead of the keypress. */
+  neighbors?: readonly string[] | undefined;
+  /** Where the session's originals stand; offers reconnecting them when that helps. */
+  originals?: CullOriginals | undefined;
+  onReconnect?: (() => void) | undefined;
   /** The frame's whole burst, best first; empty when it stands alone. */
   burst: readonly CullFrame[];
   onDecide: (verdict: CullVerdict) => void;
@@ -21,6 +29,8 @@ export type CullLoupeProps = {
   onSelect: (id: string) => void;
   onClose: () => void;
 };
+
+const NO_NEIGHBORS: readonly string[] = [];
 
 const DECISIONS: readonly [CullVerdict, string][] = [
   ["keep", "Keep · K"],
@@ -34,6 +44,9 @@ export function CullLoupe({
   total,
   thumbnail,
   preview,
+  neighbors = NO_NEIGHBORS,
+  originals,
+  onReconnect,
   burst,
   onDecide,
   onStep,
@@ -45,6 +58,15 @@ export function CullLoupe({
   useEffect(() => dialog.current?.focus({ preventScroll: true }), []);
   const suggestion = frame.suggestion;
   const reason = suggestion?.reason ?? "none";
+  const [shownKind, setShownKind] = useState<LoupeSourceKind | null>(null);
+  // Stored handles need only a click. Picking a folder is offered only while the
+  // loupe has nothing better than the thumbnail to show.
+  const reconnectLabel =
+    originals === "reconnect"
+      ? "Reconnect originals"
+      : originals === "locate" && shownKind === "thumbnail"
+        ? "Locate originals"
+        : null;
 
   return (
     <div
@@ -61,6 +83,15 @@ export function CullLoupe({
           {` · ${position + 1} of ${total}${frame.width && frame.height ? ` · ${frame.width}×${frame.height}` : ""}`}
         </span>
         <span className="flex shrink-0 items-center gap-1 font-mono text-[11px]">
+          {onReconnect && reconnectLabel && (
+            <button
+              type="button"
+              className="mr-2 rounded-md px-2.5 py-1.5 text-moss hover:bg-ink/5 hover:text-ink"
+              onClick={onReconnect}
+            >
+              {reconnectLabel}
+            </button>
+          )}
           <button
             type="button"
             className="grid size-8 place-items-center rounded-md hover:bg-ink/5 disabled:opacity-35"
@@ -93,8 +124,17 @@ export function CullLoupe({
       <div className="cull-loupe-stage">
         {frame.error ? (
           <p className="font-mono text-[12px] text-rust">{frame.error}</p>
+        ) : preview ? (
+          <CullLoupePicture
+            frame={frame}
+            thumbnail={thumbnail}
+            source={preview}
+            neighbors={neighbors}
+            epoch={originals ?? ""}
+            onKind={setShownKind}
+          />
         ) : (
-          <CullThumb frame={frame} thumbnail={preview} />
+          <CullThumb frame={frame} thumbnail={thumbnail} />
         )}
       </div>
 

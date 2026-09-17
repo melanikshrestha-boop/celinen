@@ -9,11 +9,15 @@
  * Every database is scoped to the signed-in account, like the rest of Studio.
  */
 import type { CullFrame } from "./session";
+import type { CullSourceRoot } from "./sources";
 
-const VERSION = 1;
+// 2: the card's file handles and the review-size previews' index.
+const VERSION = 2;
 const SESSIONS = "sessions";
 const FRAMES = "frames";
 const THUMBNAILS = "thumbnails";
+const SOURCES = "sources";
+const PREVIEWS = "previews";
 
 export type CullSessionSummary = {
   id: string;
@@ -25,6 +29,26 @@ export type CullSessionSummary = {
 
 type FrameRow = CullFrame & { sessionId: string };
 type ThumbnailRow = { sessionId: string; frameId: string; blob: Blob };
+type SourcesRow = { sessionId: string; roots: CullSourceRoot[] };
+
+/** One review-size preview. The JPEG itself lives in the Origin Private File
+ * System; this row is its index entry, so totals and eviction never have to
+ * open ten thousand files to learn their sizes. */
+export type CullPreviewRow = {
+  sessionId: string;
+  frameId: string;
+  /** File name inside the session's preview folder. */
+  file: string;
+  bytes: number;
+  width: number;
+  height: number;
+  createdAt: number;
+  /** The engine's suggestion when the preview was made, for eviction order in
+   * sessions that are not open (suggestions are not stored with frames). */
+  suggestedReject: boolean;
+  /** Set when the original could not be turned into a preview, so it is not retried every visit. */
+  failed?: true | undefined;
+};
 
 export function cullDatabaseName(scope: string): string {
   // The scope is an account id or "device-local"; keep it readable but inert.
@@ -57,6 +81,17 @@ export type CullStore = {
   append(sessionId: string, batch: readonly { frame: CullFrame; thumbnail: Blob }[]): Promise<void>;
   /** Decisions and suggestions: frame rows only, thumbnails untouched. */
   update(sessionId: string, frames: readonly CullFrame[]): Promise<void>;
+  /** The folders and files a session was imported from, where the browser offers handles. */
+  saveSources(sessionId: string, roots: readonly CullSourceRoot[]): Promise<void>;
+  sources(sessionId: string): Promise<CullSourceRoot[]>;
+  /** Every preview index row of this account. */
+  previews(): Promise<CullPreviewRow[]>;
+  preview(sessionId: string, frameId: string): Promise<CullPreviewRow | null>;
+  putPreview(row: CullPreviewRow): Promise<void>;
+  deletePreviews(keys: readonly { sessionId: string; frameId: string }[]): Promise<void>;
+  /** Removes a session and everything stored for it here. The preview files
+   * themselves are removed by the preview library. */
+  deleteSession(sessionId: string): Promise<void>;
   close(): void;
 };
 
@@ -77,6 +112,12 @@ export async function openCullStore(
       }
       if (!db.objectStoreNames.contains(THUMBNAILS))
         db.createObjectStore(THUMBNAILS, { keyPath: ["sessionId", "frameId"] });
+      if (!db.objectStoreNames.contains(SOURCES))
+        db.createObjectStore(SOURCES, { keyPath: "sessionId" });
+      if (!db.objectStoreNames.contains(PREVIEWS)) {
+        const previews = db.createObjectStore(PREVIEWS, { keyPath: ["sessionId", "frameId"] });
+        previews.createIndex("session", "sessionId");
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open cull storage."));
@@ -171,6 +212,71 @@ export async function openCullStore(
       const store = transaction.objectStore(FRAMES);
       for (const frame of frames) store.put({ ...frame, sessionId } satisfies FrameRow);
       await touch(transaction, sessionId, 0);
+      await committed;
+    },
+    async saveSources(sessionId, roots) {
+      if (!roots.length) return;
+      const transaction = database.transaction(SOURCES, "readwrite");
+      const committed = done(transaction);
+      transaction.objectStore(SOURCES).put({ sessionId, roots: [...roots] } satisfies SourcesRow);
+      await committed;
+    },
+    async sources(sessionId) {
+      const row = await result(
+        database.transaction(SOURCES, "readonly").objectStore(SOURCES).get(sessionId) as IDBRequest<
+          SourcesRow | undefined
+        >,
+      );
+      return row?.roots ?? [];
+    },
+    previews() {
+      return result(
+        database.transaction(PREVIEWS, "readonly").objectStore(PREVIEWS).getAll() as IDBRequest<
+          CullPreviewRow[]
+        >,
+      );
+    },
+    async preview(sessionId, frameId) {
+      const row = await result(
+        database
+          .transaction(PREVIEWS, "readonly")
+          .objectStore(PREVIEWS)
+          .get([sessionId, frameId]) as IDBRequest<CullPreviewRow | undefined>,
+      );
+      return row ?? null;
+    },
+    async putPreview(row) {
+      const transaction = database.transaction(PREVIEWS, "readwrite");
+      const committed = done(transaction);
+      transaction.objectStore(PREVIEWS).put(row);
+      await committed;
+    },
+    async deletePreviews(keys) {
+      if (!keys.length) return;
+      const transaction = database.transaction(PREVIEWS, "readwrite");
+      const committed = done(transaction);
+      const store = transaction.objectStore(PREVIEWS);
+      for (const { sessionId, frameId } of keys) store.delete([sessionId, frameId]);
+      await committed;
+    },
+    async deleteSession(sessionId) {
+      const transaction = database.transaction(
+        [SESSIONS, FRAMES, THUMBNAILS, SOURCES, PREVIEWS],
+        "readwrite",
+      );
+      const committed = done(transaction);
+      transaction.objectStore(SESSIONS).delete(sessionId);
+      transaction.objectStore(SOURCES).delete(sessionId);
+      // Frame and thumbnail rows share the key [sessionId, frameId].
+      const frames = transaction.objectStore(FRAMES);
+      const thumbnails = transaction.objectStore(THUMBNAILS);
+      for (const key of await result(frames.index("session").getAllKeys(sessionId))) {
+        frames.delete(key);
+        thumbnails.delete(key);
+      }
+      const previews = transaction.objectStore(PREVIEWS);
+      for (const key of await result(previews.index("session").getAllKeys(sessionId)))
+        previews.delete(key);
       await committed;
     },
     close: () => database.close(),

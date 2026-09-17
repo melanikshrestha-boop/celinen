@@ -228,7 +228,8 @@
   padding: 8px 24px 16px;
 }
 /* Scaled to the stage in both directions, never cropped. */
-.cull-loupe-stage > img {
+.cull-loupe-stage > img,
+.cull-loupe-stage > canvas {
   width: 100%;
   height: 100%;
   object-fit: contain;
