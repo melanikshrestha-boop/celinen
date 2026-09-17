@@ -65,6 +65,15 @@ $(BUILD_DIR)/social-tests: tests/social_tests.cpp $(BUILD_DIR)/social.o include/
 $(BUILD_DIR)/lenslabs-develop: $(BUILD_DIR)/develop_main.o $(BUILD_DIR)/develop.o $(BUILD_DIR)/develop_raw.o $(DECODER) $(LIBRAW)
 	$(CXX) $(CXXFLAGS) $^ $(FRAMEWORKS) -o $@
 
+$(BUILD_DIR)/develop-auto-tests: tests/develop_auto_tests.cpp $(BUILD_DIR)/develop_auto.o $(BUILD_DIR)/develop.o include/lenslabs/develop_auto.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/develop_auto.o $(BUILD_DIR)/develop.o -o $@
+
+$(BUILD_DIR)/voice-tests: tests/voice_tests.cpp $(BUILD_DIR)/voice.o include/lenslabs/voice.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/voice.o -o $@
+
+$(BUILD_DIR)/develop_auto.o: include/lenslabs/develop_auto.hpp
+$(BUILD_DIR)/voice.o: include/lenslabs/voice.hpp
+
 $(BUILD_DIR)/develop-tests: tests/develop_tests.cpp $(BUILD_DIR)/develop.o include/lenslabs/develop.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/develop.o -o $@
 
@@ -121,7 +130,7 @@ $(BUILD_DIR)/calendar-tests: tests/calendar_tests.cpp $(BUILD_DIR)/calendar.o in
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
@@ -136,6 +145,8 @@ test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-t
 	$(BUILD_DIR)/gallery-tests
 	$(BUILD_DIR)/settings-tests
 	$(BUILD_DIR)/calendar-tests
+	$(BUILD_DIR)/develop-auto-tests
+	$(BUILD_DIR)/voice-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test

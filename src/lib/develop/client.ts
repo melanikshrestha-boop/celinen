@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createDevelopAdmissionQueue } from "./admission";
 import { BROWSER_DEVELOP_ENGINE, renderDevelopInBrowser } from "./browser-render";
 import { asDevelopPreviewBlob } from "./decode-preview";
+import { developWasmReady, renderDevelopWasm, WASM_DEVELOP_ENGINE } from "./wasm/client";
 import {
   defaultDevelopSettings,
   DEVELOP_ENGINE_LIMITS,
@@ -32,12 +33,26 @@ function isLocalDevelopHost(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
-/** Hosted sites cannot spawn the C++ binary. JPEG/PNG Develop still runs in the browser. */
+/** Engines that run inside the page. They have no loopback tools (RAW sensor
+ * decode, automatic crop, reference match, object removal).
+ */
+export function isHostedDevelopEngine(engine: string | null | undefined) {
+  return engine === BROWSER_DEVELOP_ENGINE || engine === WASM_DEVELOP_ENGINE;
+}
+
+/** Basic script renderer: the last resort when the page cannot run WebAssembly. */
 export function browserDevelopEngineStatus(): DevelopEngineStatus {
+  return hostedDevelopEngineStatus(BROWSER_DEVELOP_ENGINE);
+}
+
+/** Hosted sites cannot spawn the C++ binary, so they run the same C++ compiled
+ * to WebAssembly: the complete recipe, on JPEG/PNG/WebP sources.
+ */
+function hostedDevelopEngineStatus(engine: string): DevelopEngineStatus {
   return {
     ready: true,
     token: "browser",
-    engine: BROWSER_DEVELOP_ENGINE,
+    engine,
     maxEdge: DEVELOP_ENGINE_LIMITS.defaultExportEdge,
     maxFileBytes: DEVELOP_ENGINE_LIMITS.maxFileBytes,
     workingSpace: "sRGB preview",
@@ -50,7 +65,10 @@ export function browserDevelopEngineStatus(): DevelopEngineStatus {
 
 export async function developEngineStatus(refresh = false): Promise<DevelopEngineStatus | null> {
   if (typeof window === "undefined") return null;
-  if (!isLocalDevelopHost(window.location.hostname)) return browserDevelopEngineStatus();
+  if (!isLocalDevelopHost(window.location.hostname))
+    return hostedDevelopEngineStatus(
+      (await developWasmReady()) ? WASM_DEVELOP_ENGINE : BROWSER_DEVELOP_ENGINE,
+    );
   if (!refresh && cached && Date.now() - checked < 5000) return cached;
   if (!refresh && inflight) return inflight;
   const request = (async () => {
@@ -180,12 +198,18 @@ export async function renderDevelop(
         }
         if (sourceMode === "raw" && !status.rawSupported)
           throw new Error(
-            status.engine === BROWSER_DEVELOP_ENGINE
+            isHostedDevelopEngine(status.engine)
               ? "RAW development needs the local app."
               : "Rebuild the local C++ engine to enable sensor RAW development.",
           );
         if ((edge ?? DEVELOP_ENGINE_LIMITS.previewEdge) > status.maxEdge)
           throw new Error("Rebuild the local C++ engine to enable this larger export size.");
+        if (status.engine === WASM_DEVELOP_ENGINE)
+          return renderDevelopWasm(source, recipe, {
+            edge: edge ?? DEVELOP_ENGINE_LIMITS.previewEdge,
+            quality: quality ?? 0.9,
+            ...(signal ? { signal } : {}),
+          });
         if (status.engine === BROWSER_DEVELOP_ENGINE)
           return renderDevelopInBrowser(source, recipe, {
             edge: edge ?? DEVELOP_ENGINE_LIMITS.previewEdge,

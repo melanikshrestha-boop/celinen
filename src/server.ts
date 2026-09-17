@@ -60,7 +60,9 @@ const SECURITY_HEADERS: Record<string, string> = {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com",
+    // 'wasm-unsafe-eval' admits WebAssembly compilation only (the C++ Develop and
+    // voice engines, same-origin .wasm); it does not enable eval() for scripts.
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://www.googletagmanager.com",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://us.i.posthog.com https://eu.i.posthog.com https://accounts.google.com https://api.stripe.com",
     "frame-src 'self' https://accounts.google.com https://js.stripe.com https://hooks.stripe.com https://*.supabase.co",
     "worker-src 'self' blob:",

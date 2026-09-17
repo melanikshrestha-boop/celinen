@@ -64,6 +64,39 @@ systems still require a decoder/encoder adapter. Stored process models retain
 their version semantics; the continuous RAW white-balance foundation is not
 silently activated for existing recipes or advertised as a completed editor fix.
 
+## Hosted engines (WebAssembly)
+
+lenslab.dev cannot spawn `lenslabs-develop`, so the same C++ is compiled to
+WebAssembly and run in the browser. There is no second renderer: `develop()`,
+`read_develop_protocol()` and the recipe text protocol are shared byte for byte.
+
+- `native/wasm/develop_wasm.cpp` → `src/lib/develop/wasm/celinen-develop.wasm`.
+  Runs in a Web Worker. The decoded photo stays resident in the engine, so a
+  slider drag sends only recipe text. Measured in Chromium on an M-series Mac at
+  the 1,600px preview: about 60 ms for basic tone, about 200 ms for a heavy
+  recipe (curve, mixer, clarity, sharpening, grain, vignette, straighten).
+  JPEG/PNG/WebP sources only: sensor RAW, automatic crop, reference match and
+  object removal still need the local executables.
+- `native/src/develop_auto.cpp` measures a frame and solves exposure, contrast,
+  highlights, shadows, whites, blacks, white balance and vibrance against
+  `develop.cpp`'s own tone equations (the Auto button). Deterministic statistics,
+  not a trained model.
+- `native/wasm/voice_wasm.cpp` → `src/lib/voice/wasm/celinen-voice.wasm`. The
+  dictation front end (`native/src/voice.cpp`): DC removal, band-limited
+  resampling to 16 kHz PCM16, adaptive-noise-floor voice activity detection and
+  utterance segmentation. `public/voice/capture.worklet.js` only forwards
+  microphone samples to it.
+
+```sh
+sh native/wasm/build.sh        # needs Emscripten (em++ on PATH, or EMSDK set)
+bun test tests/develop-wasm.test.ts tests/voice-wasm.test.ts
+```
+
+The `.wasm` files are committed so deploys and CI never need the toolchain.
+Rebuild and commit them whenever `develop*.cpp` or `voice.cpp` change; the two
+test files above execute the committed binaries. The site's CSP allows
+WebAssembly compilation with `'wasm-unsafe-eval'` only; scripts still cannot `eval`.
+
 ## Historical Studio transport and standalone CLI reference
 
 The following notes preserve the September 7 preview/culling milestone, its

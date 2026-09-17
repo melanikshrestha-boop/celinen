@@ -338,10 +338,12 @@ describe("browser Develop tone", () => {
         flipY: true,
       };
       settings.exposure = 1;
+      // The decoder retries orientation and MIME variants before giving up, so
+      // reaching it at all proves geometry passed the capability check.
       await expect(renderDevelopInBrowser(new Blob(["synthetic"]), settings)).rejects.toThrow(
-        "Synthetic decode boundary",
+        "could not be decoded",
       );
-      expect(decodeCalls).toBe(1);
+      expect(decodeCalls).toBeGreaterThanOrEqual(1);
     } finally {
       if (previous) Object.defineProperty(globalThis, "createImageBitmap", previous);
       else Reflect.deleteProperty(globalThis, "createImageBitmap");

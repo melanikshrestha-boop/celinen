@@ -1,6 +1,5 @@
-import { BROWSER_DEVELOP_ENGINE } from "./browser-render";
 import { defaultDevelopSettings } from "./contract";
-import { developEngineStatus, renderDevelop } from "./client";
+import { developEngineStatus, isHostedDevelopEngine, renderDevelop } from "./client";
 import {
   asDevelopPreviewBlob,
   decodeDevelopPreview,
@@ -81,7 +80,7 @@ export async function prepareDevelopPreview(
   options: { priority?: "interactive" | "background" } = {},
 ): Promise<DevelopPreviewResult> {
   const status = await developEngineStatus();
-  if (!input.isRaw && (!status?.ready || !status.token || status.engine === BROWSER_DEVELOP_ENGINE))
+  if (!input.isRaw && (!status?.ready || !status.token || isHostedDevelopEngine(status.engine)))
     return rasterDevelopPreview(file, signal);
   try {
     const preview = await renderDevelop(file, defaultDevelopSettings(), {
@@ -136,7 +135,9 @@ export async function cookDevelopPhotoPreview(
     const file =
       source instanceof File
         ? source
-        : new File([source], photo.name || "photo.jpg", { type: source.type || "application/octet-stream" });
+        : new File([source], photo.name || "photo.jpg", {
+            type: source.type || "application/octet-stream",
+          });
     try {
       const cooked = await prepareDevelopPreview(file, { isRaw: Boolean(photo.isRaw) }, signal);
       if (await developBlobIsViewable(cooked.previewBlob)) return cooked.previewBlob;

@@ -179,7 +179,7 @@ function fixture(delayFirstFlush = false, action: "snapshot" | "export" = "snaps
       await renderGate.promise;
       return new Blob(["synthetic export"]);
     },
-    createImageBitmap: async () => ({ width: 16, height: 12, close: () => {} }),
+    decodeDevelopPreview: async () => ({ width: 16, height: 12, close: () => {} }),
     download: (_blob: Blob, filename: string) => downloads.push(filename),
     photoExportFilename,
     setExportProof: (proof: DevelopExportProof | null) => {
