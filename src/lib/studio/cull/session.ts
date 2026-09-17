@@ -5,6 +5,7 @@
  */
 import type { CullReason, CullRow, CullVerdict } from "./engine";
 import type { CullReading } from "./engine";
+import type { FaceReading } from "./ingest-engine";
 
 export type CullFrame = {
   id: string;
@@ -23,6 +24,9 @@ export type CullFrame = {
   cameraKey?: string | undefined;
   /** The engine's measurements. Absent while the frame is still being read. */
   reading?: CullReading | undefined;
+  /** The faces the engine found, most prominent first. Absent when it did not
+   * look: no face models on this device, or a frame too soft to be a keeper. */
+  faces?: FaceReading[] | undefined;
   /** What the engine suggested. Absent until the shoot-level pass has run. */
   suggestion?: CullRow | undefined;
   /** What the photographer chose. This always wins. */
@@ -80,6 +84,7 @@ export const CULL_REASON_LABELS: Record<CullReason, string> = {
   duplicate: "Near-identical frame scored better",
   "best-of-burst": "Best of burst",
   "strong-frame": "Sharp and well exposed",
+  "eyes-uncertain": "Eyes uncertain",
 };
 
 /** The verdict a frame currently carries: the photographer's if they decided,

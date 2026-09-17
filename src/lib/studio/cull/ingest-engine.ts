@@ -3,7 +3,7 @@
  * filmstrip thumbnail come back. The browser never decodes the original, which
  * is what makes a ten-thousand frame card finish in minutes instead of an hour.
  */
-import type { CullReading } from "./engine";
+import { COLOR_BYTES, READING_FIELDS, readingFromLayout, type CullReading } from "./engine";
 import { hasRawExports, rawApiFromExports, type RawApi } from "./raw-container";
 
 type Exports = {
@@ -23,13 +23,23 @@ type Exports = {
     measureEdge: number,
     thumbEdge: number,
     thumbQuality: number,
+    flags: number,
   ) => number;
   celinen_ingest_damaged?: () => number;
+  // Absent in binaries built before the engine read faces.
+  celinen_ingest_model_input?: (size: number) => number;
+  celinen_ingest_load_model?: (kind: number, size: number) => number;
+  celinen_ingest_faces_ready?: () => number;
+  celinen_ingest_faces?: () => number;
+  celinen_ingest_face_count?: () => number;
+  celinen_ingest_face_fields?: () => number;
+  celinen_ingest_reading_fields?: () => number;
   celinen_ingest_run: (
     size: number,
     measureEdge: number,
     thumbEdge: number,
     thumbQuality: number,
+    flags: number,
   ) => number;
   celinen_ingest_reading: () => number;
   celinen_ingest_capture_time: () => number;
@@ -63,6 +73,47 @@ export type FocusHit = {
   verdict: FocusHitVerdict;
 };
 
+/** One face the engine found, most prominent first. */
+export type FaceReading = {
+  /** Normalized to the upright frame, 0..1. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Detector confidence 0..1. */
+  score: number;
+  /** The face's width in the original photograph's pixels. */
+  pixels: number;
+  /** Acuity across the eyes 0..1; negative when not measured. */
+  sharpness: number;
+  /** Probability the eyes are closed 0..1; negative when they were not judged. */
+  closedProbability: number;
+  /** How far closedProbability can be trusted, 0..1. */
+  confidence: number;
+  /** Blendshape eyeBlinkLeft / eyeBlinkRight (the subject's own sides); negative when not read. */
+  blinkLeft: number;
+  blinkRight: number;
+  /** The landmark model's confidence that a face is there; negative when it did not run. */
+  presence: number;
+  /** Head pose in degrees; positive pitch looks down. */
+  yaw: number;
+  pitch: number;
+  /** Pixels of real image detail across the face the eyes were read from. */
+  detail: number;
+  judged: boolean;
+  /** The face the frame's eye verdict was taken from. */
+  primary: boolean;
+  /** A second landmark pass checked the first. */
+  refined: boolean;
+};
+
+/** The model files, as fetched. See src/lib/studio/cull/models/THIRD-PARTY.md. */
+export type FaceModelFiles = {
+  detector: ArrayBuffer;
+  landmarks: ArrayBuffer;
+  blendshapes: ArrayBuffer;
+};
+
 export type IngestResult = {
   reading: CullReading;
   /** The original's own pixel size, before the scaled decode. */
@@ -76,6 +127,8 @@ export type IngestResult = {
   cameraKey: string | undefined;
   /** A JPEG for the filmstrip, made from the same decode. */
   thumbnail: Blob;
+  /** Faces, when the models are loaded and faces were asked for; null otherwise. */
+  faces: FaceReading[] | null;
   /** The measured frame, for a caller that wants to look closer. */
   frame: { width: number; height: number; rgba: Uint8ClampedArray<ArrayBuffer> };
   /** The camera's AF area from its maker note (Sony, Nikon, Canon, Fujifilm),
@@ -105,6 +158,11 @@ export type IngestOptions = {
   /** Long edge of the thumbnail this returns. */
   thumbEdge?: number;
   thumbQuality?: number;
+  /** Find faces and read eyes when the models are loaded. Defaults to true. */
+  faces?: boolean;
+  /** Decode with libjpeg's streaming decoder instead of keeping coefficients:
+   * lower memory, no full-resolution face crops. For tests and diagnostics. */
+  streamingDecode?: boolean;
 };
 
 export type IngestEngine = {
@@ -122,14 +180,19 @@ export type IngestEngine = {
   ) => IngestResult;
   /** The RAW container API linked into the same binary; null in older binaries. */
   raw: RawApi | null;
+  /** Parses the face models into the engine; they stay loaded for every photo.
+   * Throws when a file is not the model expected, or the binary is too old. */
+  loadFaceModels(files: FaceModelFiles): void;
+  /** Whether this engine can find faces, and whether it can read their eyes. */
+  facesReady(): { detect: boolean; eyes: boolean };
   /** Hands every buffer back between cards. */
   release(): void;
 };
 
-const READING_FIELDS = 23;
-const COLOR_BYTES = 48;
 const WASI_ENOSYS = 52;
 const FOCUS_FIELDS = 13;
+const FACE_FIELDS = 16;
+const MODEL_KINDS = ["detector", "landmarks", "blendshapes"] as const;
 const VERDICTS: readonly FocusHitVerdict[] = [
   "unjudged",
   "on-subject",
@@ -149,6 +212,9 @@ export async function instantiateIngestWasm(
   }
   const wasm = (await WebAssembly.instantiate(module, imports)).exports as unknown as Exports;
   wasm._initialize?.();
+  const fields = wasm.celinen_ingest_reading_fields?.() ?? READING_FIELDS;
+  if (fields !== READING_FIELDS || (wasm.celinen_ingest_face_fields?.() ?? FACE_FIELDS) !== FACE_FIELDS)
+    throw new Error("The ingest engine's layout does not match this build.");
 
   const text = (pointer: number) => {
     const bytes = new Uint8Array(wasm.memory.buffer, pointer);
@@ -161,6 +227,10 @@ export async function instantiateIngestWasm(
     measureEdge: options.measureEdge ?? 640,
     thumbEdge: options.thumbEdge ?? 320,
     thumbQuality: options.thumbQuality ?? 72,
+    // Bit 1 reads faces, bit 2 forces libjpeg's streaming decoder.
+    flags:
+      ((options.faces ?? true) && ((wasm.celinen_ingest_faces_ready?.() ?? 0) & 1) === 1 ? 1 : 0) |
+      (options.streamingDecode ? 2 : 0),
   });
 
   const loadMetadata = (container: Uint8Array | undefined) => {
@@ -178,38 +248,44 @@ export async function instantiateIngestWasm(
     new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
   };
 
+  const readFaces = (): FaceReading[] | null => {
+    if (!wasm.celinen_ingest_faces || !wasm.celinen_ingest_face_count) return null;
+    const count = wasm.celinen_ingest_face_count();
+    if (!count) return (wasm.celinen_ingest_faces_ready?.() ?? 0) & 1 ? [] : null;
+    const v = new Float64Array(wasm.memory.buffer, wasm.celinen_ingest_faces(), count * FACE_FIELDS);
+    return Array.from({ length: count }, (_, index) => {
+      const at = index * FACE_FIELDS;
+      const flags = v[at + 15]!;
+      return {
+        x: v[at]!,
+        y: v[at + 1]!,
+        width: v[at + 2]!,
+        height: v[at + 3]!,
+        score: v[at + 4]!,
+        pixels: v[at + 5]!,
+        sharpness: v[at + 6]!,
+        closedProbability: v[at + 7]!,
+        confidence: v[at + 8]!,
+        blinkLeft: v[at + 9]!,
+        blinkRight: v[at + 10]!,
+        presence: v[at + 11]!,
+        yaw: v[at + 12]!,
+        pitch: v[at + 13]!,
+        detail: v[at + 14]!,
+        judged: (flags & 1) !== 0,
+        primary: (flags & 2) !== 0,
+        refined: (flags & 4) !== 0,
+      };
+    });
+  };
+
   /** Everything the engine produced for the photo it just ran. */
   const collect = (): IngestResult => {
     const readingPointer = wasm.celinen_ingest_reading();
     if (!readingPointer) throw new Error("This photo could not be measured.");
-    const v = new Float64Array(wasm.memory.buffer, readingPointer, READING_FIELDS + COLOR_BYTES);
-    const hex = (high: number, low: number) =>
-      (high >>> 0).toString(16).padStart(8, "0") + (low >>> 0).toString(16).padStart(8, "0");
-    const reading: CullReading = {
-      acuitySubject: v[0]!,
-      acuityBest: v[1]!,
-      texture: v[2]!,
-      motion: v[3]!,
-      globalSmear: v[4] === 1,
-      noise: v[5]!,
-      brightness: v[6]!,
-      subjectLuma: v[7]!,
-      clippedHighlights: v[8]!,
-      clippedShadows: v[9]!,
-      subjectClipped: v[10]!,
-      blackPoint: v[11]!,
-      median: v[12]!,
-      whitePoint: v[13]!,
-      subjectX: v[14]!,
-      subjectY: v[15]!,
-      hash: hex(v[16]!, v[17]!),
-      sharpness: v[18]!,
-      quality: v[19]!,
-      hasFace: v[20] === 1,
-      eyesClosed: v[21] === 1,
-      faceSoft: v[22] === 1,
-      color: Uint8Array.from(v.subarray(READING_FIELDS, READING_FIELDS + COLOR_BYTES)),
-    };
+    const reading = readingFromLayout(
+      new Float64Array(wasm.memory.buffer, readingPointer, READING_FIELDS + COLOR_BYTES),
+    );
 
     const thumbSize = wasm.celinen_ingest_thumbnail_size();
     // Copied out of wasm memory: the next photo reuses it, and growth detaches it.
@@ -254,6 +330,7 @@ export async function instantiateIngestWasm(
             : "camera_clock",
       cameraKey: camera || undefined,
       thumbnail: new Blob([thumbnail], { type: "image/jpeg" }),
+      faces: readFaces(),
       frame: { width: frameWidth, height: frameHeight, rgba: pixels },
       ...(afPoint ? { afPoint, afConfirmed, focusHit } : {}),
       ...(damaged ? { damaged } : {}),
@@ -263,17 +340,17 @@ export async function instantiateIngestWasm(
   const runPixels = wasm.celinen_ingest_run_pixels;
   return {
     read(bytes, options = {}, container) {
-      const { measureEdge, thumbEdge, thumbQuality } = edges(options);
+      const { measureEdge, thumbEdge, thumbQuality, flags } = edges(options);
       loadMetadata(container);
       loadInput(bytes);
-      if (!wasm.celinen_ingest_run(bytes.length, measureEdge, thumbEdge, thumbQuality))
+      if (!wasm.celinen_ingest_run(bytes.length, measureEdge, thumbEdge, thumbQuality, flags))
         throw new Error(text(wasm.celinen_ingest_error()) || "This photo could not be read.");
       return collect();
     },
     ...(runPixels
       ? {
           readPixels(pixels: DecodedPixels, options: IngestOptions = {}, metadata?: Uint8Array) {
-            const { measureEdge, thumbEdge, thumbQuality } = edges(options);
+            const { measureEdge, thumbEdge, thumbQuality, flags } = edges(options);
             loadMetadata(metadata);
             loadInput(
               new Uint8Array(pixels.rgba.buffer, pixels.rgba.byteOffset, pixels.rgba.byteLength),
@@ -286,6 +363,7 @@ export async function instantiateIngestWasm(
               measureEdge,
               thumbEdge,
               thumbQuality,
+              flags,
             );
             if (!ok)
               throw new Error(text(wasm.celinen_ingest_error()) || "This photo could not be read.");
@@ -294,6 +372,23 @@ export async function instantiateIngestWasm(
         }
       : {}),
     raw: hasRawExports(wasm) ? rawApiFromExports(wasm) : null,
+    loadFaceModels(files) {
+      const room = wasm.celinen_ingest_model_input;
+      const parse = wasm.celinen_ingest_load_model;
+      if (!room || !parse) throw new Error("This cull engine cannot read faces.");
+      MODEL_KINDS.forEach((kind, index) => {
+        const bytes = new Uint8Array(files[kind]);
+        const pointer = room(bytes.length);
+        if (!pointer) throw new Error(text(wasm.celinen_ingest_error()) || "Face model too large.");
+        new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
+        if (!parse(index, bytes.length))
+          throw new Error(text(wasm.celinen_ingest_error()) || `The ${kind} model could not be read.`);
+      });
+    },
+    facesReady() {
+      const ready = wasm.celinen_ingest_faces_ready?.() ?? 0;
+      return { detect: (ready & 1) === 1, eyes: (ready & 2) === 2 };
+    },
     release: () => wasm.celinen_ingest_release(),
   };
 }

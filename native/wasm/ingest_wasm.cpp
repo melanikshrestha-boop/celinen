@@ -11,15 +11,24 @@
 // Formats libjpeg cannot read (WebP, PNG, AVIF, HEIC in Safari) are decoded by
 // the browser in the worker and handed in as upright RGBA through
 // celinen_ingest_run_pixels, so they are measured by exactly the same code.
+//
+// Faces and eyes are read here too (native/src/faces.cpp), because this is
+// where the original's pixels are: the subject's eyes are judged on a crop at
+// the original's own resolution, which the 640px working frame cannot give.
+// For a JPEG that means entropy-decoding the file once and keeping the
+// coefficients (lenslabs::JpegCoefficients), so the crop costs no second decode.
 #include "lenslabs/cull.hpp"
 #include "lenslabs/exif.hpp"
+#include "lenslabs/faces.hpp"
 #include "lenslabs/focus_hit.hpp"
+#include "lenslabs/jpeg_coefficients.hpp"
 #include "lenslabs/raw_preview.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <csetjmp>
 #include <cstring>
+#include <functional>
 #include <new>
 #include <string>
 #include <vector>
@@ -29,13 +38,17 @@ extern "C" {
 }
 
 namespace {
-std::vector<std::uint8_t> input, thumbnail;
+std::vector<std::uint8_t> input, thumbnail, model_input;
 // The head of a RAW container whose embedded JPEG is in `input` (or, for a
 // browser-decoded photo, the file's own first bytes). The preview JPEG a camera
 // embeds rarely carries the maker note or the orientation, so both have to be
 // read from the RAW's own TIFF/CR3 structure. Consumed by one run.
 std::vector<std::uint8_t> metadata;
 std::vector<double> reading;
+// The faces of the last run, most prominent first; empty when none were looked
+// for. Layout documented at celinen_ingest_faces().
+std::vector<double> faces_out;
+lenslabs::FaceReader face_reader;
 // AF area and focus-hit judgment for the last run; empty when the file had no
 // AF area. Layout documented at celinen_ingest_focus().
 std::vector<double> focus;
@@ -48,9 +61,26 @@ double capture_time_ms = -1;
 bool capture_time_utc = false;
 std::uint32_t source_width = 0, source_height = 0;
 
-constexpr std::size_t reading_fields = 23;
+constexpr std::size_t reading_fields = 27;
 constexpr std::size_t color_bytes = 48;
 constexpr std::size_t focus_fields = 13;
+// x, y, width, height (normalized to the working frame), detector score, face
+// width in original pixels, sharpness at the eyes, closed probability,
+// confidence, blink left, blink right, landmark presence, yaw, pitch, pixels of
+// real detail, flags (1 judged, 2 primary, 4 refined). Shared with ingest-engine.ts.
+constexpr std::size_t face_fields = 16;
+// Every face is counted; only the most prominent are reported, which is what
+// the review screen and the evaluation need and keeps a crowd shot small.
+constexpr std::size_t reported_faces = 12;
+// Coefficients cost 128 bytes a block. Two million blocks (about 256 MB; a
+// 45MP 4:2:2 frame is 1.4 million) is the most a lane holds before the
+// streaming decoder, without full-resolution crops, is the better trade.
+constexpr std::size_t coefficient_blocks = 2'000'000;
+
+enum RunFlags : std::uint32_t {
+  read_faces = 1,       // find faces and read eyes, when the models are loaded
+  streaming_decode = 2, // decode with libjpeg's scaled decoder, not coefficients
+};
 
 struct JpegFailure {
   jpeg_error_mgr manager;
@@ -258,6 +288,18 @@ bool encode_jpeg(const lenslabs::Image& image, int quality, std::vector<std::uin
   return true;
 }
 
+// Copies a rectangle out of decoded RGBA that is already in memory.
+bool copy_region(const std::uint8_t* rgba, std::uint32_t width, std::uint32_t height, std::uint32_t x0,
+                 std::uint32_t y0, std::uint32_t x1, std::uint32_t y1, lenslabs::Image& patch) {
+  if (x1 > width || y1 > height || x0 >= x1 || y0 >= y1) return false;
+  patch = lenslabs::Image{x1 - x0, y1 - y0, width, height, {}};
+  patch.rgba.resize(std::size_t(patch.width) * patch.height * 4);
+  for (std::uint32_t y = y0; y < y1; ++y)
+    std::memcpy(patch.rgba.data() + std::size_t(y - y0) * patch.width * 4,
+                rgba + (std::size_t(y) * width + x0) * 4, std::size_t(patch.width) * 4);
+  return true;
+}
+
 void write_reading(const lenslabs::CullReading& r) {
   reading.assign(reading_fields + color_bytes, 0);
   double* out = reading.data();
@@ -284,22 +326,132 @@ void write_reading(const lenslabs::CullReading& r) {
   out[20] = r.has_face ? 1 : 0;
   out[21] = r.eyes_closed ? 1 : 0;
   out[22] = r.face_soft ? 1 : 0;
+  out[23] = r.face_count;
+  out[24] = r.eyes_uncertain ? 1 : 0;
+  out[25] = r.eyes_closed_probability;
+  out[26] = r.eyes_confidence;
   for (std::size_t i = 0; i < color_bytes; ++i) out[reading_fields + i] = r.color[i];
+}
+
+// EXIF orientation between stored and upright coordinates, for rectangles in
+// continuous pixel units. `w` and `h` are the stored image's. The cases mirror
+// upright() above, pixel for pixel.
+struct Rect {
+  double x0, y0, x1, y1;
+};
+void to_upright(int orientation, double w, double h, double x, double y, double& u, double& v) {
+  switch (orientation) {
+    case 2: u = w - x, v = y; break;
+    case 3: u = w - x, v = h - y; break;
+    case 4: u = x, v = h - y; break;
+    case 5: u = y, v = x; break;
+    case 6: u = h - y, v = x; break;
+    case 7: u = h - y, v = w - x; break;
+    case 8: u = y, v = w - x; break;
+    default: u = x, v = y; break;
+  }
+}
+void to_stored(int orientation, double w, double h, double u, double v, double& x, double& y) {
+  switch (orientation) {
+    case 2: x = w - u, y = v; break;
+    case 3: x = w - u, y = h - v; break;
+    case 4: x = u, y = h - v; break;
+    case 5: x = v, y = u; break;
+    case 6: x = v, y = h - u; break;
+    case 7: x = w - v, y = h - u; break;
+    case 8: x = w - v, y = u; break;
+    default: x = u, y = v; break;
+  }
+}
+Rect orient_rect(int orientation, double width, double height, const Rect& r, bool upright_direction) {
+  const auto map = upright_direction ? to_upright : to_stored;
+  double ax, ay, bx, by;
+  map(orientation, width, height, r.x0, r.y0, ax, ay);
+  map(orientation, width, height, r.x1, r.y1, bx, by);
+  return {std::min(ax, bx), std::min(ay, by), std::max(ax, bx), std::max(ay, by)};
+}
+
+// An upright patch of the original from any renderer that draws integer
+// rectangles of the stored orientation at a fixed scale.
+bool upright_patch(int orientation, double stored_width, double stored_height, double scale,
+                   const Rect& wanted,
+                   const std::function<bool(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t,
+                                            lenslabs::Image&)>& render,
+                   std::uint32_t rendered_width, std::uint32_t rendered_height, lenslabs::Patch& out) {
+  const Rect bounds{0, 0, orientation >= 5 ? stored_height : stored_width,
+                    orientation >= 5 ? stored_width : stored_height};
+  const Rect clipped{std::max(wanted.x0, bounds.x0), std::max(wanted.y0, bounds.y0),
+                     std::min(wanted.x1, bounds.x1), std::min(wanted.y1, bounds.y1)};
+  if (clipped.x0 >= clipped.x1 || clipped.y0 >= clipped.y1) return false;
+  const Rect stored = orient_rect(orientation, stored_width, stored_height, clipped, false);
+  const auto x0 = std::uint32_t(std::clamp(std::floor(stored.x0 * scale), 0.0, double(rendered_width)));
+  const auto y0 = std::uint32_t(std::clamp(std::floor(stored.y0 * scale), 0.0, double(rendered_height)));
+  const auto x1 = std::uint32_t(std::clamp(std::ceil(stored.x1 * scale), 0.0, double(rendered_width)));
+  const auto y1 = std::uint32_t(std::clamp(std::ceil(stored.y1 * scale), 0.0, double(rendered_height)));
+  if (x0 >= x1 || y0 >= y1) return false;
+  lenslabs::Image patch;
+  if (!render(x0, y0, x1, y1, patch)) return false;
+  // Where the rendered rectangle lands once upright, back in original pixels.
+  const Rect placed =
+      orient_rect(orientation, stored_width, stored_height, {x0 / scale, y0 / scale, x1 / scale, y1 / scale}, true);
+  out.image = upright(patch, orientation);
+  out.origin_x = placed.x0;
+  out.origin_y = placed.y0;
+  out.scale = scale;
+  return true;
+}
+
+void write_faces(const std::vector<lenslabs::FaceResult>& results, int primary) {
+  faces_out.assign(std::min(results.size(), reported_faces) * face_fields, 0);
+  for (std::size_t i = 0; i * face_fields < faces_out.size(); ++i) {
+    const auto& r = results[i];
+    double* out = faces_out.data() + i * face_fields;
+    out[0] = r.face.x;
+    out[1] = r.face.y;
+    out[2] = r.face.width;
+    out[3] = r.face.height;
+    out[4] = r.face.score;
+    out[5] = r.original.width;
+    out[6] = r.face.sharpness;
+    out[7] = r.face.closed_probability;
+    out[8] = r.face.confidence;
+    out[9] = r.eyes.read ? r.eyes.blink_left : -1;
+    out[10] = r.eyes.read ? r.eyes.blink_right : -1;
+    out[11] = r.eyes.presence;
+    out[12] = r.eyes.yaw;
+    out[13] = r.eyes.pitch;
+    out[14] = r.eyes.detail;
+    out[15] = (r.eyes.read ? 1 : 0) + (int(i) == primary ? 2 : 0) + (r.eyes.refined ? 4 : 0);
+  }
 }
 
 // Everything after the pixels exist: the working frame, the measurement, the
 // AF judgment and the thumbnail. `upright_image` is already turned the right way.
 bool complete(lenslabs::Image upright_image, const lenslabs::AfArea& af, int af_orientation,
-              std::uint32_t measure_edge, std::uint32_t thumb_edge, int thumb_quality) {
+              std::uint32_t measure_edge, std::uint32_t thumb_edge, int thumb_quality,
+              std::uint32_t flags, const lenslabs::PatchSource& crops, double upright_width,
+              double upright_height) {
   // libjpeg can only scale in eighths, so a 24MP body and a 12MP body land on
   // different sizes. Normalize to one working edge: blur is then measured in
   // the same units on every camera in the shoot, which is what lets frames be
   // compared with each other at all.
   frame = resample(upright_image, measure_edge);
   upright_image = {};
-  // Faces are the browser's to find; the engine is told about them separately
-  // when a detector exists, and never guesses at them here.
-  write_reading(lenslabs::measure_cull(frame, {}));
+  // Eyes only matter on a frame that could still be a keeper: below the
+  // engine's absolute focus floor the frame is rejected for focus in any
+  // shoot, so nothing is spent looking for its faces.
+  auto measured = lenslabs::measure_cull(frame, {});
+  std::vector<lenslabs::FaceResult> faces;
+  if ((flags & read_faces) && face_reader.can_detect() && crops &&
+      measured.acuity_subject >= lenslabs::absolute_soft_floor)
+    faces = face_reader.read(frame, upright_width, upright_height, crops);
+  std::vector<lenslabs::CullFace> cull_faces;
+  for (const auto& result : faces) cull_faces.push_back(result.face);
+  // Measured again with the faces: they weight the subject the focus
+  // measurement reads, and they carry the eye evidence.
+  if (!cull_faces.empty()) measured = lenslabs::measure_cull(frame, cull_faces);
+  write_reading(measured);
+  write_faces(faces, lenslabs::judge_eyes(cull_faces, double(frame.width) / frame.height).primary);
   if (af.present) {
     // AF coordinates are sensor-up. Rotate them by the orientation the pixels
     // were actually given, so the area lands on the frame that was measured.
@@ -336,6 +488,7 @@ std::vector<std::uint8_t> begin_run() {
   damaged.clear();
   thumbnail.clear();
   reading.clear();
+  faces_out.clear();
   focus.clear();
   frame = {};
   std::vector<std::uint8_t> head;
@@ -372,6 +525,43 @@ std::uint8_t* celinen_ingest_metadata(std::uint32_t size) {
   return metadata.data();
 }
 
+// Room for one face model's bytes, kept only until it is parsed.
+std::uint8_t* celinen_ingest_model_input(std::uint32_t size) {
+  if (!size || size > 64u * 1024 * 1024) return nullptr;
+  try {
+    model_input.assign(size, 0);
+  } catch (...) {
+    error = "The face models are too large for the browser's memory.";
+    return nullptr;
+  }
+  return model_input.data();
+}
+
+/** Parses the model just written: 0 face detector (YuNet, ONNX), 1 face
+ * landmarks (Face Mesh V2, TFLite), 2 blendshapes (Blendshape V2, TFLite).
+ * Models stay loaded for every later photo. Returns 1, or 0 with the error set.
+ */
+int celinen_ingest_load_model(int kind, std::uint32_t size) {
+  error.clear();
+  try {
+    if (kind < 0 || kind > 2 || size > model_input.size()) throw std::invalid_argument("Invalid model request.");
+    face_reader.load(static_cast<lenslabs::FaceReader::Model>(kind), model_input.data(), size);
+    model_input.clear();
+    model_input.shrink_to_fit();
+    return 1;
+  } catch (const std::bad_alloc&) {
+    error = "The face models are too large for the browser's memory.";
+  } catch (const std::exception& failure) {
+    error = failure.what();
+  }
+  return 0;
+}
+
+// 1 when faces can be found, plus 2 when their eyes can be read.
+int celinen_ingest_faces_ready() {
+  return (face_reader.can_detect() ? 1 : 0) + (face_reader.can_read_eyes() ? 2 : 0);
+}
+
 // Room for one photo's bytes. Returns null when the file is beyond the bound.
 std::uint8_t* celinen_ingest_input(std::uint32_t size) {
   if (!size || size > 200u * 1024 * 1024) return nullptr;
@@ -394,7 +584,7 @@ std::uint8_t* celinen_ingest_input(std::uint32_t size) {
  * again. The container's AF area, capture time and camera win over the preview's.
  */
 int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint32_t thumb_edge,
-                       int thumb_quality) {
+                       int thumb_quality, std::uint32_t flags) {
   const auto container_head = begin_run();
   try {
     if (size > input.size() || !valid_edges(measure_edge, thumb_edge, thumb_quality)) {
@@ -406,8 +596,32 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
     capture_time_utc = facts.capture_time_utc;
     camera_key = facts.camera_key;
 
+    // One entropy decode. The working frame renders from the coefficients at
+    // the same eighth-scale libjpeg would pick, bit for bit, and any face crop
+    // renders from them too. Files the renderer does not take (CMYK, beyond the
+    // memory bound) fall back to libjpeg's streaming decoder, which cannot give
+    // a full-resolution crop.
+    lenslabs::JpegCoefficients coefficients;
+    const bool from_coefficients =
+        !(flags & streaming_decode) && coefficients.read(input.data(), size, coefficient_blocks);
     lenslabs::Image decoded;
-    if (!decode_jpeg(input.data(), size, measure_edge, decoded)) {
+    if (from_coefficients) {
+      source_width = coefficients.width();
+      source_height = coefficients.height();
+      const auto numerator = scale_for(source_width, source_height, measure_edge);
+      if (!coefficients.render(numerator, decoded) || decoded.width < 8 || decoded.height < 8) {
+        error = coefficients.error().empty() ? "This photo is too small to judge." : coefficients.error();
+        return 0;
+      }
+      // Reading coefficients hits the same truncation and corruption the
+      // streaming decoder reports, and it has to be named for the same reason.
+      if (coefficients.ended_early())
+        damaged = "This file is cut short: the end of the photo is missing and shows as gray, "
+                  "so its focus and exposure readings cannot be trusted.";
+      else if (coefficients.corrupt())
+        damaged = "Part of this photo's data is corrupt: some of the picture shows as gray or "
+                  "smeared, so its focus and exposure readings cannot be trusted.";
+    } else if (!decode_jpeg(input.data(), size, measure_edge, decoded)) {
       if (error.empty()) error = "This photo could not be decoded.";
       return 0;
     }
@@ -439,8 +653,33 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
       }
       if (!container.camera_key.empty()) camera_key = container.camera_key;
     }
+    const double stored_w = source_width, stored_h = source_height;
+    const double upright_w = orientation >= 5 ? stored_h : stored_w;
+    const double upright_h = orientation >= 5 ? stored_w : stored_h;
+    // The stored-orientation decode stays alive for the crops below.
+    const lenslabs::Image& base = decoded;
+    lenslabs::PatchSource crops = [&](double x0, double y0, double x1, double y1, double scale,
+                                      lenslabs::Patch& out) {
+      if (from_coefficients) {
+        // The smallest eighth-scale that still gives the face its pixels.
+        const unsigned numerator = unsigned(std::clamp(std::ceil(scale * 8 - 1e-9), 1.0, 8.0));
+        return upright_patch(
+            orientation, stored_w, stored_h, numerator / 8.0, {x0, y0, x1, y1},
+            [&](std::uint32_t a, std::uint32_t b, std::uint32_t c, std::uint32_t d, lenslabs::Image& patch) {
+              return coefficients.render_region(numerator, a, b, c, d, patch);
+            },
+            coefficients.scaled_width(numerator), coefficients.scaled_height(numerator), out);
+      }
+      // Streaming decode: the scaled image is all the detail there is.
+      return upright_patch(
+          orientation, stored_w, stored_h, double(base.width) / stored_w, {x0, y0, x1, y1},
+          [&](std::uint32_t a, std::uint32_t b, std::uint32_t c, std::uint32_t d, lenslabs::Image& patch) {
+            return copy_region(base.rgba.data(), base.width, base.height, a, b, c, d, patch);
+          },
+          base.width, base.height, out);
+    };
     return complete(upright(decoded, orientation), af, af_orientation, measure_edge, thumb_edge,
-                    thumb_quality)
+                    thumb_quality, flags, crops, upright_w, upright_h)
                ? 1
                : 0;
   } catch (const std::bad_alloc&) {
@@ -460,7 +699,7 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
  */
 int celinen_ingest_run_pixels(std::uint32_t width, std::uint32_t height, std::uint32_t source_w,
                               std::uint32_t source_h, std::uint32_t measure_edge,
-                              std::uint32_t thumb_edge, int thumb_quality) {
+                              std::uint32_t thumb_edge, int thumb_quality, std::uint32_t flags) {
   const auto head = begin_run();
   try {
     if (!valid_edges(measure_edge, thumb_edge, thumb_quality) || width > 16384 || height > 16384 ||
@@ -489,7 +728,23 @@ int celinen_ingest_run_pixels(std::uint32_t width, std::uint32_t height, std::ui
     pixels.rgba.assign(input.begin(), input.begin() + std::ptrdiff_t(std::size_t(width) * height * 4));
     // A transparent PNG is judged as it would print: every pixel opaque.
     for (std::size_t i = 3; i < pixels.rgba.size(); i += 4) pixels.rgba[i] = 255;
-    return complete(std::move(pixels), af, af_orientation, measure_edge, thumb_edge, thumb_quality) ? 1 : 0;
+    // These pixels are already upright and at whatever size the browser decoded
+    // them, so a face crop is a copy out of the input buffer, which complete()
+    // does not touch.
+    const double scale = double(width) / double(source_width);
+    lenslabs::PatchSource crops = [&](double x0, double y0, double x1, double y1, double,
+                                      lenslabs::Patch& out) {
+      return upright_patch(
+          1, double(source_width), double(source_height), scale, {x0, y0, x1, y1},
+          [&](std::uint32_t a, std::uint32_t b, std::uint32_t c, std::uint32_t d, lenslabs::Image& patch) {
+            return copy_region(input.data(), width, height, a, b, c, d, patch);
+          },
+          width, height, out);
+    };
+    return complete(std::move(pixels), af, af_orientation, measure_edge, thumb_edge, thumb_quality,
+                    flags, crops, double(width), double(height))
+               ? 1
+               : 0;
   } catch (const std::bad_alloc&) {
     error = "This photo is too large for the browser's memory.";
   } catch (const std::exception& failure) {
@@ -504,6 +759,13 @@ int celinen_ingest_run_pixels(std::uint32_t width, std::uint32_t height, std::ui
 const char* celinen_ingest_damaged() { return damaged.c_str(); }
 
 const double* celinen_ingest_reading() { return reading.empty() ? nullptr : reading.data(); }
+std::uint32_t celinen_ingest_reading_fields() { return reading_fields; }
+
+/** The faces of the last run, most prominent first, face_fields doubles each.
+ * Empty when no models are loaded or the frame was too soft to be worth reading. */
+const double* celinen_ingest_faces() { return faces_out.data(); }
+std::uint32_t celinen_ingest_face_count() { return std::uint32_t(faces_out.size() / face_fields); }
+std::uint32_t celinen_ingest_face_fields() { return face_fields; }
 
 /** Null when the last photo carried no camera AF area. Otherwise 13 doubles:
  * [0..3] AF area x, y, width, height normalized to the upright frame;
@@ -531,6 +793,8 @@ const std::uint8_t* celinen_ingest_pixels() { return frame.rgba.data(); }
 
 // Hands every buffer back. The worker calls this between cards.
 void celinen_ingest_release() {
+  faces_out.clear(); faces_out.shrink_to_fit();
+  model_input.clear(); model_input.shrink_to_fit();
   input.clear(); input.shrink_to_fit();
   thumbnail.clear(); thumbnail.shrink_to_fit();
   reading.clear(); reading.shrink_to_fit();

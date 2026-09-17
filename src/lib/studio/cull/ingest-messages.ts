@@ -1,5 +1,5 @@
 import type { CullReading } from "./engine";
-import type { FocusHit, IngestOptions, NormalizedRect } from "./ingest-engine";
+import type { FaceReading, FocusHit, IngestOptions, NormalizedRect } from "./ingest-engine";
 
 export type IngestRequest = {
   id: string;
@@ -28,5 +28,10 @@ export type IngestReply =
       afConfirmed?: boolean | undefined;
       /** Sharpness at the AF area against the frame's sharpest detail. */
       focusHit?: FocusHit | undefined;
+      /** The faces the engine found, most prominent first. Absent when this
+       * lane has no face models, or the frame was too soft to be worth looking. */
+      faces?: FaceReading[] | undefined;
+      /** False when this lane could not load the face models at all. */
+      eyesRead: boolean;
     }
   | { id: string; kind: "failed"; error: string };
