@@ -818,9 +818,10 @@ function VideoReview() {
               type="button"
               onClick={undo}
               disabled={journal.length === 0}
+              data-app-key="undo"
               className="grid size-8 place-items-center rounded-lg bg-muted text-moss transition-colors hover:text-ink disabled:opacity-35"
               aria-label="Undo last verdict"
-              title="Undo · U"
+              title="Undo · ⌘Z · U"
             >
               <RotateCcw size={14} />
             </button>

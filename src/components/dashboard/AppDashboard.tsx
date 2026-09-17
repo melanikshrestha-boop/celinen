@@ -35,6 +35,7 @@ import { chatCopyText, chatShareFile, dashboardChatRecord } from "@/lib/chat-sha
 import { isPhotographyConversation } from "@/lib/photography-assistant";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { queueStudioImport } from "@/lib/studio/pending-import";
+import { registerAppKeys } from "@/lib/app-keys";
 import "./dashboard.css";
 import "./social-accounts.css";
 
@@ -324,6 +325,33 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     setActiveId(id);
     writeThreads(scope, next);
   }
+
+  useEffect(() => {
+    if (!onChat) return;
+    return registerAppKeys({
+      undo: () => {
+        if (!active || !active.messages.length || !scope) return;
+        const messages = [...active.messages];
+        if (messages.at(-1)?.role === "assistant") messages.pop();
+        if (messages.at(-1)?.role === "user") messages.pop();
+        persist(
+          [{ ...active, messages, updatedAt: Date.now() }, ...threads.filter((thread) => thread.id !== active.id)],
+          active.id,
+        );
+      },
+      copy: () => {
+        const message = active?.messages.at(-1);
+        if (!message) return false;
+        void copyText(message.id, message.text);
+        return true;
+      },
+      paste: (files) => {
+        if (!files.length) return false;
+        ingestPhotos(files);
+        return true;
+      },
+    });
+  }, [onChat, active, threads, scope]);
   async function send(fromVoice?: string) {
     const text = (fromVoice ?? draft).trim();
     if (!text || !scope || pendingReply.current) return;
@@ -657,6 +685,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                         <p data-role={message.role}>{message.text}</p>
                         <button
                           type="button"
+                          data-app-key="copy"
                           aria-label={copied === message.id ? "Copied" : "Copy"}
                           onClick={() => void copyText(message.id, message.text)}
                         >

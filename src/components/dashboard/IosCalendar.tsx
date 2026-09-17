@@ -33,6 +33,7 @@ import {
 import { readBookingTypes, writeBookingTypes, type BookingType } from "@/lib/booking-types";
 import { readCalendarTasks, writeCalendarTasks, type CalendarTask } from "@/lib/calendar-tasks";
 import { mapsSearchUrl } from "@/lib/maps-places";
+import { registerAppKeys } from "@/lib/app-keys";
 import { BookingsPanel } from "./BookingsPanel";
 import { EventSheet, type EventSheetValue } from "./EventSheet";
 import "./ios-calendar.css";
@@ -218,6 +219,7 @@ export function IosCalendar() {
   const paint = useRef<{ day: Date; origin: number; col: HTMLElement } | null>(null);
   const [ghost, setGhost] = useState<{ start: number; end: number } | null>(null);
   const droppedIds = useRef(new Set<string>());
+  const undoDeleted = useRef<CalendarEvent[]>([]);
   const stateRef = useRef(state);
   stateRef.current = state;
   const sheetRef = useRef(sheet);
@@ -394,6 +396,7 @@ export function IosCalendar() {
           )
         : undefined);
     const targetId = hit?.id ?? id;
+    if (hit) undoDeleted.current.push(hit);
     droppedIds.current.add(targetId);
     if (hit) {
       droppedIds.current.add(eventDropMark(hit));
@@ -416,6 +419,48 @@ export function IosCalendar() {
     setSheet(null);
     setGhost(null);
   }
+
+  function undoDeletedEvent() {
+    const event = undoDeleted.current.pop();
+    if (!event) return;
+    droppedIds.current.delete(event.id);
+    droppedIds.current.delete(eventDropMark(event));
+    persist({
+      ...stateRef.current,
+      localEvents:
+        event.source === "local"
+          ? [...stateRef.current.localEvents, event]
+          : stateRef.current.localEvents,
+      feedEvents:
+        event.source === "local"
+          ? stateRef.current.feedEvents
+          : [...stateRef.current.feedEvents, event],
+    });
+  }
+
+  useEffect(() => {
+    return registerAppKeys({
+      undo: undoDeletedEvent,
+      copy: () => {
+        const id = inspectRef.current;
+        const event = [...stateRef.current.localEvents, ...stateRef.current.feedEvents].find(
+          (item) => item.id === id,
+        );
+        const title = event?.title || sheetRef.current?.value.title.trim();
+        if (!title) return false;
+        void navigator.clipboard.writeText(title);
+        return true;
+      },
+      paste: (_files, text) => {
+        const note = text.trim();
+        if (!note) return false;
+        const event = parseShootNote(note, { now: new Date(), selected, accent: "#2f6fed" });
+        if (!event) return false;
+        persist({ ...stateRef.current, localEvents: [...stateRef.current.localEvents, event] });
+        return true;
+      },
+    });
+  }, [selected]);
 
   function valueFromEvent(event: CalendarEvent): EventSheetValue {
     const location = event.location ?? "";

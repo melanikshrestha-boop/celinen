@@ -13,6 +13,7 @@ import { reportAppError } from "../lib/app-error-reporting";
 import { PRODUCT_HEADLINE } from "@/lib/product";
 import { LensProvider } from "@/lib/lensos-store";
 import { WorkbenchBoundary } from "@/components/workbench/Workbench";
+import { AppKeys } from "@/components/AppKeys";
 import { AccountProvider, useAccount } from "@/components/account/AccountProvider";
 import { ProductAnalytics } from "@/components/account/ProductAnalytics";
 import { SIGNED_IN_HINT_SCRIPT } from "@/lib/signed-in-hint";
@@ -138,6 +139,7 @@ function AccountContent() {
     <LensProvider key={account?.scope ?? "signed-out"}>
       <ProductAnalytics />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <AppKeys />
       <WorkbenchBoundary>
         <Outlet />
       </WorkbenchBoundary>

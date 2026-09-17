@@ -2130,6 +2130,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             </Panel>
             <div className="develop-left-footer">
               <button
+                data-app-key="copy"
                 disabled={!photo}
                 onClick={() => {
                   setClipboard(cloneDevelopSettings(draft));
@@ -2140,6 +2141,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 Copy
               </button>
               <button
+                data-app-key="paste"
                 disabled={!clipboard || !source || !!saveError}
                 onClick={() =>
                   clipboard &&
@@ -2272,6 +2274,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   />
                   <button
                     aria-label="Undo"
+                    data-app-key="undo"
                     disabled={!source || !doc || doc.cursor === 0 || !!saveError}
                     onClick={undo}
                   >
@@ -2279,6 +2282,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   </button>
                   <button
                     aria-label="Redo"
+                    data-app-key="redo"
                     disabled={
                       !source || !doc || doc.cursor === doc.history.length - 1 || !!saveError
                     }
