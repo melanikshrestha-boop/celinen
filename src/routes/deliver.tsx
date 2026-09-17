@@ -1,6 +1,5 @@
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { OutboundWorkspace } from "./outbound";
-import { ShootLink } from "@/components/shoots/ShootsHub";
 import { APPLICATION_ORIGIN } from "@/lib/application-origin";
 import { DeliveryWorkspace } from "@/components/delivery/DeliveryWorkspace";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -117,37 +116,9 @@ function Deliver() {
       : ["1", "true"].includes(search.get("legacy") ?? "")
         ? "legacy"
         : "galleries";
-  const sectionHref = (next: "galleries" | "legacy" | "outbound") => {
-    const url = new URL(href, "https://workspace.invalid");
-    for (const key of ["desk", "legacy", "workflow"]) url.searchParams.delete(key);
-    if (next === "outbound") url.searchParams.set("desk", "outbound");
-    if (next === "legacy") url.searchParams.set("legacy", "1");
-    return `/deliver${url.search}${url.hash}`;
-  };
-  return (
-    <>
-      <nav className="shoot-workflow-tabs" aria-label="Delivery desks">
-        <ShootLink href={sectionHref("galleries")} current={section === "galleries"}>
-          Galleries
-        </ShootLink>
-        <ShootLink href={sectionHref("legacy")} current={section === "legacy"}>
-          Saved galleries
-        </ShootLink>
-        {isLocalSingleUserMode && (
-          <ShootLink href={sectionHref("outbound")} current={section === "outbound"}>
-            Outreach drafts
-          </ShootLink>
-        )}
-      </nav>
-      {section === "outbound" ? (
-        <OutboundWorkspace />
-      ) : section === "legacy" ? (
-        <LegacyDeliver />
-      ) : (
-        <DeliveryWorkspace />
-      )}
-    </>
-  );
+  if (section === "outbound") return <OutboundWorkspace />;
+  if (section === "legacy") return <LegacyDeliver />;
+  return <DeliveryWorkspace />;
 }
 
 function ProofingEntry() {

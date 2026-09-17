@@ -117,6 +117,14 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain("Share Only");
   expect(source).not.toContain("Copy chat");
   expect(dashCss).toContain(".celinen-dash-tool .shoot-workflow-tabs");
+  const deliver = readFileSync(new URL("../src/routes/deliver.tsx", import.meta.url), "utf8");
+  const gallery = readFileSync(
+    new URL("../src/components/delivery/DeliveryWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(deliver).not.toContain("Saved galleries");
+  expect(deliver).not.toContain("Outreach drafts");
+  expect(gallery).toContain("New Gallery");
   expect(dashCss).toContain("line-height: 1.5");
   expect(source).toContain("dashboardGreetingFor");
   expect(source).toContain("DashboardContext.Provider");

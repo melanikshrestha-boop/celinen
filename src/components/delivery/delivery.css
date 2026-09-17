@@ -130,8 +130,8 @@
     opacity 0.15s;
 }
 .delivery-primary {
-  background: var(--color-ink);
-  color: var(--color-paper2);
+  background: #e8f1ff;
+  color: #2f6fed;
 }
 .delivery-primary:hover {
   opacity: 0.87;

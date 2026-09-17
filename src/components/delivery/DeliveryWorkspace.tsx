@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, ChevronDown, Copy, Plus, Upload } from "lucide-react";
+import { ArrowRight, ChevronDown, Copy, Upload } from "lucide-react";
 import { MessageComposer } from "@/components/customer/MessageComposer";
 import { Shell } from "@/components/lensos/Shell";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -695,8 +695,7 @@ function AccountDeliveryWorkspace({
                 setNewOpen(true);
               }}
             >
-              <Plus size={16} />
-              New
+              New Gallery
             </button>
           </div>
         </div>

@@ -333,6 +333,7 @@ html:has(.celinen-dash) {
   height: 100% !important;
   min-height: 0;
 }
+.celinen-dash__body.is-tool > .shoot-workflow-tabs,
 .celinen-dash-tool .shoot-workflow-tabs {
   display: none;
 }
