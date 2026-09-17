@@ -389,9 +389,9 @@ void residuals(const LookDescriptor& d, const LookDescriptor& look, bool spatial
   out[k++] = 1.2 * (d.neutral_b - look.neutral_b);
   out[k++] = .4 * (d.a - look.a);
   out[k++] = .4 * (d.b - look.b);
-  out[k++] = .8 * (d.chroma - look.chroma);
+  out[k++] = .5 * (d.chroma - look.chroma);
   out[k++] = d.contrast - look.contrast;
-  for (std::size_t ring = 0; ring < 3; ++ring) out[k++] = .7 * (d.radial[ring] - look.radial[ring]);
+  for (std::size_t ring = 0; ring < 3; ++ring) out[k++] = .4 * (d.radial[ring] - look.radial[ring]);
   out[k++] = spatial ? 2 * (d.local_contrast - look.local_contrast) : 0;
 }
 
@@ -462,7 +462,7 @@ DevelopSettings compose(const Model& model, const std::vector<double>& theta) {
 // a flat stretch would erase the tonal separation inside it. And at most this
 // rise, a slope of 2.8: steeper segments posterize, which no look intends even
 // when the numbers of an extreme inspiration would ask for it.
-constexpr double knot_min_rise = .01, knot_max_rise = .35;
+constexpr double knot_min_rise = .04, knot_max_rise = .35;
 // How strongly the solve prefers a smooth curve (second differences of knots).
 constexpr double curve_smoothness = 12;
 
@@ -944,7 +944,7 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
     const auto remove = neutralizing_balance(target_cast);
     const auto add = neutralizing_balance(look);
     base.temperature = std::round(std::clamp(remove[0] - add[0], -100.0, 100.0));
-    base.tint = std::round(std::clamp(remove[1] - add[1], -100.0, 100.0));
+    base.tint = std::round(std::clamp(remove[1] - add[1], -40.0, 40.0));
   } else {
     // Too few neutrals to trust a cast (stage light, a wall of jerseys): move
     // the soft-neutral a*/b* mean the objective reads, through the white
@@ -961,7 +961,7 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
     const double want_a = look.neutral_a - neutral.neutral_a, want_b = look.neutral_b - neutral.neutral_b;
     if (std::abs(determinant) > 1e-9) {
       base.temperature = std::round(std::clamp((want_a * bi - ai * want_b) / determinant, -60.0, 60.0));
-      base.tint = std::round(std::clamp((at * want_b - want_a * bt) / determinant, -60.0, 60.0));
+      base.tint = std::round(std::clamp((at * want_b - want_a * bt) / determinant, -40.0, 40.0));
     }
   }
 
@@ -972,7 +972,7 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
   const auto toned = render(loop, base);
 
   // 3. Color: global saturation, per-band saturation and hue, split-tone wheels.
-  if (toned.chroma > .5) base.saturation = std::round(std::clamp(100 * (look.chroma / toned.chroma - 1), -100.0, 60.0));
+  if (toned.chroma > .5) base.saturation = std::round(std::clamp(100 * (look.chroma / toned.chroma - 1), -100.0, 35.0));
   const double chroma_gain = 1 + base.saturation / 100;
   std::array<double, look_band_count> band_hue{}, band_saturation{};
   for (std::size_t band = 0; band < look_band_count; ++band) {
@@ -1016,10 +1016,10 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
     active.push_back(is_active);
   };
   add_param({Knob::temperature, 0, -100, 100, 2, .02}, base.temperature, base.temperature, true);
-  add_param({Knob::tint, 0, -100, 100, 2, .02}, base.tint, base.tint, true);
+  add_param({Knob::tint, 0, -40, 40, 2, .02}, base.tint, base.tint, true);
   for (std::size_t k = 0; k < knot_count; ++k)
     add_param({Knob::curve, int(k), 0, k == 0 ? .5 : 1, .02, 2}, knots[k], knots[k], true);
-  add_param({Knob::saturation, 0, -100, 60, 3, .01}, base.saturation, base.saturation, toned.chroma > .5);
+  add_param({Knob::saturation, 0, -100, 35, 3, .01}, base.saturation, base.saturation, toned.chroma > .5);
   for (std::size_t band = 0; band < look_band_count; ++band) {
     const bool present = std::max(toned.bands[band].mass, look.bands[band].mass) > .002 &&
                          std::min(toned.bands[band].mass, look.bands[band].mass) > .0005;
@@ -1032,7 +1032,7 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
     add_param({Knob::wheel_v, i, -100, 100, 4, .01}, wheels[std::size_t(i)][1], 0, true);
   }
   add_param({Knob::fade, 0, 0, 60, 3, .03}, base.fade, 0, true);
-  add_param({Knob::vignette, 0, -80, 60, 4, .015}, base.vignette, 0, true);
+  add_param({Knob::vignette, 0, -80, 20, 4, .015}, base.vignette, 0, true);
   project(model, theta);
 
   // 6. Grain is analytic: stride samples keep it, but its amount must be read

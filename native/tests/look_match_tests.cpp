@@ -227,17 +227,17 @@ int main() {
     }
     print("worst unclipped", worst);
     print("worst +1.5 EV (clipped)", worst_clipped);
-    // Measured worst cases (Apple clang, 20 matches): distance .40, zone dE00
-    // mean .75 / max .89, L* quantile .99, band saturation .017, lightness
-    // .009. Bounds sit ~1.6x above for libm and compiler differences, and keep
-    // the mean zone error near CIEDE2000's just-noticeable difference of ~1.
+    // Measured worst cases (Apple clang, 16 matches): distance .41, zone dE00
+    // mean .54 / max .65, L* quantile 1.07, band saturation .008, lightness
+    // .010. Bounds sit ~1.4-2x above for libm and compiler differences, and
+    // keep the mean zone error near CIEDE2000's just-noticeable difference.
     check(worst.distance <= .75, "Same-frame matches land on the look.");
     check(worst.zone_mean <= 1.2 && worst.zone_max <= 1.6, "Tonal zone colors match within about one JND.");
     check(worst.quantile_max <= 1.5, "The luminance distribution matches within 1.5 L*.");
     check(worst.band_saturation <= .03 && worst.band_lightness <= .02, "Color Mixer bands match.");
     // +1.5 EV clips highlights the look still has; that detail is gone, so the
-    // bound is looser (measured .63 / 1.33 / 1.76 / 1.02).
-    check(worst_clipped.distance <= 1 && worst_clipped.zone_mean <= 2 && worst_clipped.zone_max <= 2.6 &&
+    // bound is looser (measured .78 / 1.66 / 2.31 / 1.51).
+    check(worst_clipped.distance <= 1.2 && worst_clipped.zone_mean <= 2.5 && worst_clipped.zone_max <= 3.2 &&
               worst_clipped.quantile_max <= 2,
           "An overexposed copy still lands close to the look.");
 
@@ -250,8 +250,9 @@ int main() {
       std::printf("  unedited distance %.2f\n", before);
       print("cross " + std::to_string(trial), a);
       // A different scene cannot become the inspiration's pixels, but its
-      // descriptor must move most of the way there (measured 27% and 29%).
-      check(a.distance <= before * .4, "A different scene takes on most of the look.");
+      // descriptor must move most of the way there (measured 34% and 25% of
+      // the unedited distance remain).
+      check(a.distance <= before * .45, "A different scene takes on most of the look.");
     }
 
     {

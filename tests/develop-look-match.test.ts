@@ -247,17 +247,18 @@ describe("Match a look on real photographs (committed WebAssembly)", () => {
       `wasm ms median ${sorted[sorted.length >> 1]!.toFixed(0)} max ${sorted.at(-1)!.toFixed(0)}`,
     );
     // Measured worst over 24 matches (neutral, -1.5 EV, +-30 temperature):
-    // zone dE00 mean .39 / max .77, L* quantile 1.73, band saturation and
-    // lightness .009. Bounds sit ~2x above; a mean zone error under .8 is
-    // below CIEDE2000's just-noticeable difference.
+    // zone dE00 mean .50 / max .83, L* quantile 1.54, band saturation and
+    // lightness .012. Bounds sit ~1.5-2x above for engine differences across
+    // hosts; a mean zone error under .8 is below CIEDE2000's just-noticeable
+    // difference.
     expect(unclippedWorst.zoneMean).toBeLessThan(0.8);
     expect(unclippedWorst.zoneMax).toBeLessThan(1.2);
     expect(unclippedWorst.quantileMax).toBeLessThan(2.5);
     expect(unclippedWorst.bandSaturation).toBeLessThan(0.025);
     expect(unclippedWorst.bandLightness).toBeLessThan(0.02);
     // +1.5 EV blows the bright volleyball sky and jerseys to white: the look's
-    // highlight detail no longer exists in that copy (measured 2.48 / 3.19 /
-    // 9.6 L* / .036 / .079).
+    // highlight detail no longer exists in that copy (measured 2.25 / 3.03 /
+    // 7.3 L* / .034 / .054).
     expect(clippedWorst.zoneMean).toBeLessThan(3.5);
     expect(clippedWorst.zoneMax).toBeLessThan(4.5);
     expect(clippedWorst.quantileMax).toBeLessThan(12);
@@ -277,7 +278,7 @@ describe("Match a look on real photographs (committed WebAssembly)", () => {
       const after = accuracy(describeFrame(render(target, match.settings)), look);
       console.log(`look from ${FIXTURES[i]} on ${FIXTURES[(i + 1) % 3]}`, fixed(after));
       // Different content cannot become the same pixels. Measured: zone
-      // error falls 71-88%, the worst L* quantile 56-82%.
+      // error falls 73-86%, the worst L* quantile 56-79%.
       expect(after.zoneMean).toBeLessThan(before.zoneMean * 0.4);
       expect(after.quantileMax).toBeLessThan(before.quantileMax * 0.5);
     }
