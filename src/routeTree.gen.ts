@@ -24,6 +24,7 @@ import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
+import { Route as CullRouteImport } from './routes/cull'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DeliverRouteImport } from './routes/deliver'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -185,6 +186,11 @@ const CompareRoute = CompareRouteImport.update({
 const CookiePolicyRoute = CookiePolicyRouteImport.update({
   id: '/cookie-policy',
   path: '/cookie-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CullRoute = CullRouteImport.update({
+  id: '/cull',
+  path: '/cull',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -642,6 +648,7 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/compare': typeof CompareRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
+  '/cull': typeof CullRoute
   '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
@@ -745,6 +752,7 @@ export interface FileRoutesByTo {
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/cookie-policy': typeof CookiePolicyRoute
+  '/cull': typeof CullRoute
   '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
@@ -847,6 +855,7 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/compare': typeof CompareRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
+  '/cull': typeof CullRoute
   '/dashboard': typeof DashboardRoute
   '/deliver': typeof DeliverRoute
   '/desk': typeof DeskRoute
@@ -953,6 +962,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/compare'
     | '/cookie-policy'
+    | '/cull'
     | '/dashboard'
     | '/deliver'
     | '/desk'
@@ -1056,6 +1066,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/community'
     | '/cookie-policy'
+    | '/cull'
     | '/dashboard'
     | '/deliver'
     | '/desk'
@@ -1157,6 +1168,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/compare'
     | '/cookie-policy'
+    | '/cull'
     | '/dashboard'
     | '/deliver'
     | '/desk'
@@ -1262,6 +1274,7 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   CompareRoute: typeof CompareRouteWithChildren
   CookiePolicyRoute: typeof CookiePolicyRoute
+  CullRoute: typeof CullRoute
   DashboardRoute: typeof DashboardRoute
   DeliverRoute: typeof DeliverRoute
   DeskRoute: typeof DeskRoute
@@ -1444,6 +1457,13 @@ declare module '@tanstack/react-router' {
       path: '/cookie-policy'
       fullPath: '/cookie-policy'
       preLoaderRoute: typeof CookiePolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cull': {
+      id: '/cull'
+      path: '/cull'
+      fullPath: '/cull'
+      preLoaderRoute: typeof CullRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -2136,6 +2156,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   CompareRoute: CompareRouteWithChildren,
   CookiePolicyRoute: CookiePolicyRoute,
+  CullRoute: CullRoute,
   DashboardRoute: DashboardRoute,
   DeliverRoute: DeliverRoute,
   DeskRoute: DeskRoute,
