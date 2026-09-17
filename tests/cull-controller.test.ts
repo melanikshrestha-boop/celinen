@@ -50,10 +50,7 @@ describe("cull controller", () => {
     const factory = new IDBFactory();
     const store = await openCullStore("account", factory);
     const session = await store.create("Game one");
-    await store.append(session.id, [
-      realFrame("sharp", 1000),
-      realFrame("soft", 90_000, true),
-    ]);
+    await store.append(session.id, [realFrame("sharp", 1000), realFrame("soft", 90_000, true)]);
     const controller = new CullController(store);
     await controller.open(session.id);
     let snapshot = await settle(controller);
@@ -90,7 +87,9 @@ describe("cull controller", () => {
     await controller.open(session.id);
     await controller.decide(["a", "b", "c"], "reject");
     let snapshot = await settle(controller);
-    expect(snapshot.frames.every((frame) => frame.decided && frame.verdict === "reject")).toBe(true);
+    expect(snapshot.frames.every((frame) => frame.decided && frame.verdict === "reject")).toBe(
+      true,
+    );
     await controller.undo();
     snapshot = await settle(controller);
     expect(snapshot.frames.every((frame) => !frame.decided)).toBe(true);

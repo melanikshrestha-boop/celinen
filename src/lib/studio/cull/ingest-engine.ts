@@ -92,7 +92,8 @@ export async function instantiateIngestWasm(
       const thumbEdge = options.thumbEdge ?? 320;
       const thumbQuality = options.thumbQuality ?? 72;
       const pointer = wasm.celinen_ingest_input(bytes.length);
-      if (!pointer) throw new Error(text(wasm.celinen_ingest_error()) || "This photo is too large.");
+      if (!pointer)
+        throw new Error(text(wasm.celinen_ingest_error()) || "This photo is too large.");
       new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
       if (!wasm.celinen_ingest_run(bytes.length, measureEdge, thumbEdge, thumbQuality))
         throw new Error(text(wasm.celinen_ingest_error()) || "This photo could not be read.");

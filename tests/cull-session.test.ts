@@ -14,7 +14,11 @@ import {
   type CullFrame,
 } from "../src/lib/studio/cull/session";
 
-function frame(id: string, suggestion?: Partial<CullRow>, extra: Partial<CullFrame> = {}): CullFrame {
+function frame(
+  id: string,
+  suggestion?: Partial<CullRow>,
+  extra: Partial<CullFrame> = {},
+): CullFrame {
   return {
     id,
     name: `${id}.jpg`,
@@ -113,7 +117,10 @@ describe("cull session model", () => {
     expect(groups[0]!.bestId).toBe("b2");
     expect(groups[1]!.frames.map((f) => f.id)).toEqual(["solo"]);
     // Without a marked best, the highest score leads the stack.
-    const unmarked = groupFrames([frame("x", { group: 2, score: 10 }), frame("y", { group: 2, score: 80 })]);
+    const unmarked = groupFrames([
+      frame("x", { group: 2, score: 10 }),
+      frame("y", { group: 2, score: 80 }),
+    ]);
     expect(unmarked[0]!.bestId).toBe("y");
   });
 

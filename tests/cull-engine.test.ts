@@ -35,7 +35,8 @@ function detailed(width: number, height: number, amplitude = 60, base = 128, see
     for (let x = 0; x < width; x++) {
       const value =
         base +
-        amplitude * (octave(x, y, 2.2, 0) * 0.5 + octave(x, y, 7, 1) * 0.3 + octave(x, y, 23, 2) * 0.2);
+        amplitude *
+          (octave(x, y, 2.2, 0) * 0.5 + octave(x, y, 7, 1) * 0.3 + octave(x, y, 23, 2) * 0.2);
       const i = (y * width + x) * 4;
       rgba[i] = rgba[i + 1] = rgba[i + 2] = value;
       rgba[i + 3] = 255;
@@ -44,7 +45,7 @@ function detailed(width: number, height: number, amplitude = 60, base = 128, see
 }
 
 function blur(rgba: Uint8ClampedArray, width: number, height: number, radius: number, passes = 3) {
-  let out = new Uint8ClampedArray(rgba);
+  const out = new Uint8ClampedArray(rgba);
   for (let pass = 0; pass < passes; pass++)
     for (const vertical of [false, true]) {
       const source = new Uint8ClampedArray(out);
@@ -193,9 +194,12 @@ describe("C++ cull engine compiled to WebAssembly", () => {
     for (let i = 0; i < 5; i++) engine.measure(pixels, 1280, 854);
     const perFrame = (performance.now() - started) / 5;
     const frames = Array.from({ length: 2000 }, (_, i) =>
-      frame({ ...sharp, hash: sharp.hash.slice(0, 14) + (i % 97).toString(16).padStart(2, "0") }, {
-        captureTimeMs: i * 500,
-      }),
+      frame(
+        { ...sharp, hash: sharp.hash.slice(0, 14) + (i % 97).toString(16).padStart(2, "0") },
+        {
+          captureTimeMs: i * 500,
+        },
+      ),
     );
     const grouped = performance.now();
     expect(engine.shoot(frames)).toHaveLength(2000);

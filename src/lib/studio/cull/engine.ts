@@ -115,7 +115,12 @@ export type CullOptions = {
 
 export type CullEngine = {
   /** Measures one decoded frame. The pixels are copied into the engine. */
-  measure(rgba: Uint8ClampedArray, width: number, height: number, faces?: readonly CullFace[]): CullReading;
+  measure(
+    rgba: Uint8ClampedArray,
+    width: number,
+    height: number,
+    faces?: readonly CullFace[],
+  ): CullReading;
   /** Ranks and groups a whole shoot from measurements it already has. */
   shoot(frames: readonly CullFrameInput[], options?: CullOptions): CullRow[];
   /** Hands the retained frame and buffers back between shoots. */
@@ -160,7 +165,11 @@ export async function instantiateCullWasm(
   const readingSize = wasm.celinen_cull_reading_size();
   const frameSize = wasm.celinen_cull_frame_size();
   const rowSize = wasm.celinen_cull_row_size();
-  if (readingSize !== READING_FIELDS + COLOR_BYTES || frameSize !== readingSize + 3 || rowSize !== 6)
+  if (
+    readingSize !== READING_FIELDS + COLOR_BYTES ||
+    frameSize !== readingSize + 3 ||
+    rowSize !== 6
+  )
     throw new Error("The cull engine's frame layout does not match this build.");
 
   const failure = () => {

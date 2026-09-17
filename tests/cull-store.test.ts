@@ -3,7 +3,11 @@ import { IDBFactory } from "fake-indexeddb";
 import { createCullWriter, cullDatabaseName, openCullStore } from "../src/lib/studio/cull/store";
 import type { CullFrame } from "../src/lib/studio/cull/session";
 
-function frame(id: string, captureTimeMs: number | null, extra: Partial<CullFrame> = {}): CullFrame {
+function frame(
+  id: string,
+  captureTimeMs: number | null,
+  extra: Partial<CullFrame> = {},
+): CullFrame {
   return {
     id,
     name: `${id}.jpg`,

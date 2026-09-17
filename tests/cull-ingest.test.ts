@@ -1,9 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import {
-  instantiateIngestWasm,
-  type IngestEngine,
-} from "../src/lib/studio/cull/ingest-engine";
+import { instantiateIngestWasm, type IngestEngine } from "../src/lib/studio/cull/ingest-engine";
 
 // Runs the committed binary against the real photographs in tests/fixtures.
 const binary = readFileSync(new URL("../src/lib/studio/cull/celinen-ingest.wasm", import.meta.url));
@@ -50,7 +47,8 @@ describe("C++ ingest: one call per photo", () => {
     // framing (6 of 64), so a re-import still lands in its own burst.
     let distance = 0;
     for (let i = 0; i < 16; i++) {
-      const bits = Number.parseInt(small.reading.hash[i]!, 16) ^ Number.parseInt(large.reading.hash[i]!, 16);
+      const bits =
+        Number.parseInt(small.reading.hash[i]!, 16) ^ Number.parseInt(large.reading.hash[i]!, 16);
       distance += (bits & 1) + ((bits >> 1) & 1) + ((bits >> 2) & 1) + ((bits >> 3) & 1);
     }
     expect(distance).toBeLessThanOrEqual(4);

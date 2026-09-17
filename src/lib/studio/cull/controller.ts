@@ -44,6 +44,10 @@ export class CullController {
   private undoStack: { frames: CullFrame[] }[] = [];
   private rerankTimer: ReturnType<typeof setTimeout> | null = null;
   private importing: AbortController | null = null;
+  // The originals of the card read in this tab, for a full-quality loupe. A
+  // reopened session has thumbnails only until its folder is imported again:
+  // browsers do not let a page keep file access across a reload.
+  private originals = new Map<string, File>();
   private emitQueued = false;
 
   constructor(private readonly store: CullStore) {}
@@ -74,7 +78,12 @@ export class CullController {
       const snapshot = this.snapshot();
       for (const listener of this.listeners) listener(snapshot);
     };
-    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    // A hidden tab never runs animation frames. A photographer who imports a
+    // card and switches away should come back to a current screen, so fall back
+    // to a slow timer while the page is not visible.
+    const visible = typeof document === "undefined" || document.visibilityState !== "hidden";
+    if (visible && typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else if (typeof document !== "undefined") setTimeout(run, 250);
     else queueMicrotask(run);
   }
 
@@ -91,6 +100,7 @@ export class CullController {
 
   async open(sessionId: string): Promise<void> {
     this.cancelImport();
+    if (sessionId !== this.sessionId) this.originals.clear();
     const frames = await this.store.frames(sessionId);
     this.sessionId = sessionId;
     this.undoStack = [];
@@ -108,6 +118,7 @@ export class CullController {
     this.sessionId = session.id;
     this.undoStack = [];
     this.notice = null;
+    this.originals.clear();
     this.replace([]);
 
     const controller = new AbortController();
@@ -119,7 +130,8 @@ export class CullController {
         return index === undefined ? frame : (this.frames[index] ?? frame);
       },
       onError: () => {
-        this.notice = "Some frames could not be saved on this device. Keep this tab open until the import finishes.";
+        this.notice =
+          "Some frames could not be saved on this device. Keep this tab open until the import finishes.";
         this.emit();
       },
     });
@@ -128,9 +140,10 @@ export class CullController {
     try {
       await ingestFiles(photos, {
         signal: controller.signal,
-        onFrame: ({ frame, thumbnail }) => {
+        onFrame: ({ frame, thumbnail, file }) => {
           this.byId.set(frame.id, this.frames.length);
           this.frames.push(frame);
+          if (!frame.error) this.originals.set(frame.id, file);
           writer.add(frame, thumbnail);
           this.scheduleRerank();
         },
@@ -166,7 +179,8 @@ export class CullController {
     if (!measured.length) return this.emit();
     const engine = await cullEngine();
     if (!engine) {
-      this.notice = "This browser cannot run the cull engine; frames can still be kept and rejected by hand.";
+      this.notice =
+        "This browser cannot run the cull engine; frames can still be kept and rejected by hand.";
       return this.emit();
     }
     let rows: CullRow[];
@@ -223,6 +237,16 @@ export class CullController {
     await this.persist(step.frames);
   }
 
+  /** Every session stored for this account, newest first. */
+  sessions() {
+    return this.store.list();
+  }
+
+  /** The original file, when this tab read the card itself. */
+  original(frameId: string): File | null {
+    return this.originals.get(frameId) ?? null;
+  }
+
   thumbnail(frameId: string): Promise<Blob | null> {
     if (!this.sessionId) return Promise.resolve(null);
     return this.store.thumbnail(this.sessionId, frameId);
@@ -233,7 +257,8 @@ export class CullController {
     try {
       await this.store.update(this.sessionId, frames);
     } catch {
-      this.notice = "The latest decisions are not saved on this device yet. Keep this tab open and try again.";
+      this.notice =
+        "The latest decisions are not saved on this device yet. Keep this tab open and try again.";
       this.emit();
     }
   }
@@ -242,6 +267,7 @@ export class CullController {
     this.cancelImport();
     if (this.rerankTimer) clearTimeout(this.rerankTimer);
     this.listeners.clear();
+    this.originals.clear();
     this.store.close();
   }
 }

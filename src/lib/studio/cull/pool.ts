@@ -14,6 +14,8 @@ export type IngestedFrame = {
   frame: CullFrame;
   /** The filmstrip picture the engine made from the same decode. */
   thumbnail: Blob;
+  /** The file it was read from, for a full-quality look later. */
+  file: File;
 };
 
 export type IngestHandlers = {
@@ -62,6 +64,7 @@ export async function ingestFiles(
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
+        handlers.signal?.removeEventListener("abort", abort);
         if (error) reject(error);
         else resolve();
       };
@@ -119,6 +122,7 @@ export async function ingestFiles(
                   decided: false,
                 },
                 thumbnail: data.thumbnail,
+                file,
               });
             } else {
               failed += 1;
@@ -136,6 +140,7 @@ export async function ingestFiles(
                   error: data.error,
                 },
                 thumbnail: new Blob(),
+                file,
               });
             }
             handlers.onProgress?.(read, failed, files.length);
@@ -159,7 +164,7 @@ function relativePath(file: File): string | undefined {
   return withPath.webkitRelativePath || undefined;
 }
 
-/** Stable across a re-import of the same card, so decisions survive a reload. */
+/** Unique within a card even when two folders hold files of the same name. */
 function frameId(file: File, index: number): string {
   const path = relativePath(file) ?? file.name;
   return `${path}:${file.size}:${file.lastModified}:${index}`;

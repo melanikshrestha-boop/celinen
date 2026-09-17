@@ -34,7 +34,8 @@ export function cullDatabaseName(scope: string): string {
 function done(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(transaction.error ?? new Error("Cull save was interrupted."));
+    transaction.onabort = () =>
+      reject(transaction.error ?? new Error("Cull save was interrupted."));
     transaction.onerror = () => reject(transaction.error ?? new Error("Cull save failed."));
   });
 }
@@ -68,7 +69,8 @@ export async function openCullStore(
     const request = factory.open(cullDatabaseName(scope), VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(SESSIONS)) db.createObjectStore(SESSIONS, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(SESSIONS))
+        db.createObjectStore(SESSIONS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(FRAMES)) {
         const frames = db.createObjectStore(FRAMES, { keyPath: ["sessionId", "id"] });
         frames.createIndex("session", "sessionId");
@@ -78,7 +80,8 @@ export async function openCullStore(
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open cull storage."));
-    request.onblocked = () => reject(new Error("Close other Celinen tabs to finish updating storage."));
+    request.onblocked = () =>
+      reject(new Error("Close other Celinen tabs to finish updating storage."));
   });
 
   const touch = async (
@@ -87,7 +90,9 @@ export async function openCullStore(
     added: number,
   ): Promise<void> => {
     const sessions = transaction.objectStore(SESSIONS);
-    const summary = await result(sessions.get(sessionId) as IDBRequest<CullSessionSummary | undefined>);
+    const summary = await result(
+      sessions.get(sessionId) as IDBRequest<CullSessionSummary | undefined>,
+    );
     if (!summary) throw new Error("This cull session no longer exists.");
     sessions.put({ ...summary, updatedAt: Date.now(), frameCount: summary.frameCount + added });
   };
@@ -127,7 +132,11 @@ export async function openCullStore(
       return rows
         .map(({ sessionId: _session, ...frame }) => frame)
         .sort((a, b) => {
-          if (a.captureTimeMs !== null && b.captureTimeMs !== null && a.captureTimeMs !== b.captureTimeMs)
+          if (
+            a.captureTimeMs !== null &&
+            b.captureTimeMs !== null &&
+            a.captureTimeMs !== b.captureTimeMs
+          )
             return a.captureTimeMs - b.captureTimeMs;
           return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
         });
@@ -149,7 +158,8 @@ export async function openCullStore(
       const thumbnails = transaction.objectStore(THUMBNAILS);
       for (const { frame, thumbnail } of batch) {
         frames.put({ ...frame, sessionId } satisfies FrameRow);
-        if (thumbnail.size) thumbnails.put({ sessionId, frameId: frame.id, blob: thumbnail } satisfies ThumbnailRow);
+        if (thumbnail.size)
+          thumbnails.put({ sessionId, frameId: frame.id, blob: thumbnail } satisfies ThumbnailRow);
       }
       await touch(transaction, sessionId, batch.length);
       await committed;
@@ -203,8 +213,8 @@ export function createCullWriter(
         return store.append(sessionId, batch);
       })
       .catch((error: unknown) => {
-      options.onError?.(error);
-    });
+        options.onError?.(error);
+      });
     return chain;
   };
 
