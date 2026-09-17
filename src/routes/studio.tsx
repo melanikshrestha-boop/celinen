@@ -117,13 +117,15 @@ import {
   type RosterPerson,
 } from "@/lib/studio/people";
 import {
+  acknowledgeStudioSessionRevision,
   adoptDeviceStudio,
   canPersistStudioSession,
-  readStudioSessionSnapshot,
+  loadStudioSession,
   saveStudioSession,
   setStudioEventPeople,
   setStudioRoster,
   stableShotId,
+  type HydratedStudioSession,
   type StudioFilter,
   type StudioHydrationState,
 } from "@/lib/studio/session";
@@ -330,9 +332,17 @@ export function Studio({
         await markDeviceRecovery(storageScope, id).catch(() => {});
       }
     }
-    const legacy = projectSession
-      ? await projectSession.load()
-      : await readStudioSessionSnapshot(storageScope, shootId);
+    // Cull owns this device store's writes, so its hydration must acknowledge the
+    // revision it loaded. A project shoot reads its frames elsewhere but still
+    // saves here, so it acknowledges that stored revision on its own. Without
+    // this the first autosave reads as another tab's change and pauses saving.
+    let legacy: HydratedStudioSession | null;
+    if (projectSession) {
+      legacy = await projectSession.load();
+      await acknowledgeStudioSessionRevision(storageScope, shootId);
+    } else {
+      legacy = await loadStudioSession(storageScope, shootId);
+    }
     try {
       const session = await canonicalView.read(legacy);
       unanalyzedIds.current = session.unanalyzedIds;
@@ -1120,6 +1130,13 @@ export function Studio({
       const old = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
       for (const shot of current.shots) {
         const prior = old.get(shot.id);
+        // Storage can hand back a preview without its MIME. An untyped blob URL
+        // paints a placeholder while the frame reports "preview ready", so type
+        // it here exactly as hydration does. Typed bytes keep their identity.
+        if (shot.previewBlob)
+          shot.previewBlob = await asDevelopPreviewBlob(shot.previewBlob).catch(
+            () => shot.previewBlob!,
+          );
         if (shot.previewBlob && prior?.previewBlob === shot.previewBlob)
           shot.previewUrl = prior.previewUrl;
         else if (shot.previewBlob) {

@@ -235,6 +235,37 @@ export async function loadStudioSession(
 }
 
 /**
+ * Record the stored revision this page loaded without reading any frame media.
+ * The Studio writes this store even when its frames come from somewhere else
+ * (a project session); a writer that never records what it loaded would read
+ * its own first save as another tab's change and pause saving forever.
+ */
+export async function acknowledgeStudioSessionRevision(
+  scope = "device-local",
+  shootId?: string,
+): Promise<void> {
+  if (typeof indexedDB === "undefined") {
+    throw new Error("Local Studio storage is unavailable.");
+  }
+  const state = sessionState(scope, shootId);
+  const database = await openDatabase(scope, shootId);
+  try {
+    const stored = await requestResult(
+      database
+        .transaction(SESSION_STORE, "readonly")
+        .objectStore(SESSION_STORE)
+        .get(ACTIVE_SESSION) as IDBRequest<StoredSession | undefined>,
+    );
+    state.knownRevision = revisionOf(stored);
+    // Frames were not read here, so no signature may claim a record is current.
+    state.lastSavedSignatures.clear();
+    state.lastSavedPreviews.clear();
+  } finally {
+    database.close();
+  }
+}
+
+/**
  * Read media for another tool without acknowledging a revision on behalf of the
  * still-mounted Studio writer. The caller owns and must revoke returned URLs.
  */
