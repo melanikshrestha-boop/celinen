@@ -1,9 +1,11 @@
 import {
   analyseFaces,
   analyseFilePreview,
+  attachCullReading,
   decodeFile,
   faceDetectionAvailable,
   isRawFile,
+  measureCullFrame,
   type FileAnalysisPreview,
 } from "@/lib/imaging";
 import { analyseFileNative } from "./native-client";
@@ -173,14 +175,18 @@ function run(lane: Lane, job: Job) {
         runBrowser(lane, job);
         return;
       }
-      if (faceDetectionAvailable()) {
-        const bitmap = await createImageBitmap(result.previewBlob);
-        try {
+      // The local C++ engine returns its own preview and tone statistics; the
+      // cull measurements come from the same engine the hosted site runs, so a
+      // frame scores identically on this Mac and on lenslab.dev.
+      const bitmap = await createImageBitmap(result.previewBlob);
+      try {
+        if (faceDetectionAvailable()) {
           result.analysis.faces = await analyseFaces(bitmap);
           result.faceDetectionAvailable = true;
-        } finally {
-          bitmap.close();
         }
+        attachCullReading(result.analysis, await measureCullFrame(bitmap, result.analysis.faces));
+      } finally {
+        bitmap.close();
       }
       settle(job, result);
     } catch (error) {

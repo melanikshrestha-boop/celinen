@@ -4,6 +4,7 @@
  * Suggestions apply to undecided frames only. Originals are never touched.
  */
 import { scoreOf, type Analysis, type Flag, type Shot, type Verdict } from "@/lib/imaging";
+import type { CullSuggestion } from "./cull/shoot";
 import { indexDuplicateFrames } from "./culling-index";
 import { smartCullPass, type BurstHint } from "./smart-cull";
 
@@ -99,6 +100,7 @@ export function attachImportAnalysis(shot: Shot, result: ImportAnalysisReceipt):
     clippedShadows: result.analysis.clippedShadows,
     hash: result.analysis.hash,
     tone: result.analysis.tone,
+    ...(result.analysis.cull ? { cull: result.analysis.cull } : {}),
     ...(result.analysis.faces ? { faces: result.analysis.faces } : {}),
     score,
     flags: [...kept, ...flags],
@@ -125,6 +127,7 @@ export function mergePreservedImportAnalysis(projected: Shot, prior?: Shot): Sho
     score: prior.score,
     flags: prior.flags,
     ...(prior.tone ? { tone: prior.tone } : {}),
+    ...(prior.cull ? { cull: prior.cull } : {}),
     ...(prior.faces ? { faces: prior.faces } : {}),
     ...(prior.analysisBackend ? { analysisBackend: prior.analysisBackend } : {}),
     ...(prior.captureTimeMs !== undefined ? { captureTimeMs: prior.captureTimeMs } : {}),
@@ -139,10 +142,18 @@ function sameFlags(a: readonly Flag[], b: readonly Flag[]): boolean {
 }
 
 /** Near-dupes become a flag. Existing keep/reject and File handles stay. */
-export function flagImportDuplicates(frames: readonly Shot[]): Shot[] {
+export function flagImportDuplicates(
+  frames: readonly Shot[],
+  engine?: ReadonlyMap<string, CullSuggestion>,
+): Shot[] {
   const { duplicateIds } = indexDuplicateFrames(
-    frames.filter((shot) => isImportAnalyzed(shot) && /^[01]{64}$/.test(shot.hash)),
+    frames.filter(
+      (shot) =>
+        !engine?.has(shot.id) && isImportAnalyzed(shot) && /^[01]{64}$/.test(shot.hash),
+    ),
   );
+  if (engine)
+    for (const [id, suggestion] of engine) if (suggestion.duplicate) duplicateIds.add(id);
   return frames.map((shot) => {
     const next = shot.flags.filter((flag) => flag !== "duplicate");
     if (duplicateIds.has(shot.id)) next.push("duplicate");
@@ -163,9 +174,15 @@ export type ImportCullResult = {
  */
 export function applyImportCull(
   frames: readonly Shot[],
-  options: { bursts?: readonly BurstHint[]; onlyIds?: ReadonlySet<string> } = {},
+  options: {
+    bursts?: readonly BurstHint[];
+    onlyIds?: ReadonlySet<string>;
+    /** What the C++ engine suggested for the frames it measured. Frames it did
+     * not measure still go through the browser pass below. */
+    engine?: ReadonlyMap<string, CullSuggestion>;
+  } = {},
 ): ImportCullResult {
-  const flagged = flagImportDuplicates(frames);
+  const flagged = flagImportDuplicates(frames, options.engine);
   const flaggedCount = flagged.filter((shot) => shot.flags.includes("duplicate")).length;
   const eligible = flagged.filter((shot) => {
     if (!isImportAnalyzed(shot) || shot.verdict !== "undecided") return false;
@@ -179,13 +196,27 @@ export function applyImportCull(
     );
     return { shots: flagged, changed, flagged: flaggedCount, skipped };
   }
-  const suggestions = smartCullPass(eligible, options.bursts ?? []);
+  const engine = options.engine;
+  // The engine judged the frames it measured by comparing them with each other;
+  // anything it could not measure keeps the browser pass.
+  const browserFrames = engine ? eligible.filter((shot) => !engine.has(shot.id)) : eligible;
+  const suggestions = smartCullPass(browserFrames, options.bursts ?? []);
+  if (engine)
+    for (const shot of eligible) {
+      const suggestion = engine.get(shot.id);
+      if (suggestion) suggestions.set(shot.id, suggestion.verdict);
+    }
   let changed = 0;
   const shots = flagged.map((shot, index) => {
+    const calibrated = engine?.get(shot.id);
+    if (calibrated && shot.score !== calibrated.score)
+      shot = { ...shot, score: calibrated.score };
     const suggested = suggestions.get(shot.id);
     const nextVerdict: Verdict | undefined =
       suggested && shot.verdict === "undecided" ? suggested : undefined;
     const verdictChanged = nextVerdict !== undefined && nextVerdict !== shot.verdict;
+    // A rebuilt shot (new flags or a shoot-calibrated score) counts as changed
+    // even when its verdict stands, so the session saves what the pass measured.
     if (!verdictChanged && shot === frames[index]) return shot;
     changed += 1;
     return verdictChanged ? { ...shot, verdict: nextVerdict } : shot;

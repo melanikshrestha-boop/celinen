@@ -1,0 +1,329 @@
+.cull-workspace {
+  /* Keep green and reject red, the same pair cullToneClass paints in Studio. */
+  --cull-keep: #1f9d5c;
+  --cull-reject: #e24b4a;
+  background: var(--paper);
+  color: var(--ink);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cull-workspace button {
+  cursor: pointer;
+}
+.cull-workspace button:disabled {
+  cursor: not-allowed;
+}
+.cull-workspace :is(button, a, label):focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 2px;
+}
+.cull-workspace.is-dropping::after {
+  content: "";
+  position: fixed;
+  inset: 12px;
+  z-index: 60;
+  outline: 2px solid var(--rust);
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  pointer-events: none;
+}
+
+.cull-progress-bar {
+  height: 2px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  overflow: hidden;
+}
+.cull-progress-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--rust);
+  transition: width 240ms ease-out;
+}
+
+/* The virtual grid: an absolutely positioned window of cards over a spacer the
+   height of the whole card, the same construction as Develop's library. */
+.cull-grid {
+  --cull-min-width: 176px;
+  --cull-card-height: 164px;
+  --cull-gap: 8px;
+  --cull-padding: 16px;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overflow-x: hidden;
+  overflow-anchor: none;
+  contain: strict;
+}
+.cull-grid:focus-visible {
+  outline: none;
+}
+.cull-spacer {
+  pointer-events: none;
+}
+.cull-card {
+  position: absolute;
+  box-sizing: border-box;
+  height: var(--cull-card-height);
+  border-radius: 4px;
+}
+.cull-card-hit {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+.cull-card.is-stack-member {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.cull-card.is-selected {
+  outline: 2px solid var(--rust);
+  outline-offset: 1px;
+}
+.cull-thumb {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  display: grid;
+  place-items: center;
+  color: var(--moss);
+}
+.cull-thumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cull-card[data-verdict="reject"][data-source="photographer"] .cull-thumb > img {
+  opacity: 0.4;
+}
+.cull-card[data-source="photographer"][data-verdict="keep"] .cull-thumb {
+  box-shadow: inset 0 -3px 0 var(--cull-keep);
+}
+.cull-card[data-source="photographer"][data-verdict="reject"] .cull-thumb {
+  box-shadow: inset 0 -3px 0 var(--cull-reject);
+}
+/* A second stack edge behind a collapsed burst, so a stack reads as a stack. */
+.cull-card.is-stacked:not(.is-open) .cull-thumb {
+  box-shadow:
+    3px -3px 0 -1px var(--paper),
+    3px -3px 0 0 color-mix(in srgb, var(--ink) 22%, transparent);
+  overflow: visible;
+}
+.cull-card.is-stacked:not(.is-open) .cull-thumb > img {
+  border-radius: 4px;
+}
+.cull-card.is-stacked:not(.is-open)[data-source="photographer"][data-verdict="keep"] .cull-thumb {
+  box-shadow:
+    inset 0 -3px 0 var(--cull-keep),
+    3px -3px 0 -1px var(--paper),
+    3px -3px 0 0 color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.cull-card.is-stacked:not(.is-open)[data-source="photographer"][data-verdict="reject"] .cull-thumb {
+  box-shadow:
+    inset 0 -3px 0 var(--cull-reject),
+    3px -3px 0 -1px var(--paper),
+    3px -3px 0 0 color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+/* Verdict marks. Filled is the photographer's own decision; a dashed outline on
+   paper is only the engine's suggestion. */
+.cull-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.cull-mark[data-source="photographer"][data-verdict="keep"] {
+  background: var(--cull-keep);
+  color: #fff;
+}
+.cull-mark[data-source="photographer"][data-verdict="reject"] {
+  background: var(--cull-reject);
+  color: #fff;
+}
+.cull-mark[data-source="engine"] {
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  border: 1.5px dashed currentColor;
+}
+.cull-mark[data-source="engine"][data-verdict="keep"] {
+  color: var(--cull-keep);
+}
+.cull-mark[data-source="engine"][data-verdict="reject"] {
+  color: var(--cull-reject);
+}
+.cull-thumb > .cull-mark {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+}
+.cull-stack-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  color: var(--paper2);
+}
+.cull-reason {
+  position: absolute;
+  left: 6px;
+  bottom: 7px;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  color: var(--ink);
+}
+.cull-card-meta {
+  flex: 0 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 2px;
+  color: var(--moss);
+}
+.cull-card-meta > span:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cull-loupe {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--paper);
+}
+.cull-loupe:focus {
+  outline: none;
+}
+.cull-loupe-stage {
+  grid-column: 1;
+  grid-row: 2;
+  color: var(--moss);
+  min-height: 0;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  padding: 8px 24px 16px;
+}
+/* Scaled to the stage in both directions, never cropped. */
+.cull-loupe-stage > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cull-loupe-side {
+  grid-row: 2 / span 2;
+  grid-column: 2;
+  overflow-y: auto;
+  padding: 8px 24px 24px 0;
+}
+.cull-compare {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 24px 16px;
+}
+.cull-compare > button {
+  position: relative;
+  flex: 0 0 132px;
+  height: 104px;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.cull-compare > button[aria-current="true"] {
+  outline: 2px solid var(--rust);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.cull-decide {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: transparent;
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.cull-decide[data-verdict="keep"] {
+  color: var(--cull-keep);
+}
+.cull-decide[data-verdict="reject"] {
+  color: var(--cull-reject);
+}
+.cull-decide[data-verdict="undecided"] {
+  color: var(--moss);
+}
+.cull-decide:disabled {
+  opacity: 0.4;
+}
+.cull-decide[data-verdict="keep"]:is([aria-pressed="true"], :hover:not(:disabled)) {
+  background: var(--cull-keep);
+  border-color: var(--cull-keep);
+  color: #fff;
+}
+.cull-decide[data-verdict="reject"]:is([aria-pressed="true"], :hover:not(:disabled)) {
+  background: var(--cull-reject);
+  border-color: var(--cull-reject);
+  color: #fff;
+}
+.cull-decide[data-verdict="undecided"]:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .cull-grid {
+    --cull-min-width: 132px;
+    --cull-card-height: 132px;
+    --cull-padding: 12px;
+  }
+  .cull-loupe {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(40vh, 1fr) auto auto;
+    overflow-y: auto;
+  }
+  .cull-loupe-stage,
+  .cull-compare {
+    grid-row: auto;
+  }
+  .cull-loupe-side {
+    grid-row: auto;
+    grid-column: 1;
+    padding: 8px 20px 24px;
+    overflow: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cull-progress-bar > span {
+    transition: none;
+  }
+}

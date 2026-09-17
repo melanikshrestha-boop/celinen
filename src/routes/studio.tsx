@@ -69,6 +69,7 @@ import { PRODUCT_NAME } from "@/lib/product";
 import { PHOTO_ID_MAX_LENGTH } from "@/lib/photo-identity";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { firstPassVerdict } from "@/lib/studio/first-pass";
+import { cullShootSuggestions } from "@/lib/studio/cull/shoot";
 import { smartCullPass } from "@/lib/studio/smart-cull";
 import { applyBurstCull, formatCullCsv, formatJobJson } from "@/lib/studio/cull-decision";
 import {
@@ -117,13 +118,15 @@ import {
   type RosterPerson,
 } from "@/lib/studio/people";
 import {
+  acknowledgeStudioSessionRevision,
   adoptDeviceStudio,
   canPersistStudioSession,
-  readStudioSessionSnapshot,
+  loadStudioSession,
   saveStudioSession,
   setStudioEventPeople,
   setStudioRoster,
   stableShotId,
+  type HydratedStudioSession,
   type StudioFilter,
   type StudioHydrationState,
 } from "@/lib/studio/session";
@@ -330,9 +333,17 @@ export function Studio({
         await markDeviceRecovery(storageScope, id).catch(() => {});
       }
     }
-    const legacy = projectSession
-      ? await projectSession.load()
-      : await readStudioSessionSnapshot(storageScope, shootId);
+    // Cull owns this device store's writes, so its hydration must acknowledge the
+    // revision it loaded. A project shoot reads its frames elsewhere but still
+    // saves here, so it acknowledges that stored revision on its own. Without
+    // this the first autosave reads as another tab's change and pauses saving.
+    let legacy: HydratedStudioSession | null;
+    if (projectSession) {
+      legacy = await projectSession.load();
+      await acknowledgeStudioSessionRevision(storageScope, shootId);
+    } else {
+      legacy = await loadStudioSession(storageScope, shootId);
+    }
     try {
       const session = await canonicalView.read(legacy);
       unanalyzedIds.current = session.unanalyzedIds;
@@ -645,8 +656,23 @@ export function Studio({
         const onlyIds = importCullRef.current.applied ? analyzedIds : undefined;
         if (failures) telemetry?.capture("cull_failed", { photo_count: failures });
         if (importCullRef.current.applied && !analyzedIds.size) return;
-        const current = latestShotsRef.current;
-        const result = applyImportCull(current, onlyIds ? { onlyIds } : {});
+        // The C++ engine ranks the whole shoot against itself: bursts, duplicates
+        // and the keep/reject line. Frames it never measured keep the browser pass.
+        const measured = latestShotsRef.current;
+        const engine = await cullShootSuggestions(measured);
+        if (
+          token !== importCullRef.current.token ||
+          latestShotsRef.current !== measured ||
+          !canPersistStudioSession(sessionStatusRef.current) ||
+          proposalRef.current ||
+          importingRef.current
+        )
+          return;
+        const current = measured;
+        const result = applyImportCull(current, {
+          ...(onlyIds ? { onlyIds } : {}),
+          ...(engine ? { engine } : {}),
+        });
         if (telemetry) {
           const review = cullReviewTelemetry(telemetry);
           // Unchanged/restored manual decisions are not AI recommendations.
@@ -1120,6 +1146,13 @@ export function Studio({
       const old = new Map(latestShotsRef.current.map((shot) => [shot.id, shot]));
       for (const shot of current.shots) {
         const prior = old.get(shot.id);
+        // Storage can hand back a preview without its MIME. An untyped blob URL
+        // paints a placeholder while the frame reports "preview ready", so type
+        // it here exactly as hydration does. Typed bytes keep their identity.
+        if (shot.previewBlob)
+          shot.previewBlob = await asDevelopPreviewBlob(shot.previewBlob).catch(
+            () => shot.previewBlob!,
+          );
         if (shot.previewBlob && prior?.previewBlob === shot.previewBlob)
           shot.previewUrl = prior.previewUrl;
         else if (shot.previewBlob) {
@@ -1588,16 +1621,21 @@ export function Studio({
     [selectShot, visible, selectedId],
   );
 
-  const autoCull = () => {
+  const autoCull = async () => {
     if (latestShotsRef.current.some((shot) => unanalyzedIds.current.has(shot.id))) {
       setSyncNote(
         "These photos have not been analyzed for culling. Review and keep/reject them manually; no quality scores were invented.",
       );
       return;
     }
+    const measured = latestShotsRef.current;
+    const engine = await cullShootSuggestions(measured);
+    // A frame imported or decided while the shoot was being ranked makes this
+    // ranking stale; the photographer can simply run it again.
+    if (latestShotsRef.current !== measured) return;
     try {
       const receipt = stageCull(
-        firstPassVerdict,
+        (shot) => engine?.get(shot.id)?.verdict ?? firstPassVerdict(shot),
         "Suggested selections",
         "Review recommendations for undecided photos. Your existing keeps and rejects are protected.",
       );
@@ -2304,7 +2342,7 @@ export function Studio({
             {!workbench && (
               <button
                 disabled={Boolean(progress || folderStatus)}
-                onClick={() => (shots.length ? autoCull() : inputRef.current?.click())}
+                onClick={() => (shots.length ? void autoCull() : inputRef.current?.click())}
                 className="rounded-md bg-ink px-3 py-1.5 text-paper2 transition-colors hover:bg-rust"
               >
                 {shots.length ? "Auto-cull" : "Import"}
@@ -2372,7 +2410,7 @@ export function Studio({
                 {(
                   [
                     ...(workbench && shots.length
-                      ? [["Auto-cull shoot", () => autoCull(), Boolean(progress || folderStatus)]]
+                      ? [["Auto-cull shoot", () => void autoCull(), Boolean(progress || folderStatus)]]
                       : []),
                     [
                       "Import files",

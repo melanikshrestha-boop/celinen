@@ -160,8 +160,16 @@ export function studioBindingHref(binding: StudioWorkbenchBinding) {
   return `/studio${defaultStringifySearch({ project: binding.projectId, ...(binding.deliveryFocus ? { deliveryFrame: binding.deliveryFocus.frameId, deliveryVersion: binding.deliveryFocus.versionId, ...(binding.deliveryFocus.handoffId ? { deliveryHandoff: binding.deliveryFocus.handoffId } : {}) } : {}) })}`;
 }
 /** Photographer rail destinations live in the dashboard ChatGPT shell, not Workbench. */
+/** Pages that render inside the Home dashboard's sidebar. Everything a photographer
+ * can reach from Home belongs here: the shoot pages are where Cull's "Open Develop"
+ * and the shoot breadcrumb lead, and landing them in the older workspace chrome
+ * swapped the whole interface out from under the photographer mid-cull. */
 export const DASHBOARD_APP_PATHS = [
   "/studio",
+  "/cull",
+  "/shoots",
+  "/tonight",
+  "/clients",
   "/deliver",
   "/develop",
   "/poses",

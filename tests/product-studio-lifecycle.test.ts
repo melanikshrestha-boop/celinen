@@ -6,6 +6,7 @@ import {
   applyImportCull,
   attachImportAnalysis,
 } from "../src/lib/studio/cull-on-import";
+import { cullShootSuggestions } from "../src/lib/studio/cull/shoot";
 import { proposeCull, type StudioProposal } from "../src/lib/studio/proposals";
 import { createProductAnalytics } from "../src/lib/product-analytics";
 import {
@@ -125,6 +126,9 @@ function fixture(
       throw new Error("PRIVATE-CANARY-/Users/client/photo.jpg");
     },
     analysisBytesForShot,
+    // The real shoot pass: these fixtures carry no engine readings, so it
+    // declines and the browser pass decides, exactly as in a browser without it.
+    cullShootSuggestions,
     attachImportAnalysis,
     applyImportCull,
     updateShots: (update: (frames: Shot[]) => Shot[]) => {

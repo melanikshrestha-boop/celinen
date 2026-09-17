@@ -9,6 +9,7 @@ import {
 import {
   addWorkbenchTab,
   closeWorkbenchTab,
+  isDashboardAppRoute,
   isWorkbenchRoute,
   safeSignInPath,
   studioBindingHref,
@@ -55,6 +56,10 @@ describe("chat-first workspace boundaries", () => {
   });
   const dashboardApp = new Set([
     "/studio",
+    "/cull",
+    "/shoots",
+    "/tonight",
+    "/clients",
     "/deliver",
     "/develop",
     "/poses",
@@ -73,6 +78,18 @@ describe("chat-first workspace boundaries", () => {
     test(`dashboard ChatGPT shell owns ${path}`, () =>
       expect(isWorkbenchRoute(["__root__", path])).toBe(false));
   }
+  test("a shoot's cull, develop and gallery pages open inside Home's dashboard, never the older workspace", () => {
+    // Cull's "Open Develop" and the shoot breadcrumb lead here; landing them in
+    // the older chrome swapped the whole interface mid-cull.
+    for (const [routeId, pathname] of [
+      ["/shoots/$id/develop", "/shoots/legacy/develop"],
+      ["/shoots/$id/cull", "/shoots/abc/cull"],
+      ["/shoots/$id/gallery", "/shoots/abc/gallery"],
+      ["/shoots/", "/shoots"],
+      ["/cull", "/cull"],
+    ] as const)
+      expect(isDashboardAppRoute(["__root__", routeId], pathname)).toBe(true);
+  });
   for (const path of [
     "/",
     "/auth",

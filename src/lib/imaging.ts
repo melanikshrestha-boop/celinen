@@ -2,6 +2,8 @@
  * Celinen imaging core.
  * Runs entirely in the browser: decode, analyse, score, edit, export.
  */
+import { cullEngine } from "./studio/cull/client";
+import type { CullReading } from "./studio/cull/engine";
 import { validReviewRating } from "./studio/review-metadata";
 import type { PhotoSubject } from "./studio/people";
 
@@ -73,6 +75,8 @@ export interface Shot {
   hash: string;
   /** measured tone statistics — feeds Auto Refine */
   tone?: ToneStats | undefined;
+  /** What the C++ cull engine measured for this frame, when it could run. */
+  cull?: CullReading | undefined;
   score: number;
   flags: Flag[];
   verdict: Verdict;
@@ -394,6 +398,10 @@ export interface Analysis {
   clippedShadows: number;
   hash: string;
   tone: ToneStats;
+  /** What the C++ cull engine measured, when this browser could run it. Absent
+   * means the browser fell back to the canvas measurements above.
+   */
+  cull?: CullReading | undefined;
 }
 
 export interface FileAnalysisPreview {
@@ -410,6 +418,7 @@ export async function analyseFilePreview(file: File): Promise<FileAnalysisPrevie
   try {
     const analysis = analyseBitmap(bitmap);
     analysis.faces = await analyseFaces(bitmap);
+    attachCullReading(analysis, await measureCullFrame(bitmap, analysis.faces));
     const scale = Math.min(1, 480 / Math.max(bitmap.width, bitmap.height));
     const { canvas, ctx } = scratchCanvas(
       Math.max(1, Math.round(bitmap.width * scale)),
@@ -724,8 +733,68 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
   return { count: faces.length, faceSharpness, eyesOpen, center };
 }
 
+/** Measures the decoded frame with the C++ engine, handing it whatever the
+ * browser's face detector found. Null when this browser cannot run it.
+ */
+export async function measureCullFrame(
+  bitmap: ImageBitmap,
+  faces: FaceReading | null | undefined,
+): Promise<CullReading | null> {
+  try {
+    const engine = await cullEngine();
+    if (!engine) return null;
+    // Half the decode edge: the engine reads resolving power from gradients a
+    // few pixels apart, and this keeps a 45MP frame's measurement in tens of
+    // milliseconds without changing what it sees.
+    const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(32, Math.round(bitmap.width * scale));
+    const h = Math.max(32, Math.round(bitmap.height * scale));
+    const { ctx } = scratchCanvas(w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const box = faces?.center && faces.count > 0 ? faces : null;
+    return engine.measure(
+      ctx.getImageData(0, 0, w, h).data,
+      w,
+      h,
+      box?.center
+        ? [
+            {
+              // The detector reports one centre, not a box; a head is roughly a
+              // quarter of the frame's width at portrait distance.
+              x: Math.max(0, box.center.x - 0.12),
+              y: Math.max(0, box.center.y - 0.16),
+              width: 0.24,
+              height: 0.32,
+              sharpness: box.faceSharpness,
+              eyesOpen: box.eyesOpen,
+            },
+          ]
+        : [],
+    );
+  } catch {
+    // A frame that the engine cannot measure still gets the canvas analysis.
+    return null;
+  }
+}
+
+/** Puts one reading on an analysis. The engine's own measurements replace the
+ * canvas approximations of the same quantities, including the hash the duplicate
+ * index compares — but in the 64-bit binary spelling every other caller expects.
+ */
+export function attachCullReading(analysis: Analysis, cull: CullReading | null): Analysis {
+  if (!cull) return analysis;
+  analysis.cull = cull;
+  analysis.sharpness = cull.sharpness;
+  analysis.brightness = cull.brightness;
+  analysis.clippedHighlights = cull.clippedHighlights;
+  analysis.clippedShadows = cull.clippedShadows;
+  analysis.hash = BigInt(`0x${cull.hash}`).toString(2).padStart(64, "0");
+  return analysis;
+}
+
 export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
   const flags: Flag[] = [];
+  if (a.cull) return cullScoreOf(a.cull, flags);
   // Sharpness typically 0 (mush) .. 900+ (crisp)
   const focus = Math.max(0, Math.min(1, Math.log10(1 + a.sharpness) / 2.9));
   if (a.sharpness < 40) flags.push("blur");
@@ -757,6 +826,20 @@ export function scoreOf(a: Analysis): { score: number; flags: Flag[] } {
 
   const score = Math.round(Math.max(1, Math.min(99, base * 100)));
   return { score, flags };
+}
+
+/** The C++ engine's own measurements, expressed in the flags this app already
+ * shows. The number it returns is an absolute quality; the shoot-level pass
+ * replaces it with one calibrated against the rest of the shoot.
+ */
+function cullScoreOf(cull: CullReading, flags: Flag[]): { score: number; flags: Flag[] } {
+  if (cull.acuitySubject < 0.3) flags.push("blur");
+  else if (cull.acuitySubject < 0.45) flags.push("soft");
+  if (cull.subjectLuma < 45) flags.push("underexposed");
+  else if (cull.subjectLuma > 215 || cull.subjectClipped > 12) flags.push("overexposed");
+  if (cull.hasFace && cull.faceSoft) flags.push("face-soft");
+  if (cull.eyesClosed) flags.push("eyes-closed");
+  return { score: Math.round(Math.max(1, Math.min(99, cull.quality))), flags };
 }
 
 /* ---------------- editing ---------------- */
