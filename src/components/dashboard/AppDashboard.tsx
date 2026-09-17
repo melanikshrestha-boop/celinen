@@ -471,9 +471,16 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
               const calendar = "view" in item;
               const label =
                 item.to === "/deliver"
-                  ? Number(localStorage.getItem("celinen.gallery.count.v1") || "0") > 1
-                    ? "Galleries"
-                    : "Gallery"
+                  ? (() => {
+                      try {
+                        if (typeof localStorage === "undefined") return "Gallery";
+                        return Number(localStorage.getItem("celinen.gallery.count.v1") || "0") > 1
+                          ? "Galleries"
+                          : "Gallery";
+                      } catch {
+                        return "Gallery";
+                      }
+                    })()
                   : item.label;
               const on = calendar
                 ? calendarOpen

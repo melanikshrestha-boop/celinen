@@ -116,6 +116,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Send a gallery");
   expect(source).toContain("Share Only");
   expect(source).not.toContain("Copy chat");
+  expect(source).toContain('typeof localStorage === "undefined"');
   expect(dashCss).toContain(".celinen-dash-tool .shoot-workflow-tabs");
   const deliver = readFileSync(new URL("../src/routes/deliver.tsx", import.meta.url), "utf8");
   const gallery = readFileSync(

@@ -54,9 +54,11 @@ export async function rasterDevelopPreview(
     if (!bitmap.width || !bitmap.height) throw new Error("This photo could not be decoded.");
     const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
     const sniffed = sniffDevelopPreviewType(header);
-    const previewBlob = isWebDevelopPreview(sniffed)
-      ? await asDevelopPreviewBlob(file)
-      : await jpegFromBitmap(bitmap);
+    const namedWeb = isWebDevelopPreview(file.type);
+    const previewBlob =
+      isWebDevelopPreview(sniffed) || namedWeb
+        ? await asDevelopPreviewBlob(file)
+        : await jpegFromBitmap(bitmap);
     return {
       previewBlob,
       previewOrigin: "raster",
