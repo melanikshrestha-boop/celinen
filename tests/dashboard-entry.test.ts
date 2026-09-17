@@ -114,6 +114,10 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain('aria-label="Open Pick"');
   expect(source).toContain('preloadRoute({ to: "/studio" })');
   expect(source).not.toContain("Send a gallery");
+  expect(source).toContain("Share Only");
+  expect(source).not.toContain("Copy chat");
+  expect(dashCss).toContain(".celinen-dash-tool .shoot-workflow-tabs");
+  expect(dashCss).toContain("line-height: 1.5");
   expect(source).toContain("dashboardGreetingFor");
   expect(source).toContain("DashboardContext.Provider");
   expect(source).toContain("children");

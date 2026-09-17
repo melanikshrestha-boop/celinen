@@ -611,15 +611,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     <div className="celinen-dash__thread-tools">
                       <button
                         type="button"
-                        onClick={() =>
-                          void copyText("chat", chatCopyText(dashboardChatRecord(active)))
-                        }
-                      >
-                        <Copy size={14} />
-                        {copied === "chat" ? "Copied" : "Copy chat"}
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => {
                           const file = chatShareFile(dashboardChatRecord(active));
                           const url = URL.createObjectURL(file);
@@ -633,18 +624,26 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                         <Download size={14} />
                         Export
                       </button>
-                      {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const file = chatShareFile(dashboardChatRecord(active));
-                            void navigator.share?.({ files: [file], title: active.title }).catch(() => {});
-                          }}
-                        >
-                          <Share2 size={14} />
-                          Share
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const record = dashboardChatRecord(active);
+                          const file = chatShareFile(record);
+                          const share =
+                            typeof navigator !== "undefined" ? navigator.share?.bind(navigator) : undefined;
+                          if (share) {
+                            void share({ files: [file], title: active.title }).catch((error: unknown) => {
+                              if (error instanceof Error && error.name === "AbortError") return;
+                              void copyText("chat", chatCopyText(record));
+                            });
+                            return;
+                          }
+                          void copyText("chat", chatCopyText(record));
+                        }}
+                      >
+                        <Share2 size={14} />
+                        {copied === "chat" ? "Copied" : "Share Only"}
+                      </button>
                     </div>
                     {active.messages.map((message) => (
                       <div key={message.id} className="celinen-dash__bubble" data-role={message.role}>

@@ -333,6 +333,9 @@ html:has(.celinen-dash) {
   height: 100% !important;
   min-height: 0;
 }
+.celinen-dash-tool .shoot-workflow-tabs {
+  display: none;
+}
 .celinen-dash-tool,
 .celinen-embedded-studio {
   flex: 1;
@@ -394,15 +397,18 @@ html:has(.celinen-dash) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  margin: 0 0 16px;
+  gap: 2px;
+  margin: 0 0 20px;
 }
 .celinen-dash__bubble[data-role="user"] {
   align-items: flex-end;
 }
 .celinen-dash__bubble > button {
-  min-height: 24px;
-  padding: 0 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  gap: 4px;
 }
 .celinen-dash__thread {
   width: min(100%, 720px);
@@ -458,11 +464,11 @@ html:has(.celinen-dash) {
   max-width: none;
 }
 .celinen-dash .social-post.has-thread .celinen-dash__thread p[data-role="assistant"] {
-  margin: 0 0 28px;
+  margin: 0;
   padding: 0;
   border-radius: 0;
   font-size: 16px;
-  line-height: 1.75;
+  line-height: 1.5;
   white-space: pre-wrap;
 }
 .celinen-dash .social-post.has-thread .celinen-dash__thread p[data-role="user"] {

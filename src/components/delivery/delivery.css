@@ -7,7 +7,7 @@
   height: 100%;
   min-height: 0;
   margin: 0;
-  padding: 16px 24px 32px;
+  padding: 24px 32px 40px;
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
 }
 .delivery-workspace button,
@@ -40,49 +40,49 @@
 }
 .delivery-topline {
   justify-content: space-between;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 .delivery-eyebrow {
-  font: 10px var(--font-mono);
-  letter-spacing: 0.17em;
-  text-transform: uppercase;
-  color: var(--color-moss);
+  display: none;
 }
 .delivery-topline h1,
 .delivery-client h1 {
   margin: 0;
   font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
-  font-size: 26px;
-  line-height: 32px;
-  letter-spacing: -0.04em;
-  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+  font-weight: 400;
 }
 .delivery-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 36px;
   min-height: 0;
 }
 .delivery-layout.is-empty {
   grid-template-columns: minmax(0, 1fr);
 }
 .delivery-empty {
-  min-height: 60vh;
+  min-height: 0;
 }
 .delivery-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   align-self: start;
 }
 .delivery-room-link {
   text-align: left;
-  padding: 12px 8px;
-  margin-left: -8px;
-  border-radius: 8px;
+  padding: 8px 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 .delivery-room-link[aria-current="page"] {
-  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  background: none;
+  font-weight: 600;
 }
 .delivery-room-link strong {
   display: block;
@@ -101,8 +101,11 @@
   margin-bottom: 16px;
 }
 .delivery-room-heading h2 {
-  font: 550 24px var(--font-display);
-  letter-spacing: -0.035em;
+  margin: 0;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
 .delivery-room-heading p {
@@ -112,15 +115,16 @@
 }
 .delivery-primary,
 .delivery-quiet {
-  min-height: 44px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 14px;
-  font-size: 12px;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 0;
+  font-size: 13px;
   font-weight: 500;
-  border-radius: 9px;
+  border-radius: 999px;
   transition:
     background 0.15s,
     opacity 0.15s;
@@ -138,7 +142,7 @@
 }
 .delivery-quiet:hover {
   color: var(--color-ink);
-  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+  background: transparent;
 }
 .delivery-status {
   padding: 14px 0;
@@ -215,7 +219,7 @@
 .delivery-photo-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 26px 16px;
+  gap: 12px;
 }
 .delivery-image-wrap {
   position: relative;
