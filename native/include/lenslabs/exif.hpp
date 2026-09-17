@@ -45,6 +45,16 @@ struct ExifFacts {
   // The camera's AF area from its maker note (Sony FocusLocation, Nikon
   // AFInfo2, Canon AFInfo2, Fujifilm FocusPixel). Absent when the file has none.
   AfArea af;
+
+  // The parts of that key, and the rest of what a shoot's membership check
+  // reads. All lowercased and trimmed; empty when the file did not say.
+  bool has_exif = false;     // an EXIF block was found and parsed
+  std::string make, model, serial;
+  std::string lens;          // LensModel
+  std::string software;      // Software: the camera firmware or the last app to write the file
+  // PixelXDimension / PixelYDimension, 0 when absent. Differs from the JPEG's
+  // own size when an app resized the file without rewriting its EXIF.
+  std::uint32_t exif_width = 0, exif_height = 0;
 };
 
 // Reads the metadata of a JPEG (APP1 EXIF), a TIFF-based RAW (ARW, NEF, CR2,
