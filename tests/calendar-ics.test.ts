@@ -151,6 +151,11 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(css).toContain("background: #ffe8ea");
   expect(css).toContain("color: #c41e3a");
   expect(cal).toContain("writeDroppedMarks");
+  // Safari leaves focus on <body> after a click, so the window key listener is its only
+  // Delete path: it has to tombstone through removeEvent, never drop the bare id.
+  const windowKey = cal.slice(cal.indexOf("function onWindowKey"), cal.indexOf('window.addEventListener("keydown"'));
+  expect(windowKey).toContain("removeEvent(selectedId)");
+  expect(windowKey).not.toContain("dropCalendarEvent");
   expect(cal).toContain("eventDropMark");
   expect(cal).toContain('"week"');
   expect(cal).toContain('"quarter"');

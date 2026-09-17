@@ -185,7 +185,7 @@ export function OutboundPage({ scope }: { scope: string }) {
     );
   const exportRecords = () => {
     download(
-      `foto-prospects-${today()}.csv`,
+      `celinen-prospects-${today()}.csv`,
       exportProspectCsv(prospects),
       "text/csv;charset=utf-8",
     );
@@ -885,7 +885,7 @@ function ImportForm({
         <button
           onClick={() =>
             download(
-              "foto-prospect-template.csv",
+              "celinen-prospect-template.csv",
               "name,company,email,website,specialty,signal,sourceUrl,observedOn,fitReason,notes\r\n",
               "text/csv",
             )

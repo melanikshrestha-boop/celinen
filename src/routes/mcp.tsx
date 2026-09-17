@@ -13,7 +13,7 @@ import "@/components/marketing/mcp-page.css";
 export const Route = createFileRoute("/mcp")({
   head: () =>
     publicContentHead(
-      "foto MCP",
+      "Celinen MCP",
       "Connect Celinen to Claude, ChatGPT, Cursor, Grok, and Julius with one URL.",
       "/mcp",
     ),

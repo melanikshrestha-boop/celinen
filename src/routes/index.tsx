@@ -6,9 +6,7 @@ import { WorkflowSection } from "@/components/marketing/WorkflowSection";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { IntegrationsSection } from "@/components/marketing/IntegrationsSection";
 import { PublishEverywhere } from "@/components/marketing/PublishEverywhere";
-import { LivePhotographers } from "@/components/marketing/LivePhotographers";
 import { HomePricing } from "@/components/marketing/HomePricing";
-import { MarketingStats } from "@/components/marketing/MarketingStats";
 import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { PublicEntryCta } from "@/components/PublicEntryCta";
@@ -53,14 +51,13 @@ function Index() {
         <section className="marketing-hero" aria-labelledby="home-heading">
           <img
             className="marketing-hero__image"
-            src="/images/foto-open-sky.webp"
+            src="/images/celinen-open-sky.webp"
             alt=""
             width="1672"
             height="941"
             fetchPriority="high"
           />
           <div className="marketing-hero__content">
-            <LivePhotographers />
             <h1 id="home-heading">
               Go where the
               <br />
@@ -98,7 +95,6 @@ function Index() {
           </span>
         </div>
         </div>
-        <MarketingStats />
         <SectionGuard>
           <PublishEverywhere />
         </SectionGuard>
@@ -149,7 +145,7 @@ function Index() {
         <section className="marketing-handoff" aria-labelledby="handoff-heading">
           <img
             className="marketing-handoff__image"
-            src="/images/foto-open-sky.webp"
+            src="/images/celinen-open-sky.webp"
             alt=""
             loading="lazy"
           />

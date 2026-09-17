@@ -120,7 +120,7 @@ export function AccountSetupView({
       <div className="auth-scene">
         <img
           className="auth-scene-image"
-          src="/images/foto-open-sky.webp"
+          src="/images/celinen-open-sky.webp"
           alt=""
           aria-hidden="true"
           fetchPriority="high"

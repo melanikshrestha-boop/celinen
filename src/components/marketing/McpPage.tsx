@@ -22,7 +22,7 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
       href: "https://claude.ai/customize/connectors?modal=add-custom-connector",
       hrefLabel: "Customize → Connectors",
     },
-    { title: "Add the foto connector", body: "Name it foto and paste the URL." },
+    { title: "Add the Celinen connector", body: "Name it celinen and paste the URL." },
     { title: "Connect", body: "Click Connect, then ask Claude to list Celinen plans or walk the pick → send path." },
   ],
   chatgpt: [
@@ -32,16 +32,16 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
     },
     {
       title: "Create the app",
-      body: "Back on Apps, click Create. Name it foto, paste https://lenslab.dev/api/mcp, auth none, then scan tools.",
+      body: "Back on Apps, click Create. Name it celinen, paste https://lenslab.dev/api/mcp, auth none, then scan tools.",
     },
     {
       title: "Turn it on in a chat",
-      body: "New conversation → + → Developer mode → tick foto. Ask it to list Celinen plans or walk import → pick → send.",
+      body: "New conversation → + → Developer mode → tick celinen. Ask it to list Celinen plans or walk import → pick → send.",
     },
   ],
   cursor: [
     { title: "Open MCP settings", body: "In Cursor, open MCP settings and add a new HTTP server." },
-    { title: "Paste the URL", body: "Set the server URL to the foto connector and save." },
+    { title: "Paste the URL", body: "Set the server URL to the Celinen connector and save." },
     { title: "Reload", body: "Reload Cursor, then ask it to describe the Celinen workflow." },
   ],
   grok: [
@@ -51,8 +51,8 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
       href: "https://grok.com/connectors",
       hrefLabel: "grok.com/connectors",
     },
-    { title: "Paste the URL", body: "Name it foto and paste the same MCP URL." },
-    { title: "Or call it from the API", body: "Use the Grok snippet below with server_url pointed at foto." },
+    { title: "Paste the URL", body: "Name it celinen and paste the same MCP URL." },
+    { title: "Or call it from the API", body: "Use the Grok snippet below with server_url pointed at Celinen." },
   ],
   julius: [
     {
@@ -61,7 +61,7 @@ const STEPS: Record<ClientId, { title: string; body: string; href?: string; href
       href: "https://julius.ai/data-connectors",
       hrefLabel: "Julius Data Connectors",
     },
-    { title: "Paste the URL", body: "Name it foto and paste the connector URL." },
+    { title: "Paste the URL", body: "Name it celinen and paste the connector URL." },
     { title: "Ask in a notebook", body: "Ask Julius for Celinen plans or the same-night gallery path." },
   ],
 };
@@ -79,7 +79,7 @@ const SNIPPETS: { id: SnippetId; label: string; code: string }[] = [
     "params": {
       "protocolVersion": "2025-03-26",
       "capabilities": {},
-      "clientInfo": { "name": "foto", "version": "1.0" }
+      "clientInfo": { "name": "celinen", "version": "1.0" }
     }
   }'`,
   },
@@ -115,7 +115,7 @@ response = client.responses.create(
     tools=[{
         "type": "mcp",
         "server_url": "https://lenslab.dev/api/mcp",
-        "server_label": "foto",
+        "server_label": "celinen",
     }],
 )
 
@@ -139,7 +139,7 @@ console.log(await response.json());`,
   {
     id: "grok",
     label: "Grok",
-    code: `grok mcp add --transport http foto https://lenslab.dev/api/mcp
+    code: `grok mcp add --transport http celinen https://lenslab.dev/api/mcp
 
 from openai import OpenAI
 
@@ -154,7 +154,7 @@ response = client.responses.create(
     tools=[{
         "type": "mcp",
         "server_url": "https://lenslab.dev/api/mcp",
-        "server_label": "foto",
+        "server_label": "celinen",
     }],
 )
 
@@ -164,7 +164,7 @@ print(response.output_text)`,
 
 const FAQ: [string, string][] = [
   [
-    "What is the foto MCP server?",
+    "What is the Celinen MCP server?",
     "A Model Context Protocol server. Your assistant can read the Celinen workflow, published USD plan amounts, and public photography notes from one URL.",
   ],
   [
@@ -173,7 +173,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "Do I need an API key?",
-    "Paste the URL to connect. Grok’s API snippet uses your XAI_API_KEY only because that call goes through api.x.ai. The foto connector itself is the URL.",
+    "Paste the URL to connect. Grok’s API snippet uses your XAI_API_KEY only because that call goes through api.x.ai. The Celinen connector itself is the URL.",
   ],
   [
     "Is it free?",
@@ -246,7 +246,7 @@ export function McpPage() {
           ))}
         </p>
         <h1>
-          The <em>foto</em> MCP for {clientLabel}
+          The <em>Celinen</em> MCP for {clientLabel}
         </h1>
         <p>
           Connect Celinen to your assistant. Pick keepers, send a gallery, and read published plans from
@@ -348,7 +348,7 @@ export function McpPage() {
           </p>
           <p className="mcp-page__bubble">
             <LogoMark size={24} />
-            foto
+            Celinen
             <span>
               Pick first. Publish a copy. Originals stay with you. I’ll walk the order of work, not a speed
               claim.
@@ -369,7 +369,7 @@ export function McpPage() {
 
       <section className="mcp-page__grid" aria-labelledby="mcp-grid-heading">
         <h2 id="mcp-grid-heading">
-          Connect <em>foto</em> to any AI
+          Connect <em>Celinen</em> to any AI
         </h2>
         <ul>
           {CLIENTS.map((item) => (

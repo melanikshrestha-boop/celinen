@@ -4,7 +4,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { useWorkbench, type WorkbenchContextValue } from "./context";
 import "./workspace-home.css";
 
-const STILL = "/images/foto-open-sky.webp";
+const STILL = "/images/celinen-open-sky.webp";
 
 const START = [
   {

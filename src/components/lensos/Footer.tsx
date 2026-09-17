@@ -4,10 +4,6 @@ const COLUMNS: { title: string; links: { label: string; to?: string; href?: stri
   {
     title: "Product",
     links: [
-      { label: "Event Desk", to: "/desk" },
-      { label: "Pick", to: "/pick" },
-      { label: "Metadata", to: "/metadata" },
-      { label: "Packages", to: "/packages" },
       { label: "Pricing", to: "/pricing" },
       { label: "Security" },
     ],
@@ -39,7 +35,6 @@ const COLUMNS: { title: string; links: { label: string; to?: string; href?: stri
   {
     title: "Resources",
     links: [
-      { label: "Switch from Pixieset" },
       { label: "Download" },
       { label: "Documentation" },
       { label: "Lightroom plugin", to: "/settings" },

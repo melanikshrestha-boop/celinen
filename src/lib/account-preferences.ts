@@ -140,10 +140,17 @@ export function observeSession<T>(
 ) {
   let alive = true,
     eventSeen = false;
-  const unsubscribe = subscribe((value) => {
-    eventSeen = true;
-    if (alive) receive(value);
-  });
+  let unsubscribe: () => void;
+  try {
+    unsubscribe = subscribe((value) => {
+      eventSeen = true;
+      if (alive) receive(value);
+    });
+  } catch (error) {
+    // An Auth client that cannot even be built (missing keys) is signed out, not a crash or an endless loader.
+    fail(error);
+    return () => {};
+  }
   void restore()
     .then((value) => {
       if (alive && !eventSeen) receive(value);

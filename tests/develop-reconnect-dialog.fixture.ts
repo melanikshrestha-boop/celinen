@@ -108,6 +108,7 @@ mock.module("../src/lib/develop/reconnect", () => ({
 }));
 mock.module("../src/lib/develop/client", () => ({
   developEngineStatus: async () => ({ ready: true, token: "test-token", rawSupported: true }),
+  isHostedDevelopEngine: () => false,
   renderDevelop: (...args: Parameters<typeof renderNative>) => renderNative(...args),
 }));
 const { DevelopReconnectDialog } = await import("../src/components/develop/DevelopReconnectDialog");
@@ -477,7 +478,8 @@ function mount() {
   renderNative = async (_file, _settings, call) => {
     calls.push(call);
     if (calls.length === 1) throw new Error("Preview unavailable");
-    return new Blob(["decoded"]);
+    // A real engine receipt is a JPEG; anything else is recoded through a canvas.
+    return new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), "decoded"]);
   };
   let closed = 0;
   globalThis.createImageBitmap = (async () => ({

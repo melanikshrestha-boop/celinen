@@ -77,7 +77,7 @@ export function PortfolioImportPanel({
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = "foto-migration-plan.json";
+      link.download = "celinen-migration-plan.json";
       document.body.append(link);
       link.click();
       link.remove();

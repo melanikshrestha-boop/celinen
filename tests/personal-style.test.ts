@@ -21,7 +21,7 @@ const storage = {
     return memory.size;
   },
 };
-Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
+Object.defineProperty(globalThis, "localStorage", { configurable: true, writable: true, value: storage });
 
 test("personal style stores compact edit numbers, never pixels", () => {
   memory.clear();

@@ -84,7 +84,7 @@ if (!process.argv.includes("--auth-presentation-fixture")) {
     assert.match(html, /<main class="auth-screen">/);
     assert.match(
       html,
-      /class="auth-scene-image"[^>]*src="\/images\/foto-open-sky.webp"[^>]*alt=""[^>]*aria-hidden="true"/,
+      /class="auth-scene-image"[^>]*src="\/images\/celinen-open-sky.webp"[^>]*alt=""[^>]*aria-hidden="true"/,
     );
     assert.ok(html.includes("Send the gallery"));
     assert.ok(html.includes("1,000 photo credits / mo"));

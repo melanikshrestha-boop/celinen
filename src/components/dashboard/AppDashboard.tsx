@@ -18,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { useSignedOutRedirect } from "@/components/account/useSignedOutRedirect";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { SocialDock } from "./SocialDock";
@@ -272,14 +273,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     setLiveWidth(null);
   }, [mobile]);
 
-  useEffect(() => {
-    if (account?.status === "out")
-      void navigate({
-        to: "/auth",
-        search: { next: "/dashboard", mode: "signin" },
-        replace: true,
-      });
-  }, [account?.status, navigate]);
+  useSignedOutRedirect();
 
   const loading = !account || account.status === "loading" || account.status === "out";
   const scope = account?.scope;

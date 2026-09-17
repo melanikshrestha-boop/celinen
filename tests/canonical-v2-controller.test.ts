@@ -4,5 +4,5 @@ test('private V2 controller ownership, admission, restart, cancellation, durable
     {stdout:'pipe',stderr:'pipe'});
   if(result.exitCode!==0) throw Error(result.stderr.toString());
   expect(result.exitCode).toBe(0);
-  expect(result.stdout.toString()).toContain('"controller_assertions":37,"failed":0');
+  expect(result.stdout.toString()).toContain('"controller_assertions":40,"failed":0');
 });

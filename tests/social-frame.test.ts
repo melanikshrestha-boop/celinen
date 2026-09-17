@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DEFAULT_SOCIAL_FRAME, socialFrameSchema } from "../src/lib/social-frame";
 import { runNativeSocial, socialArguments } from "../src/server/native-social";
@@ -39,9 +39,11 @@ describe("social framing boundary", () => {
     ]);
   });
 });
-describe.skipIf(process.platform !== "darwin")("real C++ social JPEG operator", () => {
-  const binary = resolve("native/build/lenslabs-social"),
-    source = resolve("tests/fixtures/photos/basketball-action-usaf-pd.jpg");
+// Like every sibling native suite: needs the locally built operator (`make -C native`).
+const binary = resolve("native/build/lenslabs-social");
+const nativeAvailable = process.platform === "darwin" && existsSync(binary);
+describe.skipIf(!nativeAvailable)("real C++ social JPEG operator", () => {
+  const source = resolve("tests/fixtures/photos/basketball-action-usaf-pd.jpg");
   test("exports exact dimensions and leaves the source bytes unchanged", async () => {
     const before = readFileSync(source);
     for (const [format, height] of [

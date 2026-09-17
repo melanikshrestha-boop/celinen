@@ -44,6 +44,7 @@ test("per-shoot pose links persist boards and a Pinterest URL", () => {
   const memory = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
+    writable: true,
     value: {
       getItem: (key: string) => memory.get(key) ?? null,
       setItem: (key: string, value: string) => memory.set(key, value),

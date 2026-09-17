@@ -91,6 +91,8 @@ function shell(mode: "open" | "mini" | null, width = 248) {
     SocialDock: "SocialDock",
     PRODUCT_NAME: "Synthetic dashboard",
     onHapticPress: () => {},
+    // The layout harness renders a signed-in shell; the sign-in gate has its own test.
+    useSignedOutRedirect: () => {},
     ...Object.fromEntries(
       [
         "Aperture",

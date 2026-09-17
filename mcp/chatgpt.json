@@ -1,6 +1,6 @@
 {
-  "name": "foto",
-  "description": "Celinen / FOTO photography MCP: plans, workflow, public notes.",
+  "name": "celinen",
+  "description": "Celinen photography MCP: plans, workflow, public notes.",
   "server_url": "https://lenslab.dev/api/mcp",
   "auth": "none"
 }

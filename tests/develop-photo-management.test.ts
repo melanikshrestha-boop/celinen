@@ -197,7 +197,7 @@ describe("Portable FOTO look packages", () => {
     expect(roundtrip.settings.masks).toEqual([]);
     expect(exportPresetPackage(pkg)).not.toContain("private-mask");
     expect(JSON.stringify(recipe)).toBe(before);
-    expect(presetPackageFilename("Game / Night")).toBe("FOTO-Game - Night.foto-preset.json");
+    expect(presetPackageFilename("Game / Night")).toBe("Celinen-Game - Night.foto-preset.json");
   });
   test("import creates new local IDs and retains metadata without accepting foreign IDs", () => {
     const pkg = createPresetPackage({ title: "My look" }, defaultDevelopSettings());

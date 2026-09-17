@@ -68,7 +68,7 @@ Google account selection and owner credentials remain owner-only verification.
 
 ## Artwork provenance
 
-`public/images/foto-open-sky.webp` is newly generated artwork, 1672 × 941 pixels,
+`public/images/celinen-open-sky.webp` is newly generated artwork, 1672 × 941 pixels,
 174072 bytes. It was generated using the image-generation tool on 2026-09-09;
 only WebP encoding was performed afterward. It contains no third-party logo or UI.
 

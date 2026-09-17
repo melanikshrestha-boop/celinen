@@ -26,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAccount } from "@/components/account/AccountProvider";
+import { useSignedOutRedirect } from "@/components/account/useSignedOutRedirect";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { WorkspacePreferences } from "@/components/account/WorkspacePreferences";
 import { AccountSetup } from "@/components/account/AccountSetup";
@@ -137,20 +138,13 @@ function AccountWorkbench({ children }: { children: ReactNode }) {
     viewport.addEventListener("resize", resize);
     return () => viewport.removeEventListener("resize", resize);
   }, [identity?.scope]);
-  const navigate = useNavigate();
   const account = identity?.scope;
   const [sidebarOpen, setSidebarOpen] = useState(identity?.preferences.sidebarOpen ?? true);
   useEffect(() => {
     setSidebarOpen(identity?.preferences.sidebarOpen ?? true);
   }, [account, identity?.preferences.sidebarOpen]);
   const href = useRouterState({ select: (state) => state.location.href });
-  useEffect(() => {
-    if (
-      identity?.status === "out" &&
-      new URL(href, "https://workspace.invalid").pathname !== "/auth"
-    )
-      void navigate({ to: "/auth", search: { next: safeSignInPath(href) }, replace: true });
-  }, [identity?.status, href, navigate]);
+  useSignedOutRedirect();
   if (!account)
     return (
       <main className="workbench-lock">
@@ -863,7 +857,7 @@ function WorkspaceSidebar({
           }}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>foto navigation</SheetTitle>
+            <SheetTitle>Celinen navigation</SheetTitle>
             <SheetDescription>Tonight, Shoots, Library, Deliver and Earnings.</SheetDescription>
           </SheetHeader>
           {children}

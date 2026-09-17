@@ -176,7 +176,7 @@ if (!process.argv.includes(flag)) {
     assert.ok(!html.includes("Toggle color mode"));
   }
   const productHtml = render(product.ProductPage);
-  assert.ok(productHtml.includes('id="why-foto"'));
+  assert.ok(productHtml.includes('id="why-celinen"'));
   assert.ok(productHtml.includes('id="your-work"'));
   assert.ok(plain(productHtml).includes("Native image processing requires the local engine."));
   assert.ok(plain(productHtml).includes("publishing") || plain(productHtml).includes("Publishing"));

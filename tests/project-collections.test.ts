@@ -4,18 +4,24 @@ import { readProjectCollections, writeProjectCollections } from "../src/lib/proj
 
 test("project collections default to Favorites and persist", () => {
   const store = new Map<string, string>();
-  globalThis.localStorage = {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(key, value);
+  // defineProperty, not assignment: bun runs every file in one process, and a
+  // sibling that installed a non-writable localStorage makes assignment throw.
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    writable: true,
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => store.clear(),
+      key: () => null,
+      length: 0,
     },
-    removeItem: (key: string) => {
-      store.delete(key);
-    },
-    clear: () => store.clear(),
-    key: () => null,
-    length: 0,
-  };
+  });
   const first = readProjectCollections();
   expect(first[0]?.id).toBe("favorites");
   writeProjectCollections([

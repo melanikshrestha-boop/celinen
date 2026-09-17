@@ -6,6 +6,9 @@ export function verifiedPhotographer(user: User | null, expectedId: string): use
   );
 }
 
+/** Longest a first session restore (storage read, token refresh, verification) may stay unanswered. */
+export const SESSION_RESTORE_DEADLINE_MS = 10_000;
+
 /** Verification never lets a late response resurrect a signed-out/different identity. */
 export function verifiedSessionReceiver(
   verify: (token: string) => Promise<User | null>,

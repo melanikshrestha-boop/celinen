@@ -78,23 +78,25 @@ export function DevelopSlider({
   onChange: (value: number, commit: boolean) => void;
 }) {
   const last = useRef(value);
-  const lastCommit = useRef(value);
+  // True while a live preview from this slider still awaits its commit. Gate on that, never on
+  // the last committed number: undo, presets and photo/channel/mask switches put a different
+  // value under this same instance, so an equal number can still be an unsaved edit.
+  const uncommitted = useRef(false);
   last.current = value;
-  
+
   const handleCommit = useCallback(() => {
-    if (!disabled && last.current !== lastCommit.current) {
-      lastCommit.current = last.current;
-      onChange(last.current, true);
-    }
+    if (disabled || !uncommitted.current) return;
+    uncommitted.current = false;
+    onChange(last.current, true);
   }, [disabled, onChange]);
-  
+
   return (
     <div className="develop-slider" id={id}>
       <label
         onDoubleClick={(event) => {
           if (!disabled && !event.currentTarget.closest("fieldset:disabled")) {
             last.current = reset;
-            lastCommit.current = reset;
+            uncommitted.current = false;
             onChange(reset, true);
           }
         }}
@@ -116,6 +118,7 @@ export function DevelopSlider({
           const newValue = Number(e.target.value);
           if (newValue !== last.current) {
             last.current = newValue;
+            uncommitted.current = true;
             onChange(newValue, false);
           }
         }}
@@ -139,6 +142,7 @@ export function DevelopSlider({
             const newValue = Math.min(max, Math.max(min, v));
             if (newValue !== last.current) {
               last.current = newValue;
+              uncommitted.current = true;
               onChange(newValue, false);
             }
           }

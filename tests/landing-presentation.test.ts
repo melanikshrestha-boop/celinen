@@ -19,7 +19,7 @@ if (!process.argv.includes(fixtureFlag)) {
   });
 
   test("public mountain image is a compact local WebP with the declared intrinsic dimensions", () => {
-    const bytes = readFileSync(new URL("../public/images/foto-open-sky.webp", import.meta.url));
+    const bytes = readFileSync(new URL("../public/images/celinen-open-sky.webp", import.meta.url));
     expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
     expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");
     expect(bytes.readUInt32LE(4) + 8).toBe(bytes.length);
@@ -204,14 +204,15 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("Keep the ones"));
     assert.ok(!html.includes("It learns from your photos and your edits"));
     assert.ok(!html.includes("marketing-learn"));
-    const heroAt = html.indexOf('class="marketing-hero"');
-    const statsAt = html.indexOf("marketing-stats");
-    assert.ok(heroAt > 0 && statsAt > heroAt, "Stats follow the hero");
+    assert.ok(html.includes('class="marketing-hero"'));
+    assert.ok(!html.includes("marketing-stats"), "No counters without a real data source");
+    assert.ok(!html.includes("marketing-live"), "No LIVE user count without a real data source");
+    assert.ok(!html.includes("12,480"), "Never a fabricated user count");
     assert.ok(!html.includes("marketing-vista__dissolve"));
     assert.ok(html.includes('aria-labelledby="home-heading"'));
     const hero = html.match(/<img\b[^>]*class="marketing-hero__image"[^>]*>/)![0];
     for (const expected of [
-      'src="/images/foto-open-sky.webp"',
+      'src="/images/celinen-open-sky.webp"',
       'alt=""',
       'width="1672"',
       'height="941"',
@@ -220,7 +221,7 @@ if (!process.argv.includes(fixtureFlag)) {
       assert.ok(hero.includes(expected), `Hero is missing ${expected}`);
     for (const image of html.matchAll(/<img\b[^>]*>/g)) {
       assert.ok(image[0].includes('alt=""'), "Illustrative scenery must remain decorative");
-      assert.ok(image[0].includes('src="/images/foto-open-sky.webp"'));
+      assert.ok(image[0].includes('src="/images/celinen-open-sky.webp"'));
     }
     const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     const startsWith = (label: string) =>
@@ -291,16 +292,13 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("Our 30% affiliate program"));
     assert.ok(!html.includes("Referral cookie window"));
     assert.ok(html.includes('href="/affiliates"'));
-    assert.ok(html.includes("LIVE"));
     assert.ok(html.includes("Publish everywhere"));
     assert.ok(html.includes("YouTube Shorts"));
     assert.ok(html.includes("Google Business"));
     assert.ok(html.includes("ChatGPT"));
     assert.ok(!html.includes("633,663"));
     assert.ok(!html.includes("customers"));
-    assert.match(html, /Photographers/);
-    assert.match(html, /Galleries sent/);
-    assert.match(html, /Frames picked/);
+    assert.doesNotMatch(html, /Galleries sent|Frames picked|Editors connected/);
     assert.ok(!html.includes("$16"));
     assert.ok(html.includes('id="connectors"'));
     assert.match(html, /Connectors/);

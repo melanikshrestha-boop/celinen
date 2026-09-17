@@ -17,7 +17,7 @@ function droppedKey(scope: string) {
   return `celinen.calendar.dropped.v1:${scope}`;
 }
 
-export function eventDropMark(event: { id: string; start: number; title: string }) {
+export function eventDropMark(event: { start: number; title: string }) {
   return `t:${event.start}:${event.title}`;
 }
 

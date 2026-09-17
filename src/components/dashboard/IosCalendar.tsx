@@ -283,12 +283,9 @@ export function IosCalendar() {
       if (event.key === "Backspace" && inField && !event.metaKey && !event.ctrlKey) return;
       if (!isCalendarDeleteKey(event.key)) return;
       event.preventDefault();
-      persist(dropCalendarEvent(stateRef.current, selectedId));
-      inspectRef.current = null;
-      sheetRef.current = null;
-      setInspect(null);
-      setSheet(null);
-      setGhost(null);
+      // Safari never focuses a clicked button, so this window listener is the only
+      // Delete path there. It must take the same tombstoning route as every other one.
+      removeEvent(selectedId);
     }
     window.addEventListener("keydown", onWindowKey);
     return () => window.removeEventListener("keydown", onWindowKey);

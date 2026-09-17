@@ -49,6 +49,7 @@ import {
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
+import { suggestDevelopWasm, WASM_DEVELOP_ENGINE } from "@/lib/develop/wasm/client";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
@@ -331,6 +332,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const [busy, setBusy] = useState(""),
     [engine, setEngine] = useState<boolean | null>(null);
   const [browserOnly, setBrowserOnly] = useState(false);
+  // The C++ engine running in this page as WebAssembly: the full recipe, but no
+  // loopback tools such as automatic crop.
+  const [wasmEngine, setWasmEngine] = useState(false);
   const [removalPreviewPending, setRemovalPreviewPending] = useState(false);
   const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
     [dragging, setDragging] = useState(false);
@@ -536,6 +540,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         if (!cancelled) {
           setEngine(Boolean(s?.ready));
           setBrowserOnly(!s?.ready || s.engine === BROWSER_DEVELOP_ENGINE);
+          setWasmEngine(s?.engine === WASM_DEVELOP_ENGINE);
         }
       });
     };
@@ -1208,6 +1213,24 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         );
     }
   }
+  // Measured Auto: the C++ engine reads this photo's working pixels and solves
+  // light, white balance and vibrance against its own tone equations.
+  async function autoDevelop() {
+    const id = selectedRef.current;
+    if (editsLocked() || !id || !previewSource) return;
+    try {
+      const suggestion = await suggestDevelopWasm(previewSource, exportEdge);
+      // The photographer may have moved on while the pixels were measured.
+      if (!alive.current || selectedRef.current !== id || editsLocked()) return;
+      if (!suggestion?.applicable) {
+        setNotice("This frame has no tonal range to measure.");
+        return;
+      }
+      change({ ...draftRef.current, ...suggestion.patch }, "Auto");
+    } catch (error) {
+      if (alive.current) setNotice(errorMessage(error));
+    }
+  }
   function startSplit(
     edge: "left" | "right" | "film",
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -1685,7 +1708,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         dialog ||
         editsLocked() ||
         (e.target instanceof HTMLElement &&
-          e.target.closest("input,textarea,select,[contenteditable=true],[role=dialog]"))
+          e.target.closest(
+            "input:not([type=range]),textarea,select,[contenteditable=true],[role=dialog]",
+          ))
       )
         return;
       const mod = e.metaKey || e.ctrlKey,
@@ -1696,7 +1721,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         else undo();
         return;
       }
-      if (mod) return;
+      // A slider keeps focus after a drag. It has no text undo of its own, so
+      // Undo/Redo above must reach it, but its arrow keys still belong to it.
+      if (mod || (e.target instanceof HTMLInputElement && e.target.type === "range")) return;
       if (key === "\\" && source) {
         e.preventDefault();
         setBefore((v) => !v);
@@ -2484,6 +2511,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 >
                   Light
                 </button>
+                {wasmEngine && (
+                  <button
+                    type="button"
+                    disabled={!previewSource || !!saveError || !!busy}
+                    onClick={() => void autoDevelop()}
+                  >
+                    Auto
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!sourceStatsReady || !!saveError || !!busy || visible.length < 2}
@@ -2559,7 +2595,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 maskId={maskId}
                 onMask={setMaskId}
                 sourceAspect={sourceAspect}
-                onSuggestCrop={() => openDialog("auto-crop")}
+                {...(wasmEngine ? {} : { onSuggestCrop: () => openDialog("auto-crop") })}
                 browserOnly={browserOnly}
               />
             </fieldset>

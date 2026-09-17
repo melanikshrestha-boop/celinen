@@ -35,6 +35,11 @@ export function authReturnUrl(
   return target.toString();
 }
 
+/** Where a private page sends a signed-out visitor; `next` returns them to that exact page. */
+export function signInHref(href: string) {
+  return `/auth?next=${encodeURIComponent(safeSignInPath(href))}&mode=signin`;
+}
+
 export function isLocalAuthOrigin(origin: string) {
   try {
     const { hostname } = new URL(origin);

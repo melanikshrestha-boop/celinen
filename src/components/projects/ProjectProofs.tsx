@@ -212,7 +212,7 @@ export function ProjectProofs({
       const url = URL.createObjectURL(prepared.blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `lenslabs-proof-${selectedProofId}.zip`;
+      anchor.download = `celinen-proof-${selectedProofId}.zip`;
       document.body.appendChild(anchor);
       try {
         anchor.click();

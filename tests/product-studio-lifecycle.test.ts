@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { DEFAULT_EDITS, type Shot, type Verdict } from "../src/lib/imaging";
-import { applyImportCull, attachImportAnalysis } from "../src/lib/studio/cull-on-import";
+import {
+  analysisBytesForShot,
+  applyImportCull,
+  attachImportAnalysis,
+} from "../src/lib/studio/cull-on-import";
 import { proposeCull, type StudioProposal } from "../src/lib/studio/proposals";
 import { createProductAnalytics } from "../src/lib/product-analytics";
 import {
@@ -43,7 +47,8 @@ function photo(id: string, overrides: Partial<Shot> = {}): Shot {
   return {
     id,
     name: `${id}.jpg`,
-    file: new File([`synthetic-${id}`], `${id}.jpg`),
+    // Padded past the 32-byte floor below which production refuses to score a frame.
+    file: new File([`synthetic-${id}`.padEnd(64, ".")], `${id}.jpg`),
     isRaw: false,
     previewUrl: null,
     width: 160,
@@ -119,6 +124,7 @@ function fixture(
       analysisCalls++;
       throw new Error("PRIVATE-CANARY-/Users/client/photo.jpg");
     },
+    analysisBytesForShot,
     attachImportAnalysis,
     applyImportCull,
     updateShots: (update: (frames: Shot[]) => Shot[]) => {
@@ -188,6 +194,25 @@ describe("actual Studio lifecycle producers", () => {
       expect(h.events.map((event) => event.event)).toEqual(["cull_started", "cull_failed"]);
       expect(h.events[1]!.properties.photo_count).toBe(2);
       expect(JSON.stringify(h.events)).not.toContain("PRIVATE-CANARY");
+      expect(h.latestShotsRef.current).toBe(h.originals);
+      expect(h.latestShotsRef.current.map((frame) => frame.verdict)).toEqual([
+        "undecided",
+        "undecided",
+      ]);
+      expect(h.undoRef.current).toHaveLength(0);
+    } finally {
+      h.close();
+    }
+  });
+
+  test("frames without scoreable bytes are never analysed, reported, or decided", async () => {
+    const h = fixture({ applied: true, failAnalysis: true });
+    try {
+      for (const frame of h.originals) frame.file = new File(["x"], frame.name);
+      h.actions.runImportCull();
+      await h.settle();
+      expect(h.analysisCalls()).toBe(0);
+      expect(h.events).toEqual([]);
       expect(h.latestShotsRef.current).toBe(h.originals);
       expect(h.latestShotsRef.current.map((frame) => frame.verdict)).toEqual([
         "undecided",

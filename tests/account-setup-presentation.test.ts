@@ -66,7 +66,7 @@ if (!process.argv.includes("--setup-presentation-fixture")) {
   assert.ok(html.includes("Who are you?"));
   assert.ok(!html.includes("Make yourself at home."));
   assert.ok(html.includes("example@example.test"));
-  assert.ok(html.includes('src="/images/foto-open-sky.webp"'));
+  assert.ok(html.includes('src="/images/celinen-open-sky.webp"'));
   assert.ok(html.includes('alt="" aria-hidden="true"'));
   assert.ok(html.includes("College football"));
   assert.ok(html.includes("Sports"));

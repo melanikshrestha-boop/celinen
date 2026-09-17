@@ -1,7 +1,7 @@
 import { transcribeUtterance } from "@/lib/voice/stt.functions";
 import { blobToBase64 } from "@/lib/voice/pcm";
 
-async function sessionToken(): Promise<string | null> {
+export async function voiceSessionToken(): Promise<string | null> {
   try {
     const { supabase } = await import("@/integrations/supabase/client");
     const { data } = await supabase.auth.getSession();
@@ -15,7 +15,7 @@ async function sessionToken(): Promise<string | null> {
 export async function transcribeBlob(blob: Blob): Promise<string | null> {
   if (blob.size < 80) return null;
   try {
-    const token = await sessionToken();
+    const token = await voiceSessionToken();
     const headers: Record<string, string> = {
       "content-type": blob.type || "application/octet-stream",
     };

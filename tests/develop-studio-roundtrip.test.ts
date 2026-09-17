@@ -4,6 +4,7 @@ import { DEFAULT_EDITS, type Shot } from "../src/lib/imaging";
 import * as developStore from "../src/lib/develop/store";
 import { createShootRepository } from "../src/lib/develop/shoot-repository";
 import { createCullShootView } from "../src/lib/develop/cull-view";
+import { asDevelopPreviewBlob } from "../src/lib/develop/decode-preview";
 import type { HydratedStudioSession } from "../src/lib/studio/session";
 import { developIdbDouble } from "./fixtures/develop-idb-double";
 
@@ -26,7 +27,7 @@ function between(source: string, start: string, end: string) {
 }
 const serializer = between(
   sessionSource,
-  "    const records: StoredShot[] = shots.map(",
+  "    const records: StoredShot[] = await Promise.all(",
   '    const transaction = database.transaction([SESSION_STORE, SHOT_STORE], "readwrite");',
 );
 const hydrator = between(
@@ -46,7 +47,11 @@ function execute(code: string, context: Record<string, unknown>, result: string)
   )(...Object.values(context));
 }
 async function persistedSession(session: HydratedStudioSession): Promise<HydratedStudioSession> {
-  const records = await execute(serializer, { shots: session.shots }, "return records;");
+  const records = await execute(
+    serializer,
+    { shots: session.shots, asDevelopPreviewBlob },
+    "return records;",
+  );
   const shots = await execute(
     `let shots; const createdUrls = []; ${hydrator}`,
     { records, URL: { createObjectURL: () => "blob:reserved-synthetic-preview" } },

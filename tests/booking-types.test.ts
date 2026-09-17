@@ -2,20 +2,26 @@ import { expect, test } from "bun:test";
 import { readBookingTypes, writeBookingTypes } from "../src/lib/booking-types";
 
 const memory = new Map<string, string>();
-(globalThis as { localStorage?: Storage }).localStorage = {
-  getItem: (key: string) => memory.get(key) ?? null,
-  setItem: (key: string, value: string) => {
-    memory.set(key, value);
-  },
-  removeItem: (key: string) => {
-    memory.delete(key);
-  },
-  clear: () => memory.clear(),
-  key: () => null,
-  get length() {
-    return memory.size;
-  },
-} as Storage;
+// defineProperty, not assignment: bun runs every file in one process, and a
+// sibling that installed a non-writable localStorage makes assignment throw.
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  writable: true,
+  value: {
+    getItem: (key: string) => memory.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      memory.set(key, value);
+    },
+    removeItem: (key: string) => {
+      memory.delete(key);
+    },
+    clear: () => memory.clear(),
+    key: () => null,
+    get length() {
+      return memory.size;
+    },
+  } as Storage,
+});
 
 test("booking types roundtrip locally", () => {
   const scope = "test-bookings";
