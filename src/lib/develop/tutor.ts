@@ -146,7 +146,9 @@ export function applySet(settings: DevelopSettings, path: string, delta: number)
     next.curve = curve;
     return next;
   }
-  const hsl = path.match(/^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/);
+  const hsl = path.match(
+    /^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/,
+  );
   if (hsl) {
     const index = HSL_INDEX[hsl[1]!];
     const channel = hsl[2] === "sat" ? "saturation" : (hsl[2] as "hue" | "luminance");
@@ -215,7 +217,9 @@ export function valueAt(settings: DevelopSettings, path: string): number | null 
     const point = settings.curve.find((entry) => entry.x > 0.35 && entry.x < 0.82);
     return point ? point.y * 100 : 62;
   }
-  const hsl = path.match(/^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/);
+  const hsl = path.match(
+    /^hsl\.(red|orange|yellow|green|aqua|blue|purple|magenta)\.(hue|sat|luminance)$/,
+  );
   if (hsl) {
     const index = HSL_INDEX[hsl[1]!];
     const channel = hsl[2] === "sat" ? "saturation" : (hsl[2] as "hue" | "luminance");
@@ -223,13 +227,17 @@ export function valueAt(settings: DevelopSettings, path: string): number | null 
     return settings.hsl[index][channel];
   }
   const parametric = path.match(/^parametric\.(highlights|lights|darks|shadows)$/);
-  if (parametric) return settings.parametricCurve?.[parametric[1] as "highlights" | "lights" | "darks" | "shadows"] ?? 0;
+  if (parametric)
+    return (
+      settings.parametricCurve?.[parametric[1] as "highlights" | "lights" | "darks" | "shadows"] ??
+      0
+    );
   if (path === "crop.angle" || path === "straighten") return settings.crop.angle;
   const lens = path.match(/^lens\.(chromaticAberration|vignetteCorrection|transform)\.(\w+)$/);
   if (lens) {
-    const block = settings.lensCorrection[lens[1] as "chromaticAberration" | "vignetteCorrection" | "transform"] as
-      | Record<string, unknown>
-      | undefined;
+    const block = settings.lensCorrection[
+      lens[1] as "chromaticAberration" | "vignetteCorrection" | "transform"
+    ] as Record<string, unknown> | undefined;
     const current = block?.[lens[2]!];
     return typeof current === "number" ? current : null;
   }
@@ -260,7 +268,8 @@ export function pointId(path: string) {
     if (hsl) return `hsl-${hsl[1]}-${hsl[2] === "sat" ? "sat" : hsl[2]}`;
   }
   if (path.startsWith("curve") || path === "tone-curve") return "tone-curve";
-  if (path.startsWith("parametric.")) return `slider-parametric-${path.slice("parametric.".length)}`;
+  if (path.startsWith("parametric."))
+    return `slider-parametric-${path.slice("parametric.".length)}`;
   if (path === "crop.angle" || path === "straighten") return "slider-straighten";
   if (path.startsWith("slider-")) return path.replace(/^#/, "");
   const map: Record<string, string> = {
@@ -282,7 +291,10 @@ export function pointId(path: string) {
 }
 
 export function parseBeats(text: string): TutorBeat[] {
-  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   const beats: TutorBeat[] = [];
   let current: TutorBeat = { say: "", sets: [], wait: false, done: false };
   const push = () => {
@@ -433,10 +445,8 @@ function compileCinematic(
 ): TutorBeat[] {
   const highlights = metrics && metrics.clipHi > 0.03 ? -42 : -28;
   const shadows = metrics && metrics.clipLo > 0.04 ? 22 : 14;
-  const exposure =
-    metrics && metrics.mid < 0.35 ? 0.35 : metrics && metrics.mid > 0.65 ? -0.25 : 0;
-  const temp =
-    metrics && metrics.warmth < -0.06 ? 12 : metrics && metrics.warmth > 0.1 ? -8 : 0;
+  const exposure = metrics && metrics.mid < 0.35 ? 0.35 : metrics && metrics.mid > 0.65 ? -0.25 : 0;
+  const temp = metrics && metrics.warmth < -0.06 ? 12 : metrics && metrics.warmth > 0.1 ? -8 : 0;
   const beats = [
     "[OPEN:panel.basic]",
     "[DRAW:photo.windows]",
@@ -615,7 +625,7 @@ export function rangeThumbClient(input: HTMLInputElement) {
   const max = Number(input.max);
   const val = Number(input.value);
   const box = input.getBoundingClientRect();
-  const t = (val - min) / ((max - min) || 1);
+  const t = (val - min) / (max - min || 1);
   return { x: box.left + box.width * t, y: box.top + box.height / 2, box, t };
 }
 
@@ -643,12 +653,7 @@ export function nativeSetRange(input: HTMLInputElement, value: number, commit = 
   return next;
 }
 
-export function dispatchPointer(
-  node: EventTarget,
-  type: string,
-  clientX: number,
-  clientY: number,
-) {
+export function dispatchPointer(node: EventTarget, type: string, clientX: number, clientY: number) {
   const init: PointerEventInit = {
     bubbles: true,
     cancelable: true,
@@ -739,14 +744,22 @@ export function driveCurve(delta: number, commit = true) {
       })()
     : clientOnNorm(box, 0.62, 0.62);
   const startY = 1 - (start.y - box.top) / box.height;
-  const end = { x: start.x, y: box.top + (1 - Math.min(1, Math.max(0, startY + delta / 100))) * box.height };
+  const end = {
+    x: start.x,
+    y: box.top + (1 - Math.min(1, Math.max(0, startY + delta / 100))) * box.height,
+  };
   dispatchPointer(svg, "pointerdown", start.x, start.y);
   dispatchPointer(svg, "pointermove", end.x, end.y);
   if (commit) dispatchPointer(svg, "pointerup", end.x, end.y);
   return true;
 }
 
-export function driveWheel(id: string | undefined, hueDelta: number, satDelta: number, commit = true) {
+export function driveWheel(
+  id: string | undefined,
+  hueDelta: number,
+  satDelta: number,
+  commit = true,
+) {
   if (!id || typeof document === "undefined") return false;
   const wheel = document.getElementById(id);
   if (!wheel) return false;
@@ -766,7 +779,7 @@ export function driveWheel(id: string | undefined, hueDelta: number, satDelta: n
   const dy = start.y - cy;
   const hue = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
   const sat = Math.min(100, (Math.hypot(dx, dy) / (radius || 1)) * 100);
-  const nextHue = ((hue + hueDelta) % 360 + 360) % 360;
+  const nextHue = (((hue + hueDelta) % 360) + 360) % 360;
   const nextSat = Math.min(100, Math.max(0, sat + satDelta));
   const angle = (nextHue * Math.PI) / 180;
   const end = {
