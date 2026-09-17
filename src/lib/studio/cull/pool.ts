@@ -124,6 +124,17 @@ export async function ingestFiles(
                   reading: data.reading,
                   verdict: "undecided",
                   decided: false,
+                  // Only files that name an AF area carry these, so older
+                  // engines and AF-less JPEGs store exactly the row they did.
+                  ...(data.afPoint
+                    ? {
+                        afPoint: data.afPoint,
+                        ...(data.afConfirmed === undefined
+                          ? {}
+                          : { afConfirmed: data.afConfirmed }),
+                        ...(data.focusHit ? { focusHit: data.focusHit } : {}),
+                      }
+                    : {}),
                 },
                 thumbnail: data.thumbnail,
                 file,

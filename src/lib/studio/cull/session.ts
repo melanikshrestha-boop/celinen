@@ -5,6 +5,29 @@
  */
 import type { CullReason, CullRow, CullVerdict } from "./engine";
 import type { CullReading } from "./engine";
+import type { FocusHit, NormalizedRect } from "./ingest-engine";
+
+/** Lightroom's color labels. 6-9 set the first four, in Lightroom's order. */
+export type CullLabel = "red" | "yellow" | "green" | "blue" | "purple";
+export const CULL_LABELS: readonly CullLabel[] = ["red", "yellow", "green", "blue", "purple"];
+
+/** Whether a file is a photograph this cull should judge at all. Written by a
+ * validity engine; absent means nothing has said otherwise. */
+export type CullValidity = {
+  status: "valid" | "suspect" | "invalid";
+  /** One line, e.g. "Illustration, not a photograph". */
+  reason: string;
+};
+
+/** Whether a frame belongs to the shoot it came in with (last week's game left
+ * on the card, a phone screenshot). Absent means it does. */
+export type CullMembership = { inShoot: boolean; reason: string };
+
+export type CullBurstRoleName =
+  "pick" | "alternate" | "review" | "build-up" | "follow-through" | "duplicate";
+
+/** A frame's part in its burst, with a one-line reason. */
+export type CullBurstRole = { role: CullBurstRoleName; reason: string };
 
 export type CullFrame = {
   id: string;
@@ -31,6 +54,32 @@ export type CullFrame = {
   decided: boolean;
   /** Why the file could not be read, when it could not. */
   error?: string | undefined;
+  /** 1..5 stars; absent is unrated. */
+  rating?: number | undefined;
+  label?: CullLabel | undefined;
+  /** Photo Mechanic's tag. */
+  tagged?: boolean | undefined;
+  /** The caption, codes already expanded. */
+  caption?: string | undefined;
+  /** The camera's AF area from its maker note, normalized to the upright frame. */
+  afPoint?: NormalizedRect | undefined;
+  /** Whether the camera reported focus lock there; undefined when it did not say. */
+  afConfirmed?: boolean | undefined;
+  /** Sharpness at the AF area against the frame's sharpest detail. */
+  focusHit?: FocusHit | undefined;
+  validity?: CullValidity | undefined;
+  membership?: CullMembership | undefined;
+  burstRole?: CullBurstRole | undefined;
+};
+
+/** What the photographer sets on frames. Absent fields are left alone; a null
+ * label, a 0 rating, false tag or empty caption clears. */
+export type CullMarks = {
+  verdict?: CullVerdict | undefined;
+  rating?: number | undefined;
+  label?: CullLabel | null | undefined;
+  tagged?: boolean | undefined;
+  caption?: string | undefined;
 };
 
 /** The filters the review screen offers, in the order it shows them. */
@@ -43,7 +92,10 @@ export type CullFilter =
   | "motion-blur"
   | "eyes-closed"
   | "exposure"
-  | "duplicates";
+  | "duplicates"
+  | "missed-focus"
+  | "not-in-shoot"
+  | "invalid";
 
 export const CULL_FILTERS: readonly CullFilter[] = [
   "all",
@@ -51,11 +103,21 @@ export const CULL_FILTERS: readonly CullFilter[] = [
   "rejects",
   "undecided",
   "out-of-focus",
+  "missed-focus",
   "motion-blur",
   "eyes-closed",
   "exposure",
   "duplicates",
+  "not-in-shoot",
+  "invalid",
 ];
+
+/** Filters for evidence not every shoot has; their chips show only when something matches. */
+export const CULL_OPTIONAL_FILTERS: ReadonlySet<CullFilter> = new Set<CullFilter>([
+  "missed-focus",
+  "not-in-shoot",
+  "invalid",
+]);
 
 export const CULL_FILTER_LABELS: Record<CullFilter, string> = {
   all: "All",
@@ -67,6 +129,9 @@ export const CULL_FILTER_LABELS: Record<CullFilter, string> = {
   "eyes-closed": "Eyes closed",
   exposure: "Exposure",
   duplicates: "Duplicates",
+  "missed-focus": "Missed focus",
+  "not-in-shoot": "Not from this shoot",
+  invalid: "Invalid",
 };
 
 /** What a frame is called in the review screen when the engine explains itself. */
@@ -112,11 +177,53 @@ export function matchesFilter(frame: CullFrame, filter: CullFilter): boolean {
       return reason === "exposure";
     case "duplicates":
       return Boolean(frame.suggestion?.duplicate || frame.suggestion?.bestOfGroup);
+    case "missed-focus":
+      return missedFocus(frame);
+    case "not-in-shoot":
+      return frame.membership?.inShoot === false;
+    case "invalid":
+      return frame.validity !== undefined && frame.validity.status !== "valid";
   }
 }
 
-export function filterFrames(frames: readonly CullFrame[], filter: CullFilter): CullFrame[] {
-  return frames.filter((frame) => matchesFilter(frame, filter));
+/** Focus did not land on the camera's AF area: nothing is sharp, or something
+ * in front of or behind it is. */
+export function missedFocus(frame: CullFrame): boolean {
+  const verdict = frame.focusHit?.verdict;
+  return (
+    verdict === "missed" ||
+    verdict === "front-or-back-focus" ||
+    frame.suggestion?.reason === "missed-focus"
+  );
+}
+
+/** Narrowing on top of a filter by the photographer's own marks. */
+export type CullRefine = {
+  /** 0 is any rating. */
+  minRating: number;
+  label: CullLabel | null;
+  tagged: boolean;
+};
+
+export const NO_REFINE: CullRefine = { minRating: 0, label: null, tagged: false };
+
+export function refining(refine: CullRefine): boolean {
+  return refine.minRating > 0 || refine.label !== null || refine.tagged;
+}
+
+export function matchesRefine(frame: CullFrame, refine: CullRefine): boolean {
+  if (refine.minRating > 0 && (frame.rating ?? 0) < refine.minRating) return false;
+  if (refine.label !== null && frame.label !== refine.label) return false;
+  return !refine.tagged || frame.tagged === true;
+}
+
+export function filterFrames(
+  frames: readonly CullFrame[],
+  filter: CullFilter,
+  refine: CullRefine = NO_REFINE,
+): CullFrame[] {
+  if (!refining(refine)) return frames.filter((frame) => matchesFilter(frame, filter));
+  return frames.filter((frame) => matchesFilter(frame, filter) && matchesRefine(frame, refine));
 }
 
 export type CullCounts = Record<CullFilter, number> & { measured: number; unreadable: number };
@@ -222,6 +329,33 @@ export function formatRemaining(remainingMs: number | null): string {
 export function decide(frame: CullFrame, verdict: CullVerdict): CullFrame {
   if (frame.decided && frame.verdict === verdict) return frame;
   return { ...frame, verdict, decided: verdict !== "undecided" };
+}
+
+/** Applies verdict, stars, label, tag and caption in one step. Returns the same
+ * object when nothing changes, so an unchanged frame never re-renders. */
+export function markFrame(frame: CullFrame, marks: CullMarks): CullFrame {
+  let next = marks.verdict === undefined ? frame : decide(frame, marks.verdict);
+  const set = <K extends "rating" | "label" | "tagged" | "caption">(
+    key: K,
+    value: CullFrame[K],
+  ) => {
+    if (next[key] === value) return;
+    const copy: CullFrame = next === frame ? { ...frame } : next;
+    // Cleared marks leave no key behind, so a stored row stays as small as before.
+    if (value === undefined) delete copy[key];
+    else copy[key] = value;
+    next = copy;
+  };
+  if (marks.rating !== undefined) {
+    const stars = Number.isFinite(marks.rating)
+      ? Math.max(0, Math.min(5, Math.round(marks.rating)))
+      : 0;
+    set("rating", stars || undefined);
+  }
+  if (marks.label !== undefined) set("label", marks.label ?? undefined);
+  if (marks.tagged !== undefined) set("tagged", marks.tagged || undefined);
+  if (marks.caption !== undefined) set("caption", marks.caption || undefined);
+  return next;
 }
 
 /** Takes the engine's suggestions for a whole shoot without touching any frame

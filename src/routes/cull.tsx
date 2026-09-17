@@ -4,7 +4,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { CullWorkspace } from "@/components/cull/CullWorkspace";
 import { importName } from "@/components/cull/cull-review";
 import { PRODUCT_NAME } from "@/lib/product";
-import { CullController, type CullSnapshot } from "@/lib/studio/cull/controller";
+import { CullController, NO_CODES, type CullSnapshot } from "@/lib/studio/cull/controller";
 import { opfsRoot } from "@/lib/studio/cull/opfs";
 import { PreviewLibrary } from "@/lib/studio/cull/preview-library";
 import { PreviewQueue, workerPreviewEncoder } from "@/lib/studio/cull/preview-queue";
@@ -40,6 +40,9 @@ const EMPTY: CullSnapshot = {
   notice: null,
   canUndo: false,
   originals: "unavailable",
+  keepTarget: null,
+  ranked: 0,
+  codes: NO_CODES,
 };
 
 /** Review previews need a private file system, a worker that can draw, and a
