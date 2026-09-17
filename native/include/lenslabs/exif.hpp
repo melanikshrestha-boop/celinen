@@ -31,6 +31,9 @@ struct AfArea {
 struct ExifFacts {
   // 1..8, the TIFF orientation. 1 when the file did not say.
   int orientation = 1;
+  // True when the file carried a valid Orientation tag, so "said 1" can be told
+  // apart from "said nothing" (a RAW's embedded preview usually says nothing).
+  bool orientation_tagged = false;
   // Milliseconds since the epoch, or -1 when the file carried no capture time.
   double capture_time_ms = -1;
   // True when the file also carried the camera's UTC offset, so the time above

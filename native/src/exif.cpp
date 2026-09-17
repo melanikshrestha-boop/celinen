@@ -195,7 +195,10 @@ void read_ifd(const Reader& tiff, std::size_t offset, ExifFacts& facts, Collecte
       case 0x0112:
         if (e.type == 3) {
           const auto value = tiff.u16(e.at);
-          if (value >= 1 && value <= 8) facts.orientation = value;
+          if (value >= 1 && value <= 8) {
+            facts.orientation = value;
+            facts.orientation_tagged = true;
+          }
         }
         break;
       case 0x010f: if (is_text) c.make = tiff.text(e.at, e.count); break;

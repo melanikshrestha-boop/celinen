@@ -177,7 +177,7 @@ describe("preview library", () => {
     const session = await store.create("Game");
     const { encoder } = fakeEncoder(root, { size: 1234 });
     const name = await previewFileName("Card/IMG_1.jpg:1:2:0");
-    expect(name).toMatch(/^[0-9a-f]{32}\.jpg$/);
+    expect(name).toMatch(/^[0-9a-f]{32}-2\.jpg$/); // the generation rides in the name
     const reply = await encoder.encode({
       file: new File(["x"], "IMG_1.jpg"),
       folder: previewFolder("account", session.id),

@@ -9,8 +9,8 @@
  */
 import { effectiveVerdict, type CullFrame } from "./session";
 import {
-  PREVIEW_BYTES_ESTIMATE,
-  PREVIEW_EDGE,
+  previewBytesEstimate,
+  previewEdge,
   PREVIEW_QUALITY,
   previewFileName,
   type PreviewLibrary,
@@ -104,6 +104,9 @@ export class PreviewQueue {
   private async runLocked(options: PreviewRunOptions): Promise<PreviewRunResult> {
     const { library } = this.deps;
     const result: PreviewRunResult = { written: 0, failed: 0, missing: 0, end: "done" };
+    // One size for the whole run: this screen's own pixels.
+    const maxEdge = previewEdge();
+    const estimate = previewBytesEstimate(maxEdge);
     library.refresh(); // another tab may have written or evicted since
     const covered = await library.covered(options.sessionId);
     const pending = previewOrder(options.frames(), covered);
@@ -119,8 +122,7 @@ export class PreviewQueue {
         const frame = options.frame(pending[index]!.id);
         if (!frame || frame.error) continue;
         const open = { sessionId: options.sessionId, frames: options.frames() };
-        if (!(await library.reserve(PREVIEW_BYTES_ESTIMATE, open)))
-          return { ...result, end: "full" };
+        if (!(await library.reserve(estimate, open))) return { ...result, end: "full" };
 
         let file: File | null;
         try {
@@ -141,13 +143,13 @@ export class PreviewQueue {
           file,
           folder,
           name,
-          maxEdge: PREVIEW_EDGE,
+          maxEdge,
           quality: PREVIEW_QUALITY,
         };
         let reply = await encoder.encode(request);
         if (reply.kind === "quota") {
           // The estimate was optimistic; take a fresh one, make real room, retry once.
-          if (!(await library.reserve(PREVIEW_BYTES_ESTIMATE * 4, open, true)))
+          if (!(await library.reserve(estimate * 4, open, true)))
             return { ...result, end: "full" };
           reply = await encoder.encode(request);
           if (reply.kind === "quota") return { ...result, end: "full" };

@@ -7,10 +7,17 @@
 // needs. So the whole per-frame pipeline lives here: EXIF, scaled decode,
 // orientation, the cull measurement, and the filmstrip thumbnail. Nothing
 // touches a canvas, so the page stays responsive while a card imports.
+//
+// Formats libjpeg cannot read (WebP, PNG, AVIF, HEIC in Safari) are decoded by
+// the browser in the worker and handed in as upright RGBA through
+// celinen_ingest_run_pixels, so they are measured by exactly the same code.
 #include "lenslabs/cull.hpp"
 #include "lenslabs/exif.hpp"
 #include "lenslabs/focus_hit.hpp"
+#include "lenslabs/raw_preview.hpp"
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <csetjmp>
 #include <cstring>
 #include <new>
@@ -18,12 +25,14 @@
 #include <vector>
 extern "C" {
 #include <jpeglib.h>
+#include <jerror.h> // the JWRN_* warning codes
 }
 
 namespace {
 std::vector<std::uint8_t> input, thumbnail;
-// The head of a RAW container whose embedded JPEG is in `input`. The preview
-// JPEG a camera embeds rarely carries the maker note, so the AF area has to be
+// The head of a RAW container whose embedded JPEG is in `input` (or, for a
+// browser-decoded photo, the file's own first bytes). The preview JPEG a camera
+// embeds rarely carries the maker note or the orientation, so both have to be
 // read from the RAW's own TIFF/CR3 structure. Consumed by one run.
 std::vector<std::uint8_t> metadata;
 std::vector<double> reading;
@@ -31,6 +40,9 @@ std::vector<double> reading;
 // AF area. Layout documented at celinen_ingest_focus().
 std::vector<double> focus;
 std::string camera_key, error;
+// Why the last photo decoded but is not whole (a truncated file, corrupt
+// entropy data), in plain words. Empty when it decoded cleanly.
+std::string damaged;
 lenslabs::Image frame;
 double capture_time_ms = -1;
 bool capture_time_utc = false;
@@ -43,6 +55,10 @@ constexpr std::size_t focus_fields = 13;
 struct JpegFailure {
   jpeg_error_mgr manager;
   std::jmp_buf escape;
+  // Data-corruption warnings seen while decoding. libjpeg keeps going after
+  // them and paints what it could not read as flat gray.
+  int corrupt = 0;
+  bool ended_early = false;
 };
 
 void on_jpeg_error(j_common_ptr info) {
@@ -53,6 +69,30 @@ void on_jpeg_error(j_common_ptr info) {
 }
 void ignore_jpeg_message(j_common_ptr) {}
 
+// Warnings arrive with msg_level -1; trace messages (>= 0) are ignored.
+// Extraneous bytes before a marker, an unknown JFIF revision or an Adobe
+// transform code are harmless and common in camera files, so they do not count.
+void on_jpeg_warning(j_common_ptr info, int level) {
+  if (level >= 0) return;
+  info->err->num_warnings++;
+  auto* failure = reinterpret_cast<JpegFailure*>(info->err);
+  switch (info->err->msg_code) {
+    case JWRN_JPEG_EOF:
+    case JWRN_HIT_MARKER:
+      failure->ended_early = true;
+      failure->corrupt++;
+      break;
+    case JWRN_ARITH_BAD_CODE:
+    case JWRN_HUFF_BAD_CODE:
+    case JWRN_BOGUS_PROGRESSION:
+    case JWRN_MUST_RESYNC:
+    case JWRN_NOT_SEQUENTIAL:
+      failure->corrupt++;
+      break;
+    default: break;
+  }
+}
+
 // The smallest 1/8-step libjpeg can produce that is still at least the edge we
 // want. Anything smaller would throw away detail the focus measurement reads.
 unsigned scale_for(unsigned width, unsigned height, unsigned target_edge) {
@@ -62,7 +102,7 @@ unsigned scale_for(unsigned width, unsigned height, unsigned target_edge) {
   return 8;
 }
 
-// EXIF orientation, applied so every later stage sees an upright frame.
+// TIFF orientation, applied so every later stage sees an upright frame.
 lenslabs::Image upright(const lenslabs::Image& in, int orientation) {
   if (orientation <= 1 || orientation > 8) return in;
   const bool swap = orientation >= 5;
@@ -125,6 +165,7 @@ bool decode_jpeg(const std::uint8_t* bytes, std::size_t size, unsigned target_ed
   info.err = jpeg_std_error(&failure.manager);
   failure.manager.error_exit = on_jpeg_error;
   failure.manager.output_message = ignore_jpeg_message;
+  failure.manager.emit_message = on_jpeg_warning;
   if (setjmp(failure.escape)) {
     jpeg_destroy_decompress(&info);
     return false;
@@ -169,6 +210,14 @@ bool decode_jpeg(const std::uint8_t* bytes, std::size_t size, unsigned target_ed
   }
   jpeg_finish_decompress(&info);
   jpeg_destroy_decompress(&info);
+  // libjpeg fills what it could not read with gray and carries on. Scoring that
+  // gray as a soft photo would be a silent lie, so it is named instead.
+  if (failure.ended_early)
+    damaged = "This file is cut short: the end of the photo is missing and shows as gray, "
+              "so its focus and exposure readings cannot be trusted.";
+  else if (failure.corrupt)
+    damaged = "Part of this photo's data is corrupt: some of the picture shows as gray or "
+              "smeared, so its focus and exposure readings cannot be trusted.";
   return true;
 }
 
@@ -237,14 +286,79 @@ void write_reading(const lenslabs::CullReading& r) {
   out[22] = r.face_soft ? 1 : 0;
   for (std::size_t i = 0; i < color_bytes; ++i) out[reading_fields + i] = r.color[i];
 }
+
+// Everything after the pixels exist: the working frame, the measurement, the
+// AF judgment and the thumbnail. `upright_image` is already turned the right way.
+bool complete(lenslabs::Image upright_image, const lenslabs::AfArea& af, int af_orientation,
+              std::uint32_t measure_edge, std::uint32_t thumb_edge, int thumb_quality) {
+  // libjpeg can only scale in eighths, so a 24MP body and a 12MP body land on
+  // different sizes. Normalize to one working edge: blur is then measured in
+  // the same units on every camera in the shoot, which is what lets frames be
+  // compared with each other at all.
+  frame = resample(upright_image, measure_edge);
+  upright_image = {};
+  // Faces are the browser's to find; the engine is told about them separately
+  // when a detector exists, and never guesses at them here.
+  write_reading(lenslabs::measure_cull(frame, {}));
+  if (af.present) {
+    // AF coordinates are sensor-up. Rotate them by the orientation the pixels
+    // were actually given, so the area lands on the frame that was measured.
+    const auto upright_af = lenslabs::upright_af_area(af, af_orientation);
+    const auto hit = lenslabs::judge_focus_hit(
+        frame, {upright_af.x, upright_af.y, upright_af.width, upright_af.height});
+    focus = {upright_af.x,
+             upright_af.y,
+             upright_af.width,
+             upright_af.height,
+             double(upright_af.in_focus),
+             hit.hit,
+             hit.af_acuity,
+             hit.best_acuity,
+             hit.best_region.x,
+             hit.best_region.y,
+             hit.best_region.width,
+             hit.best_region.height,
+             double(int(hit.verdict))};
+  }
+  const auto small = resample(frame, thumb_edge);
+  if (!encode_jpeg(small, thumb_quality, thumbnail)) {
+    if (error.empty()) error = "This preview could not be written.";
+    return false;
+  }
+  return true;
+}
+
+// Clears the previous photo's results and takes the loaded metadata head. One
+// run consumes it whatever its outcome, so a failed photo's container can never
+// describe the next one.
+std::vector<std::uint8_t> begin_run() {
+  error.clear();
+  damaged.clear();
+  thumbnail.clear();
+  reading.clear();
+  focus.clear();
+  frame = {};
+  std::vector<std::uint8_t> head;
+  head.swap(metadata);
+  camera_key.clear();
+  capture_time_ms = -1;
+  capture_time_utc = false;
+  source_width = source_height = 0;
+  return head;
+}
+
+bool valid_edges(std::uint32_t measure_edge, std::uint32_t thumb_edge, int thumb_quality) {
+  return measure_edge >= 64 && measure_edge <= 4096 && thumb_edge >= 32 && thumb_edge <= 2048 &&
+         thumb_quality >= 30 && thumb_quality <= 95;
+}
 } // namespace
 
 extern "C" {
 const char* celinen_ingest_error() { return error.c_str(); }
 
 /** Room for the head of the RAW container the next photo's JPEG came from, so
- * its AF area can be read. Optional; call before celinen_ingest_run, which
- * consumes it. Returns null when the size is beyond the bound.
+ * its orientation and AF area can be read. Optional; call before
+ * celinen_ingest_run, which consumes it. Returns null when the size is beyond the bound.
  */
 std::uint8_t* celinen_ingest_metadata(std::uint32_t size) {
   metadata.clear();
@@ -272,35 +386,22 @@ std::uint8_t* celinen_ingest_input(std::uint32_t size) {
 
 /** Reads the loaded photo: EXIF, a scaled decode, the cull measurement and a
  * thumbnail. Returns 1 on success; on failure celinen_ingest_error() says why.
+ *
+ * When a RAW container head was loaded (celinen_ingest_metadata), the photo is
+ * that RAW's embedded preview and is turned by preview_orientation(): the
+ * container's orientation wins, the preview's own tag counts only when the
+ * container is silent, and a preview the camera already turned is not turned
+ * again. The container's AF area, capture time and camera win over the preview's.
  */
 int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint32_t thumb_edge,
                        int thumb_quality) {
-  error.clear();
-  thumbnail.clear();
-  reading.clear();
-  focus.clear();
-  // Consumed by this run whatever its outcome, so a failed photo's container
-  // can never describe the next one.
-  std::vector<std::uint8_t> container_head;
-  container_head.swap(metadata);
-  camera_key.clear();
-  capture_time_ms = -1;
-  capture_time_utc = false;
-  source_width = source_height = 0;
+  const auto container_head = begin_run();
   try {
-    if (size > input.size() || measure_edge < 64 || measure_edge > 4096 || thumb_edge < 32 ||
-        thumb_edge > 2048 || thumb_quality < 30 || thumb_quality > 95) {
+    if (size > input.size() || !valid_edges(measure_edge, thumb_edge, thumb_quality)) {
       error = "Invalid ingest request.";
       return 0;
     }
     const auto facts = lenslabs::read_exif(input.data(), size);
-    // Prefer the RAW container's AF area; fall back to the JPEG's own maker
-    // note (camera JPEGs, and Fujifilm RAF previews, carry it there).
-    lenslabs::AfArea af = facts.af;
-    if (!container_head.empty()) {
-      const auto container = lenslabs::read_exif(container_head.data(), container_head.size());
-      if (container.af.present) af = container.af;
-    }
     capture_time_ms = facts.capture_time_ms;
     capture_time_utc = facts.capture_time_utc;
     camera_key = facts.camera_key;
@@ -310,41 +411,38 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
       if (error.empty()) error = "This photo could not be decoded.";
       return 0;
     }
-    // libjpeg can only scale in eighths, so a 24MP body and a 12MP body land on
-    // different sizes. Normalize to one working edge: blur is then measured in
-    // the same units on every camera in the shoot, which is what lets frames be
-    // compared with each other at all.
-    frame = resample(upright(decoded, facts.orientation), measure_edge);
-    decoded = {};
-    // Faces are the browser's to find; the engine is told about them separately
-    // when a detector exists, and never guesses at them here.
-    write_reading(lenslabs::measure_cull(frame, {}));
-    if (af.present) {
-      // AF coordinates are sensor-up. Rotate them by the orientation the pixels
-      // were actually given, so the area lands on the frame that was measured.
-      const auto upright_af = lenslabs::upright_af_area(af, facts.orientation);
-      const auto hit = lenslabs::judge_focus_hit(
-          frame, {upright_af.x, upright_af.y, upright_af.width, upright_af.height});
-      focus = {upright_af.x,
-               upright_af.y,
-               upright_af.width,
-               upright_af.height,
-               double(upright_af.in_focus),
-               hit.hit,
-               hit.af_acuity,
-               hit.best_acuity,
-               hit.best_region.x,
-               hit.best_region.y,
-               hit.best_region.width,
-               hit.best_region.height,
-               double(int(hit.verdict))};
+    int orientation = facts.orientation_tagged ? facts.orientation : 1;
+    lenslabs::AfArea af = facts.af;
+    int af_orientation = orientation;
+    if (!container_head.empty()) {
+      const auto container = lenslabs::read_exif(container_head.data(), container_head.size());
+      const auto raw = lenslabs::inspect_raw(container_head.data(), container_head.size(),
+                                             container_head.size());
+      lenslabs::JpegInfo preview;
+      preview.valid = true;
+      preview.width = source_width;
+      preview.height = source_height;
+      preview.orientation = facts.orientation_tagged ? facts.orientation : 0;
+      orientation = lenslabs::preview_orientation(raw, preview);
+      af_orientation = orientation;
+      // Prefer the RAW container's AF area; the JPEG's own maker note stays the
+      // fallback (Fujifilm RAF previews carry it there). The container's area is
+      // in the container's sensor-up frame, so it turns by the container's tag.
+      if (container.af.present) {
+        af = container.af;
+        if (raw.orientation) af_orientation = raw.orientation;
+      }
+      // A preview often has no EXIF of its own; the container knows the capture.
+      if (container.capture_time_ms >= 0) {
+        capture_time_ms = container.capture_time_ms;
+        capture_time_utc = container.capture_time_utc;
+      }
+      if (!container.camera_key.empty()) camera_key = container.camera_key;
     }
-    const auto small = resample(frame, thumb_edge);
-    if (!encode_jpeg(small, thumb_quality, thumbnail)) {
-      if (error.empty()) error = "This preview could not be written.";
-      return 0;
-    }
-    return 1;
+    return complete(upright(decoded, orientation), af, af_orientation, measure_edge, thumb_edge,
+                    thumb_quality)
+               ? 1
+               : 0;
   } catch (const std::bad_alloc&) {
     error = "This photo is too large for the browser's memory.";
   } catch (const std::exception& failure) {
@@ -354,6 +452,56 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
   }
   return 0;
 }
+
+/** Measures a photo the browser decoded. The input buffer holds `width` x
+ * `height` upright RGBA; `source_w` x `source_h` is the original's size before
+ * any scaling. A loaded metadata head (the file's first bytes) supplies capture
+ * time, camera and AF area, and is consumed like a container.
+ */
+int celinen_ingest_run_pixels(std::uint32_t width, std::uint32_t height, std::uint32_t source_w,
+                              std::uint32_t source_h, std::uint32_t measure_edge,
+                              std::uint32_t thumb_edge, int thumb_quality) {
+  const auto head = begin_run();
+  try {
+    if (!valid_edges(measure_edge, thumb_edge, thumb_quality) || width > 16384 || height > 16384 ||
+        std::uint64_t(width) * height * 4 > input.size()) {
+      error = "Invalid ingest request.";
+      return 0;
+    }
+    if (width < 8 || height < 8) {
+      error = "This photo is too small to judge.";
+      return 0;
+    }
+    lenslabs::AfArea af;
+    int af_orientation = 1;
+    if (!head.empty()) {
+      const auto facts = lenslabs::read_exif(head.data(), head.size());
+      capture_time_ms = facts.capture_time_ms;
+      capture_time_utc = facts.capture_time_utc;
+      camera_key = facts.camera_key;
+      af = facts.af;
+      // The browser turned the pixels by the file's own orientation.
+      af_orientation = facts.orientation;
+    }
+    source_width = source_w ? source_w : width;
+    source_height = source_h ? source_h : height;
+    lenslabs::Image pixels{width, height, source_width, source_height, {}};
+    pixels.rgba.assign(input.begin(), input.begin() + std::ptrdiff_t(std::size_t(width) * height * 4));
+    // A transparent PNG is judged as it would print: every pixel opaque.
+    for (std::size_t i = 3; i < pixels.rgba.size(); i += 4) pixels.rgba[i] = 255;
+    return complete(std::move(pixels), af, af_orientation, measure_edge, thumb_edge, thumb_quality) ? 1 : 0;
+  } catch (const std::bad_alloc&) {
+    error = "This photo is too large for the browser's memory.";
+  } catch (const std::exception& failure) {
+    error = failure.what();
+  } catch (...) {
+    error = "This photo could not be read.";
+  }
+  return 0;
+}
+
+/** Empty when the last photo decoded whole; otherwise, in plain words, why not. */
+const char* celinen_ingest_damaged() { return damaged.c_str(); }
 
 const double* celinen_ingest_reading() { return reading.empty() ? nullptr : reading.data(); }
 
@@ -390,5 +538,6 @@ void celinen_ingest_release() {
   focus.clear();
   frame = {};
   camera_key.clear();
+  damaged.clear();
 }
 }
