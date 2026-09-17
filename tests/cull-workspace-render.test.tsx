@@ -162,6 +162,12 @@ describe("cull workspace", () => {
     expect(html).toContain("← → J L move · K keep · X reject");
   });
 
+  test("Go to Develop is the next step once there are keepers", () => {
+    expect(renderWorkspace(smallGame())).not.toContain(">Go to Develop</button>");
+    expect(renderWorkspace(smallGame(), { onDevelop: noop })).toContain(">Go to Develop</button>");
+    expect(renderWorkspace([], { onDevelop: noop })).not.toContain(">Go to Develop</button>");
+  });
+
   test("undo shows only when the controller has something to undo", () => {
     expect(renderWorkspace(smallGame())).not.toContain(">Undo</button>");
     expect(renderWorkspace(smallGame(), { snapshot: { canUndo: true } })).toMatch(

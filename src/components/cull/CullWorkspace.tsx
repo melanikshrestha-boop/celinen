@@ -56,6 +56,8 @@ export type CullWorkspaceProps = {
   onOpenSession?: ((sessionId: string) => void) | undefined;
   viewport?: CullViewport | undefined;
   onFace?: ((frameId: string, box: PortraitFace) => void) | undefined;
+  /** Opens Develop with this session's keepers. */
+  onDevelop?: (() => void) | undefined;
 };
 
 const number = (value: number) => value.toLocaleString("en-US");
@@ -73,6 +75,7 @@ export function CullWorkspace({
   onOpenSession,
   viewport,
   onFace,
+  onDevelop,
 }: CullWorkspaceProps) {
   const { frames, progress, notice, canUndo } = snapshot;
   const [filter, setFilter] = useState<CullFilter>("all");
@@ -322,7 +325,7 @@ export function CullWorkspace({
       </button>
       <button
         type="button"
-        className="rounded-md bg-ink px-3 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
+        className="rounded-md px-2.5 py-1.5 hover:bg-ink/5 disabled:opacity-50"
         disabled={reading || choosing}
         onClick={() => choose("folder")}
       >
@@ -396,6 +399,16 @@ export function CullWorkspace({
                   {sessionList}
                 </div>
               </details>
+            )}
+            {onDevelop && counts.keepers > 0 && (
+              <button
+                type="button"
+                className="rounded-md bg-ink px-3 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
+                disabled={reading}
+                onClick={onDevelop}
+              >
+                Go to Develop
+              </button>
             )}
             {frames.length > 0 && importButtons}
           </div>

@@ -13,6 +13,7 @@ import type { PreviewQueue } from "./preview-queue";
 import {
   applySuggestions,
   decide,
+  effectiveVerdict,
   ingestProgress,
   type CullFrame,
   type CullProgress,
@@ -510,6 +511,17 @@ export class CullController {
   /** The original file, when this tab read the card itself. */
   original(frameId: string): File | null {
     return this.originals.get(frameId) ?? null;
+  }
+
+  /** Keepers this tab still holds as Files, in capture order. */
+  keeperFiles(): File[] {
+    const files: File[] = [];
+    for (const frame of this.frames) {
+      if (effectiveVerdict(frame) !== "keep") continue;
+      const file = this.originals.get(frame.id);
+      if (file?.size) files.push(file);
+    }
+    return files;
   }
 
   thumbnail(frameId: string): Promise<Blob | null> {

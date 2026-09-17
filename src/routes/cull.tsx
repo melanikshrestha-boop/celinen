@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CullWorkspace } from "@/components/cull/CullWorkspace";
 import { importName } from "@/components/cull/cull-review";
@@ -14,7 +14,7 @@ import {
   type CullSourceRoot,
 } from "@/lib/studio/cull/sources";
 import { openCullStore, type CullSessionSummary, type CullStore } from "@/lib/studio/cull/store";
-import { takeStudioImport } from "@/lib/studio/pending-import";
+import { queueDevelopImport, takeStudioImport } from "@/lib/studio/pending-import";
 
 export const Route = createFileRoute("/cull")({
   head: () => ({ meta: [{ title: `Cull — ${PRODUCT_NAME}` }] }),
@@ -60,6 +60,7 @@ function previewsFor(scope: string, store: CullStore) {
 
 /** One controller per account for as long as the page is open. */
 function CullSessionHost({ scope }: { scope: string }) {
+  const navigate = useNavigate();
   const [controller, setController] = useState<CullController | null>(null);
   const [snapshot, setSnapshot] = useState<CullSnapshot>(EMPTY);
   const [sessions, setSessions] = useState<readonly CullSessionSummary[]>([]);
@@ -159,6 +160,17 @@ function CullSessionHost({ scope }: { scope: string }) {
         .catch(report);
   }, [controller, report]);
 
+  const onDevelop = useCallback(() => {
+    if (!controller) return;
+    const files = controller.keeperFiles();
+    if (!files.length) {
+      setFailure("Keep the originals in this tab, then Go to Develop.");
+      return;
+    }
+    queueDevelopImport(files);
+    void navigate({ to: "/develop" });
+  }, [controller, navigate]);
+
   const shown = failure && !snapshot.notice ? { ...snapshot, notice: failure } : snapshot;
   return (
     <CullWorkspace
@@ -173,6 +185,7 @@ function CullSessionHost({ scope }: { scope: string }) {
       sessions={sessions}
       onOpenSession={onOpenSession}
       onFace={(id, box) => controller?.noteFace(id, box)}
+      onDevelop={onDevelop}
     />
   );
 }

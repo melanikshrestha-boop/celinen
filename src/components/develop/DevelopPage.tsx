@@ -39,6 +39,7 @@ import {
 import { getDevelopImportSession } from "@/lib/develop/import-session";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { readStudioSessionSnapshot } from "@/lib/studio/session";
+import { takeDevelopImport } from "@/lib/studio/pending-import";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import {
   DEVELOP_ENGINE_LIMITS,
@@ -883,6 +884,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       cancelled = true;
     };
   }, [ready, library.photos, store]);
+  useEffect(() => {
+    if (!ready || !hydration.current.ready || failed.current) return;
+    const keepers = takeDevelopImport();
+    if (keepers.length) void importPhotos(keepers);
+  }, [ready]);
   useEffect(() => {
     if (!ready || !hydration.current.ready || failed.current || pendingRef.current) return;
     let cancelled = false;
