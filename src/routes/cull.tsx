@@ -5,7 +5,15 @@ import { CullWorkspace } from "@/components/cull/CullWorkspace";
 import { importName } from "@/components/cull/cull-review";
 import { PRODUCT_NAME } from "@/lib/product";
 import { CullController, type CullSnapshot } from "@/lib/studio/cull/controller";
-import { openCullStore, type CullSessionSummary } from "@/lib/studio/cull/store";
+import { opfsRoot } from "@/lib/studio/cull/opfs";
+import { PreviewLibrary } from "@/lib/studio/cull/preview-library";
+import { PreviewQueue, workerPreviewEncoder } from "@/lib/studio/cull/preview-queue";
+import {
+  folderPickerSupported,
+  pickDirectoryHandle,
+  type CullSourceRoot,
+} from "@/lib/studio/cull/sources";
+import { openCullStore, type CullSessionSummary, type CullStore } from "@/lib/studio/cull/store";
 import { takeStudioImport } from "@/lib/studio/pending-import";
 
 export const Route = createFileRoute("/cull")({
@@ -27,7 +35,28 @@ const EMPTY: CullSnapshot = {
   progress: null,
   notice: null,
   canUndo: false,
+  originals: "unavailable",
 };
+
+/** Review previews need a private file system, a worker that can draw, and a
+ * decoder; every current browser has all three outside private windows. */
+function previewsFor(scope: string, store: CullStore) {
+  const supported =
+    typeof Worker !== "undefined" &&
+    typeof OffscreenCanvas !== "undefined" &&
+    typeof createImageBitmap === "function" &&
+    typeof navigator !== "undefined" &&
+    typeof navigator.storage?.getDirectory === "function";
+  if (!supported) return null;
+  const library = new PreviewLibrary({
+    scope,
+    store,
+    // Rejected in some private windows; the library treats that as no previews.
+    root: () => opfsRoot(),
+    storage: navigator.storage,
+  });
+  return { library, queue: new PreviewQueue({ scope, library, encoder: workerPreviewEncoder }) };
+}
 
 /** One controller per account for as long as the page is open. */
 function CullSessionHost({ scope }: { scope: string }) {
@@ -43,7 +72,10 @@ function CullSessionHost({ scope }: { scope: string }) {
     openCullStore(scope).then(
       async (store) => {
         if (!live) return store.close();
-        owned = new CullController(store);
+        owned = new CullController(store, {
+          previews: previewsFor(scope, store),
+          canLocate: folderPickerSupported(),
+        });
         unsubscribe = owned.subscribe(setSnapshot);
         setController(owned);
         // Photos dropped on Home start culling the moment the store is open.
@@ -86,11 +118,11 @@ function CullSessionHost({ scope }: { scope: string }) {
   }, []);
 
   const onImport = useCallback(
-    (name: string, files: readonly File[]) => {
+    (name: string, files: readonly File[], roots?: readonly CullSourceRoot[]) => {
       if (!controller) return;
       setFailure(null);
       controller
-        .importCard(name, files)
+        .importCard(name, files, roots)
         .catch(report)
         .finally(() => void refreshSessions());
     },
@@ -111,16 +143,21 @@ function CullSessionHost({ scope }: { scope: string }) {
     (frameId: string) => controller?.thumbnail(frameId) ?? Promise.resolve(null),
     [controller],
   );
-  // The loupe shows the original when this tab read the card and the browser
-  // can paint it; RAW files and reopened sessions fall back to the thumbnail.
+  // Live original, then a reconnected one, then the stored review preview, then the thumbnail.
   const preview = useCallback(
-    async (frameId: string) => {
-      const original = controller?.original(frameId);
-      if (original && /^image\/(jpeg|png|webp)$/.test(original.type)) return original;
-      return controller?.thumbnail(frameId) ?? null;
-    },
+    (frameId: string) => controller?.loupeImage(frameId) ?? Promise.resolve(null),
     [controller],
   );
+  // Runs inside the click: both the permission prompt and the folder picker need it.
+  const onReconnect = useCallback(() => {
+    if (!controller) return;
+    const { originals } = controller.snapshot();
+    if (originals === "reconnect") void controller.reconnect().catch(report);
+    else if (originals === "locate")
+      void pickDirectoryHandle()
+        .then((directory) => (directory ? controller.locate([directory]) : false))
+        .catch(report);
+  }, [controller, report]);
 
   const shown = failure && !snapshot.notice ? { ...snapshot, notice: failure } : snapshot;
   return (
@@ -132,6 +169,7 @@ function CullSessionHost({ scope }: { scope: string }) {
       onUndo={onUndo}
       thumbnail={thumbnail}
       preview={preview}
+      onReconnect={onReconnect}
       sessions={sessions}
       onOpenSession={onOpenSession}
     />

@@ -12,6 +12,14 @@ import {
 } from "@/lib/studio/cull/session";
 import type { CullSessionSummary } from "@/lib/studio/cull/store";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
+import {
+  captureDropHandles,
+  filePickerSupported,
+  folderPickerSupported,
+  pickFiles,
+  pickFolder,
+  type CullSourceRoot,
+} from "@/lib/studio/cull/sources";
 import { isTypingTarget, registerAppKeys } from "@/lib/app-keys";
 import {
   CULL_SHORTCUT_LEGEND,
@@ -25,20 +33,24 @@ import {
 } from "./cull-review";
 import { CullGrid, type CullThumbnailSource, type CullViewport } from "./CullGrid";
 import { CullLoupe } from "./CullLoupe";
+import type { CullLoupeSource } from "./CullLoupePicture";
 import "./cull.css";
 
 export type CullWorkspaceProps = {
   snapshot: CullSnapshot;
-  /** Starts a new session from a card, named for its folder. */
-  onImport: (name: string, files: readonly File[]) => void;
+  /** Starts a new session from a card, named for its folder. `roots` are the
+   * folder and file handles it came through, where the browser offers them. */
+  onImport: (name: string, files: readonly File[], roots?: readonly CullSourceRoot[]) => void;
   onCancelImport: () => void;
   /** Records the photographer's decision on these frames as one undo step. */
   onDecide: (ids: readonly string[], verdict: CullVerdict) => void;
   onUndo: () => void;
   /** Must keep its identity across renders; cards read thumbnails as they scroll into view. */
   thumbnail: CullThumbnailSource;
-  /** The loupe's picture: the original when it is at hand, otherwise the thumbnail. Same identity rule. */
-  preview?: CullThumbnailSource | undefined;
+  /** The loupe's picture, best source first. Same identity rule. Without it, the thumbnail. */
+  preview?: CullLoupeSource | undefined;
+  /** Reconnects or locates the session's originals; runs inside the photographer's click. */
+  onReconnect?: (() => void) | undefined;
   sessions?: readonly CullSessionSummary[] | undefined;
   onOpenSession?: ((sessionId: string) => void) | undefined;
   viewport?: CullViewport | undefined;
@@ -54,6 +66,7 @@ export function CullWorkspace({
   onUndo,
   thumbnail,
   preview,
+  onReconnect,
   sessions = [],
   onOpenSession,
   viewport,
@@ -67,6 +80,8 @@ export function CullWorkspace({
   const [columns, setColumns] = useState(1);
   const [dropping, setDropping] = useState(false);
   const [dropNote, setDropNote] = useState<string | null>(null);
+  // A picked folder is walked before its import starts; a second click must not start another.
+  const [choosing, setChoosing] = useState(false);
   const folderInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -109,6 +124,15 @@ export function CullWorkspace({
     [frames, filter, burstGroup],
   );
   const reading = progress !== null && !progress.done;
+  const neighbors = useMemo(
+    () =>
+      selectedIndex === null
+        ? []
+        : [cells[selectedIndex + 1]?.frame.id, cells[selectedIndex - 1]?.frame.id].filter(
+            (id): id is string => id !== undefined,
+          ),
+    [cells, selectedIndex],
+  );
   const sessionName = sessions.find((session) => session.id === snapshot.sessionId)?.name;
 
   // ⌘Z belongs to the app's edit keys; the screen claims it only with something to undo.
@@ -233,9 +257,9 @@ export function CullWorkspace({
     if (ids.length) onDecide(ids, verdict);
   };
 
-  const startImport = (files: readonly File[]) => {
+  const startImport = (files: readonly File[], roots: readonly CullSourceRoot[] = []) => {
     setDropNote(null);
-    onImport(importName(files), files);
+    onImport(importName(files), files, roots);
   };
   const onDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (reading || !Array.from(event.dataTransfer.types).includes("Files")) return;
@@ -247,10 +271,12 @@ export function CullWorkspace({
     if (reading) return;
     event.preventDefault();
     setDropping(false);
-    // The folder tree has to be captured before the event returns.
-    void collectDroppedFiles(event.dataTransfer).then(
-      (result) => {
-        if (result.files.length) startImport(result.files);
+    // The folder tree and its handles have to be captured before the event returns.
+    const collected = collectDroppedFiles(event.dataTransfer);
+    const handles = captureDropHandles(event.dataTransfer);
+    void collected.then(
+      async (result) => {
+        if (result.files.length) startImport(result.files, await handles);
         else setDropNote(result.warnings[0]?.message ?? "No photos in that drop.");
       },
       (reason: unknown) =>
@@ -260,6 +286,25 @@ export function CullWorkspace({
   const pick = (list: FileList | null) => {
     if (list?.length) startImport(Array.from(list));
   };
+  // Where the browser has pickers that return handles, the card can be found
+  // again after a reload; elsewhere the plain file inputs stay.
+  const choose = (kind: "folder" | "files") => {
+    const native = kind === "folder" ? folderPickerSupported() : filePickerSupported();
+    if (!native) return (kind === "folder" ? folderInput : fileInput).current?.click();
+    setDropNote(null);
+    setChoosing(true);
+    (kind === "folder" ? pickFolder() : pickFiles())
+      .then(
+        (card) => {
+          if (!card) return;
+          if (card.files.length) startImport(card.files, card.roots);
+          else setDropNote("No photos in that folder.");
+        },
+        (reason: unknown) =>
+          setDropNote(reason instanceof Error ? reason.message : "That folder could not be read."),
+      )
+      .finally(() => setChoosing(false));
+  };
 
   const alert = notice ?? dropNote;
   const importButtons = (
@@ -267,16 +312,16 @@ export function CullWorkspace({
       <button
         type="button"
         className="rounded-md px-2.5 py-1.5 hover:bg-ink/5 disabled:opacity-50"
-        disabled={reading}
-        onClick={() => fileInput.current?.click()}
+        disabled={reading || choosing}
+        onClick={() => choose("files")}
       >
         Import files
       </button>
       <button
         type="button"
         className="rounded-md bg-ink px-3 py-1.5 text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
-        disabled={reading}
-        onClick={() => folderInput.current?.click()}
+        disabled={reading || choosing}
+        onClick={() => choose("folder")}
       >
         Import folder
       </button>
@@ -510,7 +555,10 @@ export function CullWorkspace({
           position={selectedIndex}
           total={cells.length}
           thumbnail={thumbnail}
-          preview={preview ?? thumbnail}
+          preview={preview}
+          neighbors={neighbors}
+          originals={snapshot.originals}
+          onReconnect={onReconnect}
           burst={burst}
           onDecide={decideCurrent}
           onStep={move}
