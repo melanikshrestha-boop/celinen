@@ -1,5 +1,6 @@
 import { readDevelopSettings, type DevelopSettings } from "./contract";
 import { lensIsNeutral, parametricIsNeutral } from "./parametric";
+import { geometryIsNeutral } from "./upright";
 
 /** Active recipe edits that the hosted renderer cannot reproduce. Inspect a
  * validated copy so capability checks never rewrite saved recipes or presets.
@@ -50,6 +51,7 @@ export function unsupportedBrowserDevelopEdits(settings: DevelopSettings): strin
   if (s.crop.angle !== 0) unsupported.push("Straighten");
   if (!parametricIsNeutral(s.parametricCurve)) unsupported.push("Parametric curve");
   if (!lensIsNeutral(s.lensCorrection)) unsupported.push("Lens correction");
+  if (!geometryIsNeutral(s.geometry)) unsupported.push("Upright");
   return unsupported;
 }
 

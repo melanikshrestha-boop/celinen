@@ -5,6 +5,7 @@
 import type { DevelopSettings } from "../contract";
 import { decodeDevelopPreview } from "../decode-preview";
 import { LOOK_SOURCE_EDGE, type LookDescriptor, type LookMatchResult } from "../look-match";
+import { UPRIGHT_EXIF_BYTES, type UprightSolution, type UprightSolveRequest } from "../upright";
 import type { DevelopAutoSuggestion } from "./engine";
 import type { DevelopWasmReply, DevelopWasmRequest } from "./messages";
 
@@ -183,4 +184,44 @@ export async function suggestDevelopWasm(
   if (!(await developWasmReady())) return null;
   const settled = await submit(source, edge, (base) => ({ ...base, kind: "suggest" }), signal);
   return settled.kind === "suggestion" ? settled.suggestion : null;
+}
+
+// One measurement per photo, working edge, mode and guide set. Blobs are
+// immutable, so a key never outlives its pixels, and the WeakMap lets a dropped
+// photo take its results with it.
+const uprightCache = new WeakMap<Blob, Map<string, Promise<UprightSolution>>>();
+
+/** Measure Upright on the photo's working pixels. Null when the engine is unavailable. */
+export async function solveUprightWasm(
+  source: Blob,
+  edge: number,
+  request: UprightSolveRequest,
+  options: { exifSource?: Blob | null; signal?: AbortSignal } = {},
+): Promise<UprightSolution | null> {
+  if (!(await developWasmReady())) return null;
+  const key = JSON.stringify([edge, request.mode, request.analysisEdge ?? 1024, request.guides]);
+  let perPhoto = uprightCache.get(source);
+  if (!perPhoto) uprightCache.set(source, (perPhoto = new Map()));
+  const cached = perPhoto.get(key);
+  if (cached) return cached;
+  const pending = (async () => {
+    // EXIF lives in the original's leading bytes; a derived preview may have none.
+    const exifBlob = options.exifSource ?? source;
+    const exif = new Uint8Array(await exifBlob.slice(0, UPRIGHT_EXIF_BYTES).arrayBuffer());
+    const settled = await submit(
+      source,
+      edge,
+      (base) => ({ ...base, kind: "upright", request, exif }),
+      options.signal,
+    );
+    if (settled.kind !== "upright") throw new DOMException("Upright cancelled.", "AbortError");
+    return settled.solution;
+  })();
+  const entries = perPhoto;
+  entries.set(key, pending);
+  // A cancelled or failed measurement is retried next time, not remembered.
+  pending.catch(() => {
+    if (entries.get(key) === pending) entries.delete(key);
+  });
+  return pending;
 }

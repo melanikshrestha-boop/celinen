@@ -1,5 +1,6 @@
 import type { DevelopSettings } from "../contract";
 import type { LookDescriptor, LookMatchResult } from "../look-match";
+import type { UprightSolution, UprightSolveRequest } from "../upright";
 import type { DevelopAutoSuggestion } from "./engine";
 
 type SourceJob = {
@@ -22,6 +23,7 @@ export type DevelopWasmRequest =
       settings: DevelopSettings;
       outputEdge: number;
     })
+  | (SourceJob & { kind: "upright"; request: UprightSolveRequest; exif: Uint8Array | null })
   | { id: number; kind: "cancel" };
 
 export type DevelopWasmReply =
@@ -30,6 +32,7 @@ export type DevelopWasmReply =
   | { id: number; kind: "suggestion"; suggestion: DevelopAutoSuggestion }
   | { id: number; kind: "look"; descriptor: LookDescriptor }
   | { id: number; kind: "look-matched"; match: LookMatchResult }
+  | { id: number; kind: "upright"; solution: UprightSolution }
   | { id: number; kind: "need-source" }
   | { id: number; kind: "cancelled" }
   | { id: number; kind: "failed"; error: string; fatal: boolean };

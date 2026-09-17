@@ -28,7 +28,8 @@ export const presetPackageMetadataSchema = z
 export type PresetPackageMetadata = z.infer<typeof presetPackageMetadataSchema>;
 const isNeutralGeometry = (settings: DevelopSettings) =>
   settings.masks.length === 0 &&
-  JSON.stringify(settings.crop) === JSON.stringify(defaultDevelopSettings().crop);
+  JSON.stringify(settings.crop) === JSON.stringify(defaultDevelopSettings().crop) &&
+  JSON.stringify(settings.geometry) === JSON.stringify(defaultDevelopSettings().geometry);
 export const presetPackageSchema = z
   .object({
     format: z.literal("foto-develop-preset"),
@@ -36,13 +37,13 @@ export const presetPackageSchema = z
     metadata: presetPackageMetadataSchema,
     settings: developSettingsSchema.refine(
       isNeutralGeometry,
-      "Portable looks cannot include a photo-specific crop or mask.",
+      "Portable looks cannot include a photo-specific crop, mask or transform.",
     ),
   })
   .strict();
 export type PresetPackage = z.infer<typeof presetPackageSchema>;
 
-/** A portable look contains no photos, account IDs, local paths, crop, or local masks. */
+/** A portable look contains no photos, account IDs, local paths, crop, local masks or transform. */
 export function createPresetPackage(
   metadata: z.input<typeof presetPackageMetadataSchema>,
   settings: DevelopSettings,
@@ -52,7 +53,12 @@ export function createPresetPackage(
     format: "foto-develop-preset",
     version: 1,
     metadata,
-    settings: { ...recipe, crop: defaultDevelopSettings().crop, masks: [] },
+    settings: {
+      ...recipe,
+      crop: defaultDevelopSettings().crop,
+      masks: [],
+      geometry: defaultDevelopSettings().geometry,
+    },
   });
 }
 export function parsePresetPackage(text: string): PresetPackage {
