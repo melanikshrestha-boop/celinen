@@ -339,6 +339,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
     [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
+  // The look bar renders into the top bar so it never covers Cull, Import or Export.
+  const [lookSlot, setLookSlot] = useState<HTMLDivElement | null>(null);
   const [tool, setTool] = useState<DevelopTool>("edit"),
     [maskId, setMaskId] = useState<string | null>(null);
   const [mode, setMode] = useState<"develop" | "library">("develop"),
@@ -1864,11 +1866,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             Celinen <small>Photo Lab</small>
           </span>
         </div>
+        <div ref={setLookSlot} className="develop-topbar-look" />
         <div className="develop-top-actions">
           <button
             onClick={() => {
               if (workbench) void workbench.showStudio();
-              else void navigate({ to: "/dashboard" });
+              else void navigate({ to: "/cull" });
             }}
           >
             Cull
@@ -2284,6 +2287,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 photoId={selected}
                 advanced={!browserOnly}
                 histogram={histogramUrl === displayedUrl ? histogram : null}
+                barSlot={lookSlot}
               />
               <div className="develop-view-toolbar">
                 <div>

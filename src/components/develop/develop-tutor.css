@@ -99,6 +99,23 @@
   background: color-mix(in srgb, #fff 88%, transparent);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
 }
+.develop-topbar-look {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+.develop-topbar-look .develop-lookbar {
+  position: static;
+  width: min(560px, 100%);
+  padding: 3px;
+  transform: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.develop-topbar-look .develop-lookbar input,
+.develop-topbar-look .develop-lookbar button {
+  min-height: 28px;
+}
 .develop-lookbar input {
   flex: 1;
   min-height: 32px;

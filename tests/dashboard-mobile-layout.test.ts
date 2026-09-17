@@ -174,6 +174,7 @@ describe("dashboard mobile shell keeps tool space without changing desktop prefe
       ).toBe("/dashboard");
       for (const label of [
         "Home",
+        "Cull",
         "Gallery",
         "Develop",
         "Calendar",

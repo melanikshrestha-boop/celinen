@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import {
+  Aperture,
   ArrowUp,
   CalendarDays,
   ChartNoAxesColumn,
@@ -42,6 +43,7 @@ import "./social-accounts.css";
 
 const MAIN = [
   { to: "/dashboard", label: "Home", icon: House, end: true },
+  { to: "/cull", label: "Cull", icon: Aperture },
   { to: "/deliver", label: "Gallery", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
   { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
@@ -142,6 +144,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   const router = useRouter();
   useEffect(() => {
     void router.preloadRoute({ to: "/studio" });
+    void router.preloadRoute({ to: "/cull" });
     void router.preloadRoute({ to: "/publish" });
     void router.preloadRoute({ to: "/develop" });
   }, [router]);
@@ -281,7 +284,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   function ingestPhotos(files: File[]) {
     if (!files.length) return;
     queueStudioImport(files);
-    void navigate({ to: "/studio" });
+    // A dropped card is culled first; Develop comes after the keepers are picked.
+    void navigate({ to: "/cull" });
   }
 
   useEffect(() => {

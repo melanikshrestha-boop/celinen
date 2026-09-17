@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CullWorkspace } from "@/components/cull/CullWorkspace";
+import { importName } from "@/components/cull/cull-review";
 import { PRODUCT_NAME } from "@/lib/product";
 import { CullController, type CullSnapshot } from "@/lib/studio/cull/controller";
 import { openCullStore, type CullSessionSummary } from "@/lib/studio/cull/store";
+import { takeStudioImport } from "@/lib/studio/pending-import";
 
 export const Route = createFileRoute("/cull")({
   head: () => ({ meta: [{ title: `Cull — ${PRODUCT_NAME}` }] }),
@@ -44,6 +46,20 @@ function CullSessionHost({ scope }: { scope: string }) {
         owned = new CullController(store);
         unsubscribe = owned.subscribe(setSnapshot);
         setController(owned);
+        // Photos dropped on Home start culling the moment the store is open.
+        const queued = takeStudioImport();
+        if (queued.length)
+          owned
+            .importCard(importName(queued), queued)
+            .catch((error: unknown) => {
+              if (live && !(error instanceof DOMException && error.name === "AbortError"))
+                setFailure(
+                  error instanceof Error ? error.message : "Something went wrong with this card.",
+                );
+            })
+            .finally(() => {
+              if (live) void owned?.sessions().then(setSessions, () => {});
+            });
         setSessions(await store.list().catch(() => []));
       },
       (error: unknown) => {

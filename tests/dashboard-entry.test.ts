@@ -110,6 +110,9 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).toContain('htmlFor="celinen-home-photos"');
   expect(source).toContain('aria-label="Add photos"');
   expect(source).toContain("queueStudioImport");
+  // Photos dropped on Home go straight to culling, and Cull sits in the sidebar.
+  expect(source).toContain('navigate({ to: "/cull" })');
+  expect(source).toContain('{ to: "/cull", label: "Cull", icon: Aperture }');
   expect(source).toContain("collectDroppedFiles");
   expect(source).not.toContain('aria-label="Open Pick"');
   expect(source).toContain('preloadRoute({ to: "/studio" })');
