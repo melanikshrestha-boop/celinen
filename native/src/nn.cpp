@@ -306,11 +306,11 @@ Out convolve(const Op& op, const Arg& input) {
     for (int y0 = 0; y0 < oh; y0 += strip) {
       const std::size_t begin = std::size_t(y0) * width;
       const std::size_t count = std::size_t(std::min(strip, oh - y0)) * width;
-      for (int g = 0; g < groups; ++g)
+      for (int g = 0; g < groups; ++g) {
+        const auto source = [&](int ic) { return in.data + std::size_t(g * in_per_group + ic) * in_plane + begin; };
         for (int oc = 0; oc < out_per_group; ++oc) {
           const int o = g * out_per_group + oc;
           float* target = result + std::size_t(o) * out_plane + begin;
-          const auto source = [&](int ic) { return in.data + std::size_t(g * in_per_group + ic) * in_plane + begin; };
           int ic = 0;
           // Four input planes per pass, for the same reason as the depthwise taps.
           for (; ic + 4 <= in_per_group; ic += 4) {
@@ -328,6 +328,7 @@ Out convolve(const Op& op, const Arg& input) {
             for (std::size_t p = 0; p < count; ++p) target[p] += w * s0[p];
           }
         }
+      }
     }
     activate(op, out.tensor.data, op.out_channels);
     return out;

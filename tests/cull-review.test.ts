@@ -289,6 +289,10 @@ describe("plain-language measurements", () => {
     );
     expect(value(cullReading(), "Exposure")).toBe("Good");
     expect(value(cullReading({ eyesClosed: true }), "Subject")).toBe("Eyes closed");
+    expect(value(cullReading({ eyesUncertain: true }), "Subject")).toBe("Eyes uncertain");
+    expect(value(cullReading({ eyesClosedProbability: 0.05 }), "Subject")).toBe("Eyes open");
+    // A face whose eyes were never read is described by its focus, not guessed at.
+    expect(value(cullReading(), "Subject")).toBe("Face sharp");
     expect(value(cullReading({ hasFace: false }), "Subject")).toBe("No face found");
   });
 

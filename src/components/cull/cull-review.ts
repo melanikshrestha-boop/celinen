@@ -225,9 +225,15 @@ export function plainReading(reading: CullReading): CullMeasurement[] {
     ? "No face found"
     : reading.eyesClosed
       ? "Eyes closed"
-      : reading.faceSoft
-        ? "Face soft"
-        : "Face sharp";
+      : reading.eyesUncertain
+        ? "Eyes uncertain"
+        : reading.faceSoft
+          ? "Face soft"
+          : // A face whose eyes the engine could read and found open says so;
+            // one it could not read is only described by its focus.
+            (reading.eyesClosedProbability ?? -1) >= 0
+            ? "Eyes open"
+            : "Face sharp";
   return [
     { label: "Focus", value: missedFocus ? `${focus}, focus missed the subject` : focus },
     { label: "Motion", value: motion },

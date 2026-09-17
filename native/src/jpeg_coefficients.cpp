@@ -319,6 +319,20 @@ bool JpegCoefficients::render_region(unsigned numerator, std::uint32_t x0, std::
           reinterpret_cast<j_common_ptr>(&info), state_->coefficients[c], plan.block_y0 + by, 1, FALSE);
       for (int r = 0; r < plan.dct_v; ++r)
         rows[std::size_t(r)] = plan.samples.data() + (std::size_t(by) * std::size_t(plan.dct_v) + std::size_t(r)) * plan.samples_wide;
+      if (plan.dct_h == 1 && plan.dct_v == 1) {
+        // One sample a block is the usual case for a camera-sized original,
+        // and it is jpeg_idct_1x1's whole body: the DC term, descaled by eight.
+        // Inlined because a call for each of a million blocks is most of the cost.
+        const int* quant = state_->multipliers[std::size_t(c)].data();
+        JSAMPLE* row = rows[0];
+        for (std::uint32_t bx = 0; bx < plan.blocks_wide; ++bx) {
+          const int dc = int(block_rows[0][plan.block_x0 + bx][0]) * quant[0] + (512 << 3) + (1 << 2);
+          // The inverse DCTs index sample_range_limit - RANGE_SUBSET, which is
+          // this table 128 entries in.
+          row[bx] = state_->range[std::size_t(((dc >> 3) & 1023) + 128)];
+        }
+        continue;
+      }
       for (std::uint32_t bx = 0; bx < plan.blocks_wide; ++bx)
         plan.idct(&info, &component, block_rows[0][plan.block_x0 + bx], rows.data(), JDIMENSION(bx * std::uint32_t(plan.dct_h)));
     }
