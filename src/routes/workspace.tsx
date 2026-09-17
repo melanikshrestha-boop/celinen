@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PRODUCT_NAME } from "@/lib/product";
-import { WorkspaceHome } from "@/components/workbench/WorkspaceHome";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+// Home is the dashboard. The older workspace home is kept as a component for the
+// legacy tool pages that still use its chrome, but this address leads Home.
 export const Route = createFileRoute("/workspace")({
-  head: () => ({
-    meta: [{ title: PRODUCT_NAME }, { name: "robots", content: "noindex, nofollow" }],
-  }),
-  component: WorkspaceHome,
+  beforeLoad: () => {
+    throw redirect({ href: "/dashboard", replace: true });
+  },
 });

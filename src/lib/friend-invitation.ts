@@ -11,7 +11,7 @@ export function friendInvitation(configuredOrigin = APPLICATION_ORIGIN) {
   const hostname = new URL(origin).hostname;
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
   const url = applicationUrl(
-    "/auth?next=%2Fworkspace&mode=signup",
+    "/auth?next=%2Fdashboard&mode=signup",
     local ? PRODUCTION_ORIGIN : origin,
   );
   const title = "Join me on Celinen";

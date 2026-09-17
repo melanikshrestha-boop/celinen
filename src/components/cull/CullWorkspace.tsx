@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { Link } from "@tanstack/react-router";
 import type { CullSnapshot } from "@/lib/studio/cull/controller";
 import type { CullVerdict } from "@/lib/studio/cull/engine";
 import {
@@ -14,7 +13,6 @@ import {
 import type { CullSessionSummary } from "@/lib/studio/cull/store";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { isTypingTarget, registerAppKeys } from "@/lib/app-keys";
-import { PRODUCT_NAME } from "@/lib/product";
 import {
   CULL_SHORTCUT_LEGEND,
   bulkCounts,
@@ -320,14 +318,6 @@ export function CullWorkspace({
       <header className="border-b border-border/70" inert={loupe}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5">
           <div className="flex min-w-0 items-center gap-3">
-            <Link to="/" className="flex shrink-0 items-center gap-2">
-              <span className="grid size-6 place-items-center rounded-full bg-ink font-display text-[11px] font-bold text-paper2">
-                L
-              </span>
-              <span className="font-display text-sm font-semibold tracking-tight">
-                {PRODUCT_NAME}
-              </span>
-            </Link>
             {frames.length > 0 && (
               <span className="truncate font-mono text-[11px] text-moss">
                 {sessionName && <span className="text-ink">{`${sessionName} · `}</span>}

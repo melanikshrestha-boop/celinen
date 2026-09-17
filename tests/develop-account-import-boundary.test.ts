@@ -192,8 +192,10 @@ describe("Develop import account lifetime across application shells", () => {
       const tasks = [old.start()];
       try {
         await old.entered.promise;
+        // A shoot's Develop page opens inside Home's dashboard like every page
+        // reachable from Home; the account fence covers both shells regardless.
         expect(boundary.render(account("owner-a"), "/shoots/legacy/develop")).toMatchObject({
-          type: "workbench",
+          type: "dashboard",
         });
         expect(boundary.render(account("owner-a"), "/develop")).toMatchObject({
           type: "dashboard",
@@ -239,7 +241,7 @@ describe("Develop import account lifetime across application shells", () => {
     try {
       await old.entered.promise;
       expect(boundary.render(account("owner-a"), "/shoots/legacy/develop")).toMatchObject({
-        type: "workbench",
+        type: "dashboard",
       });
       expect(boundary.render(account("owner-a"), "/earnings")).toMatchObject({ type: "dashboard" });
       expect(boundary.render(account(null), "/earnings")).toMatchObject({ type: "dashboard" });

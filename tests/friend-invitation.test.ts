@@ -13,7 +13,7 @@ describe("Invite a friend", () => {
     expect(url.pathname).toBe("/auth");
     expect([...url.searchParams.keys()].sort()).toEqual(["mode", "next"]);
     expect(url.searchParams.get("mode")).toBe("signup");
-    expect(url.searchParams.get("next")).toBe("/workspace");
+    expect(url.searchParams.get("next")).toBe("/dashboard");
     expect(url.hash).toBe("");
     // Sender's first name must not leak. Whole word: the brand "Celinen" contains it.
     expect(JSON.stringify(invitation)).not.toMatch(/\bCeline\b/);
