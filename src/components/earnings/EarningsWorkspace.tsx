@@ -596,7 +596,7 @@ function EarningsContent() {
                   try {
                     downloadEarningsFile(
                       earningsCsv(rows, shootName),
-                      `foto-ledger-${period}-${currency}.csv`,
+                      `celinen-ledger-${period}-${currency}.csv`,
                     );
                   } catch {
                     setNotice("Export failed. Your records are unchanged.");
@@ -873,7 +873,7 @@ function EarningsContent() {
                   onClick={() =>
                     downloadEarningsFile(
                       earningsCsv([selectedRow], shootName),
-                      `foto-entry-${selectedRow.sourceId}.csv`,
+                      `celinen-entry-${selectedRow.sourceId}.csv`,
                     )
                   }
                 >
@@ -918,7 +918,7 @@ function EarningsContent() {
                     onClick={() =>
                       downloadEarningsFile(
                         invoiceDraftCsv(localDraft),
-                        `foto-invoice-draft-${localDraft.id}.csv`,
+                        `celinen-invoice-draft-${localDraft.id}.csv`,
                       )
                     }
                   >

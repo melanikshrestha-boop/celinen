@@ -219,7 +219,7 @@ function ReceiptContent({
                     ensureCurrent();
                     downloadEarningsFile(
                       result.html,
-                      `foto-receipt-${row.sourceId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100)}.html`,
+                      `celinen-receipt-${row.sourceId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100)}.html`,
                       "text/html;charset=utf-8",
                     );
                   } catch (cause) {

@@ -49,7 +49,9 @@ test("foto MCP connector initializes and lists photography tools", async () => {
 test("mcp page is a Vugola-style connector with Grok and Julius", () => {
   const html = renderToStaticMarkup(createElement(McpPage));
   expect(html).toContain("The ");
-  expect(html).toContain("foto");
+  expect(html).toContain("<em>Celinen</em> MCP for");
+  // Brand is Celinen. Only wire identifiers (tool names, serverInfo) keep the legacy foto prefix.
+  expect(html.replaceAll(/foto_[a-z]+/g, "")).not.toMatch(/\bfoto\b/i);
   expect(html).toContain("MCP");
   expect(html).toContain(FOTO_MCP_URL);
   expect(html).toContain("Grok");

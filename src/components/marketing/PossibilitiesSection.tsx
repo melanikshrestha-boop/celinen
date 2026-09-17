@@ -1,6 +1,6 @@
 import { Camera, Heart, Images, SlidersHorizontal, Star } from "lucide-react";
 
-const sky = "/images/foto-open-sky.webp";
+const sky = "/images/celinen-open-sky.webp";
 
 export function PossibilitiesSection() {
   return (

@@ -291,7 +291,7 @@ export function AppearanceSettings({
             );
             const a = document.createElement("a");
             a.href = url;
-            a.download = "lenslabs-theme.json";
+            a.download = "celinen-theme.json";
             a.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
           }}

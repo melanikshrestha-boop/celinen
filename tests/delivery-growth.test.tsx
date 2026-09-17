@@ -117,6 +117,14 @@ describe("permissioned gallery growth", () => {
     expect(galleryPresentation(state)).toEqual({ studioName: "", showCelinenCredit: true });
     expect(sameGalleryPresentation(state, { presentation: galleryPresentation(state) })).toBe(true);
   });
+  test("galleries saved under the old credit field keep the photographer's choice", () => {
+    const saved = { presentation: { studioName: "Céline Nova", showLensLabsCredit: false } };
+    expect(galleryPresentation(saved)).toEqual(brand);
+    // The canonical field wins when both are present, and the legacy name is never written back.
+    expect(
+      galleryPresentationSchema.parse({ ...brand, showLensLabsCredit: true }),
+    ).toEqual(brand);
+  });
   test("presentation is bounded, Unicode-safe, and not a tracking payload", () => {
     expect(galleryPresentationSchema.parse(brand)).toEqual(brand);
     for (const value of [

@@ -1,6 +1,12 @@
 import { useState } from "react";
 import "./home-product.css";
 import { Link } from "@tanstack/react-router";
+import { paymentsAreConfigured } from "@/lib/payments-available";
+
+/** Build-time, so SSR and client agree. Never promise paid access while checkout is off. */
+export const PRICING_LEDE = paymentsAreConfigured()
+  ? "Choose a monthly or annual plan. Access starts after payment. Cancel anytime."
+  : "Pricing shown for reference. No charge until checkout is live.";
 
 type Point = { label: string; included: boolean; accent?: boolean };
 
@@ -246,9 +252,7 @@ export function HomePricing() {
         <h2 id="pricing-heading">
           Pricing that <em>scales with you</em>
         </h2>
-        <p className="home-pricing__lede">
-          Choose a monthly or annual plan. Access starts after payment. Cancel anytime.
-        </p>
+        <p className="home-pricing__lede">{PRICING_LEDE}</p>
       </div>
       <div className="home-pricing__cycle" data-reveal>
         <div className="home-pricing__seg" role="group" aria-label="Billing">

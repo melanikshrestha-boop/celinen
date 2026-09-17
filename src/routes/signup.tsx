@@ -31,7 +31,7 @@ export const Route = createFileRoute("/signup")({
   validateSearch: (
     search: Record<string, unknown>,
   ): { plan: string; billing: "monthly" | "yearly"; email?: string } => ({
-    plan: typeof search["plan"] === "string" ? (search["plan"] as string) : "starter",
+    plan: typeof search["plan"] === "string" ? (search["plan"] as string) : "hobby",
     billing: search["billing"] === "monthly" ? "monthly" : "yearly",
     ...(typeof search["email"] === "string" && search["email"]
       ? { email: search["email"] as string }
@@ -44,7 +44,7 @@ const PLANS = BILLING_PLANS;
 
 function SignupPage() {
   const search = Route.useSearch();
-  const plan = PLANS.some((p) => p.id === search.plan) ? search.plan : "starter";
+  const plan = PLANS.some((p) => p.id === search.plan) ? search.plan : "hobby";
   const billing = search.billing === "monthly" ? "monthly" : "yearly";
   const active = PLANS.find((p) => p.id === plan) ?? PLANS[1]!;
   const perUser = plan === "crew" || plan === "agency";

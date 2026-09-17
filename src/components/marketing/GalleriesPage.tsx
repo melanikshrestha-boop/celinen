@@ -82,7 +82,7 @@ const FAQ: [string, string][] = [
 const STILLS = [
   "/images/blog/sports-editing.jpg",
   "/images/blog/same-night-gallery.jpg",
-  "/images/foto-open-sky.webp",
+  "/images/celinen-open-sky.webp",
   "/images/blog/picking-the-frames.jpg",
   "/images/blog/lightroom-capture-one.jpg",
   "/images/blog/sports-editing.jpg",

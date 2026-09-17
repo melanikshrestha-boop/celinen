@@ -5,7 +5,11 @@ import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { useAccount } from "@/components/account/AccountProvider";
 import { publicEntry } from "@/lib/public-entry";
 import { BUSINESS, PRO_STEPS, TEAM_STEPS } from "@/lib/published-plans";
-import { PlanCardGrid, plansForAudience } from "@/components/marketing/HomePricing";
+import {
+  PlanCardGrid,
+  PRICING_LEDE,
+  plansForAudience,
+} from "@/components/marketing/HomePricing";
 
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import "@/components/marketing/marketing-page.css";
@@ -212,9 +216,7 @@ function PricingPage() {
           <h1>
             Pricing that <em>scales with you</em>
           </h1>
-          <p>
-            Choose a monthly or annual plan. Access starts after payment. Cancel anytime.
-          </p>
+          <p>{PRICING_LEDE}</p>
 
           {/* audience tabs — follow the cursor; click still works for keyboard/touch */}
           <div
@@ -620,7 +622,7 @@ function PricingPage() {
 
         {/* closing CTA */}
         <div className="pricing-closing" data-reveal>
-          <img src="/images/foto-open-sky.webp" width={1672} height={941} alt="" loading="lazy" />
+          <img src="/images/celinen-open-sky.webp" width={1672} height={941} alt="" loading="lazy" />
           <div>
             <p className="font-display text-xl font-semibold tracking-tight">
               Make room for your next great shot.
@@ -632,7 +634,7 @@ function PricingPage() {
           <div className="ml-auto flex gap-2">
             <Link
               to="/signup"
-              search={{ plan: "starter", billing: cycle }}
+              search={{ plan: "hobby", billing: cycle }}
               className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-paper2 hover:opacity-85"
             >
               Get started

@@ -117,7 +117,7 @@ try {
     return url;
   };
   HTMLAnchorElement.prototype.click = function () {
-    if (this.download === "foto-migration-plan.json") {
+    if (this.download === "celinen-migration-plan.json") {
       downloaded = blobs.get(this.href);
       return;
     }

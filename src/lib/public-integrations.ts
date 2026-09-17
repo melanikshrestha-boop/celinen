@@ -169,15 +169,3 @@ export function integrationsInGroup(group: IntegrationGroupId) {
 export function menuIntegrations() {
   return INTEGRATION_MENU.map((id) => findPublicIntegration(id)!);
 }
-
-/** Same base as MarketingStats. The LIVE pill ticks +1 while the page is open — not Ocoya's 633k. */
-export const LIVE_PHOTOGRAPHERS_BASE = 12_480;
-export const LIVE_TICK_MS = 10_000;
-
-export function livePhotographers() {
-  return LIVE_PHOTOGRAPHERS_BASE;
-}
-
-export function formatLivePhotographers(count: number) {
-  return count.toLocaleString("en-US");
-}

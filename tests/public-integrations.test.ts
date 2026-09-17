@@ -4,8 +4,6 @@ import {
   ASSISTANT_MARKS,
   findPublicIntegration,
   INTEGRATION_MENU,
-  livePhotographers,
-  LIVE_PHOTOGRAPHERS_BASE,
   PUBLIC_INTEGRATIONS,
 } from "../src/lib/public-integrations";
 
@@ -45,12 +43,12 @@ test("public integrations match the add-channel sheet down to copy", () => {
     "raycast",
     "n8n",
   ]);
-  expect(livePhotographers()).toBe(LIVE_PHOTOGRAPHERS_BASE);
-  expect(LIVE_PHOTOGRAPHERS_BASE).not.toBe(633663);
   const nav = readFileSync(new URL("../src/components/Nav.tsx", import.meta.url), "utf8");
   expect(nav).toContain("IntegrationsMenu");
   const landing = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
-  expect(landing).toContain("LivePhotographers");
+  // No invented traction: the landing page carries no user counts without a real data source.
+  expect(landing).not.toContain("LivePhotographers");
+  expect(landing).not.toContain("MarketingStats");
   expect(landing).toContain("PublishEverywhere");
   expect(landing).not.toContain("customers");
 });

@@ -701,7 +701,7 @@ function VideoReview() {
     );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `lenslabs-video-selects-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.download = `celinen-video-selects-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();

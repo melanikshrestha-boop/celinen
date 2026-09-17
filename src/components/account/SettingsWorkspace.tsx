@@ -1048,7 +1048,7 @@ function Configuration({
       );
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "lenslabs-settings.json";
+      anchor.download = "celinen-settings.json";
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (cause) {

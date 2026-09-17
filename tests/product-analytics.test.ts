@@ -126,8 +126,31 @@ describe("PostHog event-only privacy boundary", () => {
     ).toEqual({});
   });
   test("vocabulary contains all requested names without implying producers exist", () => {
-    expect(PRODUCT_EVENTS).toHaveLength(19);
-    expect(new Set(PRODUCT_EVENTS).size).toBe(19);
+    // Exact allowlist: adding or renaming an event must show up in this diff.
+    expect([...PRODUCT_EVENTS]).toEqual([
+      "signup_completed",
+      "waitlist_joined",
+      "waitlist_cta_clicked",
+      "app_opened",
+      "shoot_created",
+      "second_shoot_created",
+      "import_started",
+      "import_completed",
+      "cull_started",
+      "first_select_shown",
+      "cull_completed",
+      "burst_opened",
+      "keeper_accepted",
+      "keeper_overridden",
+      "reject_overridden",
+      "export_started",
+      "export_completed",
+      "decode_failed",
+      "cull_failed",
+      "subscription_started",
+      "subscription_cancelled",
+    ]);
+    expect(new Set(PRODUCT_EVENTS).size).toBe(21);
   });
   test("consent is checked on every request, not cached", async () => {
     const h = harness();

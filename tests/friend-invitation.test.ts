@@ -15,7 +15,9 @@ describe("Invite a friend", () => {
     expect(url.searchParams.get("mode")).toBe("signup");
     expect(url.searchParams.get("next")).toBe("/workspace");
     expect(url.hash).toBe("");
-    expect(JSON.stringify(invitation)).not.toContain("Celine");
+    // Sender's first name must not leak. Whole word: the brand "Celinen" contains it.
+    expect(JSON.stringify(invitation)).not.toMatch(/\bCeline\b/);
+    expect(JSON.stringify(invitation)).not.toMatch(/shoot/i);
   });
   test("local lab URLs are never shared with friends", () => {
     for (const origin of [

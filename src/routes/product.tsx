@@ -14,7 +14,7 @@ export function ProductPage() {
   return (
     <PublicPage eyebrow="Product" title="A home for the whole shoot." description={description}>
       <div className="public-editorial public-editorial--wide">
-        <section id="why-foto" className="public-editorial__purpose" data-reveal>
+        <section id="why-celinen" className="public-editorial__purpose" data-reveal>
           <h2>Keep the whole shoot in view.</h2>
           <p>
             Making photographs is only part of a photographer’s day. Celinen brings the work around

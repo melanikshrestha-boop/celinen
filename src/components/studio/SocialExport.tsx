@@ -175,7 +175,7 @@ export function SocialExport({
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = "lenslabs-social.zip";
+      link.download = "celinen-social.zip";
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       setMessage(
