@@ -40,6 +40,7 @@ const EMPTY: CullSnapshot = {
   notice: null,
   canUndo: false,
   originals: "unavailable",
+  backup: null,
   keepTarget: null,
   ranked: 0,
   codes: NO_CODES,
@@ -128,17 +129,30 @@ function CullSessionHost({ scope }: { scope: string }) {
   }, []);
 
   const onImport = useCallback(
-    (name: string, files: readonly File[], roots?: readonly CullSourceRoot[]) => {
+    (
+      name: string,
+      files: readonly File[],
+      roots?: readonly CullSourceRoot[],
+      backup?: Parameters<CullController["importCard"]>[3],
+    ) => {
       if (!controller) return;
       setFailure(null);
       controller
-        .importCard(name, files, roots)
+        .importCard(name, files, roots, backup)
         .catch(report)
         .finally(() => void refreshSessions());
     },
     [controller, report, refreshSessions],
   );
   const onCancelImport = useCallback(() => controller?.cancelImport(), [controller]);
+  const onCancelBackup = useCallback(() => controller?.cancelBackup(), [controller]);
+  const onExport = useCallback(
+    (request: Parameters<CullController["exportFrames"]>[0]) =>
+      controller
+        ? controller.exportFrames(request)
+        : Promise.reject(new Error("Cull is not ready.")),
+    [controller],
+  );
   const onMark = useCallback(
     (ids: readonly string[], marks: Parameters<CullController["mark"]>[1]) =>
       void controller?.mark(ids, marks).catch(report),
@@ -205,6 +219,8 @@ function CullSessionHost({ scope }: { scope: string }) {
       snapshot={shown}
       onImport={onImport}
       onCancelImport={onCancelImport}
+      onCancelBackup={onCancelBackup}
+      onExport={onExport}
       onMark={onMark}
       onUndo={onUndo}
       onKeepTarget={onKeepTarget}

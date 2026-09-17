@@ -51,7 +51,12 @@ export type ExportSidecarOptions = {
    * what Lightroom reads; "sidecar" writes `name.xmp` beside it; "none" skips. */
   jpeg?: "embed" | "sidecar" | "none" | undefined;
   mapping?: Partial<XmpMapping> | undefined;
-  keywords?: readonly string[] | undefined;
+  /** A function is asked per frame, so a photographer's own keywords travel. */
+  keywords?:
+    readonly string[] | ((frame: HandoffFrame) => readonly string[] | undefined) | undefined;
+  /** The color label to write. A function is asked per frame; undefined leaves
+   * the mapping's own label (by verdict) in place. */
+  label?: string | null | ((frame: HandoffFrame) => string | null | undefined) | undefined;
   headline?: string | undefined;
   caption?: string | ((frame: HandoffFrame) => string | undefined) | undefined;
   /** Defaults to the export's start time. */
@@ -268,16 +273,27 @@ export async function exportKeepers(options: ExportOptions): Promise<HandoffRepo
       typeof sidecarOptions.caption === "function"
         ? sidecarOptions.caption(unit.frame)
         : sidecarOptions.caption;
-    return frameXmpFields(
+    const keywords =
+      typeof sidecarOptions.keywords === "function"
+        ? sidecarOptions.keywords(unit.frame)
+        : sidecarOptions.keywords;
+    const label =
+      typeof sidecarOptions.label === "function"
+        ? sidecarOptions.label(unit.frame)
+        : sidecarOptions.label;
+    const fields = frameXmpFields(
       unit.frame,
       {
         metadataDate,
-        ...(sidecarOptions.keywords ? { keywords: sidecarOptions.keywords } : {}),
+        ...(keywords ? { keywords } : {}),
         ...(sidecarOptions.headline !== undefined ? { headline: sidecarOptions.headline } : {}),
         ...(caption !== undefined ? { caption } : {}),
       },
       sidecarOptions.mapping,
     );
+    // The photographer's own label wins over the verdict mapping's.
+    if (label !== undefined) fields.label = label;
+    return fields;
   };
 
   /** How this unit's metadata travels. */

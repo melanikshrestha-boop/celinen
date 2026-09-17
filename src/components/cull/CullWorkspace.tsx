@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Tag, X } from "lucide-react";
-import type { CullSnapshot } from "@/lib/studio/cull/controller";
+import type { CullExportRequest, CullSnapshot } from "@/lib/studio/cull/controller";
+import { directoryTarget } from "@/lib/studio/cull/handoff/target";
+import type { HandoffReport } from "@/lib/studio/cull/handoff/types";
 import type { CullVerdict } from "@/lib/studio/cull/engine";
 import type { PortraitFace } from "@/lib/studio/cull/portrait-face";
 import {
@@ -47,6 +49,8 @@ import {
 } from "./cull-review";
 import { CullCaption, type CullCodesInput } from "./CullCaption";
 import { CullCompare } from "./CullCompare";
+import { CullBackupControl, CullExportPanel, type CullExportScope } from "./CullExport";
+import { useDestination } from "./use-destination";
 import {
   CullGrid,
   type CullSelectMode,
@@ -61,9 +65,18 @@ import "./cull.css";
 export type CullWorkspaceProps = {
   snapshot: CullSnapshot;
   /** Starts a new session from a card, named for its folder. `roots` are the
-   * folder and file handles it came through, where the browser offers them. */
-  onImport: (name: string, files: readonly File[], roots?: readonly CullSourceRoot[]) => void;
+   * folder and file handles it came through, where the browser offers them;
+   * `backup` copies the card to one or two folders while it is read. */
+  onImport: (
+    name: string,
+    files: readonly File[],
+    roots?: readonly CullSourceRoot[],
+    backup?: CullBackupTargets | undefined,
+  ) => void;
   onCancelImport: () => void;
+  /** Copies the chosen frames to a folder or zip. */
+  onExport?: ((request: CullExportRequest) => Promise<HandoffReport>) | undefined;
+  onCancelBackup?: (() => void) | undefined;
   /** Records verdict, stars, label, tag or caption on these frames as one undo step. */
   onMark: (ids: readonly string[], marks: CullMarks) => void;
   onUndo: () => void;
@@ -87,6 +100,12 @@ export type CullWorkspaceProps = {
 
 const number = (value: number) => value.toLocaleString("en-US");
 const NONE: ReadonlySet<string> = new Set();
+
+/** Where a card's second (and third) copy goes while it is read. */
+export type CullBackupTargets = {
+  primary: ReturnType<typeof directoryTarget>;
+  secondary?: ReturnType<typeof directoryTarget> | undefined;
+};
 
 /** A per-device screen preference; storage can be missing or refuse. */
 function usePreference(key: string, fallback: boolean) {
@@ -127,6 +146,8 @@ export function CullWorkspace({
   snapshot,
   onImport,
   onCancelImport,
+  onExport,
+  onCancelBackup,
   onMark,
   onUndo,
   onKeepTarget,
@@ -160,6 +181,9 @@ export function CullWorkspace({
   const [choosing, setChoosing] = useState(false);
   const [autoAdvance, setAutoAdvance] = usePreference("celinen:cull:advance", true);
   const [showAf, setShowAf] = usePreference("celinen:cull:af", true);
+  const [backupOn, setBackupOn] = usePreference("celinen:cull:backup", false);
+  const backupPrimary = useDestination("celinen-backup");
+  const backupSecondary = useDestination("celinen-backup-2");
   const loupeView = useMemo(() => createPictureView(), []);
   const compareView = useMemo(() => createPictureView(), []);
   const folderInput = useRef<HTMLInputElement>(null);
@@ -492,7 +516,20 @@ export function CullWorkspace({
 
   const startImport = (files: readonly File[], roots: readonly CullSourceRoot[] = []) => {
     setDropNote(null);
-    onImport(importName(files), files, roots);
+    // A backup destination that is not ready is simply not used; the card still reads.
+    const primary = backupOn && !backupPrimary.locked ? backupPrimary.handle : null;
+    const second = backupOn && !backupSecondary.locked ? backupSecondary.handle : null;
+    onImport(
+      importName(files),
+      files,
+      roots,
+      primary
+        ? {
+            primary: directoryTarget(primary),
+            ...(second ? { secondary: directoryTarget(second) } : {}),
+          }
+        : undefined,
+    );
   };
   const onDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (reading || !Array.from(event.dataTransfer.types).includes("Files")) return;
@@ -557,6 +594,29 @@ export function CullWorkspace({
   }, [pickedCount, picked, frames]);
 
   const alert = notice ?? dropNote;
+  const backupControl = (
+    <CullBackupControl
+      on={backupOn}
+      onToggle={() => setBackupOn((value) => !value)}
+      primary={backupPrimary}
+      secondary={backupSecondary}
+      disabled={reading}
+    />
+  );
+  const exportCounts = {
+    keepers: counts.keepers,
+    selection: picked.size,
+    filter: cells.length,
+  };
+  const exportIds = useCallback(
+    (scope: CullExportScope) =>
+      scope === "selection"
+        ? cells.filter((cell) => picked.has(cell.frame.id)).map((cell) => cell.frame.id)
+        : scope === "filter"
+          ? cells.map((cell) => cell.frame.id)
+          : undefined,
+    [cells, picked],
+  );
   const importButtons = (
     <>
       <button
@@ -654,6 +714,15 @@ export function CullWorkspace({
                 Go to Develop
               </button>
             )}
+            {frames.length > 0 && onExport && (
+              <CullExportPanel
+                counts={exportCounts}
+                shootName={sessionName ?? "Keepers"}
+                ids={exportIds}
+                onExport={onExport}
+              />
+            )}
+            {frames.length > 0 && backupControl}
             {frames.length > 0 && importButtons}
           </div>
         </div>
@@ -711,6 +780,23 @@ export function CullWorkspace({
               />
             </div>
           </>
+        )}
+        {snapshot.backup && !snapshot.backup.done && (
+          <div className="flex items-center gap-3 px-5 pb-2 font-mono text-[11px] text-moss">
+            <p role="status">
+              <span className="text-ink">Backup</span>
+              {` ${number(snapshot.backup.files)} of ${number(snapshot.backup.totalFiles)}`}
+            </p>
+            {onCancelBackup && (
+              <button
+                type="button"
+                className="ml-auto shrink-0 rounded-md px-2.5 py-1 hover:bg-ink/5 hover:text-ink"
+                onClick={onCancelBackup}
+              >
+                Stop backup
+              </button>
+            )}
+          </div>
         )}
         {alert && (
           <p role="alert" className="px-5 pb-2 font-mono text-[11px] text-rust">
@@ -905,7 +991,10 @@ export function CullWorkspace({
               {reading ? "Reading the card" : "Drop a folder"}
             </h1>
             {!reading && (
-              <div className="flex items-center gap-2 font-mono text-[11px]">{importButtons}</div>
+              <div className="flex flex-wrap items-center justify-center gap-2 font-mono text-[11px]">
+                {backupControl}
+                {importButtons}
+              </div>
             )}
             {!reading && sessionList && <div className="w-72">{sessionList}</div>}
           </div>
