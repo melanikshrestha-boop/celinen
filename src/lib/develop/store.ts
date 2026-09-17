@@ -1014,7 +1014,31 @@ async function readDevelopSource(file: File, signal?: AbortSignal): Promise<Arra
       cleanup();
       resolve(reader.result);
     };
-    const onError = () => fail(reader.error ?? new Error("The original photo could not be read."));
+    const onError = () => {
+      const io = reader.error;
+      if (io && /I\/O read/i.test(io.message || "")) {
+        void file
+          .slice(0, file.size)
+          .arrayBuffer()
+          .then((bytes) => {
+            if (settled) return;
+            if (!(bytes instanceof ArrayBuffer) || bytes.byteLength !== file.size)
+              return fail(
+                new Error("The original photo could not be read. Import it again from the folder."),
+              );
+            settled = true;
+            cleanup();
+            resolve(bytes);
+          })
+          .catch(() =>
+            fail(
+              new Error("The original photo could not be read. Import it again from the folder."),
+            ),
+          );
+        return;
+      }
+      fail(io ?? new Error("The original photo could not be read."));
+    };
     const onReaderAbort = () => fail(abortReason());
     const onSignalAbort = () => {
       if (settled) return;

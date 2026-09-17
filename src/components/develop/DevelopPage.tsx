@@ -39,7 +39,7 @@ import {
 import { getDevelopImportSession } from "@/lib/develop/import-session";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
 import { readStudioSessionSnapshot } from "@/lib/studio/session";
-import { takeDevelopImport } from "@/lib/studio/pending-import";
+import { snapshotPhotoFiles, takeDevelopImport } from "@/lib/studio/pending-import";
 import { ProjectStudioSession } from "@/lib/projects/studio-adapter";
 import {
   DEVELOP_ENGINE_LIMITS,
@@ -885,7 +885,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     };
   }, [ready, library.photos, store]);
   useEffect(() => {
-    if (!ready || !hydration.current.ready || failed.current) return;
+    if (!ready || !hydration.current.ready) return;
     const keepers = takeDevelopImport();
     if (keepers.length) void importPhotos(keepers);
   }, [ready]);
@@ -1541,11 +1541,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   ]);
 
   async function importPhotos(incomingFiles: File[] | DataTransfer) {
-    if ((Array.isArray(incomingFiles) && !incomingFiles.length) || failed.current || dialog) return;
+    if ((Array.isArray(incomingFiles) && !incomingFiles.length) || dialog) return;
+    failed.current = false;
+    setSaveError("");
     try {
       // Capture drop handles before any await. The account/shoot session owns work beyond this route.
+      // Snapshot File bytes first: Safari I/O dies on stale picker handles after navigation.
       const job = Array.isArray(incomingFiles)
-        ? importSession.startFiles(incomingFiles)
+        ? snapshotPhotoFiles(incomingFiles).then((copies) => importSession.startFiles(copies))
         : importSession.startDrop(incomingFiles);
       setNotice("");
       setImportFailures([]);

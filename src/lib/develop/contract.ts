@@ -307,6 +307,8 @@ export function developUserError(error: unknown): string {
   if (error instanceof Error) {
     const text = error.message.trim();
     if (!text || text.startsWith("[{") || text.startsWith("[")) return fallback;
+    if (/I\/O read/i.test(text))
+      return "The original photo could not be read. Import it again from the folder.";
     return text;
   }
   return fallback;

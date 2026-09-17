@@ -14,7 +14,11 @@ import {
   type CullSourceRoot,
 } from "@/lib/studio/cull/sources";
 import { openCullStore, type CullSessionSummary, type CullStore } from "@/lib/studio/cull/store";
-import { queueDevelopImport, takeStudioImport } from "@/lib/studio/pending-import";
+import {
+  queueDevelopImport,
+  snapshotPhotoFiles,
+  takeStudioImport,
+} from "@/lib/studio/pending-import";
 
 export const Route = createFileRoute("/cull")({
   head: () => ({ meta: [{ title: `Cull — ${PRODUCT_NAME}` }] }),
@@ -167,9 +171,14 @@ function CullSessionHost({ scope }: { scope: string }) {
       setFailure("Keep the originals in this tab, then Go to Develop.");
       return;
     }
-    queueDevelopImport(files);
-    void navigate({ to: "/develop" });
-  }, [controller, navigate]);
+    setFailure(null);
+    void snapshotPhotoFiles(files)
+      .then((copies) => {
+        queueDevelopImport(copies);
+        return navigate({ to: "/develop" });
+      })
+      .catch(report);
+  }, [controller, navigate, report]);
 
   const shown = failure && !snapshot.notice ? { ...snapshot, notice: failure } : snapshot;
   return (
