@@ -9,6 +9,9 @@ type Exports = {
   memory: WebAssembly.Memory;
   _initialize?: () => void;
   celinen_ingest_error: () => number;
+  /** Absent in binaries built before AF-area support. */
+  celinen_ingest_metadata?: (size: number) => number;
+  celinen_ingest_focus?: () => number;
   celinen_ingest_input: (size: number) => number;
   celinen_ingest_run: (
     size: number,
@@ -30,6 +33,24 @@ type Exports = {
   celinen_ingest_release: () => void;
 };
 
+/** A rectangle normalized to 0..1 of the upright frame. */
+export type NormalizedRect = { x: number; y: number; w: number; h: number };
+
+export type FocusHitVerdict = "on-subject" | "front-or-back-focus" | "missed" | "unjudged";
+
+/** How the frame's sharpness sits against the camera's own AF area. */
+export type FocusHit = {
+  /** 0..1 confidence that focus landed inside the AF area; >= 0.5 is on subject. */
+  hit: number;
+  /** Resolving power inside the AF area, in CullReading acuity units. */
+  afAcuity: number;
+  /** Resolving power of the sharpest detail anywhere in the frame. */
+  bestAcuity: number;
+  /** Where that sharpest detail is. */
+  bestRegion: NormalizedRect;
+  verdict: FocusHitVerdict;
+};
+
 export type IngestResult = {
   reading: CullReading;
   /** The original's own pixel size, before the scaled decode. */
@@ -45,6 +66,13 @@ export type IngestResult = {
   thumbnail: Blob;
   /** The measured frame, for a caller that wants to look closer. */
   frame: { width: number; height: number; rgba: Uint8ClampedArray<ArrayBuffer> };
+  /** The camera's AF area from its maker note (Sony, Nikon, Canon, Fujifilm),
+   * normalized to the upright frame. Undefined when the file names none. */
+  afPoint?: NormalizedRect | undefined;
+  /** Whether the camera itself reported focus lock there; undefined when it did not say. */
+  afConfirmed?: boolean | undefined;
+  /** Present whenever afPoint is. */
+  focusHit?: FocusHit | undefined;
 };
 
 export type IngestOptions = {
@@ -56,8 +84,10 @@ export type IngestOptions = {
 };
 
 export type IngestEngine = {
-  /** Reads one photo. Throws with the engine's own message on a file it cannot read. */
-  read(bytes: Uint8Array, options?: IngestOptions): IngestResult;
+  /** Reads one photo. Throws with the engine's own message on a file it cannot read.
+   * `container` is the RAW file `bytes` was extracted from (or its first
+   * megabytes), read only for the camera's AF area. */
+  read(bytes: Uint8Array, options?: IngestOptions, container?: Uint8Array): IngestResult;
   /** Hands every buffer back between cards. */
   release(): void;
 };
@@ -65,6 +95,13 @@ export type IngestEngine = {
 const READING_FIELDS = 23;
 const COLOR_BYTES = 48;
 const WASI_ENOSYS = 52;
+const FOCUS_FIELDS = 13;
+const VERDICTS: readonly FocusHitVerdict[] = [
+  "unjudged",
+  "on-subject",
+  "front-or-back-focus",
+  "missed",
+];
 
 export async function instantiateIngestWasm(
   binary: BufferSource | WebAssembly.Module,
@@ -87,10 +124,17 @@ export async function instantiateIngestWasm(
   };
 
   return {
-    read(bytes, options = {}) {
+    read(bytes, options = {}, container) {
       const measureEdge = options.measureEdge ?? 640;
       const thumbEdge = options.thumbEdge ?? 320;
       const thumbQuality = options.thumbQuality ?? 72;
+      if (container?.length && wasm.celinen_ingest_metadata) {
+        // Copied before the photo is: allocating the photo may grow memory,
+        // which detaches any view of it but never moves what was written.
+        const metadataPointer = wasm.celinen_ingest_metadata(container.length);
+        if (metadataPointer)
+          new Uint8Array(wasm.memory.buffer, metadataPointer, container.length).set(container);
+      }
       const pointer = wasm.celinen_ingest_input(bytes.length);
       if (!pointer)
         throw new Error(text(wasm.celinen_ingest_error()) || "This photo is too large.");
@@ -142,6 +186,22 @@ export async function instantiateIngestWasm(
       );
       const captureTimeMs = wasm.celinen_ingest_capture_time();
       const camera = text(wasm.celinen_ingest_camera());
+      const focusPointer = wasm.celinen_ingest_focus?.() ?? 0;
+      let afPoint: NormalizedRect | undefined;
+      let afConfirmed: boolean | undefined;
+      let focusHit: FocusHit | undefined;
+      if (focusPointer) {
+        const f = new Float64Array(wasm.memory.buffer, focusPointer, FOCUS_FIELDS);
+        afPoint = { x: f[0]!, y: f[1]!, w: f[2]!, h: f[3]! };
+        afConfirmed = f[4] === 1 ? true : f[4] === 0 ? false : undefined;
+        focusHit = {
+          hit: f[5]!,
+          afAcuity: f[6]!,
+          bestAcuity: f[7]!,
+          bestRegion: { x: f[8]!, y: f[9]!, w: f[10]!, h: f[11]! },
+          verdict: VERDICTS[f[12]!] ?? "unjudged",
+        };
+      }
       return {
         reading,
         width: wasm.celinen_ingest_source_width(),
@@ -156,6 +216,7 @@ export async function instantiateIngestWasm(
         cameraKey: camera || undefined,
         thumbnail: new Blob([thumbnail], { type: "image/jpeg" }),
         frame: { width: frameWidth, height: frameHeight, rgba: pixels },
+        ...(afPoint ? { afPoint, afConfirmed, focusHit } : {}),
       };
     },
     release: () => wasm.celinen_ingest_release(),

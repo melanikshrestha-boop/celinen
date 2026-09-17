@@ -9,6 +9,7 @@
 // touches a canvas, so the page stays responsive while a card imports.
 #include "lenslabs/cull.hpp"
 #include "lenslabs/exif.hpp"
+#include "lenslabs/focus_hit.hpp"
 #include <algorithm>
 #include <csetjmp>
 #include <cstring>
@@ -21,7 +22,14 @@ extern "C" {
 
 namespace {
 std::vector<std::uint8_t> input, thumbnail;
+// The head of a RAW container whose embedded JPEG is in `input`. The preview
+// JPEG a camera embeds rarely carries the maker note, so the AF area has to be
+// read from the RAW's own TIFF/CR3 structure. Consumed by one run.
+std::vector<std::uint8_t> metadata;
 std::vector<double> reading;
+// AF area and focus-hit judgment for the last run; empty when the file had no
+// AF area. Layout documented at celinen_ingest_focus().
+std::vector<double> focus;
 std::string camera_key, error;
 lenslabs::Image frame;
 double capture_time_ms = -1;
@@ -30,6 +38,7 @@ std::uint32_t source_width = 0, source_height = 0;
 
 constexpr std::size_t reading_fields = 23;
 constexpr std::size_t color_bytes = 48;
+constexpr std::size_t focus_fields = 13;
 
 struct JpegFailure {
   jpeg_error_mgr manager;
@@ -233,6 +242,22 @@ void write_reading(const lenslabs::CullReading& r) {
 extern "C" {
 const char* celinen_ingest_error() { return error.c_str(); }
 
+/** Room for the head of the RAW container the next photo's JPEG came from, so
+ * its AF area can be read. Optional; call before celinen_ingest_run, which
+ * consumes it. Returns null when the size is beyond the bound.
+ */
+std::uint8_t* celinen_ingest_metadata(std::uint32_t size) {
+  metadata.clear();
+  if (!size || size > 64u * 1024 * 1024) return nullptr;
+  try {
+    metadata.assign(size, 0);
+  } catch (...) {
+    metadata.clear();
+    return nullptr;
+  }
+  return metadata.data();
+}
+
 // Room for one photo's bytes. Returns null when the file is beyond the bound.
 std::uint8_t* celinen_ingest_input(std::uint32_t size) {
   if (!size || size > 200u * 1024 * 1024) return nullptr;
@@ -253,6 +278,11 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
   error.clear();
   thumbnail.clear();
   reading.clear();
+  focus.clear();
+  // Consumed by this run whatever its outcome, so a failed photo's container
+  // can never describe the next one.
+  std::vector<std::uint8_t> container_head;
+  container_head.swap(metadata);
   camera_key.clear();
   capture_time_ms = -1;
   capture_time_utc = false;
@@ -264,6 +294,13 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
       return 0;
     }
     const auto facts = lenslabs::read_exif(input.data(), size);
+    // Prefer the RAW container's AF area; fall back to the JPEG's own maker
+    // note (camera JPEGs, and Fujifilm RAF previews, carry it there).
+    lenslabs::AfArea af = facts.af;
+    if (!container_head.empty()) {
+      const auto container = lenslabs::read_exif(container_head.data(), container_head.size());
+      if (container.af.present) af = container.af;
+    }
     capture_time_ms = facts.capture_time_ms;
     capture_time_utc = facts.capture_time_utc;
     camera_key = facts.camera_key;
@@ -282,6 +319,26 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
     // Faces are the browser's to find; the engine is told about them separately
     // when a detector exists, and never guesses at them here.
     write_reading(lenslabs::measure_cull(frame, {}));
+    if (af.present) {
+      // AF coordinates are sensor-up. Rotate them by the orientation the pixels
+      // were actually given, so the area lands on the frame that was measured.
+      const auto upright_af = lenslabs::upright_af_area(af, facts.orientation);
+      const auto hit = lenslabs::judge_focus_hit(
+          frame, {upright_af.x, upright_af.y, upright_af.width, upright_af.height});
+      focus = {upright_af.x,
+               upright_af.y,
+               upright_af.width,
+               upright_af.height,
+               double(upright_af.in_focus),
+               hit.hit,
+               hit.af_acuity,
+               hit.best_acuity,
+               hit.best_region.x,
+               hit.best_region.y,
+               hit.best_region.width,
+               hit.best_region.height,
+               double(int(hit.verdict))};
+    }
     const auto small = resample(frame, thumb_edge);
     if (!encode_jpeg(small, thumb_quality, thumbnail)) {
       if (error.empty()) error = "This preview could not be written.";
@@ -299,6 +356,17 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
 }
 
 const double* celinen_ingest_reading() { return reading.empty() ? nullptr : reading.data(); }
+
+/** Null when the last photo carried no camera AF area. Otherwise 13 doubles:
+ * [0..3] AF area x, y, width, height normalized to the upright frame;
+ * [4] camera focus confirmation (-1 unknown, 0 no lock, 1 locked);
+ * [5] hit confidence 0..1; [6] AF-area acuity; [7] best acuity in frame;
+ * [8..11] sharpest region x, y, width, height;
+ * [12] verdict (0 unjudged, 1 on subject, 2 front/back focus, 3 missed).
+ */
+const double* celinen_ingest_focus() {
+  return focus.size() == focus_fields ? focus.data() : nullptr;
+}
 double celinen_ingest_capture_time() { return capture_time_ms; }
 int celinen_ingest_capture_utc() { return capture_time_utc ? 1 : 0; }
 const char* celinen_ingest_camera() { return camera_key.c_str(); }
@@ -318,6 +386,8 @@ void celinen_ingest_release() {
   input.clear(); input.shrink_to_fit();
   thumbnail.clear(); thumbnail.shrink_to_fit();
   reading.clear(); reading.shrink_to_fit();
+  metadata.clear(); metadata.shrink_to_fit();
+  focus.clear();
   frame = {};
   camera_key.clear();
 }

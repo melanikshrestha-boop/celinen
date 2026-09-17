@@ -42,10 +42,11 @@ em++ $COMMON -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
 # Ingest: one call per photo — EXIF, a scaled libjpeg decode, the cull
 # measurement and the filmstrip thumbnail, so a ten-thousand frame card never
 # waits on the browser's own decoder. libjpeg is Emscripten's own BSD port.
+# The camera's AF area (maker note) and the focus-hit judgment ride along.
 # shellcheck disable=SC2086
 em++ $COMMON --use-port=libjpeg -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=1073741824 \
-  native/src/cull.cpp native/src/exif.cpp native/wasm/ingest_wasm.cpp \
-  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release \
+  native/src/cull.cpp native/src/exif.cpp native/src/focus_hit.cpp native/wasm/ingest_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_metadata,_celinen_ingest_focus,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release \
   -o src/lib/studio/cull/celinen-ingest.wasm
 
 if [ -f native/wasm/voice_wasm.cpp ]; then
