@@ -277,8 +277,39 @@ export function defaultDevelopSettings(): DevelopSettings {
     masks: [],
   };
 }
+/** Drop additive unknown keys, then parse. A newer field must not brick the desk. */
+export function readDevelopSettings(input: unknown): DevelopSettings {
+  const first = developSettingsSchema.safeParse(input);
+  if (first.success) return first.data;
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw first.error;
+  const known = Object.keys(defaultDevelopSettings());
+  const trimmed: Record<string, unknown> = {};
+  for (const key of known) {
+    if (Object.prototype.hasOwnProperty.call(input, key))
+      trimmed[key] = (input as Record<string, unknown>)[key];
+  }
+  const second = developSettingsSchema.safeParse(trimmed);
+  if (second.success) return second.data;
+  throw first.error;
+}
+
 export function cloneDevelopSettings(input: DevelopSettings): DevelopSettings {
-  return developSettingsSchema.parse(input);
+  return readDevelopSettings(input);
+}
+
+/** Never paint Zod's JSON issue array into the Develop status banner. */
+export function developUserError(error: unknown): string {
+  const fallback = "Could not finish this edit. Originals are untouched.";
+  if (!error || typeof error !== "object") return fallback;
+  const issues = "issues" in error && Array.isArray(error.issues) ? error.issues : null;
+  if (issues?.length)
+    return "Could not read saved edits. Originals are untouched.";
+  if (error instanceof Error) {
+    const text = error.message.trim();
+    if (!text || text.startsWith("[{") || text.startsWith("[")) return fallback;
+    return text;
+  }
+  return fallback;
 }
 export const DEVELOP_ENGINE_LIMITS = Object.freeze({
   maxFileBytes: 128 * 1024 * 1024,

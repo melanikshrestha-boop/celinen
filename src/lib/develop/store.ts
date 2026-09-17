@@ -14,6 +14,7 @@ import {
   cloneDevelopSettings,
   defaultDevelopSettings,
   developSettingsSchema,
+  readDevelopSettings,
   DEVELOP_ENGINE_LIMITS,
   type DevelopSettings,
 } from "./contract";
@@ -356,8 +357,36 @@ function uniqueId(): string {
 function timestamp(): number {
   return Date.now();
 }
+function unrecognizedSettingsKeys(error: z.ZodError) {
+  return (
+    error.issues.length > 0 &&
+    error.issues.every(
+      (issue) =>
+        issue.code === z.ZodIssueCode.unrecognized_keys && issue.path.includes("settings"),
+    )
+  );
+}
+
 function documentCopy(document: DevelopDocument): DevelopDocument {
-  return developDocumentSchema.parse(document);
+  const first = developDocumentSchema.safeParse(document);
+  if (first.success) return first.data;
+  if (!unrecognizedSettingsKeys(first.error)) throw first.error;
+  try {
+    // IndexedDB may hold additive keys a slightly older schema still flags.
+    return developDocumentSchema.parse({
+      ...document,
+      history: document.history.map((entry) => ({
+        ...entry,
+        settings: readDevelopSettings(entry.settings),
+      })),
+      snapshots: document.snapshots.map((entry) => ({
+        ...entry,
+        settings: readDevelopSettings(entry.settings),
+      })),
+    });
+  } catch {
+    throw first.error;
+  }
 }
 function sameSettings(a: DevelopSettings, b: DevelopSettings): boolean {
   return JSON.stringify(cloneDevelopSettings(a)) === JSON.stringify(cloneDevelopSettings(b));

@@ -44,6 +44,7 @@ import {
   DEVELOP_ENGINE_LIMITS,
   defaultDevelopSettings,
   cloneDevelopSettings,
+  developUserError,
   type DevelopSettings,
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
@@ -145,9 +146,7 @@ const builtinPresets: { name: string; color: string; patch: Partial<DevelopSetti
   },
 ];
 function errorMessage(e: unknown) {
-  return e instanceof Error
-    ? e.message
-    : "The operation could not finish. Your originals are untouched.";
+  return developUserError(e);
 }
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob),

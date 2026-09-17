@@ -1,4 +1,4 @@
-import { developSettingsSchema, type DevelopSettings } from "./contract";
+import { readDevelopSettings, type DevelopSettings } from "./contract";
 import { lensIsNeutral, parametricIsNeutral } from "./parametric";
 
 /** Active recipe edits that the hosted renderer cannot reproduce. Inspect a
@@ -6,7 +6,7 @@ import { lensIsNeutral, parametricIsNeutral } from "./parametric";
  * Secondary controls are inactive when their parent effect has zero amount.
  */
 export function unsupportedBrowserDevelopEdits(settings: DevelopSettings): string[] {
-  const s = developSettingsSchema.parse(settings);
+  const s = readDevelopSettings(settings);
   const unsupported: string[] = [];
   const identity = (curve: DevelopSettings["curve"]) =>
     curve.length === 2 &&

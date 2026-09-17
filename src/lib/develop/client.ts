@@ -5,7 +5,7 @@ import { asDevelopPreviewBlob } from "./decode-preview";
 import {
   defaultDevelopSettings,
   DEVELOP_ENGINE_LIMITS,
-  developSettingsSchema,
+  readDevelopSettings,
   developSourceModeSchema,
   type DevelopSourceMode,
   type DevelopSettings,
@@ -100,7 +100,7 @@ export function encodeDevelopRequest(
     throw new Error("Invalid Develop export size or quality.");
   const header = new TextEncoder().encode(
     JSON.stringify({
-      settings: developSettingsSchema.parse(settings),
+      settings: readDevelopSettings(settings),
       edge,
       quality,
       sourceMode: developSourceModeSchema.parse(sourceMode),
@@ -147,7 +147,7 @@ export async function renderDevelop(
   // pick up a newer recipe, source mode, or signal while waiting for a worker.
   const { edge, quality, sourceMode = "preview", signal } = options;
   signal?.throwIfAborted();
-  const recipe = developSettingsSchema.parse(settings);
+  const recipe = readDevelopSettings(settings);
   const body = encodeDevelopRequest(source, recipe, edge, quality, sourceMode);
   return admissionQueue.run(
     {
