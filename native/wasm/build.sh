@@ -71,6 +71,14 @@ em++ $COMMON -sINITIAL_MEMORY=2097152 -sMAXIMUM_MEMORY=268435456 \
   -sEXPORTED_FUNCTIONS=$RAW_EXPORTS \
   -o src/lib/studio/cull/celinen-raw.wasm
 
+# Social framing: the same frame_social() the local tool runs, plus a libjpeg
+# encoder, so the page produces the exact feed JPEG Instagram fetches.
+# shellcheck disable=SC2086
+em++ $COMMON --use-port=libjpeg -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=268435456 \
+  native/src/social.cpp native/wasm/social_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_social_error,_celinen_social_source,_celinen_social_frame,_celinen_social_jpeg,_celinen_social_jpeg_size,_celinen_social_release \
+  -o src/lib/social/wasm/celinen-social.wasm
+
 if [ -f native/wasm/voice_wasm.cpp ]; then
   # shellcheck disable=SC2086
   em++ $COMMON -sINITIAL_MEMORY=4194304 -sMAXIMUM_MEMORY=67108864 \
@@ -78,4 +86,4 @@ if [ -f native/wasm/voice_wasm.cpp ]; then
     -sEXPORTED_FUNCTIONS=_celinen_voice_open,_celinen_voice_input,_celinen_voice_push,_celinen_voice_level,_celinen_voice_speaking,_celinen_voice_segment_samples,_celinen_voice_segment,_celinen_voice_segment_release,_celinen_voice_flush \
     -o src/lib/voice/wasm/celinen-voice.wasm
 fi
-ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
+ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/social/wasm/celinen-social.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
