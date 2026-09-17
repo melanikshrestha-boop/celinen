@@ -52,6 +52,14 @@ async function run(
   if (cancelled.delete(job.id)) return { id: job.id, kind: "cancelled" };
   if (loadedKey !== job.sourceKey) return { id: job.id, kind: "need-source" };
   if (job.kind === "suggest") return { id: job.id, kind: "suggestion", suggestion: wasm.suggest() };
+  if (job.kind === "look-describe")
+    return { id: job.id, kind: "look", descriptor: wasm.describeLook() };
+  if (job.kind === "look-match")
+    return {
+      id: job.id,
+      kind: "look-matched",
+      match: wasm.matchLook(job.looks, job.settings, job.outputEdge),
+    };
   const image = wasm.develop(job.settings, job.edge > 4096);
   const canvas = new OffscreenCanvas(image.width, image.height);
   const context = canvas.getContext("2d", { colorSpace: "srgb" });

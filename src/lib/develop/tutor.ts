@@ -285,6 +285,7 @@ export function pointId(path: string) {
     clarity: "slider-clarity",
     dehaze: "slider-dehaze",
     grain: "slider-grain",
+    fade: "slider-fade",
     vignette: "slider-vignette",
   };
   return map[path] ?? path.replace(/^#/, "");

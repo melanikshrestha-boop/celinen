@@ -184,6 +184,82 @@
 .develop-lesson button:disabled {
   opacity: 0.4;
 }
+.develop-lookbar.is-look-drop {
+  box-shadow:
+    0 0 0 2px #2f6fed,
+    0 8px 28px rgba(0, 0, 0, 0.12);
+}
+.develop-look-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.develop-lookbar .develop-look-chip {
+  width: 32px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.develop-look-chip img {
+  display: block;
+  width: 100%;
+  height: 32px;
+  object-fit: cover;
+}
+.develop-look-chip[data-state="measuring"] img {
+  opacity: 0.45;
+}
+.develop-look-chip[data-state="failed"] {
+  box-shadow: inset 0 0 0 2px #d64545;
+}
+.develop-look-chip:hover:not(:disabled) img {
+  opacity: 0.6;
+}
+.develop-lookbar button.develop-look-match {
+  background: #2f6fed;
+  color: #fff;
+  white-space: nowrap;
+}
+.develop-lookbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.develop-look-progress {
+  align-self: center;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* The inspiration beside the result, inside the viewer. */
+.develop-look-reference {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.develop-look-reference img {
+  display: block;
+  height: 96px;
+  max-width: 144px;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.develop-look-target {
+  display: contents;
+}
+.develop-look-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 3;
+  border: 2px dashed #2f6fed;
+  border-radius: 12px;
+  pointer-events: none;
+}
 html.dark .develop-lookbar {
   background: color-mix(in srgb, #1c1c1e 88%, transparent);
   color: #f2f2f2;

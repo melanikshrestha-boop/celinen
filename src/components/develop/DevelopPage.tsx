@@ -49,7 +49,9 @@ import {
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
-import { suggestDevelopWasm, WASM_DEVELOP_ENGINE } from "@/lib/develop/wasm/client";
+import { matchLookWasm, suggestDevelopWasm, WASM_DEVELOP_ENGINE } from "@/lib/develop/wasm/client";
+import { lookChangedControls } from "@/lib/develop/look-match";
+import { lookDragCount, lookDropFiles, useLookInspirations } from "./useLookInspirations";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
 import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
@@ -341,6 +343,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const dragDepth = useRef(0);
   // The look bar renders into the top bar so it never covers Cull, Import or Export.
   const [lookSlot, setLookSlot] = useState<HTMLDivElement | null>(null);
+  // Match a look: inspirations dropped on Clicky or the viewer, then one solved
+  // recipe per photo, each its own undoable history step.
+  const inspirations = useLookInspirations();
+  const [lookHover, setLookHover] = useState<"tutor" | "viewer" | null>(null),
+    [lookProgress, setLookProgress] = useState<{ done: number; total: number } | null>(null),
+    [lookTour, setLookTour] = useState<{ key: number; paths: string[] } | null>(null);
+  const lookAbort = useRef<AbortController | null>(null);
   const [tool, setTool] = useState<DevelopTool>("edit"),
     [maskId, setMaskId] = useState<string | null>(null);
   const [mode, setMode] = useState<"develop" | "library">("develop"),
@@ -532,6 +541,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       alive.current = false;
       importAbort.current?.abort();
       exportAbort.current?.abort();
+      lookAbort.current?.abort();
       window.removeEventListener("beforeunload", beforeUnload);
     };
   }, [importSession]);
@@ -1233,6 +1243,84 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (alive.current) setNotice(errorMessage(error));
     }
   }
+  // A look is solved on the pixels the browser decodes. A RAW rendered from
+  // sensor data would not look like what was solved, so it cannot take one.
+  function lookSource(target: DevelopPhoto) {
+    const chosen = developProcessingSource(target, exportSourceMode);
+    return chosen.sourceMode === "preview" ? chosen.source : null;
+  }
+  const lookTargets = (scope: "selected" | "view") =>
+    filmstripPhotos.filter(
+      (p) =>
+        (scope === "view" || selectedSet.has(p.id)) && lookSource(p) && library.documents[p.id],
+    );
+  function endLookDrag() {
+    dragDepth.current = 0;
+    setDragging(false);
+    setLookHover(null);
+  }
+  function addInspirations(files: File[]) {
+    endLookDrag();
+    inspirations.add(files);
+  }
+  async function matchLook(scope: "selected" | "view") {
+    const looks = inspirations.descriptors;
+    if (editsLocked() || !looks.length || lookAbort.current) return;
+    // The open photo first, so its result and Clicky's tour come right away.
+    const targets = lookTargets(scope).sort(
+      (a, b) => Number(b.id === selectedRef.current) - Number(a.id === selectedRef.current),
+    );
+    if (!targets.length) return;
+    commitDraft();
+    const controller = new AbortController();
+    lookAbort.current = controller;
+    operationLock.current = "dialog";
+    setLookProgress({ done: 0, total: targets.length });
+    let failed = 0;
+    try {
+      for (const [index, target] of targets.entries()) {
+        const source = lookSource(target);
+        const document = docs.current[target.id];
+        if (controller.signal.aborted || !alive.current) break;
+        if (source && document) {
+          const open = target.id === selectedRef.current;
+          const current = open ? draftRef.current : currentRecipe(document);
+          try {
+            const match = await matchLookWasm(source, looks, current, {
+              outputEdge: exportEdge,
+              signal: controller.signal,
+            });
+            if (controller.signal.aborted || !alive.current) break;
+            // The latest saved document: pushHistory keeps every earlier step.
+            const latest = docs.current[target.id];
+            if (match.applicable && latest) {
+              const next = pushHistory(latest, match.settings, "Match look");
+              const saved = open ? await updateDoc(next, true) : await persistBatch([next], true);
+              if (!saved) break;
+              if (open && selectedRef.current === target.id)
+                setLookTour({
+                  key: Date.now(),
+                  paths: lookChangedControls(current, match.settings),
+                });
+            } else if (!match.applicable) failed++;
+          } catch (error) {
+            if (controller.signal.aborted) break;
+            failed++;
+            console.warn("Look match failed for a photo.", error);
+          }
+        }
+        if (alive.current) setLookProgress({ done: index + 1, total: targets.length });
+      }
+    } finally {
+      if (lookAbort.current === controller) lookAbort.current = null;
+      operationLock.current = null;
+      if (alive.current) {
+        setLookProgress(null);
+        if (failed)
+          setNotice(`${failed} ${failed === 1 ? "photo" : "photos"} could not take the look.`);
+      }
+    }
+  }
   function startSplit(
     edge: "left" | "right" | "film",
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -1818,7 +1906,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         void importPhotos(event.dataTransfer);
       }}
     >
-      {dragging && <div className="develop-drop-overlay">Drop photos or folders to import</div>}
+      {dragging && !lookHover && (
+        <div className="develop-drop-overlay">Drop photos or folders to import</div>
+      )}
       <input
         ref={input}
         type="file"
@@ -2087,13 +2177,16 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               <button className="develop-wide develop-quiet" onClick={() => openDialog("presets")}>
                 Import / export presets…
               </button>
-              <button
-                className="develop-wide develop-quiet"
-                disabled={!photo || !!saveError}
-                onClick={() => openDialog("reference")}
-              >
-                Match edited reference…
-              </button>
+              {/* Local native only: hosted matches a look by dropping it on Clicky. */}
+              {engine && !browserOnly && !wasmEngine && (
+                <button
+                  className="develop-wide develop-quiet"
+                  disabled={!photo || !!saveError}
+                  onClick={() => openDialog("reference")}
+                >
+                  Match edited reference…
+                </button>
+              )}
             </Panel>
             <Panel title="Snapshots">
               <button
@@ -2288,6 +2381,20 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 advanced={!browserOnly}
                 histogram={histogramUrl === displayedUrl ? histogram : null}
                 barSlot={lookSlot}
+                look={{
+                  inspirations: inspirations.items,
+                  add: addInspirations,
+                  remove: inspirations.remove,
+                  hover: (on) => setLookHover(on ? "tutor" : null),
+                  ready:
+                    inspirations.descriptors.length > 0 && !inspirations.measuring && !saveError,
+                  selectedCount: lookTargets("selected").length,
+                  viewCount: lookTargets("view").length,
+                  progress: lookProgress,
+                  match: (scope) => void matchLook(scope),
+                  stop: () => lookAbort.current?.abort(),
+                  tour: lookTour,
+                }}
               />
               <div className="develop-view-toolbar">
                 <div>
@@ -2388,36 +2495,75 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   </button>
                 </div>
               ) : (
-                <DevelopViewer
-                  key={selected ?? "empty"}
-                  url={viewerUrl}
-                  blob={viewerBlob}
-                  emptyLabel={
-                    photo
-                      ? renderError
-                        ? "Preview unavailable."
-                        : "Preparing preview…"
-                      : "Choose a photograph to begin."
-                  }
-                  beforeUrl={beforeUrl}
-                  beforeBlob={neutralBlob}
-                  before={before}
-                  compare={compare}
-                  zoom={zoom}
-                  grid={Boolean(url || beforeUrl) && grid}
-                  tool={url || beforeUrl ? tool : "edit"}
-                  settings={draft}
-                  change={change}
-                  maskId={maskId}
-                  onDimensions={onDimensions}
-                  onHistogram={onHistogram}
-                  onHistogramError={onHistogramError}
-                  onPixelSample={onPixelSample}
-                  knownHistogram={
-                    (before && beforeUrl) || viewerBlob === neutralBlob ? sourceHistogram : null
-                  }
-                  clipping={clipping}
-                />
+                <div
+                  className="develop-look-target"
+                  // A few photos dropped on the open photo are inspirations; a
+                  // folder, RAW files or a larger drop still import.
+                  onDragOver={(event) => {
+                    if (!photo || dialog || !lookDragCount(event.dataTransfer, 4)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.dataTransfer.dropEffect = "copy";
+                    setLookHover("viewer");
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                      setLookHover((hover) => (hover === "viewer" ? null : hover));
+                  }}
+                  onDrop={(event) => {
+                    const files = photo && !dialog ? lookDropFiles(event.dataTransfer, 4) : null;
+                    if (!files) {
+                      setLookHover(null);
+                      return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    addInspirations(files);
+                  }}
+                >
+                  <DevelopViewer
+                    key={selected ?? "empty"}
+                    url={viewerUrl}
+                    blob={viewerBlob}
+                    emptyLabel={
+                      photo
+                        ? renderError
+                          ? "Preview unavailable."
+                          : "Preparing preview…"
+                        : "Choose a photograph to begin."
+                    }
+                    beforeUrl={beforeUrl}
+                    beforeBlob={neutralBlob}
+                    before={before}
+                    compare={compare}
+                    zoom={zoom}
+                    grid={Boolean(url || beforeUrl) && grid}
+                    tool={url || beforeUrl ? tool : "edit"}
+                    settings={draft}
+                    change={change}
+                    maskId={maskId}
+                    onDimensions={onDimensions}
+                    onHistogram={onHistogram}
+                    onHistogramError={onHistogramError}
+                    onPixelSample={onPixelSample}
+                    knownHistogram={
+                      (before && beforeUrl) || viewerBlob === neutralBlob ? sourceHistogram : null
+                    }
+                    clipping={clipping}
+                    overlay={
+                      <>
+                        {inspirations.items.length > 0 && (
+                          <div className="develop-look-reference" aria-hidden="true">
+                            {inspirations.items.slice(0, 3).map((item) => (
+                              <img key={item.id} src={item.url} alt="" />
+                            ))}
+                          </div>
+                        )}
+                        {lookHover === "viewer" && <div className="develop-look-drop" />}
+                      </>
+                    }
+                  />
+                </div>
               )}
               {renderError && !displayedUrl && (
                 <p className="develop-render-error" role="alert">
@@ -2589,7 +2735,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 local C++ engine; originals and saved recipes remain intact.
               </p>
             )}
-            <fieldset disabled={!source || !!saveError || !!busy}>
+            <fieldset disabled={!source || !!saveError || !!busy || !!lookProgress}>
               <DevelopControls
                 photoId={selected ?? "empty"}
                 value={draft}
@@ -2631,7 +2777,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       {availablePhotos.length > 0 && (
         <footer
           className="develop-filmstrip"
-          inert={Boolean(busy || dialog)}
+          inert={Boolean(busy || dialog || lookProgress)}
           style={{ height: filmH }}
         >
           <button

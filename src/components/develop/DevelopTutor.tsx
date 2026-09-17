@@ -23,7 +23,27 @@ import {
 } from "@/lib/develop/tutor";
 import { cloneDevelopSettings, type DevelopSettings } from "@/lib/develop/contract";
 import type { DevelopHistogramData } from "@/lib/develop/histogram";
+import { LOOK_MAX_INSPIRATIONS } from "@/lib/develop/look-match";
+import { lookDragCount, lookDropFiles, type LookInspiration } from "./useLookInspirations";
 import "./develop-tutor.css";
+
+/** Match a look: inspirations dropped on Clicky, applied per photo by the page. */
+export type TutorLookMatch = {
+  inspirations: LookInspiration[];
+  add: (files: File[]) => void;
+  remove: (id: string) => void;
+  /** A drag carrying inspirations is over Clicky (the page hides its import cue). */
+  hover: (on: boolean) => void;
+  /** At least one inspiration is measured and a photo can take the look. */
+  ready: boolean;
+  selectedCount: number;
+  viewCount: number;
+  progress: { done: number; total: number } | null;
+  match: (scope: "selected" | "view") => void;
+  stop: () => void;
+  /** Controls the last match changed on the open photo, for Clicky to visit. */
+  tour: { key: number; paths: string[] } | null;
+};
 
 type Props = {
   settings: DevelopSettings;
@@ -34,7 +54,17 @@ type Props = {
   histogram?: DevelopHistogramData | null;
   /** Where the look bar sits. Without one it floats over the page. */
   barSlot?: HTMLElement | null;
+  look?: TutorLookMatch | null;
 };
+
+// The panel each changed control lives in, for the tour.
+function tourPanel(path: string) {
+  if (path.startsWith("curve")) return "panel-curve";
+  if (path.startsWith("hsl.")) return "panel-mixer";
+  if (path.startsWith("wheel.")) return "panel-grading";
+  if (path === "grain" || path === "fade" || path === "vignette") return "panel-effects";
+  return "panel-basic";
+}
 
 type Ring = { x: number; y: number; w: number; h: number; label: string };
 type Buddy = { x: number; y: number; rotation: number; scale: number };
@@ -168,7 +198,10 @@ export function DevelopTutor({
   advanced = true,
   histogram = null,
   barSlot = null,
+  look = null,
 }: Props) {
+  const [lookDrop, setLookDrop] = useState(false);
+  const [touring, setTouring] = useState(false);
   const [ask, setAsk] = useState("");
   const [beats, setBeats] = useState<TutorBeat[]>([]);
   const [index, setIndex] = useState(0);
@@ -589,9 +622,44 @@ export function DevelopTutor({
 
   useEffect(() => {
     dismiss();
+    setTouring(false);
     // Photo change drops the overlay; the editor already swapped the recipe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoId]);
+
+  // After a match lands on the open photo, Clicky flies to each control it
+  // moved, opening the panel it lives in. Any lesson or photo change cancels.
+  const tourKey = look?.tour?.key;
+  useEffect(() => {
+    const paths = look?.tour?.paths ?? [];
+    if (!paths.length) return;
+    play.current += 1;
+    const token = play.current;
+    setTouring(true);
+    void (async () => {
+      let panel = "";
+      for (const path of paths.slice(0, 14)) {
+        if (token !== play.current) return;
+        const id = pointId(path);
+        if (tourPanel(path) !== panel) {
+          panel = tourPanel(path);
+          await clickPanel(panel, id);
+        } else if (path.startsWith("hsl.")) {
+          document.getElementById(mixerChip(id))?.click();
+          await wait(60);
+        }
+        if (token !== play.current) return;
+        fly(id);
+        await wait(380);
+      }
+      if (token !== play.current) return;
+      setTouring(false);
+      setRing(null);
+      parkBuddy();
+    })();
+    // One tour per completed match; the tour reads live layout as it flies.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourKey]);
 
   useEffect(() => {
     if (!beat?.point) return;
@@ -625,10 +693,34 @@ export function DevelopTutor({
   const lookbar = (
     <form
       ref={bar}
-      className="develop-lookbar"
+      className={`develop-lookbar${lookDrop ? " is-look-drop" : ""}`}
       onSubmit={(event) => {
         event.preventDefault();
         startLook();
+      }}
+      // Inspiration photos dropped on Clicky. Anything else (RAW files,
+      // folders, a whole card) keeps falling through to import.
+      onDragOver={(event) => {
+        if (!look || !lookDragCount(event.dataTransfer, LOOK_MAX_INSPIRATIONS)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "copy";
+        if (!lookDrop) look.hover(true);
+        setLookDrop(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setLookDrop(false);
+        look?.hover(false);
+      }}
+      onDrop={(event) => {
+        setLookDrop(false);
+        look?.hover(false);
+        const files = look ? lookDropFiles(event.dataTransfer, LOOK_MAX_INSPIRATIONS) : null;
+        if (!files || !look) return;
+        event.preventDefault();
+        event.stopPropagation();
+        look.add(files);
       }}
     >
       {canTalk ? (
@@ -652,6 +744,50 @@ export function DevelopTutor({
         >
           Talk
         </button>
+      ) : null}
+      {look?.inspirations.length ? (
+        <div className="develop-look-chips">
+          {look.inspirations.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="develop-look-chip"
+              data-state={item.error ? "failed" : item.descriptor ? "ready" : "measuring"}
+              aria-label={`Remove ${item.name}`}
+              title={item.error || item.name}
+              disabled={Boolean(look.progress)}
+              onClick={() => look.remove(item.id)}
+            >
+              <img src={item.url} alt="" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {look?.progress ? (
+        <>
+          <span className="develop-look-progress" role="status">
+            {look.progress.done}/{look.progress.total}
+          </span>
+          <button type="button" onClick={look.stop}>
+            Stop
+          </button>
+        </>
+      ) : look?.inspirations.length ? (
+        <>
+          <button
+            type="button"
+            className="develop-look-match"
+            disabled={!look.ready || look.selectedCount < 1}
+            onClick={() => look.match("selected")}
+          >
+            Match look
+          </button>
+          {look.viewCount > 1 ? (
+            <button type="button" disabled={!look.ready} onClick={() => look.match("view")}>
+              All {look.viewCount}
+            </button>
+          ) : null}
+        </>
       ) : null}
       <input
         value={ask}
@@ -695,9 +831,9 @@ export function DevelopTutor({
             </svg>
           )}
         </div>
-        {teaching && ring ? (
+        {(teaching || touring) && ring ? (
           <div
-            key={`ring-${index}`}
+            key={`ring-${index}-${ring.x}-${ring.y}`}
             className="develop-tutor-ring"
             style={{
               transform: `translate(${ring.x}px, ${ring.y}px)`,
