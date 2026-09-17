@@ -1191,13 +1191,12 @@ html.dark .celinen-dash__cal {
 }
 .celinen-ios-cal__sheet-actions button.is-delete {
   margin-right: auto;
-  background: transparent;
-  color: #ff3b30;
-  padding: 0 8px;
+  background: #ffe8ea;
+  color: #c41e3a;
 }
 html.dark .celinen-ios-cal__sheet-actions button.is-delete {
-  background: transparent;
-  color: #ff453a;
+  background: #3a1518;
+  color: #ff8a80;
 }
 html.dark .celinen-ios-cal__sheet {
   background: #1c1c1e;

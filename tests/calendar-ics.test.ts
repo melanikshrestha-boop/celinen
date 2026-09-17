@@ -12,6 +12,7 @@ import {
 import {
   dropCalendarEvent,
   emptyCalendarState,
+  eventDropMark,
   isCalendarDeleteCommand,
   isCalendarDeleteKey,
 } from "../src/lib/calendar-store";
@@ -55,6 +56,7 @@ test("dropCalendarEvent removes local and feed rows by id", () => {
     { start: 5, title: "dih" },
   );
   expect(twins.localEvents).toEqual([local]);
+  expect(eventDropMark({ id: "x", start: 5, title: "dih" })).toBe("t:5:dih");
 });
 
 test("Google and Calendar iCal hosts are accepted, junk is not", () => {
@@ -144,10 +146,12 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(cal).toContain("inspectRef.current = item.id");
   const sheet = readFileSync(new URL("../src/components/dashboard/EventSheet.tsx", import.meta.url), "utf8");
   expect(sheet).toContain('className="is-delete"');
-  expect(sheet).not.toContain("onPointerDown");
+  expect(sheet).toContain("onPointerDown");
   expect(css).toContain("button.is-delete");
-  expect(css).toContain("background: transparent");
-  expect(css).toContain("color: #ff3b30");
+  expect(css).toContain("background: #ffe8ea");
+  expect(css).toContain("color: #c41e3a");
+  expect(cal).toContain("writeDroppedMarks");
+  expect(cal).toContain("eventDropMark");
   expect(cal).toContain('"week"');
   expect(cal).toContain('"quarter"');
   expect(cal).toContain("Day");

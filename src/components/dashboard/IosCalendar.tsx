@@ -22,10 +22,13 @@ import {
   allCalendarEvents,
   dropCalendarEvent,
   emptyCalendarState,
+  eventDropMark,
   isCalendarDeleteCommand,
   isCalendarDeleteKey,
   readCalendarState,
+  readDroppedMarks,
   writeCalendarState,
+  writeDroppedMarks,
 } from "@/lib/calendar-store";
 import { readBookingTypes, writeBookingTypes, type BookingType } from "@/lib/booking-types";
 import { readCalendarTasks, writeCalendarTasks, type CalendarTask } from "@/lib/calendar-tasks";
@@ -223,7 +226,12 @@ export function IosCalendar() {
   inspectRef.current = inspect;
 
   const raw = allCalendarEvents(state);
-  const events = raw.filter((event) => kindInViewSet(eventKind(event), setName));
+  const events = raw.filter(
+    (event) =>
+      !droppedIds.current.has(event.id) &&
+      !droppedIds.current.has(eventDropMark(event)) &&
+      kindInViewSet(eventKind(event), setName),
+  );
   const week = weekDays(selected);
   const dayColumns = view === "day" ? [selected] : week;
   const timedGrid = {
@@ -240,15 +248,22 @@ export function IosCalendar() {
 
   useEffect(() => {
     const store = scope ?? "local";
+    for (const mark of readDroppedMarks(store)) droppedIds.current.add(mark);
     setTasks(readCalendarTasks(store));
     const loaded = readCalendarState(store);
-    const localEvents = loaded.localEvents.filter(
-      (event) => !droppedIds.current.has(event.id) && !/usc vs ucla/i.test(event.title),
-    );
-    const feedEvents = loaded.feedEvents.filter((event) => !droppedIds.current.has(event.id));
+    const keep = (event: CalendarEvent) =>
+      !droppedIds.current.has(event.id) &&
+      !droppedIds.current.has(eventDropMark(event)) &&
+      !/usc vs ucla/i.test(event.title);
+    const localEvents = loaded.localEvents.filter(keep);
+    const feedEvents = loaded.feedEvents.filter(keep);
     const next = { ...loaded, localEvents, feedEvents };
     setState(next);
-    if (localEvents.length !== loaded.localEvents.length) writeCalendarState(store, next);
+    if (
+      localEvents.length !== loaded.localEvents.length ||
+      feedEvents.length !== loaded.feedEvents.length
+    )
+      writeCalendarState(store, next);
     setTypes(readBookingTypes(store));
   }, [scope]);
 
@@ -310,14 +325,18 @@ export function IosCalendar() {
   }, []);
 
   function persist(next: typeof state) {
+    const keep = (event: CalendarEvent) =>
+      !droppedIds.current.has(event.id) && !droppedIds.current.has(eventDropMark(event));
     const cleaned = {
       ...next,
-      localEvents: next.localEvents.filter((event) => !droppedIds.current.has(event.id)),
-      feedEvents: next.feedEvents.filter((event) => !droppedIds.current.has(event.id)),
+      localEvents: next.localEvents.filter(keep),
+      feedEvents: next.feedEvents.filter(keep),
     };
     stateRef.current = cleaned;
     setState(cleaned);
-    writeCalendarState(scope ?? "local", cleaned);
+    const store = scope ?? "local";
+    writeCalendarState(store, cleaned);
+    writeDroppedMarks(store, droppedIds.current);
   }
 
   function patchLocal(id: string, patch: Partial<CalendarEvent>) {
@@ -365,19 +384,32 @@ export function IosCalendar() {
     setInspect(event.id);
   }
 
-  function removeEvent(id: string) {
+  function removeEvent(id: string, fallback?: { start: number; title: string }) {
     const current = stateRef.current;
-    const hit = [...current.localEvents, ...current.feedEvents].find((event) => event.id === id);
-    droppedIds.current.add(id);
-    const twin = hit ? { start: hit.start, title: hit.title } : undefined;
+    const hit =
+      [...current.localEvents, ...current.feedEvents].find((event) => event.id === id) ??
+      (fallback
+        ? [...current.localEvents, ...current.feedEvents].find(
+            (event) => event.start === fallback.start && event.title === fallback.title,
+          )
+        : undefined);
+    const targetId = hit?.id ?? id;
+    droppedIds.current.add(targetId);
     if (hit) {
+      droppedIds.current.add(eventDropMark(hit));
       for (const event of [...current.localEvents, ...current.feedEvents]) {
-        if (event.start === hit.start && event.title === hit.title) droppedIds.current.add(event.id);
+        if (event.start === hit.start && event.title === hit.title) {
+          droppedIds.current.add(event.id);
+          droppedIds.current.add(eventDropMark(event));
+        }
       }
+    } else if (fallback) droppedIds.current.add(eventDropMark(fallback));
+    const twin = hit ?? fallback;
+    persist(dropCalendarEvent(current, targetId, twin));
+    if (scope && scope !== "local") {
+      writeCalendarState("local", dropCalendarEvent(readCalendarState("local"), targetId, twin));
+      writeDroppedMarks("local", droppedIds.current);
     }
-    persist(dropCalendarEvent(current, id, twin));
-    if (scope && scope !== "local")
-      writeCalendarState("local", dropCalendarEvent(readCalendarState("local"), id, twin));
     inspectRef.current = null;
     sheetRef.current = null;
     setInspect(null);
@@ -1180,7 +1212,15 @@ export function IosCalendar() {
             anchor={sheet.anchor}
             onChange={(value) => setSheet({ ...sheet, value })}
             onSave={saveSheet}
-            onDelete={sheet.value.id ? () => removeEvent(sheet.value.id as string) : undefined}
+            onDelete={
+              sheet.mode === "edit"
+                ? () =>
+                    removeEvent(sheet.value.id ?? "", {
+                      start: sheet.value.start,
+                      title: sheet.value.title,
+                    })
+                : undefined
+            }
             onClose={() => {
               setSheet(null);
               setGhost(null);

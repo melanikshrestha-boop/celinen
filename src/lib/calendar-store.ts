@@ -13,6 +13,27 @@ function key(scope: string) {
   return `celinen.calendar.v1:${scope}`;
 }
 
+function droppedKey(scope: string) {
+  return `celinen.calendar.dropped.v1:${scope}`;
+}
+
+export function eventDropMark(event: { id: string; start: number; title: string }) {
+  return `t:${event.start}:${event.title}`;
+}
+
+export function readDroppedMarks(scope: string): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(droppedKey(scope)) ?? "[]") as unknown;
+    return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === "string").slice(-500) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeDroppedMarks(scope: string, ids: Iterable<string>) {
+  localStorage.setItem(droppedKey(scope), JSON.stringify([...new Set(ids)].slice(-500)));
+}
+
 export function isCalendarDeleteCommand(title: string) {
   return /^\s*delete\s*$/i.test(title);
 }

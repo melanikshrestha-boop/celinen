@@ -192,6 +192,11 @@ export function EventSheet({ mode, value, anchor, onChange, onSave, onDelete, on
             <button
               type="button"
               className="is-delete"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDelete();
+              }}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
