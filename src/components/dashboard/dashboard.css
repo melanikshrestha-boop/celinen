@@ -544,16 +544,25 @@ html:has(.celinen-dash) {
 .celinen-dash__send {
   display: grid;
   place-items: center;
+  place-content: center;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
+  margin: 0;
+  padding: 0;
   border: 0;
   border-radius: 50%;
+  line-height: 0;
   cursor: pointer;
 }
 .celinen-dash__plus {
+  align-self: center;
   background: transparent;
   color: #5d5d5d;
+}
+.celinen-dash__plus svg {
+  display: block;
+  margin: 0;
 }
 .celinen-dash__plus:hover {
   background: #f4f4f4;

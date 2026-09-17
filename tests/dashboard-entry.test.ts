@@ -96,6 +96,14 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("Browse templates");
   expect(source).not.toContain("Planning a shoot week");
   expect(source).toContain('placeholder="drop your game here"');
+  const dashCss = readFileSync(
+    new URL("../src/components/dashboard/dashboard.css", import.meta.url),
+    "utf8",
+  );
+  expect(dashCss).toContain(".celinen-dash__plus");
+  expect(dashCss).toContain("place-items: center");
+  expect(dashCss).toContain("line-height: 0");
+  expect(dashCss).toContain(".celinen-dash__plus svg");
   expect(source).not.toContain("Open Pick");
   expect(source).not.toContain("Open calendar");
   expect(source).not.toContain("HOME_ACTIONS");
