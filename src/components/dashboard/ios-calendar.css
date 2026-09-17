@@ -487,6 +487,7 @@ html.dark .celinen-dash__cal {
   width: 3px;
   height: 3px;
   border-radius: 999px;
+  background: #8e8e93;
   transform: translateX(-50%);
 }
 .celinen-ios-cal__year {
@@ -1172,6 +1173,7 @@ html.dark .celinen-dash__cal {
 .celinen-ios-cal__sheet-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
   margin-top: 4px;
 }
@@ -1188,12 +1190,14 @@ html.dark .celinen-dash__cal {
   cursor: pointer;
 }
 .celinen-ios-cal__sheet-actions button.is-delete {
-  background: #3a1515;
-  color: #ff6b6b;
+  margin-right: auto;
+  background: transparent;
+  color: #ff3b30;
+  padding: 0 8px;
 }
 html.dark .celinen-ios-cal__sheet-actions button.is-delete {
-  background: #4a1b1b;
-  color: #ff7a7a;
+  background: transparent;
+  color: #ff453a;
 }
 html.dark .celinen-ios-cal__sheet {
   background: #1c1c1e;

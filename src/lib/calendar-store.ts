@@ -21,11 +21,17 @@ export function isCalendarDeleteKey(key: string) {
   return key === "Delete" || key === "Backspace";
 }
 
-export function dropCalendarEvent(state: CalendarState, id: string): CalendarState {
+export function dropCalendarEvent(
+  state: CalendarState,
+  id: string,
+  twin?: { start: number; title: string },
+): CalendarState {
+  const skip = (event: { id: string; start: number; title: string }) =>
+    event.id === id || Boolean(twin && event.start === twin.start && event.title === twin.title);
   return {
     ...state,
-    localEvents: state.localEvents.filter((event) => event.id !== id),
-    feedEvents: state.feedEvents.filter((event) => event.id !== id),
+    localEvents: state.localEvents.filter((event) => !skip(event)),
+    feedEvents: state.feedEvents.filter((event) => !skip(event)),
   };
 }
 

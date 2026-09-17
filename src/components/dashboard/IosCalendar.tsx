@@ -161,7 +161,7 @@ function MiniMonth({
               onClick={() => onPick(cell.date)}
             >
               {cell.date.getDate()}
-              {hits.length ? <i style={{ background: eventColor(hits[0]!) }} /> : null}
+              {hits.length ? <i aria-hidden="true" /> : null}
             </button>
           );
         })}
@@ -214,6 +214,7 @@ export function IosCalendar() {
   } | null>(null);
   const paint = useRef<{ day: Date; origin: number; col: HTMLElement } | null>(null);
   const [ghost, setGhost] = useState<{ start: number; end: number } | null>(null);
+  const droppedIds = useRef(new Set<string>());
   const stateRef = useRef(state);
   stateRef.current = state;
   const sheetRef = useRef(sheet);
@@ -241,8 +242,11 @@ export function IosCalendar() {
     const store = scope ?? "local";
     setTasks(readCalendarTasks(store));
     const loaded = readCalendarState(store);
-    const localEvents = loaded.localEvents.filter((event) => !/usc vs ucla/i.test(event.title));
-    const next = { ...loaded, localEvents };
+    const localEvents = loaded.localEvents.filter(
+      (event) => !droppedIds.current.has(event.id) && !/usc vs ucla/i.test(event.title),
+    );
+    const feedEvents = loaded.feedEvents.filter((event) => !droppedIds.current.has(event.id));
+    const next = { ...loaded, localEvents, feedEvents };
     setState(next);
     if (localEvents.length !== loaded.localEvents.length) writeCalendarState(store, next);
     setTypes(readBookingTypes(store));
@@ -306,9 +310,14 @@ export function IosCalendar() {
   }, []);
 
   function persist(next: typeof state) {
-    stateRef.current = next;
-    setState(next);
-    writeCalendarState(scope ?? "local", next);
+    const cleaned = {
+      ...next,
+      localEvents: next.localEvents.filter((event) => !droppedIds.current.has(event.id)),
+      feedEvents: next.feedEvents.filter((event) => !droppedIds.current.has(event.id)),
+    };
+    stateRef.current = cleaned;
+    setState(cleaned);
+    writeCalendarState(scope ?? "local", cleaned);
   }
 
   function patchLocal(id: string, patch: Partial<CalendarEvent>) {
@@ -357,7 +366,18 @@ export function IosCalendar() {
   }
 
   function removeEvent(id: string) {
-    persist(dropCalendarEvent(stateRef.current, id));
+    const current = stateRef.current;
+    const hit = [...current.localEvents, ...current.feedEvents].find((event) => event.id === id);
+    droppedIds.current.add(id);
+    const twin = hit ? { start: hit.start, title: hit.title } : undefined;
+    if (hit) {
+      for (const event of [...current.localEvents, ...current.feedEvents]) {
+        if (event.start === hit.start && event.title === hit.title) droppedIds.current.add(event.id);
+      }
+    }
+    persist(dropCalendarEvent(current, id, twin));
+    if (scope && scope !== "local")
+      writeCalendarState("local", dropCalendarEvent(readCalendarState("local"), id, twin));
     inspectRef.current = null;
     sheetRef.current = null;
     setInspect(null);
@@ -386,6 +406,10 @@ export function IosCalendar() {
 
   function saveSheet() {
     if (!sheet) return;
+    if (sheet.value.id && droppedIds.current.has(sheet.value.id)) {
+      setSheet(null);
+      return;
+    }
     if (sheet.mode === "edit" && sheet.value.id && isCalendarDeleteCommand(sheet.value.title)) {
       removeEvent(sheet.value.id);
       return;

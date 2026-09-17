@@ -48,6 +48,13 @@ test("dropCalendarEvent removes local and feed rows by id", () => {
   expect(next.localEvents).toEqual([]);
   expect(next.feedEvents).toEqual([feed]);
   expect(dropCalendarEvent(next, "feed-1").feedEvents).toEqual([]);
+  const clone = { ...local, id: "local-2", title: "dih", start: 5, end: 6 };
+  const twins = dropCalendarEvent(
+    { ...state, localEvents: [local, clone] },
+    "local-2",
+    { start: 5, title: "dih" },
+  );
+  expect(twins.localEvents).toEqual([local]);
 });
 
 test("Google and Calendar iCal hosts are accepted, junk is not", () => {
@@ -131,13 +138,16 @@ test("dashboard calendar fills the page, no add form, no Google connectors", () 
   expect(cal).toContain("Quarter");
   expect(cal).toContain("All Tasks");
   expect(cal).toContain("onDoubleClick");
+  expect(cal).toContain("droppedIds");
   expect(cal).toContain("isCalendarDeleteKey");
   expect(cal).toContain("dropCalendarEvent");
   expect(cal).toContain("inspectRef.current = item.id");
   const sheet = readFileSync(new URL("../src/components/dashboard/EventSheet.tsx", import.meta.url), "utf8");
   expect(sheet).toContain('className="is-delete"');
-  expect(sheet).toContain("onPointerDown");
+  expect(sheet).not.toContain("onPointerDown");
   expect(css).toContain("button.is-delete");
+  expect(css).toContain("background: transparent");
+  expect(css).toContain("color: #ff3b30");
   expect(cal).toContain('"week"');
   expect(cal).toContain('"quarter"');
   expect(cal).toContain("Day");
