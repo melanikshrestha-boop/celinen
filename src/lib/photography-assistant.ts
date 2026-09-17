@@ -1,9 +1,17 @@
 import { studioCommandRefusal } from "./studio/command-safety";
 import { LENSLAB_PERSONALITY } from "./assistant/personality";
 
+/** Short hellos do not need a model round-trip. */
+export function isChatGreeting(input: string): boolean {
+  return /^(?:yo+|hey+|hi+|hello+|howdy|sup|what'?s\s*up|good\s+(?:morning|afternoon|evening)|thanks|thank\s+you|thx)(?:[\s.!?]*)?$/i.test(
+    input.trim(),
+  );
+}
+
 /** Conversation is not authorization to execute a fragment of a sentence. */
 export function isPhotographyConversation(input: string): boolean {
   const text = input.trim().replace(/[’‘]/g, "'");
+  if (isChatGreeting(text)) return true;
   if (studioCommandRefusal(text)) return true;
   if (
     /^(?:please\s+)?write\s+(?:(?:the|my)\s+)?(?:xmp|sidecars?|(?:to\s+)?lightroom)[.!]?$/i.test(

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   assistantUnavailable,
+  isChatGreeting,
   isPhotographyConversation,
   PHOTOGRAPHY_ASSISTANT_POLICY,
   requireAssistantMessage,
@@ -349,8 +350,13 @@ describe("photographer conversation, not command fragments", () => {
     "Reserve a studio for tomorrow",
     "What should I charge for this shoot?",
     "hello",
+    "yo",
   ])
     test(text, () => expect(isPhotographyConversation(text)).toBe(true));
+  for (const text of ["hi", "yo", "yo!", "hey", "hello", "what's up"])
+    test(`greeting: ${text}`, () => expect(isChatGreeting(text)).toBe(true));
+  test("a shoot question is not a greeting", () =>
+    expect(isChatGreeting("Where should I shoot?")).toBe(false));
   for (const text of [
     "cull this shoot",
     "show keepers",

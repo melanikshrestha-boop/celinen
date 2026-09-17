@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { requestDashboardReply } from "../src/lib/dashboard-assistant";
-import { isPhotographyConversation } from "../src/lib/photography-assistant";
+import { isChatGreeting, isPhotographyConversation } from "../src/lib/photography-assistant";
 import { destinationPathFor } from "../src/lib/workspace-routing";
 import { isPostIntent } from "../src/lib/social-post";
 
@@ -29,6 +29,7 @@ function callbackFixture() {
     resolve = done;
   });
   const env = {
+    isChatGreeting,
     isPhotographyConversation,
     destinationPathFor,
     isPostIntent,
@@ -63,8 +64,15 @@ function callbackFixture() {
   ) => Promise<void>;
   return { send, saved, requests, navigations, resolve, pendingReply, currentScope };
 }
+for (const text of ["hi", "yo", "hello", "hey"])
+  test(`actual dashboard Send greets instantly: ${text}`, async () => {
+    const f = callbackFixture();
+    await f.send(text);
+    expect(f.requests).toHaveLength(0);
+    expect(f.navigations).toHaveLength(0);
+    expect(f.saved[0]?.at(-1)?.text).toBe("Hey.");
+  });
 for (const text of [
-  "hello",
   "Where should I shoot?",
   "check the lighting for a night portrait",
   "show me some ideas for a shoot",
@@ -81,7 +89,7 @@ for (const text of [
   });
 test("actual dashboard Send prevents duplicate pending submissions", async () => {
   const f = callbackFixture();
-  const task = f.send("hello");
+  const task = f.send("Where should I shoot?");
   await f.send("hello again");
   expect(f.requests).toHaveLength(1);
   f.resolve("hello");
@@ -89,7 +97,7 @@ test("actual dashboard Send prevents duplicate pending submissions", async () =>
 });
 test("account changes fence a late dashboard reply", async () => {
   const f = callbackFixture();
-  const task = f.send("hello");
+  const task = f.send("Where should I shoot?");
   f.currentScope.current = "owner-b";
   f.resolve("private reply");
   await task;
@@ -97,7 +105,7 @@ test("account changes fence a late dashboard reply", async () => {
 });
 test("navigation cancellation fences a late dashboard reply", async () => {
   const f = callbackFixture();
-  const task = f.send("hello");
+  const task = f.send("Where should I shoot?");
   f.pendingReply.current?.abort();
   f.resolve("late reply");
   await task;
@@ -181,15 +189,20 @@ test("conversation never executes or accepts a booking/tool success", async () =
   });
   await expect(f.run()).rejects.toThrow("Nothing was run");
 });
-test("dashboard routes greetings and planning to AI, not default Pick navigation", () => {
+test("dashboard greets locally; planning still hits AI; Thinking sits above the composer", () => {
   const source = readFileSync(
     new URL("../src/components/dashboard/AppDashboard.tsx", import.meta.url),
     "utf8",
   );
+  expect(source).toContain("if (isChatGreeting(text)) return { text: \"Hey.\", href: null }");
   expect(source).toContain("await requestDashboardReply(");
   expect(source).toContain("if (isPhotographyConversation(text)) return null");
   expect(source).toContain("currentScope.current !== scope");
   expect(source).toContain("pendingReply.current?.abort()");
+  expect(source).toContain('className="celinen-dash__thinking"');
+  expect(source.indexOf("celinen-dash__thinking")).toBeLessThan(
+    source.indexOf("social-post__composer celinen-dash__composer"),
+  );
 });
 test("calendar timed rows share readable minimum tracks and scroll together", () => {
   const source = readFileSync(

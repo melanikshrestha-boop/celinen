@@ -34,7 +34,7 @@ import { IosCalendar } from "./IosCalendar";
 import { VoiceMic } from "./VoiceMic";
 import { requestDashboardReply } from "@/lib/dashboard-assistant";
 import { chatCopyText, chatShareFile, dashboardChatRecord } from "@/lib/chat-sharing";
-import { isPhotographyConversation } from "@/lib/photography-assistant";
+import { isChatGreeting, isPhotographyConversation } from "@/lib/photography-assistant";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { queueStudioImport } from "@/lib/studio/pending-import";
 import { registerAppKeys } from "@/lib/app-keys";
@@ -100,6 +100,7 @@ function titleFrom(text: string) {
   return line.slice(0, 42) || "Chat";
 }
 function replyFor(text: string) {
+  if (isChatGreeting(text)) return { text: "Hey.", href: null };
   if (isPhotographyConversation(text)) return null;
   if (
     !isPostIntent(text) &&
@@ -315,7 +316,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
-  }, [active?.messages.length]);
+  }, [active?.messages.length, replying]);
 
   function persist(next: DashThread[], id: string | null) {
     if (!scope) return;
@@ -699,6 +700,11 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     <h1>{dashboardGreetingFor(account?.workRole)}</h1>
                   </div>
                 )}
+                {replying ? (
+                  <p className="celinen-dash__thinking" role="status">
+                    Thinking…
+                  </p>
+                ) : null}
                 <form
                   className="social-post__composer celinen-dash__composer"
                   onSubmit={(event) => {
@@ -753,7 +759,6 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     <ArrowUp size={18} />
                   </button>
                 </form>
-                {replying && <p role="status">Thinking…</p>}
                 {chatError && <p role="alert">{chatError}</p>}
               </div>
             </div>
