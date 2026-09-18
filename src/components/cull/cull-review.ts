@@ -7,6 +7,7 @@
  * any of this changing.
  */
 import type { CullReading, CullVerdict } from "@/lib/studio/cull/engine";
+import { readingHasFace } from "@/lib/studio/cull/portrait-face";
 import type { CullFilter, CullFrame } from "@/lib/studio/cull/session";
 import {
   effectiveVerdict,
@@ -200,8 +201,18 @@ export function plainReading(reading: CullReading): CullMeasurement[] {
     : reading.motion >= 0.3
       ? "Subject motion"
       : "Frozen";
-  const exposure =
-    reading.subjectLuma < 26
+  const faced = readingHasFace(reading);
+  const exposure = faced
+    ? reading.subjectLuma < 26
+      ? "Night"
+      : reading.subjectLuma < 48
+        ? "Low light"
+        : reading.subjectLuma > 242
+          ? "Blown"
+          : reading.subjectLuma > 225
+            ? "Bright"
+            : "Good"
+    : reading.subjectLuma < 26
       ? "Too dark"
       : reading.subjectLuma < 42
         ? "Dark"
@@ -210,7 +221,7 @@ export function plainReading(reading: CullReading): CullMeasurement[] {
           : reading.subjectLuma > 225
             ? "Bright"
             : "Good";
-  const subject = !reading.hasFace
+  const subject = !faced
     ? "No face found"
     : reading.eyesClosed
       ? "Eyes closed"

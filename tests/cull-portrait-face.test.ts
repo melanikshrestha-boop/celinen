@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { instantiateIngestWasm } from "../src/lib/studio/cull/ingest-engine";
 import {
+  faceFromAf,
   findPortraitFace,
   findPortraitFaceOriented,
   loupeFaceCrop,
@@ -76,4 +79,42 @@ test("the loupe crop tightens around a found face", () => {
   expect(crop!.h).toBeLessThan(1080);
   expect(crop!.x).toBeGreaterThanOrEqual(0);
   expect(crop!.y).toBeGreaterThanOrEqual(0);
+});
+
+test("a dark-skinned head at night is still a face", () => {
+  const { rgba, w, h } = canvas(160, 100, [22, 24, 32]);
+  oval(rgba, w, h, 0.36, 0.4, 0.12, 0.18, [68, 42, 32]);
+  expect(findPortraitFace(rgba, w, h)).not.toBeNull();
+});
+
+test("camera AF on a person is a face when chroma is a mess", () => {
+  const { rgba, w, h } = canvas(160, 100, [40, 48, 70]);
+  const found = findPortraitFaceOriented(rgba, w, h, { x: 0.4, y: 0.32, w: 0.06, h: 0.05 });
+  expect(found).not.toBeNull();
+  expect(found!.box.x).toBeLessThan(0.45);
+  expect(found!.box.x + found!.box.width).toBeGreaterThan(0.4);
+});
+
+test("a tiny AF box expands to a head", () => {
+  const box = faceFromAf({ x: 0.46, y: 0.38, w: 0.04, h: 0.03 });
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThan(0.08);
+  expect(box!.height).toBeGreaterThan(0.1);
+});
+
+test("a real portrait photograph has a face", async () => {
+  const wasm = await instantiateIngestWasm(
+    readFileSync(new URL("../src/lib/studio/cull/celinen-ingest.wasm", import.meta.url)),
+  );
+  const jpeg = readFileSync(new URL("./fixtures/photos/volleyball-portrait-cc0.jpg", import.meta.url));
+  const read = wasm.read(new Uint8Array(jpeg));
+  const found = findPortraitFaceOriented(
+    read.frame.rgba,
+    read.frame.width,
+    read.frame.height,
+    read.afPoint,
+  );
+  expect(found).not.toBeNull();
+  expect(found!.box.width).toBeGreaterThan(0.04);
+  expect(found!.box.height).toBeGreaterThan(0.04);
 });

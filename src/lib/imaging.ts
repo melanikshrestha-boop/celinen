@@ -4,7 +4,7 @@
  */
 import { cullEngine } from "./studio/cull/client";
 import type { CullReading } from "./studio/cull/engine";
-import { findPortraitFace } from "./studio/cull/portrait-face";
+import { findPortraitFaceOriented } from "./studio/cull/portrait-face";
 import { validReviewRating } from "./studio/review-metadata";
 import type { PhotoSubject } from "./studio/people";
 
@@ -698,7 +698,7 @@ export async function analyseFaces(bitmap: ImageBitmap): Promise<FaceReading | n
     const h = bitmap.height;
     const { ctx } = scratchCanvas(w, h);
     ctx.drawImage(bitmap, 0, 0);
-    const found = findPortraitFace(ctx.getImageData(0, 0, w, h).data, w, h);
+    const found = findPortraitFaceOriented(ctx.getImageData(0, 0, w, h).data, w, h)?.uprightBox;
     if (!found) return { count: 0, faceSharpness: 0, eyesOpen: null, center: undefined };
     return {
       count: 1,

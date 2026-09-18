@@ -10,7 +10,11 @@ import { cullEngine } from "./client";
 import { instantiateIngestWasm, type IngestEngine } from "./ingest-engine";
 import type { IngestReply, IngestRequest } from "./ingest-messages";
 import { browserPixels, readPhoto } from "./ingest-read";
-import { cullFaceFromBox, findPortraitFaceOriented } from "./portrait-face";
+import {
+  cullFaceFromBox,
+  findPortraitFaceOriented,
+  uprightPixels,
+} from "./portrait-face";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -33,6 +37,7 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
       engine: wasm,
       decodePixels: browserPixels,
     });
+    if (result.afPoint) result.reading.afBox = result.afPoint;
     if (!result.reading.hasFace) {
       const found = findPortraitFaceOriented(
         result.frame.rgba,
@@ -41,20 +46,33 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
         result.afPoint,
       );
       if (found) {
+        const pixels = uprightPixels(
+          result.frame.rgba,
+          result.frame.width,
+          result.frame.height,
+          found.turned,
+        );
+        const box = found.uprightBox;
         const engine = await cullEngine();
         if (engine) {
-          result.reading = engine.measure(result.frame.rgba, result.frame.width, result.frame.height, [
-            cullFaceFromBox(found.box),
+          result.reading = engine.measure(pixels.rgba, pixels.width, pixels.height, [
+            cullFaceFromBox(box),
           ]);
         } else {
           result.reading = {
             ...result.reading,
             hasFace: true,
-            subjectX: found.box.x + found.box.width / 2,
-            subjectY: found.box.y + found.box.height * 0.42,
+            subjectX: box.x + box.width / 2,
+            subjectY: box.y + box.height * 0.42,
           };
         }
-        result.reading.faceBox = found.box;
+        result.reading.hasFace = true;
+        result.reading.faceBox = box;
+        if (result.afPoint) result.reading.afBox = result.afPoint;
+        if (found.turned) {
+          const rotated = await rotateThumbnail(result.thumbnail, found.turned);
+          if (rotated) result.thumbnail = rotated;
+        }
       }
     }
     const reply: IngestReply = {
@@ -81,3 +99,31 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
     } satisfies IngestReply);
   }
 };
+
+async function rotateThumbnail(blob: Blob, turned: 90 | 270): Promise<Blob | null> {
+  if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas === "undefined")
+    return null;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const width = bitmap.height;
+    const height = bitmap.width;
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return null;
+    }
+    if (turned === 90) {
+      ctx.translate(width, 0);
+      ctx.rotate(Math.PI / 2);
+    } else {
+      ctx.translate(0, height);
+      ctx.rotate(-Math.PI / 2);
+    }
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return await canvas.convertToBlob({ type: "image/jpeg", quality: 0.72 });
+  } catch {
+    return null;
+  }
+}

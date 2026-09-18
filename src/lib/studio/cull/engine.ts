@@ -71,6 +71,8 @@ export type CullReading = {
   faceSoft: boolean;
   /** Normalized box of the measured face, when one was found. */
   faceBox?: { x: number; y: number; width: number; height: number };
+  /** Camera AF area, same space as the working frame. */
+  afBox?: { x: number; y: number; w: number; h: number };
   /** 4x4 grid of mean RGB. */
   color: Uint8Array;
 };
@@ -118,7 +120,7 @@ export type CullOptions = {
 export type CullEngine = {
   /** Measures one decoded frame. The pixels are copied into the engine. */
   measure(
-    rgba: Uint8ClampedArray,
+    rgba: Uint8Array | Uint8ClampedArray,
     width: number,
     height: number,
     faces?: readonly CullFace[],

@@ -5,9 +5,10 @@
  */
 import { cullEngine } from "./client";
 import type { CullRow, CullVerdict } from "./engine";
+import { decodeScaled } from "./decode";
 import { applyTaste, keepBiasFromEye, loadEye, rememberDecision, saveEye } from "./eye";
 import { pickLoupeImage, type LoupeImage } from "./loupe-source";
-import type { PortraitFace } from "./portrait-face";
+import { findPortraitFaceOriented, type PortraitFace } from "./portrait-face";
 import { ingestFiles } from "./pool";
 import type { PreviewLibrary } from "./preview-library";
 import type { PreviewQueue } from "./preview-queue";
@@ -159,6 +160,7 @@ export class CullController {
     this.notice = null;
     this.replace(frames);
     await this.rerank();
+    void this.rescanMissedFaces();
     await this.connectSources(sessionId);
   }
 
@@ -222,6 +224,7 @@ export class CullController {
     }
     this.replace([...this.frames].sort(captureOrder));
     await this.rerank();
+    void this.rescanMissedFaces();
     // Only now, with every core free again, do previews begin.
     if (this.sessionId === session.id) this.startPreviews();
   }
@@ -458,7 +461,14 @@ export class CullController {
     const index = this.byId.get(id);
     if (index === undefined) return;
     const frame = this.frames[index]!;
-    if (!frame.reading || (frame.reading.hasFace && frame.reading.faceBox)) return;
+    if (!frame.reading) return;
+    if (
+      frame.reading.hasFace &&
+      frame.reading.faceBox &&
+      Math.abs(frame.reading.faceBox.x - box.x) < 0.02 &&
+      Math.abs(frame.reading.faceBox.y - box.y) < 0.02
+    )
+      return;
     const next = [...this.frames];
     next[index] = {
       ...frame,
@@ -472,6 +482,58 @@ export class CullController {
     };
     this.replace(next);
     void this.persist([next[index]!]);
+    this.scheduleRerank();
+  }
+
+  /** Old sessions were measured without a face finder. Thumbnails are enough to
+   * recover a head, so opening a card does not keep saying "no face" forever. */
+  private async rescanMissedFaces() {
+    const sessionId = this.sessionId;
+    if (!sessionId || typeof createImageBitmap !== "function") return;
+    const missed = this.frames
+      .filter((frame) => frame.reading && !frame.reading.hasFace && !frame.reading.faceBox)
+      .slice(0, 300);
+    for (let index = 0; index < missed.length; index++) {
+      const frame = missed[index]!;
+      if (index && index % 10 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+      if (this.sessionId !== sessionId) return;
+      const blob = await this.store.thumbnail(sessionId, frame.id).catch(() => null);
+      if (!blob?.size) continue;
+      try {
+        const bitmap = await decodeScaled(blob, 320);
+        const scale = Math.min(1, 320 / Math.max(bitmap.width, bitmap.height));
+        const w = Math.max(16, Math.round(bitmap.width * scale));
+        const h = Math.max(16, Math.round(bitmap.height * scale));
+        const canvas =
+          typeof OffscreenCanvas === "function"
+            ? new OffscreenCanvas(w, h)
+            : typeof document !== "undefined"
+              ? document.createElement("canvas")
+              : null;
+        if (!canvas) {
+          bitmap.close();
+          continue;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          bitmap.close();
+          continue;
+        }
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        bitmap.close();
+        const found = findPortraitFaceOriented(
+          ctx.getImageData(0, 0, w, h).data,
+          w,
+          h,
+          frame.reading?.afBox,
+        );
+        if (found) this.noteFace(frame.id, found.uprightBox);
+      } catch {
+        /* a broken thumbnail is not a face */
+      }
+    }
   }
 
   /** Records the photographer's decision on these frames. Undoable. */

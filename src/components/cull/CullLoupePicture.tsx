@@ -2,7 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bitmapDecodeSupported, decodeScaled } from "@/lib/studio/cull/decode";
 import { DecodedLru } from "@/lib/studio/cull/loupe-cache";
 import type { LoupeImage, LoupeSourceKind } from "@/lib/studio/cull/loupe-source";
-import { findPortraitFace, loupeFaceCrop, type PortraitFace } from "@/lib/studio/cull/portrait-face";
+import {
+  findPortraitFaceOriented,
+  loupeFaceCrop,
+  type FaceHint,
+  type PortraitFace,
+} from "@/lib/studio/cull/portrait-face";
 import type { CullFrame } from "@/lib/studio/cull/session";
 import { CullThumb, type CullThumbnailSource } from "./CullGrid";
 
@@ -144,32 +149,42 @@ export function CullLoupePicture({
     if (!element || !shown || !("bitmap" in shown)) return;
     try {
       const bitmap = shown.bitmap;
-      let box = frame.reading?.faceBox;
+      let box =
+        shown.frameId === frame.id && foundFace.current?.id === frame.id
+          ? foundFace.current.box
+          : undefined;
       if (!box && shown.frameId === frame.id) {
-        if (foundFace.current?.id === frame.id) box = foundFace.current.box;
-        else {
-          const scale = Math.min(1, 320 / Math.max(bitmap.width, bitmap.height));
-          const w = Math.max(16, Math.round(bitmap.width * scale));
-          const h = Math.max(16, Math.round(bitmap.height * scale));
-          const probe = document.createElement("canvas");
-          probe.width = w;
-          probe.height = h;
-          const probeCtx = probe.getContext("2d");
-          if (probeCtx) {
-            probeCtx.drawImage(bitmap, 0, 0, w, h);
-            const found = findPortraitFace(
-              probeCtx.getImageData(0, 0, w, h).data,
-              w,
-              h,
-              frame.reading
-                ? { x: Math.max(0, frame.reading.subjectX - 0.12), y: Math.max(0, frame.reading.subjectY - 0.16), w: 0.24, h: 0.32 }
-                : undefined,
-            );
-            if (found) {
-              foundFace.current = { id: frame.id, box: found };
-              box = found;
-              onFace?.(found);
-            }
+        const scale = Math.min(1, 320 / Math.max(bitmap.width, bitmap.height));
+        const w = Math.max(16, Math.round(bitmap.width * scale));
+        const h = Math.max(16, Math.round(bitmap.height * scale));
+        const probe = document.createElement("canvas");
+        probe.width = w;
+        probe.height = h;
+        const probeCtx = probe.getContext("2d");
+        if (probeCtx) {
+          probeCtx.drawImage(bitmap, 0, 0, w, h);
+          const hint: FaceHint | undefined = frame.reading?.afBox
+            ? frame.reading.afBox
+            : frame.reading?.faceBox
+              ? {
+                  x: frame.reading.faceBox.x,
+                  y: frame.reading.faceBox.y,
+                  w: frame.reading.faceBox.width,
+                  h: frame.reading.faceBox.height,
+                }
+              : undefined;
+          const found = findPortraitFaceOriented(
+            probeCtx.getImageData(0, 0, w, h).data,
+            w,
+            h,
+            hint,
+          );
+          if (found) {
+            foundFace.current = { id: frame.id, box: found.uprightBox };
+            box = found.uprightBox;
+            onFace?.(found.uprightBox);
+          } else if (frame.reading?.faceBox) {
+            box = frame.reading.faceBox;
           }
         }
       }
@@ -187,7 +202,47 @@ export function CullLoupePicture({
       // Released from the cache before it painted: ask for the frame again.
       setShown(null);
     }
-  }, [shown, frame.id, frame.reading?.faceBox, onFace]);
+  }, [shown, frame.id, frame.reading?.faceBox, frame.reading?.afBox, onFace]);
+
+  useEffect(() => {
+    if (!shown || !("bitmap" in shown) || shown.frameId !== frame.id) return;
+    const Ctor = (
+      globalThis as unknown as {
+        FaceDetector?: new (options: { fastMode: boolean; maxDetectedFaces: number }) => {
+          detect: (source: ImageBitmap) => Promise<{ boundingBox: DOMRectReadOnly }[]>;
+        };
+      }
+    ).FaceDetector;
+    if (!Ctor) return;
+    let live = true;
+    try {
+      const detector = new Ctor({ fastMode: true, maxDetectedFaces: 4 });
+      void detector.detect(shown.bitmap).then(
+        (faces) => {
+          if (!live || !faces.length) return;
+          const biggest = faces.reduce((a, b) =>
+            a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height
+              ? a
+              : b,
+          );
+          const box: PortraitFace = {
+            x: biggest.boundingBox.x / shown.bitmap.width,
+            y: biggest.boundingBox.y / shown.bitmap.height,
+            width: biggest.boundingBox.width / shown.bitmap.width,
+            height: biggest.boundingBox.height / shown.bitmap.height,
+          };
+          foundFace.current = { id: frame.id, box };
+          onFace?.(box);
+        },
+        () => {},
+      );
+    } catch {
+      /* Safari and Firefox have no FaceDetector. */
+    }
+    return () => {
+      live = false;
+    };
+  }, [shown, frame.id, onFace]);
 
   if (!shown || shown.frameId !== frame.id)
     return <CullThumb frame={frame} thumbnail={thumbnail} />;

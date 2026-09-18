@@ -279,7 +279,11 @@ describe("plain-language measurements", () => {
     expect(value(cullReading({ motion: 0.5, globalSmear: true }), "Motion")).toBe("Camera shake");
     expect(value(cullReading({ motion: 0.35 }), "Motion")).toBe("Subject motion");
     expect(value(cullReading(), "Motion")).toBe("Frozen");
-    expect(value(cullReading({ subjectLuma: 20 }), "Exposure")).toBe("Too dark");
+    expect(value(cullReading({ subjectLuma: 20 }), "Exposure")).toBe("Night");
+    expect(value(cullReading({ hasFace: false, subjectLuma: 20 }), "Exposure")).toBe("Too dark");
+    expect(value(cullReading({ hasFace: false, faceBox: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 } }), "Subject")).toBe(
+      "Face sharp",
+    );
     expect(value(cullReading({ subjectLuma: 235, subjectClipped: 60 }), "Exposure")).toBe(
       "Bright, highlights clipped on the subject",
     );
