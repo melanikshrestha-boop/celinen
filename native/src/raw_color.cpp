@@ -34,8 +34,16 @@ constexpr Isotherm robertson[31] = {
     {550, 0.32129, 0.36011, -23.325},  {575, 0.32931, 0.36038, -40.770},
     {600, 0.33724, 0.36051, -116.45}};
 
-// Adobe's convention, so a Kelvin/tint pair reads the way Lightroom's does: one
-// tint unit is 1/3000 of a UCS unit away from the locus, magenta positive.
+// One tint unit is 1/3000 of a CIE 1960 UCS unit off the Planckian locus, which
+// is the scale Lightroom's slider is graduated in.
+//
+// The sign is the part worth stating, and it is negative for a reason. A
+// positive tint means the scene's illuminant was green — a fluorescent tube,
+// light bounced off foliage — so the render is corrected towards magenta. That
+// makes the slider behave the way a photographer expects in both directions at
+// once: dragging towards Magenta raises the number and pushes the picture
+// magenta, and a frame shot under fluorescent light opens showing a positive
+// tint. With the sign the other way round both of those invert.
 constexpr double tint_scale = -3000.0;
 
 struct Uv {
@@ -346,7 +354,18 @@ Matrix3 camera_to_working(const ColorProfile& profile, const Vector3& neutral) {
     camera_to_xyz_d50 =
         multiply(bradford_adaptation(white, d50), invert(xyz_to_camera(profile, white)));
   }
-  return multiply(xyz_to_srgb_d65, multiply(bradford_adaptation(d50, d65), camera_to_xyz_d50));
+  Matrix3 working =
+      multiply(xyz_to_srgb_d65, multiply(bradford_adaptation(d50, d65), camera_to_xyz_d50));
+  // One scalar left to fix: the camera's neutral must land on the working
+  // space's own white, not merely on some grey. Without this the sensor's
+  // white level renders at an arbitrary brightness that differs per camera,
+  // and every exposure number downstream would mean something different on
+  // each body.
+  const Vector3 rendered = multiply(working, neutral);
+  if (!(rendered[1] > 1e-9))
+    throw std::runtime_error("This camera profile sends a neutral to black.");
+  for (double& value : working) value /= rendered[1];
+  return working;
 }
 
 double srgb_encode(double linear) noexcept {

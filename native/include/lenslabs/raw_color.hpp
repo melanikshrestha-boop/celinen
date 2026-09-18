@@ -40,8 +40,12 @@ Vector3 xyz_from_chromaticity(const Chromaticity& c) noexcept;
 Chromaticity chromaticity_of(const Vector3& xyz) noexcept;
 
 // CIE standard illuminants used as the PCS and the working-space white.
+// D50 is the DNG specification's profile connection space. D65 is not the
+// rounded 0.31272/0.32903 but the exact white of `srgb_to_xyz_d65` below: the
+// two have to agree to within nothing at all, or a camera's own neutral comes
+// out a hair off neutral, which is the one error a photographer sees first.
 inline constexpr Chromaticity d50{0.34567, 0.35850};
-inline constexpr Chromaticity d65{0.31272, 0.32903};
+inline constexpr Chromaticity d65{0.312699988817, 0.328999997598};
 
 // Where a ColorProfile came from, said out loud everywhere it matters.
 enum class ProfileSource : std::uint8_t {
