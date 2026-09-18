@@ -10,12 +10,12 @@ import {
 } from "react";
 import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import {
+  Menu,
   PanelLeft,
   PanelRightClose,
   PanelsTopLeft,
   MoreHorizontal,
   Search,
-  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -505,38 +505,7 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
     <ChatHistoryProvider scope={account} project={projectScope(activeBinding)}>
       <WorkbenchContext.Provider value={context}>
         <WorkspacePreferences />
-        <WorkspaceSidebar
-          narrow={narrow}
-          trigger={sidebarTriggerRef}
-          rail={
-            <aside className="foto-mobile-rail" aria-label="Workspace navigation">
-              <button
-                ref={sidebarTriggerRef}
-                className="workbench-sidebar-toggle"
-                aria-label="Open Sidebar"
-                title="Open Sidebar"
-                onClick={() => setOpenMobile(true)}
-              >
-                <LogoMark size={22} />
-              </button>
-              <NewShootAction create={newShoot} busy={creatingShoot} />
-              <PrimaryNavigation
-                pathname={pathname}
-                search={location.search}
-                open={openExact}
-                counts={{ "/tonight": navigationData.tonightCount }}
-              />
-              <button
-                className="workbench-sidebar-toggle foto-rail-settings"
-                aria-label="Settings"
-                title="Settings"
-                onClick={() => void openExact("/settings/general")}
-              >
-                <Settings size={20} strokeWidth={1.65} />
-              </button>
-            </aside>
-          }
-        >
+        <WorkspaceSidebar narrow={narrow} trigger={sidebarTriggerRef}>
           <SidebarHeader className="workbench-sidebar-top">
             <div className="workbench-brand-row">
               {!narrow && !sidebarOpen ? (
@@ -631,6 +600,18 @@ function WorkbenchFrame({ children, account }: { children: ReactNode; account: s
         </WorkspaceSidebar>
         <div className="workbench-body">
           <header className={`workbench-header ${primarySurface ? "foto-workflow-header" : ""}`}>
+            {narrow ? (
+              <button
+                ref={sidebarTriggerRef}
+                type="button"
+                className="workbench-sidebar-toggle workbench-mobile-menu"
+                aria-label="Open menu"
+                title="Open menu"
+                onClick={() => setOpenMobile(true)}
+              >
+                <Menu size={22} strokeWidth={1.75} />
+              </button>
+            ) : null}
             <SidebarHistoryControls navigation={sidebarHistory} />
             {routeShootKey ? (
               <ShootWorkflowTabs id={routeShootKey} active={shootTab} />
@@ -820,12 +801,10 @@ function WorkspaceSidebar({
   narrow,
   trigger,
   children,
-  rail,
 }: {
   narrow: boolean;
   trigger: React.RefObject<HTMLButtonElement | null>;
   children: ReactNode;
-  rail: ReactNode;
 }) {
   const { openMobile, setOpenMobile } = useSidebar();
   useEffect(() => {
@@ -848,7 +827,6 @@ function WorkspaceSidebar({
     );
   return (
     <>
-      {rail}
       <Sheet open={openMobile} onOpenChange={setOpenMobile}>
         <SheetContent
           side="left"

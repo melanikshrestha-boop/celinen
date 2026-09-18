@@ -411,20 +411,8 @@ html:not(.dark) [data-mobile="true"][data-sidebar="sidebar"] {
   justify-content: center;
 }
 .foto-mobile-rail {
-  --foto-sidebar-row-height: 44px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 0 0 52px;
-  width: 52px;
-  height: var(--workspace-viewport-height, 100dvh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: 8px 4px max(8px, env(safe-area-inset-bottom));
-  background: var(--wb-sidebar-material);
-  -webkit-backdrop-filter: var(--foto-sidebar-filter, blur(36px));
-  backdrop-filter: var(--foto-sidebar-filter, blur(36px));
+  /* Retired: mobile uses header hamburger + Sheet drawer. */
+  display: none !important;
 }
 .foto-mobile-rail > * {
   flex-shrink: 0;
@@ -494,6 +482,10 @@ html:not(.dark) [data-mobile="true"][data-sidebar="sidebar"] {
 }
 .settings-mode > .foto-mobile-rail {
   display: none;
+}
+/* ChatGPT-style mobile: header hamburger opens the Sheet drawer. */
+.workbench-header > .workbench-mobile-menu {
+  flex-shrink: 0;
 }
 @media (max-width: 767px) {
   .foto-workflow-header {
