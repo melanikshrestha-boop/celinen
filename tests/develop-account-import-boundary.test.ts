@@ -7,7 +7,12 @@ import {
   type DevelopImportJob,
   type DevelopLibrary,
 } from "../src/lib/develop/store";
-import { isDashboardAppRoute, isPrivateAppRoute, isWorkbenchRoute } from "../src/lib/workbench";
+import {
+  isDashboardAppRoute,
+  isPrivateAppRoute,
+  isVideoAppPath,
+  isWorkbenchRoute,
+} from "../src/lib/workbench";
 
 type Session = ReturnType<typeof createDevelopImportSession>;
 type Identity = { scope: string | null; status: "in" | "out"; setupComplete: boolean };
@@ -71,6 +76,7 @@ function boundaryFixture(sessions: Map<string, Session>) {
     "cancelDevelopImportsOutsideScope",
     "isDashboardAppRoute",
     "isPrivateAppRoute",
+    "isVideoAppPath",
     "isWorkbenchRoute",
     "jsx",
     "AccountSetup",
@@ -94,6 +100,7 @@ function boundaryFixture(sessions: Map<string, Session>) {
     },
     isDashboardAppRoute,
     isPrivateAppRoute,
+    isVideoAppPath,
     isWorkbenchRoute,
     (type: string, props: unknown) => ({ type, props }),
     "setup",

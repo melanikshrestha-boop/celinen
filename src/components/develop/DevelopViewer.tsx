@@ -37,6 +37,7 @@ export function DevelopViewer({
   onPixelSample = ignorePixelSample,
   clipping,
   overlay = null,
+  exportFrame = null,
 }: {
   url: string | null;
   blob: Blob | null;
@@ -62,6 +63,8 @@ export function DevelopViewer({
   clipping: { shadows: boolean; highlights: boolean };
   /** Drawn over the stage, outside the photo's zoom and pan. */
   overlay?: ReactNode;
+  /** Visible edit-mode border preview matching export night kit. */
+  exportFrame?: { insetRatio: number; color: string } | null;
 }) {
   const stage = useRef<HTMLDivElement>(null),
     sampleImage = useRef<HTMLImageElement>(null),
@@ -187,6 +190,18 @@ export function DevelopViewer({
     const t = length ? Math.max(0, Math.min(1, ((x - g.x1) * dx + (y - g.y1) * dy) / length)) : 0;
     return Math.hypot(x - (g.x1 + t * dx), y - (g.y1 + t * dy));
   };
+  const frameInset = exportFrame
+    ? Math.max(2, Math.round(Math.max(width, height) * exportFrame.insetRatio))
+    : 0;
+  const frameStyle = exportFrame
+    ? {
+        width: width + frameInset * 2,
+        height: height + frameInset * 2,
+        padding: frameInset,
+        background: exportFrame.color,
+        boxSizing: "border-box" as const,
+      }
+    : { width, height };
   return (
     <div
       className={`develop-stage ${zoom === "100" ? "is-zoomed" : ""}`}
@@ -196,17 +211,22 @@ export function DevelopViewer({
       {url ? (
         <div className="develop-compare-pair">
           {compare && beforeUrl && (
-            <div className="develop-image-frame" style={{ width, height }}>
-              <img src={beforeUrl} alt="Before adjustments" />
+            <div className="develop-image-frame" style={frameStyle}>
+              <img src={beforeUrl} alt="Before adjustments" style={exportFrame ? { width, height } : undefined} />
               <span className="develop-image-label">Before</span>
             </div>
           )}
-          <div className="develop-image-frame" style={{ width, height }} {...pixelPointer}>
+          <div
+            className={`develop-image-frame${exportFrame ? " has-export-border" : ""}`}
+            style={frameStyle}
+            {...pixelPointer}
+          >
             <img
               ref={sampleImage}
               src={displayedUrl ?? undefined}
               alt={before ? "Before adjustments" : "Developed photo"}
               draggable={false}
+              style={exportFrame ? { width, height } : undefined}
               onError={(e) => {
                 e.currentTarget.removeAttribute("src");
               }}

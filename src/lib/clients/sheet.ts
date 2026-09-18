@@ -41,7 +41,8 @@ export type SheetExtra = {
   nda: NdaState | "";
   ndaOn: string;
   channel: Channel | "";
-  watermark: OnOff | "";
+  /** Named watermark kit (legacy On/Off upgraded via resolveClientWatermarkKitName). */
+  watermark: string;
   download: OnOff | "";
   expires: string;
   gps: StripState | "";
@@ -64,6 +65,16 @@ export const SEED_IDS = {
   elise: "e2e2e2e2-e2e2-42e2-82e2-e2e2e2e2e2e2",
   maya: "b3b3b3b3-b3b3-43b3-83b3-b3b3b3b3b3b3",
 } as const;
+
+
+/** Map legacy On/Off sheet values onto named watermark kits. */
+export function normalizeSheetWatermark(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const raw = value.trim();
+  if (!raw || /^off$/i.test(raw)) return "";
+  if (/^on$/i.test(raw)) return "Client proof";
+  return raw.slice(0, 40);
+}
 
 export function emptyExtra(): SheetExtra {
   return {
@@ -110,7 +121,7 @@ const SEED_EXTRAS: Record<string, SheetExtra> = {
     nda: "Signed",
     ndaOn: "2026-04-02",
     channel: "Email",
-    watermark: "On",
+    watermark: "Client proof",
     download: "Off",
     expires: "2026-08-14",
     gps: "Stripped",
@@ -135,7 +146,7 @@ const SEED_EXTRAS: Record<string, SheetExtra> = {
     nda: "Signed",
     ndaOn: "2026-05-20",
     channel: "Signal",
-    watermark: "On",
+    watermark: "Client proof",
     download: "Off",
     expires: "2026-07-02",
     gps: "Stripped",
@@ -219,7 +230,8 @@ function asJobType(value: string): JobType | "" {
 function defaultExtra(client: WorkspaceClient): SheetExtra {
   const booking = client.bookings[0];
   const saved = readExtras()[client.id];
-  if (saved) return saved;
+  if (saved)
+    return { ...saved, watermark: normalizeSheetWatermark(saved.watermark) };
   const stage: SheetStage | "" =
     client.stage === "archived"
       ? "quiet"
