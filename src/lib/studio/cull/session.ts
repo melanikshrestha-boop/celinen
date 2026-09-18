@@ -5,6 +5,29 @@
  */
 import type { CullReason, CullRow, CullVerdict } from "./engine";
 import type { CullReading } from "./engine";
+import type { FocusHit, NormalizedRect } from "./ingest-engine";
+
+/** Lightroom's color labels. 6-9 set the first four, in Lightroom's order. */
+export type CullLabel = "red" | "yellow" | "green" | "blue" | "purple";
+export const CULL_LABELS: readonly CullLabel[] = ["red", "yellow", "green", "blue", "purple"];
+
+/** Whether a file is a photograph this cull should judge at all. Written by a
+ * validity engine; absent means nothing has said otherwise. */
+export type CullValidity = {
+  status: "valid" | "suspect" | "invalid";
+  /** One line, e.g. "Illustration, not a photograph". */
+  reason: string;
+};
+
+/** Whether a frame belongs to the shoot it came in with (last week's game left
+ * on the card, a phone screenshot). Absent means it does. */
+export type CullMembership = { inShoot: boolean; reason: string };
+
+export type CullBurstRoleName =
+  "pick" | "alternate" | "review" | "build-up" | "follow-through" | "duplicate";
+
+/** A frame's part in its burst, with a one-line reason. */
+export type CullBurstRole = { role: CullBurstRoleName; reason: string };
 
 export type CullFrame = {
   id: string;
@@ -31,6 +54,36 @@ export type CullFrame = {
   decided: boolean;
   /** Why the file could not be read, when it could not. */
   error?: string | undefined;
+  /** The file was read, but something in it is broken — a truncated preview, a
+   * corrupt scan. Said in the ingest's own words. A frame like this has a
+   * measurement of whatever survived, so it is never judged on sharpness. */
+  damaged?: string | undefined;
+  /** 1..5 stars; absent is unrated. */
+  rating?: number | undefined;
+  label?: CullLabel | undefined;
+  /** Photo Mechanic's tag. */
+  tagged?: boolean | undefined;
+  /** The caption, codes already expanded. */
+  caption?: string | undefined;
+  /** The camera's AF area from its maker note, normalized to the upright frame. */
+  afPoint?: NormalizedRect | undefined;
+  /** Whether the camera reported focus lock there; undefined when it did not say. */
+  afConfirmed?: boolean | undefined;
+  /** Sharpness at the AF area against the frame's sharpest detail. */
+  focusHit?: FocusHit | undefined;
+  validity?: CullValidity | undefined;
+  membership?: CullMembership | undefined;
+  burstRole?: CullBurstRole | undefined;
+};
+
+/** What the photographer sets on frames. Absent fields are left alone; a null
+ * label, a 0 rating, false tag or empty caption clears. */
+export type CullMarks = {
+  verdict?: CullVerdict | undefined;
+  rating?: number | undefined;
+  label?: CullLabel | null | undefined;
+  tagged?: boolean | undefined;
+  caption?: string | undefined;
 };
 
 /** The filters the review screen offers, in the order it shows them. */
@@ -43,7 +96,10 @@ export type CullFilter =
   | "motion-blur"
   | "eyes-closed"
   | "exposure"
-  | "duplicates";
+  | "duplicates"
+  | "missed-focus"
+  | "not-in-shoot"
+  | "invalid";
 
 export const CULL_FILTERS: readonly CullFilter[] = [
   "all",
@@ -51,11 +107,21 @@ export const CULL_FILTERS: readonly CullFilter[] = [
   "rejects",
   "undecided",
   "out-of-focus",
+  "missed-focus",
   "motion-blur",
   "eyes-closed",
   "exposure",
   "duplicates",
+  "not-in-shoot",
+  "invalid",
 ];
+
+/** Filters for evidence not every shoot has; their chips show only when something matches. */
+export const CULL_OPTIONAL_FILTERS: ReadonlySet<CullFilter> = new Set<CullFilter>([
+  "missed-focus",
+  "not-in-shoot",
+  "invalid",
+]);
 
 export const CULL_FILTER_LABELS: Record<CullFilter, string> = {
   all: "All",
@@ -67,6 +133,9 @@ export const CULL_FILTER_LABELS: Record<CullFilter, string> = {
   "eyes-closed": "Eyes closed",
   exposure: "Exposure",
   duplicates: "Duplicates",
+  "missed-focus": "Missed focus",
+  "not-in-shoot": "Not from this shoot",
+  invalid: "Invalid",
 };
 
 /** What a frame is called in the review screen when the engine explains itself. */
@@ -127,11 +196,56 @@ export function matchesFilter(frame: CullFrame, filter: CullFilter): boolean {
       );
     case "duplicates":
       return Boolean(frame.suggestion?.duplicate || frame.suggestion?.bestOfGroup);
+    case "missed-focus":
+      return missedFocus(frame);
+    case "not-in-shoot":
+      return frame.membership?.inShoot === false;
+    case "invalid":
+      return (
+        frame.damaged !== undefined ||
+        (frame.validity !== undefined && frame.validity.status !== "valid")
+      );
   }
 }
 
-export function filterFrames(frames: readonly CullFrame[], filter: CullFilter): CullFrame[] {
-  return frames.filter((frame) => matchesFilter(frame, filter));
+/** Focus did not land on the camera's AF area: nothing is sharp, or something
+ * in front of or behind it is. */
+export function missedFocus(frame: CullFrame): boolean {
+  const verdict = frame.focusHit?.verdict;
+  return (
+    verdict === "missed" ||
+    verdict === "front-or-back-focus" ||
+    frame.suggestion?.reason === "missed-focus"
+  );
+}
+
+/** Narrowing on top of a filter by the photographer's own marks. */
+export type CullRefine = {
+  /** 0 is any rating. */
+  minRating: number;
+  label: CullLabel | null;
+  tagged: boolean;
+};
+
+export const NO_REFINE: CullRefine = { minRating: 0, label: null, tagged: false };
+
+export function refining(refine: CullRefine): boolean {
+  return refine.minRating > 0 || refine.label !== null || refine.tagged;
+}
+
+export function matchesRefine(frame: CullFrame, refine: CullRefine): boolean {
+  if (refine.minRating > 0 && (frame.rating ?? 0) < refine.minRating) return false;
+  if (refine.label !== null && frame.label !== refine.label) return false;
+  return !refine.tagged || frame.tagged === true;
+}
+
+export function filterFrames(
+  frames: readonly CullFrame[],
+  filter: CullFilter,
+  refine: CullRefine = NO_REFINE,
+): CullFrame[] {
+  if (!refining(refine)) return frames.filter((frame) => matchesFilter(frame, filter));
+  return frames.filter((frame) => matchesFilter(frame, filter) && matchesRefine(frame, refine));
 }
 
 export type CullCounts = Record<CullFilter, number> & { measured: number; unreadable: number };
@@ -141,8 +255,29 @@ export function countFrames(frames: readonly CullFrame[]): CullCounts {
   const counts = Object.fromEntries(CULL_FILTERS.map((filter) => [filter, 0])) as CullCounts;
   counts.measured = 0;
   counts.unreadable = 0;
+  // Every chip counted in one pass, reading each frame's verdict and reason
+  // once: asking matchesFilter twelve times per frame costs several
+  // milliseconds on a ten-thousand frame card, on every keypress.
+  // cull-review's tests hold this in step with matchesFilter.
   for (const frame of frames) {
-    for (const filter of CULL_FILTERS) if (matchesFilter(frame, filter)) counts[filter] += 1;
+    const suggestion = frame.suggestion;
+    const verdict = frame.decided ? frame.verdict : (suggestion?.verdict ?? "undecided");
+    const reason = suggestion?.reason;
+    counts.all += 1;
+    if (verdict === "keep") counts.keepers += 1;
+    else if (verdict === "reject") counts.rejects += 1;
+    else counts.undecided += 1;
+    if (reason !== undefined && reason !== "none") {
+      if (reason === "out-of-focus" || reason === "missed-focus") counts["out-of-focus"] += 1;
+      else if (reason === "motion-blur") counts["motion-blur"] += 1;
+      else if (reason === "eyes-closed") counts["eyes-closed"] += 1;
+      else if (reason === "exposure") counts.exposure += 1;
+    }
+    if (suggestion && (suggestion.duplicate || suggestion.bestOfGroup)) counts.duplicates += 1;
+    if (missedFocus(frame)) counts["missed-focus"] += 1;
+    if (frame.membership?.inShoot === false) counts["not-in-shoot"] += 1;
+    if (frame.damaged !== undefined || (frame.validity && frame.validity.status !== "valid"))
+      counts.invalid += 1;
     if (frame.reading) counts.measured += 1;
     if (frame.error) counts.unreadable += 1;
   }
@@ -163,29 +298,47 @@ export type CullGroup = {
  * looking at ten thousand frames and looking at eight hundred decisions.
  */
 export function groupFrames(frames: readonly CullFrame[]): CullGroup[] {
-  const groups = new Map<string, CullFrame[]>();
-  const order: string[] = [];
+  // Built in place: on a ten-thousand frame card this runs on every keypress,
+  // so a frame that stands alone costs one group and nothing else, and a burst
+  // is ordered by moving its best frame to the front rather than by sorting and
+  // copying the whole burst.
+  const bursts = new Map<number, CullGroup>();
+  const out: CullGroup[] = [];
   for (const frame of frames) {
     const group = frame.suggestion?.group;
-    const key = group === undefined || group === null ? `solo:${frame.id}` : `burst:${group}`;
-    const existing = groups.get(key);
-    if (existing) existing.push(frame);
+    if (group === undefined || group === null) {
+      out.push({ id: `solo:${frame.id}`, frames: [frame], bestId: frame.id });
+      continue;
+    }
+    const existing = bursts.get(group);
+    if (existing) existing.frames.push(frame);
     else {
-      groups.set(key, [frame]);
-      order.push(key);
+      const started: CullGroup = { id: `burst:${group}`, frames: [frame], bestId: frame.id };
+      bursts.set(group, started);
+      out.push(started);
     }
   }
-  return order.map((key) => {
-    const members = groups.get(key)!;
-    const best =
-      members.find((frame) => frame.suggestion?.bestOfGroup) ??
-      [...members].sort((a, b) => (b.suggestion?.score ?? 0) - (a.suggestion?.score ?? 0))[0]!;
-    return {
-      id: key,
-      frames: [best, ...members.filter((frame) => frame.id !== best.id)],
-      bestId: best.id,
-    };
-  });
+  for (const burst of bursts.values()) {
+    const members = burst.frames;
+    if (members.length < 2) continue;
+    // The engine's own pick, else the highest score; first one wins a tie.
+    let flagged = -1;
+    let top = 0;
+    let topScore = members[0]!.suggestion?.score ?? 0;
+    for (let index = 0; index < members.length; index++) {
+      const suggestion = members[index]!.suggestion;
+      if (flagged < 0 && suggestion?.bestOfGroup) flagged = index;
+      const score = suggestion?.score ?? 0;
+      if (score > topScore) {
+        top = index;
+        topScore = score;
+      }
+    }
+    const best = flagged < 0 ? top : flagged;
+    if (best > 0) members.unshift(members.splice(best, 1)[0]!);
+    burst.bestId = members[0]!.id;
+  }
+  return out;
 }
 
 /** How far along a card is, and how much longer it has. */
@@ -237,6 +390,33 @@ export function formatRemaining(remainingMs: number | null): string {
 export function decide(frame: CullFrame, verdict: CullVerdict): CullFrame {
   if (frame.decided && frame.verdict === verdict) return frame;
   return { ...frame, verdict, decided: verdict !== "undecided" };
+}
+
+/** Applies verdict, stars, label, tag and caption in one step. Returns the same
+ * object when nothing changes, so an unchanged frame never re-renders. */
+export function markFrame(frame: CullFrame, marks: CullMarks): CullFrame {
+  let next = marks.verdict === undefined ? frame : decide(frame, marks.verdict);
+  const set = <K extends "rating" | "label" | "tagged" | "caption">(
+    key: K,
+    value: CullFrame[K],
+  ) => {
+    if (next[key] === value) return;
+    const copy: CullFrame = next === frame ? { ...frame } : next;
+    // Cleared marks leave no key behind, so a stored row stays as small as before.
+    if (value === undefined) delete copy[key];
+    else copy[key] = value;
+    next = copy;
+  };
+  if (marks.rating !== undefined) {
+    const stars = Number.isFinite(marks.rating)
+      ? Math.max(0, Math.min(5, Math.round(marks.rating)))
+      : 0;
+    set("rating", stars || undefined);
+  }
+  if (marks.label !== undefined) set("label", marks.label ?? undefined);
+  if (marks.tagged !== undefined) set("tagged", marks.tagged || undefined);
+  if (marks.caption !== undefined) set("caption", marks.caption || undefined);
+  return next;
 }
 
 /** Takes the engine's suggestions for a whole shoot without touching any frame

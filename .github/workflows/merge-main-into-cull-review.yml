@@ -18,22 +18,11 @@ jobs:
           git config user.name "Celine Nova"
           git config user.email "melanikshrestha@gmail.com"
           git fetch origin main
-          set +e
-          git merge origin/main -m "Merge origin/main into ship/cull-review"
-          merge_status=$?
-          set -e
-          if [ "$merge_status" -ne 0 ]; then
-            python3 .github/scripts/resolve_cullgrid.py
-            # Keep pre-merge workflow/script blobs so the push does not touch workflows.
-            git checkout --ours -- .github/workflows/merge-main-into-cull-review.yml
-            git checkout --ours -- .github/scripts/resolve_cullgrid.py
-            git add src/components/cull/CullGrid.tsx
-            git add .github/workflows/merge-main-into-cull-review.yml
-            git add .github/scripts/resolve_cullgrid.py
-            git add -u
-            git status --short
-            git -c core.editor=true merge --continue || git commit --no-edit -m "Merge origin/main into ship/cull-review"
-          else
+          if git merge origin/main -m "Merge origin/main into ship/cull-review"; then
             echo "clean merge"
+          else
+            python3 .github/scripts/resolve_cullgrid.py
+            git add -A
+            git -c core.editor=true merge --continue || git commit --no-edit -m "Merge origin/main into ship/cull-review"
           fi
           git push origin HEAD:ship/cull-review
