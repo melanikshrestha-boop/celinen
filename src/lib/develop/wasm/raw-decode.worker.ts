@@ -44,7 +44,19 @@ async function decode(job: Extract<RawDecodeRequest, { kind: "decode" }>) {
       reason: wasm.lastError() || "This RAW's sensor data could not be read.",
     } as const;
   }
-  const size = wasm.begin(job.request);
+  // How big the picture is decides what the editing render should be, and only
+  // the container knows. Half size exists because a 24-million-pixel gradient
+  // demosaic is a second of arithmetic; a ten-million-pixel one is under half
+  // that, which is quick enough to give the editor the real thing. Below the
+  // bound the editor therefore gets full resolution at full quality, and a
+  // Sony APS-C crop — which is most of what this camera shoots — never settles
+  // for half a picture it did not need to.
+  const ADAPTIVE_FULL_PIXELS = 12_000_000;
+  const request =
+    job.adaptive && description.width * description.height <= ADAPTIVE_FULL_PIXELS
+      ? { ...job.request, quality: "gradient" as const }
+      : job.request;
+  const size = wasm.begin(request);
   scope.postMessage({ id: job.id, kind: "opened", description, ...size } satisfies RawDecodeReply);
 
   let progress = 0;

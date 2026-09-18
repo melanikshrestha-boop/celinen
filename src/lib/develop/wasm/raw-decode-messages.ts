@@ -7,6 +7,9 @@ export type RawDecodeRequest =
       /** The whole RAW, transferred. The worker owns it from here. */
       file: ArrayBuffer;
       request: EngineRequest;
+      /** Let the worker pick the demosaic once it knows how big the picture
+       * is. Only the editing render asks for this; an export is always full. */
+      adaptive?: boolean;
     }
   | { id: number; kind: "cancel" };
 

@@ -6,10 +6,11 @@
  *  - The embedded JPEG. The camera's own rendering, 1616x1080 on a Sony ARW.
  *    It paints instantly because it is already a finished picture, and it is
  *    what Develop shows the moment a RAW is opened.
- *  - The editing render. The sensor decoded at half size — each 2x2 Bayer quad
- *    binned into one pixel, which interpolates nothing — so 3000x2000 from a
- *    24-million-pixel frame. Well past the embedded JPEG, and fast enough to
- *    arrive while the photographer is still looking at the frame.
+ *  - The editing render. Full resolution and full quality when the picture is
+ *    small enough to decode quickly — which a Sony APS-C crop is — and
+ *    otherwise the sensor at half size, each 2x2 Bayer quad binned into one
+ *    pixel, which interpolates nothing. Either way it is well past the
+ *    embedded JPEG and arrives while she is still looking at the frame.
  *  - The export render. The sensor at full resolution with the gradient-
  *    corrected demosaic. Slower, so it is only asked for on export.
  *
@@ -25,7 +26,8 @@ import type { RawDecodeReply, RawDecodeRequest as WorkerRequest } from "./wasm/r
 
 export type { RawSensorDescription } from "./wasm/raw-decode-engine";
 
-/** Half size is what the editor works on; full is only rendered for export. */
+/** What the render is for. The editor's may be full resolution or half,
+ * decided by the worker from the picture's own size; the export's never is. */
 export type RawSensorQuality = "editing" | "export";
 
 export type RawSensorRender = {
@@ -64,8 +66,10 @@ export type RawSensorOptions = {
   onProgress?: (progress: number) => void;
 };
 
-// Nothing is interpolated at half size, so the editing render invents nothing:
-// it is a smaller true picture, not a guess at a larger one.
+// What the editing render asks for before the worker has seen the picture's
+// size. Nothing is interpolated at half size, so even when the worker keeps
+// this the render invents nothing: it is a smaller true picture, not a guess
+// at a larger one.
 function demosaicFor(quality: RawSensorQuality): RawDemosaic {
   return quality === "editing" ? "half" : "gradient";
 }
@@ -188,7 +192,12 @@ export async function decodeRawSensor(
       started: Date.now(),
       cleanup: () => options.signal?.removeEventListener("abort", abort),
     });
-    port.postMessage({ id, kind: "decode", file, request } satisfies WorkerRequest, [file]);
+    port.postMessage(
+      // The editing render lets the worker choose its demosaic once it knows
+      // the picture's size; an export is always the full-quality one.
+      { id, kind: "decode", file, request, adaptive: quality === "editing" } satisfies WorkerRequest,
+      [file],
+    );
   });
 }
 
@@ -197,9 +206,10 @@ export async function decodeRawSensor(
  * disagree about which decode is being edited. */
 export function rawSensorLabel(render: RawSensorRender | null, isRaw: boolean): string {
   if (!render) return isRaw ? "Embedded camera JPEG" : "";
-  return render.kind === "export"
-    ? `Sensor RAW · ${render.width} × ${render.height}`
-    : `Sensor RAW · half size · ${render.width} × ${render.height}`;
+  // Only say half size when it is: below the worker's bound the editing render
+  // is the full picture, and claiming otherwise would undersell it.
+  const half = render.width < render.description.width;
+  return `Sensor RAW · ${half ? "half size · " : ""}${render.width} × ${render.height}`;
 }
 
 /**
