@@ -153,6 +153,11 @@ const TARGET_SAVE_MS = 250;
 /** Frames tried when adopting a picked folder as a session's originals. */
 const LOCATE_PROBES = 8;
 
+/** A keeper worth handing to Develop: decided or suggested keep, and readable. */
+function isDevelopableKeeper(frame: CullFrame): boolean {
+  return effectiveVerdict(frame) === "keep" && !frame.error;
+}
+
 export class CullController {
   // Mutated in place while a card reads; the screen receives a copy at most once
   // per paint. Copying on every arriving frame would be quadratic at 10k frames.
@@ -1006,11 +1011,23 @@ export class CullController {
       if (effectiveVerdict(frame) !== "keep") continue;
       let file = this.originals.get(frame.id) ?? null;
       if (!file?.size && resolver && !frame.error)
-        file = await resolver.resolve(frame).catch(() => null);
+        file = await resolver.resolve(frame).catch((error: unknown) => {
+          // A card unplugged mid-hand-off asks for permission again rather than
+          // reporting every remaining keeper as unreadable.
+          if (error instanceof SourcePermissionError && this.resolver === resolver)
+            void this.permissionLost();
+          return null;
+        });
       if (file?.size) files.push(file);
       else missing.push(frame.name);
     }
     return { files, missing };
+  }
+
+  /** Whether Develop could be handed anything: keepers with originals in reach. */
+  canDevelop(): boolean {
+    if (this.originalsState === "connected") return this.frames.some(isDevelopableKeeper);
+    return this.frames.some((frame) => isDevelopableKeeper(frame) && this.originals.has(frame.id));
   }
 
   thumbnail(frameId: string): Promise<Blob | null> {

@@ -105,6 +105,10 @@
   color: var(--moss);
 }
 .cull-thumb > img {
+  /* Taken out of the grid flow: an auto row would grow to a portrait frame's
+     own height and push the picture out of its card. */
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;

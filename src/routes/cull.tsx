@@ -199,11 +199,23 @@ function CullSessionHost({ scope }: { scope: string }) {
 
   const onDevelop = useCallback(() => {
     if (!controller) return;
+    const { originals } = controller.snapshot();
+    // A reopened session holds no files; its originals come back through the
+    // card, so ask for that rather than sending Develop an empty hand-off.
+    if (!controller.canDevelop()) {
+      setFailure(
+        originals === "reconnect" || originals === "locate"
+          ? "Reconnect the originals, then Go to Develop."
+          : "Keep a few frames first, then Go to Develop.",
+      );
+      return;
+    }
+    setFailure(null);
     void controller
       .keeperFiles()
       .then(async ({ files, missing }) => {
         if (!files.length) {
-          setFailure("Keep the originals in this tab, then Go to Develop.");
+          setFailure("Those originals could not be read. Reconnect the card and try again.");
           return;
         }
         // Naming what stayed behind beats a Develop that quietly holds fewer
