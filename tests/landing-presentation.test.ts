@@ -227,14 +227,14 @@ if (!process.argv.includes(fixtureFlag)) {
     const startsWith = (label: string) =>
       links.filter((match) => text(match[2]!).startsWith(label));
     assert.ok(html.includes("<h2>Celinen</h2>"));
-    // The second door is Latch, still marked TBD, and it links out to its own site.
-    assert.ok(/<h2>\s*Latch\b/.test(html));
     assert.ok(html.includes("Photography"));
-    assert.ok(html.includes("AI video clipping"));
+    assert.ok(!/<h2>\s*Latch\b/.test(html), "lenslab.dev is Celinen-only until Latch is ready");
+    assert.ok(!html.includes("AI video clipping"));
+    assert.ok(!html.includes("latch-efc.pages.dev"));
     if (current === "in") {
       assert.equal(startsWith("Dashboard").length, 3);
       assert.equal(startsWith("Sign In").length, 0);
-      assert.equal(startsWith("Open").length, 2, "Hero has one Open per product");
+      assert.equal(startsWith("Open").length, 1, "Hero has one Open for Celinen");
     } else if (current === "loading") {
       assert.equal(startsWith("Sign In").length, 1, "Nav still has Sign In while auth restores");
       assert.equal(startsWith("Get started").length, 2, "Savings and closing stay Get started");
@@ -262,7 +262,7 @@ if (!process.argv.includes(fixtureFlag)) {
       }
     }
     const opens = startsWith("Open");
-    assert.ok(opens.length >= 2);
+    assert.ok(opens.length >= 1);
     const openHrefs = opens.map(
       (entry) =>
         new URL(
@@ -270,15 +270,13 @@ if (!process.argv.includes(fixtureFlag)) {
           "https://foto.test",
         ),
     );
-    // Celinen opens in the app; Latch is still its own site, opened in a new tab.
-    if (current === "in") assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
-    else assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/dashboard"));
-    assert.ok(openHrefs.some((url) => url.hostname === "latch-efc.pages.dev"));
-    assert.ok(
-      opens.some(
-        (entry) => entry[1]!.includes('target="_blank"') && entry[1]!.includes("noreferrer"),
-      ),
-    );
+    if (current === "in") assert.ok(openHrefs.every((url) => url.pathname === "/dashboard"));
+    else if (current === "out")
+      assert.ok(openHrefs.every((url) => url.searchParams.get("next") === "/dashboard"));
+    else {
+      assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/dashboard"));
+      assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
+    }
     assert.ok(!html.includes('id="features"'));
     assert.ok(html.includes('id="pricing"'));
     assert.ok(html.includes("USD 20"));

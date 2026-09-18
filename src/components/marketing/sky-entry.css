@@ -586,7 +586,7 @@
 .marketing-hero .marketing-products {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   gap: 24px 96px;
   width: 100%;
@@ -597,8 +597,10 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  flex: 0 0 200px;
-  width: 200px;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 160px;
+  margin-inline: auto;
   text-align: center;
 }
 .marketing-hero .marketing-products h2 {

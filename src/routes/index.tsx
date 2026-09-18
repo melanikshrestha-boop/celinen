@@ -21,14 +21,13 @@ export const Route = createFileRoute("/")({
       { title: PRODUCT_HEADLINE },
       {
         name: "description",
-        content:
-          "Two products on lenslab.dev: Celinen for photography, and Latch (TBD) for AI video clipping.",
+        content: "Celinen for photography.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
-        content: "Celinen for photography. Latch (TBD) for AI video clipping.",
+        content: "Celinen for photography.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -62,7 +61,7 @@ function Index() {
               <br />
               good light takes you.
             </h1>
-            <div className="marketing-products" aria-label="Products">
+            <div className="marketing-products" aria-label="Celinen">
               <article>
                 <h2>Celinen</h2>
                 <p>Photography</p>
@@ -82,21 +81,6 @@ function Index() {
                     </>
                   }
                 />
-              </article>
-              <article>
-                <h2>
-                  Latch <span className="marketing-products__tbd">TBD</span>
-                </h2>
-                <p>AI video clipping</p>
-                <a
-                  className="marketing-action marketing-action--primary"
-                  href="https://latch-efc.pages.dev/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open
-                  <span aria-hidden="true">→</span>
-                </a>
               </article>
             </div>
           </div>
