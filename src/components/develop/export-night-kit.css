@@ -1,0 +1,23 @@
+/* Export night kit: border + named watermark kits */
+.develop-night-kit {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 4px;
+  padding: 10px 0 2px;
+  border-top: 1px solid color-mix(in srgb, var(--dv-line, #333) 55%, transparent);
+}
+.develop-night-kit-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+.develop-night-kit input[type="color"] {
+  width: 42px;
+  height: 32px;
+  padding: 2px;
+  cursor: pointer;
+}
+.develop-image-frame.has-export-border {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dv-gutter) 20%, transparent);
+}

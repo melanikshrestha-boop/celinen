@@ -2,6 +2,12 @@ import { cloneDevelopSettings, DEVELOP_ENGINE_LIMITS, type DevelopSettings } fro
 import { decodeDevelopPreview } from "./decode-preview";
 import { isNeutralDevelopRecipe } from "./neutral";
 import { assertBrowserDevelopSettingsSupported } from "./browser-capabilities";
+import {
+  applyBlackAndWhiteRgb,
+  applyDevelopProfileRgb,
+  isBlackAndWhiteDevelop,
+  isIdentityDevelopProfile,
+} from "./lightroom-basic";
 
 export const BROWSER_DEVELOP_ENGINE = "foto-develop-browser-1";
 
@@ -87,6 +93,12 @@ function applySupportedDevelopRgba(
     let r = table[rgba[i]! * 3]!,
       g = table[rgba[i + 1]! * 3 + 1]!,
       b = table[rgba[i + 2]! * 3 + 2]!;
+    if (!isIdentityDevelopProfile(settings.profile) && settings.profile !== "adobe-monochrome") {
+      const mapped = applyDevelopProfileRgb(r, g, b, settings.profile);
+      r = mapped[0];
+      g = mapped[1];
+      b = mapped[2];
+    }
     if (useTone) {
       const lum = luma(r, g, b);
       const lo = (1 - lum) * (1 - lum);
@@ -107,7 +119,18 @@ function applySupportedDevelopRgba(
       g = remap(g);
       b = remap(b);
     }
-    if (settings.saturation !== 0 || settings.vibrance !== 0) {
+    if (isBlackAndWhiteDevelop(settings)) {
+      const mapped = applyBlackAndWhiteRgb(
+        r,
+        g,
+        b,
+        settings.hsl,
+        settings.profile === "adobe-monochrome",
+      );
+      r = mapped[0];
+      g = mapped[1];
+      b = mapped[2];
+    } else if (settings.saturation !== 0 || settings.vibrance !== 0) {
       const spread = Math.max(r, g, b) - Math.min(r, g, b);
       const amount = Math.max(
         0,

@@ -313,6 +313,7 @@ describe("Conservative neutral Develop recipe classification", () => {
     for (const [key, values] of Object.entries({
       grainSize: [0, 4.001, NaN, Infinity],
       grainLuminance: [-1, 101, NaN],
+      grainColor: [-1, 101, NaN],
       sharpeningRadius: [0.499, 3.001, NaN],
       sharpeningDetail: [-1, 101, NaN],
       sharpeningMasking: [-1, 101, NaN],

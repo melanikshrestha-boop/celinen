@@ -53,6 +53,7 @@ describe("Develop export proof provenance", () => {
     edge: 4096,
     quality: 95,
     sourceMode: "raw" as const,
+    dressingKey: "",
   };
   const proof = { ...request, blob: new Blob(["jpeg"]), width: 4096, height: 2730 };
   test("only an exact render request can reuse a downloadable proof", () => {
@@ -68,6 +69,7 @@ describe("Develop export proof provenance", () => {
       { edge: 1600 },
       { quality: 90 },
       { sourceMode: "preview" as const },
+      { dressingKey: "border-on" },
     ])
       expect(currentDevelopExportProof(proof, { ...request, ...patch })).toBe(false);
   });

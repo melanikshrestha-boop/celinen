@@ -5,6 +5,10 @@ import { developImageReady } from "./develop-state";
 import { type DevelopHistogramData } from "@/lib/develop/histogram";
 import { analyzeDevelopBlob } from "@/lib/develop/pixel-analysis";
 import { useDevelopPixelSample, type DevelopPixelSample } from "./useDevelopPixelSample";
+import {
+  developPixelCoordinate,
+  readDevelopPixelSample,
+} from "@/lib/develop/pixel-sample";
 
 const ignorePixelSample = (_sample: DevelopPixelSample | null) => {};
 
@@ -28,7 +32,9 @@ export function DevelopViewer({
   knownHistogram,
   onPixelSample = ignorePixelSample,
   clipping,
+  onWhiteBalancePick,
   overlay = null,
+  exportFrame = null,
 }: {
   url: string | null;
   blob: Blob | null;
@@ -49,11 +55,15 @@ export function DevelopViewer({
   knownHistogram?: DevelopHistogramData | null;
   onPixelSample?: (sample: DevelopPixelSample | null) => void;
   clipping: { shadows: boolean; highlights: boolean };
+  onWhiteBalancePick?: (sample: DevelopPixelSample) => void;
   /** Drawn over the stage, outside the photo's zoom and pan. */
   overlay?: ReactNode;
+  /** Visible edit-mode border preview matching export night kit. */
+  exportFrame?: { insetRatio: number; color: string } | null;
 }) {
   const stage = useRef<HTMLDivElement>(null),
     sampleImage = useRef<HTMLImageElement>(null),
+    uneditedImage = useRef<HTMLImageElement>(null),
     gesture = useRef<{ x: number; y: number; settings: DevelopSettings } | null>(null);
   const latest = useRef(settings);
   const clippingCanvas = useRef<HTMLCanvasElement>(null);
@@ -72,7 +82,7 @@ export function DevelopViewer({
   const pixelPointer = useDevelopPixelSample({
     image: sampleImage,
     sourceUrl: displayedUrl,
-    enabled: geometryReady && tool === "edit" && !compare,
+    enabled: geometryReady && (tool === "edit" || tool === "wb") && !compare,
     onSample: onPixelSample,
   });
   useEffect(() => {
@@ -160,6 +170,18 @@ export function DevelopViewer({
   const width = Math.max(1, imageSize.width * scale),
     height = Math.max(1, imageSize.height * scale);
   const mask = settings.masks.find((m) => m.id === maskId) ?? settings.masks[0];
+  const frameInset = exportFrame
+    ? Math.max(2, Math.round(Math.max(width, height) * exportFrame.insetRatio))
+    : 0;
+  const frameStyle = exportFrame
+    ? {
+        width: width + frameInset * 2,
+        height: height + frameInset * 2,
+        padding: frameInset,
+        background: exportFrame.color,
+        boxSizing: "border-box" as const,
+      }
+    : { width, height };
   return (
     <div
       className={`develop-stage ${zoom === "100" ? "is-zoomed" : ""}`}
@@ -169,17 +191,58 @@ export function DevelopViewer({
       {url ? (
         <div className="develop-compare-pair">
           {compare && beforeUrl && (
-            <div className="develop-image-frame" style={{ width, height }}>
-              <img src={beforeUrl} alt="Before adjustments" />
+            <div className="develop-image-frame" style={frameStyle}>
+              <img src={beforeUrl} alt="Before adjustments" style={exportFrame ? { width, height } : undefined} />
               <span className="develop-image-label">Before</span>
             </div>
           )}
-          <div className="develop-image-frame" style={{ width, height }} {...pixelPointer}>
+          <div
+            className={`develop-image-frame${exportFrame ? " has-export-border" : ""}`}
+            style={{ ...frameStyle, cursor: tool === "wb" ? "crosshair" : undefined }}
+            {...pixelPointer}
+            onPointerDown={(event) => {
+              if (tool !== "wb" || event.button !== 0 || !onWhiteBalancePick) return;
+              const visible = sampleImage.current;
+              if (!visible?.complete) return;
+              const point = developPixelCoordinate(
+                event.clientX,
+                event.clientY,
+                visible.getBoundingClientRect(),
+                visible.naturalWidth,
+                visible.naturalHeight,
+              );
+              if (!point) return;
+              const source =
+                uneditedImage.current?.complete && uneditedImage.current.naturalWidth
+                  ? uneditedImage.current
+                  : visible;
+              const mapped = {
+                x: Math.min(
+                  source.naturalWidth - 1,
+                  Math.floor((point.x / visible.naturalWidth) * source.naturalWidth),
+                ),
+                y: Math.min(
+                  source.naturalHeight - 1,
+                  Math.floor((point.y / visible.naturalHeight) * source.naturalHeight),
+                ),
+              };
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 1;
+              const context = canvas.getContext("2d", {
+                colorSpace: "srgb",
+                willReadFrequently: true,
+              });
+              if (!context) return;
+              event.preventDefault();
+              onWhiteBalancePick(readDevelopPixelSample(source, context, mapped));
+            }}
+          >
             <img
               ref={sampleImage}
               src={displayedUrl ?? undefined}
               alt={before ? "Before adjustments" : "Developed photo"}
               draggable={false}
+              style={exportFrame ? { width, height } : undefined}
               onError={(e) => {
                 e.currentTarget.removeAttribute("src");
               }}
@@ -191,6 +254,9 @@ export function DevelopViewer({
                 onDimensions(img.naturalWidth, img.naturalHeight);
               }}
             />
+            {beforeUrl && beforeUrl !== displayedUrl && (
+              <img ref={uneditedImage} src={beforeUrl} alt="" hidden />
+            )}
             <canvas
               ref={clippingCanvas}
               className="develop-clipping-overlay"

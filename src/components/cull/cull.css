@@ -107,7 +107,7 @@
 .cull-thumb > img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .cull-card[data-verdict="reject"][data-source="photographer"] .cull-thumb > img {
   opacity: 0.4;
@@ -583,18 +583,24 @@
   }
   .cull-loupe {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(40vh, 1fr) auto auto;
-    overflow-y: auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    height: 100dvh;
+    overflow: hidden;
   }
-  .cull-loupe-stage,
+  .cull-loupe-stage {
+    grid-row: 2;
+    min-height: 0;
+    padding: 4px 8px;
+  }
   .cull-compare {
     grid-row: auto;
   }
   .cull-loupe-side {
     grid-row: auto;
     grid-column: 1;
-    padding: 8px 20px 24px;
-    overflow: visible;
+    padding: 8px 16px 16px;
+    overflow-y: auto;
+    max-height: 28dvh;
   }
 }
 @media (prefers-reduced-motion: reduce) {
