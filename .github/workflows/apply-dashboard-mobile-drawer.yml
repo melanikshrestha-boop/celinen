@@ -1,11 +1,10 @@
-name: Apply dashboard mobile drawer patch
+name: Apply dashboard mobile drawer
 on:
   workflow_dispatch:
   push:
     branches: [fix/dashboard-mobile-drawer]
     paths:
-      - patches/dashboard-mobile-drawer.patch.b64.*
-      - patches/dashboard-mobile-drawer/patch.b64.*
+      - patches/dashboard-mobile-drawer/**
       - .github/workflows/apply-dashboard-mobile-drawer.yml
 permissions:
   contents: write
@@ -17,29 +16,15 @@ jobs:
         with:
           ref: fix/dashboard-mobile-drawer
           fetch-depth: 0
-      - name: Apply dashboard mobile drawer patch if needed
+      - name: Apply dashboard mobile drawer changes
         run: |
           set -euo pipefail
           if grep -q 'celinen-dash__drawer' src/components/dashboard/AppDashboard.tsx && grep -q 'mobile ? 0' src/components/dashboard/AppDashboard.tsx; then
-            echo "Dashboard mobile drawer already wired; nothing to apply."
+            echo "Already applied"
             exit 0
           fi
-          DIR=patches/dashboard-mobile-drawer
-          if [[ -f patches/dashboard-mobile-drawer.patch ]]; then
-            PATCH=patches/dashboard-mobile-drawer.patch
-          else
-            PARTS=$(ls "$DIR"/patch.b64.* 2>/dev/null | sort || true)
-            if [[ -z "$PARTS" ]]; then
-              PARTS=$(ls patches/dashboard-mobile-drawer.patch.b64.* 2>/dev/null | sort || true)
-            fi
-            if [[ -z "$PARTS" ]]; then
-              echo "No patch parts found" >&2
-              exit 1
-            fi
-            cat $PARTS | tr -d '\n' | base64 -d > /tmp/dashboard-mobile-drawer.patch
-            PATCH=/tmp/dashboard-mobile-drawer.patch
-          fi
-          git apply --index "$PATCH"
+          python3 patches/dashboard-mobile-drawer/apply.py
+          git add src/components/dashboard/AppDashboard.tsx src/components/dashboard/dashboard.css tests/dashboard-mobile-layout.test.ts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Dashboard: hide permanent mobile rail; ChatGPT-style hamburger drawer"
