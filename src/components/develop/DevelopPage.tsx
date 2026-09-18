@@ -3683,7 +3683,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     </label>
                     <p className="develop-export-disclosure">
                       {!rawEngine
-                        ? "Sensor RAW demosaic needs the local Celinen app. The editor and export both use the picture inside the RAW file."
+                        ? sensorRender
+                          ? `The editor and export both use this page's own sensor render, ${sensorRender.width} × ${sensorRender.height}, decoded from the mosaic rather than from the JPEG the camera embedded.`
+                          : "The editor and export both use the picture the camera embedded in the RAW file, not its sensor data."
                         : exportSourceMode === "raw"
                           ? "The editor and export use the same sensor RAW render, size, quality and sRGB color. The displayed edited JPEG is reused for download when all settings match."
                           : photo.previewOrigin === "raw-demosaic"
