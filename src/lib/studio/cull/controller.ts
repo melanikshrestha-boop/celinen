@@ -153,6 +153,11 @@ const TARGET_SAVE_MS = 250;
 /** Frames tried when adopting a picked folder as a session's originals. */
 const LOCATE_PROBES = 8;
 
+/** A keeper worth handing to Develop: decided or suggested keep, and readable. */
+function isDevelopableKeeper(frame: CullFrame): boolean {
+  return effectiveVerdict(frame) === "keep" && !frame.error;
+}
+
 export class CullController {
   // Mutated in place while a card reads; the screen receives a copy at most once
   // per paint. Copying on every arriving frame would be quadratic at 10k frames.
@@ -991,15 +996,40 @@ export class CullController {
     return this.originals.get(frameId) ?? null;
   }
 
-  /** Keepers this tab still holds as Files, in capture order. */
-  keeperFiles(): File[] {
+  /**
+   * The keepers' original files in capture order: the ones this tab read, plus
+   * any it can reach again through a reconnected card. A reopened session has
+   * nothing in memory, so without the reconnected half Develop would be handed
+   * an empty card and say the originals could not be read.
+   */
+  async keeperFiles(): Promise<File[]> {
+    const keepers = this.frames.filter(
+      (frame) => effectiveVerdict(frame) === "keep" && !frame.error,
+    );
+    const resolver = this.originalsState === "connected" ? this.resolver : null;
     const files: File[] = [];
-    for (const frame of this.frames) {
-      if (effectiveVerdict(frame) !== "keep") continue;
-      const file = this.originals.get(frame.id);
-      if (file?.size) files.push(file);
+    for (const frame of keepers) {
+      const live = this.originals.get(frame.id);
+      if (live?.size) {
+        files.push(live);
+        continue;
+      }
+      if (!resolver) continue;
+      try {
+        const file = await resolver.resolve(frame);
+        if (file?.size) files.push(file);
+      } catch (error) {
+        if (error instanceof SourcePermissionError && this.resolver === resolver)
+          void this.permissionLost();
+      }
     }
     return files;
+  }
+
+  /** Whether Develop could be handed anything: keepers with originals in reach. */
+  canDevelop(): boolean {
+    if (this.originalsState === "connected") return this.frames.some(isDevelopableKeeper);
+    return this.frames.some((frame) => isDevelopableKeeper(frame) && this.originals.has(frame.id));
   }
 
   thumbnail(frameId: string): Promise<Blob | null> {
