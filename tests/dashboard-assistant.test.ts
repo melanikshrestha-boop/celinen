@@ -16,7 +16,8 @@ const localReply = dashboard.slice(
 );
 const realSend = dashboard.slice(
   dashboard.indexOf("  async function send("),
-  dashboard.indexOf("  // Narrow-screen presentation"),
+  // The line after send(); the mobile drawer work reworded this comment once already.
+  dashboard.indexOf("  // Narrow screens hide the permanent rail"),
 );
 function callbackFixture() {
   const saved: Array<{ role: string; text: string }[]> = [];

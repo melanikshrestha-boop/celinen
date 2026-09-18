@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const root = join(import.meta.dir, "..");
+const root = join(import.meta.dir, "../..");
 const source = readFileSync(join(root, "src/components/dashboard/AppDashboard.tsx"), "utf8");
 const css = readFileSync(join(root, "src/components/dashboard/dashboard.css"), "utf8");
 
