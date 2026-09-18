@@ -69,6 +69,12 @@ import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabiliti
 import { whiteBalanceFromSample } from "@/lib/develop/lightroom-basic";
 import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
+  decodeRawSensor,
+  rawSensorBlob,
+  RawSensorUnsupported,
+  type RawSensorRender,
+} from "@/lib/develop/raw-sensor";
+import {
   asDevelopViewBlob,
   decodeDevelopPreview,
   developBlobIsViewable,
@@ -148,6 +154,7 @@ import {
   type DevelopExportProof,
   type DevelopExportRequest,
   type DevelopRenderOwner,
+  type DevelopSensorRender,
 } from "./develop-state";
 import "./develop.css";
 
@@ -374,6 +381,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   // Held R (or the toolbar toggle): the camera's own rendering, no adjustments.
   const [cameraRendering, setCameraRendering] = useState(false);
   const cameraHoldStarted = useRef<number | null>(null);
+  // The sensor render for the open photo. A Sony ARW's embedded JPEG is
+  // 1616x1080 next to a ten- or twenty-four-million-pixel mosaic, so until this
+  // arrives the editor is working on a thumbnail of the photograph.
+  const [sensor, setSensor] = useState<DevelopSensorRender | null>(null);
+  const [sensorProgress, setSensorProgress] = useState(0);
+  // Why there is no sensor render: a camera with no profile here, a packing the
+  // converter does not read. Said on screen rather than swallowed, because the
+  // photographer is otherwise left wondering why this RAW is softer than the last.
+  const [sensorRefusal, setSensorRefusal] = useState("");
   const [removalPreviewPending, setRemovalPreviewPending] = useState(false);
   const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
     [dragging, setDragging] = useState(false);
@@ -484,8 +500,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       ? photo.previewBlob
       : null;
   const availablePhotos = library.photos.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
+  // The sensor render, when this photo has one. It belongs to this session, not
+  // to the library: nothing decoded here is written over a stored preview, so a
+  // decode that goes wrong can never cost the photographer her originals.
+  const sensorRender = sensor && photo && sensor.id === photo.id ? sensor : null;
   const { source: previewSource, sourceMode: processingMode } = developProcessingSource(
-    photo,
+    // Everything downstream — the render, Before, the histogram, the export
+    // proof — reads the source from here, so swapping it once is what puts the
+    // whole editor on sensor data rather than on the camera's thumbnail.
+    sensorRender && photo ? { ...photo, previewBlob: sensorRender.blob } : photo,
     rawEngine ? exportSourceMode : "preview",
   );
   const renderKey = `${processingMode}:${exportEdge}:${exportQuality}`;
@@ -532,6 +555,56 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         ? neutralBlob
         : null,
     );
+  // Decode the sensor as soon as a RAW is open, and let the embedded JPEG hold
+  // the screen until it lands. Half size: each 2x2 Bayer quad becomes one
+  // pixel, so nothing is interpolated and nothing is invented, and a 24MP frame
+  // still arrives in well under a second. Export renders full size separately.
+  useEffect(() => {
+    setSensor(null);
+    setSensorProgress(0);
+    setSensorRefusal("");
+    const original = photo?.isRaw && photo.sourceBlob?.size ? photo.sourceBlob : null;
+    if (!photo || !original) return;
+    const id = photo.id;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        // The worker takes ownership of these bytes, so this is a fresh copy of
+        // the original rather than the stored Blob's own buffer.
+        const bytes = await original.arrayBuffer();
+        controller.signal.throwIfAborted();
+        const render = await decodeRawSensor(bytes, {
+          quality: "editing",
+          signal: controller.signal,
+          onProgress: (value) => {
+            if (!controller.signal.aborted) setSensorProgress(value);
+          },
+        });
+        const blob = await rawSensorBlob(render);
+        if (controller.signal.aborted || !alive.current) return;
+        setSensor({
+          id,
+          blob,
+          width: render.width,
+          height: render.height,
+          kelvin: render.kelvin,
+          tint: render.tint,
+          whiteBalanceFromFile: render.whiteBalanceFromFile,
+          elapsed: render.elapsed,
+        });
+      } catch (error) {
+        if (controller.signal.aborted || !alive.current) return;
+        // A file this converter cannot read is not a failure: the camera's own
+        // JPEG is still on screen and still editable.
+        setSensorRefusal(
+          error instanceof RawSensorUnsupported
+            ? error.message
+            : `The sensor render failed: ${errorMessage(error)}`,
+        );
+      }
+    })();
+    return () => controller.abort();
+  }, [photo, photo?.id, photo?.isRaw, photo?.sourceBlob]);
   const [photoViewBlob, setPhotoViewBlob] = useState<Blob | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -553,30 +626,34 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   // Minted for every photo, not only while R is down, so the swap costs no decode.
   const cameraUrl = useBlobUrl(photoViewBlob);
   const showingCamera = cameraRendering && Boolean(cameraUrl);
-  const viewerUrl = showingCamera ? cameraUrl : (url ?? beforeUrl ?? quickPreviewUrl);
-  const viewerBlob = showingCamera
-    ? photoViewBlob
-    : url
-      ? renderBlob
-      : beforeUrl
-        ? neutralBlob
-        : quickPreviewBlob;
-  const displayedUrl = showingCamera ? cameraUrl : before && beforeUrl ? beforeUrl : viewerUrl;
+  // R does not replace the viewer's image, it lays the camera's frame over it.
+  // Swapping the image would re-measure the stage — the camera's JPEG is 1616
+  // px wide where the render is several thousand — and the view would jump at
+  // the exact moment the photographer is trying to compare one against the
+  // other. Over the top, at the frame's own size, zoom and pan do not move.
+  const viewerUrl = url ?? beforeUrl ?? quickPreviewUrl;
+  const viewerBlob = url ? renderBlob : beforeUrl ? neutralBlob : quickPreviewBlob;
+  const displayedUrl = before && beforeUrl ? beforeUrl : viewerUrl;
   // Which decode the editor is actually working on. Said the same way in the
   // viewer, the histogram and the export panel, so the three cannot disagree.
   const decodeLabel = !photo
     ? ""
     : processingMode === "raw"
       ? "Sensor RAW"
-      : photo.isRaw
-        ? photo.previewOrigin === "raw-demosaic"
-          ? "Sensor-derived preview"
-          : photo.previewOrigin === "embedded"
-            ? "Embedded camera JPEG"
-            : "Saved preview"
-        : photo.sourceAvailable
-          ? ""
-          : "Saved preview";
+      : sensorRender
+        ? // Half size is not an approximation: each 2x2 Bayer quad is one
+          // pixel, so this interpolates nothing. Saying the size lets the
+          // photographer see it is several times the embedded JPEG.
+          `Sensor RAW · ${sensorRender.width} × ${sensorRender.height}`
+        : photo.isRaw
+          ? photo.previewOrigin === "raw-demosaic"
+            ? "Sensor-derived preview"
+            : photo.previewOrigin === "embedded"
+              ? "Embedded camera JPEG"
+              : "Saved preview"
+          : photo.sourceAvailable
+            ? ""
+            : "Saved preview";
   const pixelSampleChannel = useMemo(createDevelopPixelSampleChannel, []);
   const onPixelSample = useCallback(
     (sample: DevelopPixelSample | null) => {
@@ -2920,6 +2997,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     beforeBlob={neutralBlob}
                     before={before}
                     compare={compare}
+                    comparisonUrl={showingCamera ? cameraUrl : null}
+                    comparisonLabel="Camera rendering"
                     zoom={zoom}
                     grid={Boolean(url || beforeUrl) && grid}
                     tool={url || beforeUrl ? tool : "edit"}
@@ -3040,6 +3119,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   {!showingCamera && !renderError && !rendering && url && source && decodeLabel
                     ? ` · ${decodeLabel}${processingMode === "raw" ? " · export-matched" : ""}`
                     : ""}
+                  {/* The embedded JPEG holds the screen while the sensor
+                      decodes, so the photographer is told which one she is
+                      looking at and that a better one is on the way. */}
+                  {!showingCamera && !sensorRender && photo?.isRaw && sensorProgress > 0
+                    ? ` · Reading the sensor… ${Math.round(sensorProgress * 100)}%`
+                    : ""}
+                  {!showingCamera && !sensorRender && sensorRefusal ? ` · ${sensorRefusal}` : ""}
                 </span>
                 <button
                   disabled={!source}

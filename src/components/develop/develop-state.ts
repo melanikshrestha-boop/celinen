@@ -23,6 +23,27 @@ export function currentDevelopRender(
     (renderKey === undefined || owner.renderKey === renderKey),
   );
 }
+/** A RAW's sensor data, decoded for this session and this photo only.
+ *
+ * It is deliberately not written to the library: a stored preview is the
+ * photographer's, and a decode that goes wrong must not be able to replace it.
+ * The cost is one decode per photo per session, which is well under a second.
+ */
+export type DevelopSensorRender = {
+  /** The photo this belongs to; a render is never shown against another. */
+  id: string;
+  blob: Blob;
+  width: number;
+  height: number;
+  /** The white balance the render used, in real Kelvin. */
+  kelvin: number;
+  tint: number;
+  /** False when the file recorded none and the profile's daylight was assumed. */
+  whiteBalanceFromFile: boolean;
+  /** Wall-clock milliseconds the decode took. */
+  elapsed: number;
+};
+
 /** One explicit source for editor, before/histogram, assistance and export.
  * RAW mode never silently substitutes a saved JPEG for an available original. */
 export function developProcessingSource(

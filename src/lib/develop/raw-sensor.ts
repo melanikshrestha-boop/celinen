@@ -201,3 +201,25 @@ export function rawSensorLabel(render: RawSensorRender | null, isRaw: boolean): 
     ? `Sensor RAW · ${render.width} × ${render.height}`
     : `Sensor RAW · half size · ${render.width} × ${render.height}`;
 }
+
+/**
+ * The render as a Blob, which is what the rest of Develop takes as a source.
+ *
+ * The editing proxy is a JPEG: it is re-rendered by the engine on every slider
+ * move, and a 3000x2000 PNG would cost more to hand around than the last
+ * fraction of a percent is worth. The export render is a PNG, because that one
+ * is what the downloaded file is made from and compressing it twice would be
+ * throwing away the resolution this whole path exists to recover.
+ */
+export async function rawSensorBlob(render: RawSensorRender): Promise<Blob> {
+  const canvas = new OffscreenCanvas(render.width, render.height);
+  const context = canvas.getContext("2d", { colorSpace: "srgb" });
+  if (!context) throw new Error("This browser would not open a drawing surface for the render.");
+  context.putImageData(new ImageData(render.rgba, render.width, render.height), 0, 0);
+  const blob = await canvas.convertToBlob(
+    render.kind === "export" ? { type: "image/png" } : { type: "image/jpeg", quality: 0.95 },
+  );
+  canvas.width = canvas.height = 0;
+  if (blob.size < 4) throw new Error("The sensor render could not be encoded.");
+  return blob;
+}
