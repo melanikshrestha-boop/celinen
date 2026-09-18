@@ -79,6 +79,20 @@ em++ $COMMON --use-port=libjpeg -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=26843
   -sEXPORTED_FUNCTIONS=_celinen_social_error,_celinen_social_source,_celinen_social_frame,_celinen_social_jpeg,_celinen_social_jpeg_size,_celinen_social_release \
   -o src/lib/social/wasm/celinen-social.wasm
 
+# The RAW converter: sensor data at the sensor's own resolution, for the
+# Develop worker. Sized for a 60MP frame at full resolution — the file, the
+# RGBA result and two band-sized strips — which is far more than the 24MP the
+# reference camera writes, and still inside what wasm32 can address. SIMD is
+# on: the demosaic and the colour multiply are the hot loops, and every browser
+# that runs the Studio has shipped WebAssembly SIMD since 2023.
+# shellcheck disable=SC2086
+em++ $COMMON -msimd128 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=2147483648 \
+  native/src/raw_decode.cpp native/src/raw_unpack.cpp native/src/raw_demosaic.cpp \
+  native/src/raw_pipeline.cpp native/src/raw_color.cpp native/src/raw_profiles.cpp \
+  native/wasm/raw_decode_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_rawdec_error,_celinen_rawdec_input,_celinen_rawdec_open,_celinen_rawdec_describe,_celinen_rawdec_begin,_celinen_rawdec_step,_celinen_rawdec_width,_celinen_rawdec_height,_celinen_rawdec_pixels,_celinen_rawdec_resident,_celinen_rawdec_white_balance,_celinen_rawdec_release \
+  -o src/lib/develop/wasm/celinen-raw-decode.wasm
+
 if [ -f native/wasm/voice_wasm.cpp ]; then
   # shellcheck disable=SC2086
   em++ $COMMON -sINITIAL_MEMORY=4194304 -sMAXIMUM_MEMORY=67108864 \
@@ -86,4 +100,4 @@ if [ -f native/wasm/voice_wasm.cpp ]; then
     -sEXPORTED_FUNCTIONS=_celinen_voice_open,_celinen_voice_input,_celinen_voice_push,_celinen_voice_level,_celinen_voice_speaking,_celinen_voice_segment_samples,_celinen_voice_segment,_celinen_voice_segment_release,_celinen_voice_flush \
     -o src/lib/voice/wasm/celinen-voice.wasm
 fi
-ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/social/wasm/celinen-social.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
+ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/develop/wasm/celinen-raw-decode.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/social/wasm/celinen-social.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null

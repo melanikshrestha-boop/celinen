@@ -26,6 +26,8 @@ export function DevelopViewer({
   beforeBlob,
   before,
   compare,
+  comparisonUrl = null,
+  comparisonLabel = "",
   zoom,
   grid,
   tool,
@@ -51,6 +53,12 @@ export function DevelopViewer({
   beforeBlob: Blob | null;
   before: boolean;
   compare: boolean;
+  /** A second rendering of the same frame, laid over the photo at the frame's
+   * own size while the photographer holds it up against the edit. It never
+   * re-measures the stage, so zoom and pan do not move when it appears — which
+   * is the whole point of being able to compare. */
+  comparisonUrl?: string | null;
+  comparisonLabel?: string;
   zoom: "fit" | "100";
   grid: boolean;
   tool: DevelopTool;
@@ -308,7 +316,19 @@ export function DevelopViewer({
                 height={height}
               />
             )}
-            {compare && <span className="develop-image-label">After</span>}
+            {comparisonUrl && (
+              <img
+                className="develop-comparison"
+                src={comparisonUrl}
+                alt={comparisonLabel || "The camera's own rendering"}
+                draggable={false}
+                style={{ width, height }}
+              />
+            )}
+            {comparisonUrl && comparisonLabel && (
+              <span className="develop-image-label">{comparisonLabel}</span>
+            )}
+            {compare && !comparisonUrl && <span className="develop-image-label">After</span>}
             {(grid || tool === "crop") && <div className="develop-grid" aria-hidden="true" />}
             {(tool === "crop" || tool === "mask" || tool === "guided") && !before && !compare && (
               <svg

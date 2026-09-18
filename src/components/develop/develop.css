@@ -593,6 +593,14 @@ html.dark .foto-develop {
   height: 100%;
   object-fit: contain;
 }
+/* The camera's own rendering, held up against the edit. It covers the photo
+   inside the frame rather than replacing it, so the stage keeps its measured
+   size and the photographer's zoom and pan stay exactly where they were. */
+.develop-comparison {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
 .develop-compare-pair {
   display: flex;
   gap: 6px;

@@ -166,6 +166,34 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
   never combined, and a preview the camera already turned is left alone. For the
   browser it rewrites only the preview's EXIF header, so the picture stays the
   camera's own bytes.
+- `native/src/raw_decode.cpp` and friends (`raw_unpack.cpp`, `raw_demosaic.cpp`,
+  `raw_pipeline.cpp`, `raw_color.cpp`, `raw_profiles.cpp`) →
+  `src/lib/develop/wasm/celinen-raw-decode.wasm`. The RAW converter: the sensor
+  data itself, not the JPEG beside it. `raw_preview.cpp` answers which embedded
+  picture a RAW carries; this answers what the photosites recorded, which on a
+  Sony ARW is ten or twenty-four million pixels next to a 1616x1080 preview.
+  The container reader is generic TIFF/DNG, so a file carrying the DNG colour
+  tags is decoded from its own numbers; Sony's private tags fill in what an ARW
+  leaves out. Black and white levels, white balance from the camera's neutral,
+  a gradient-corrected demosaic, the DNG colour model with Bradford adaptation,
+  highlight reconstruction and one sRGB encode at the very end — every step in
+  between is linear float, because white balance, demosaic, colour and
+  highlight reconstruction are all wrong in a gamma-encoded space. Temperature
+  and tint are real Kelvin by Robertson's isotherm method, not a slider
+  pretending. `Decoder` runs the chain in row bands, so the browser gets
+  bounded memory, a progress number and a cancellation point between slices.
+  Measured in Chrome on an M-series Mac, in a Worker: a 24MP frame is 135 ms at
+  half size and 1,114 ms at full, holding 79 MB and 153 MB; a 10.3MP APS-C
+  frame is 473 ms at full, holding 68 MB. Below twelve million pixels the
+  editor gets the full-resolution render; above it, half, and export is always
+  full. Nothing GPL, LGPL or otherwise unusable was consulted: LibRaw is LGPL,
+  dcraw carries its own redistribution terms and RawTherapee's AMaZE is GPL, so
+  the demosaic is Hamilton-Adams and Freeman's median implemented from their
+  published descriptions and the colour model is the DNG specification's. The
+  Sony ILCE-7M3 profile was measured from that camera's own embedded JPEGs by
+  `scripts/fit-raw-profile.py`, not taken from anyone's table;
+  `scripts/check-raw-against-preview.py` checks a decode against the picture
+  the camera put inside the same file.
 - `native/wasm/voice_wasm.cpp` → `src/lib/voice/wasm/celinen-voice.wasm`. The
   dictation front end (`native/src/voice.cpp`): DC removal, band-limited
   resampling to 16 kHz PCM16, adaptive-noise-floor voice activity detection and
@@ -175,7 +203,8 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
 ```sh
 sh native/wasm/build.sh        # needs Emscripten (em++ on PATH, or EMSDK set)
 bun test tests/develop-wasm.test.ts tests/cull-engine.test.ts tests/voice-wasm.test.ts \
-  tests/cull-ingest.test.ts tests/cull-af-point.test.ts tests/cull-raw-container.test.ts
+  tests/cull-ingest.test.ts tests/cull-af-point.test.ts tests/cull-raw-container.test.ts \
+  tests/develop-raw-sensor.test.ts
 ```
 
 The `.wasm` files are committed so deploys and CI never need the toolchain.
@@ -186,7 +215,8 @@ of face the original carried, and the cost per frame. Precision leads: a false
 closed is a frame the photographer paid for and never sees again.
 
 Rebuild and commit them whenever `develop*.cpp`, `cull.cpp`, `exif.cpp`,
-`focus_hit.cpp`, `raw_preview.cpp` or `voice.cpp` change;
+`focus_hit.cpp`, `raw_preview.cpp`, `raw_decode.cpp` and its friends, or
+`voice.cpp` change;
 the test files above execute the committed binaries. The site's CSP allows
 WebAssembly compilation with `'wasm-unsafe-eval'` only; scripts still cannot `eval`.
 
