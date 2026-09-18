@@ -5,6 +5,7 @@ import { assertBrowserDevelopSettingsSupported } from "./browser-capabilities";
 import {
   applyBlackAndWhiteRgb,
   applyDevelopProfileRgb,
+  developVibranceSkinGuard,
   isBlackAndWhiteDevelop,
   isIdentityDevelopProfile,
 } from "./lightroom-basic";
@@ -132,10 +133,9 @@ function applySupportedDevelopRgba(
       b = mapped[2];
     } else if (settings.saturation !== 0 || settings.vibrance !== 0) {
       const spread = Math.max(r, g, b) - Math.min(r, g, b);
-      const amount = Math.max(
-        0,
-        1 + settings.saturation * 0.01 + settings.vibrance * 0.01 * (1 - spread),
-      );
+      let vibrance = settings.vibrance * 0.01 * (1 - spread);
+      if (settings.vibrance > 0) vibrance *= developVibranceSkinGuard(r, g, b);
+      const amount = Math.max(0, 1 + settings.saturation * 0.01 + vibrance);
       const y = luma(r, g, b);
       r = clamp(y + (r - y) * amount);
       g = clamp(y + (g - y) * amount);

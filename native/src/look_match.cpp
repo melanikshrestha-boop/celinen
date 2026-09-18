@@ -980,7 +980,9 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
     const auto& want = look.bands[band];
     if (std::min(have.mass, want.mass) < .004) continue;
     band_saturation[band] = std::clamp(60 * (want.saturation / std::max(.02, have.saturation * chroma_gain) - 1), -60.0, 60.0);
-    band_hue[band] = std::clamp((want.hue - have.hue) * 600 / 360 * .6, -60.0, 60.0);
+    // 1200 is develop.cpp's slider-units-per-turn for the Color Mixer's hue;
+    // the two constants must move together or the seed aims at the wrong shift.
+    band_hue[band] = std::clamp((want.hue - have.hue) * 1200 / 360 * .6, -100.0, 100.0);
   }
   std::array<std::array<double, 2>, 2> wheels{};
   for (int i = 0; i < 2; ++i) {
@@ -1023,9 +1025,13 @@ LookMatch match_look(const Image& target, const LookDescriptor& look, const Deve
   for (std::size_t band = 0; band < look_band_count; ++band) {
     const bool present = std::max(toned.bands[band].mass, look.bands[band].mass) > .002 &&
                          std::min(toned.bands[band].mass, look.bands[band].mass) > .0005;
-    add_param({Knob::hue, int(band), -60, 60, 4, .05}, band_hue[band], 0, present);
+    // Probe steps track how much colour a slider unit moves: hue is half as
+    // strong as it was, luminance two to four times stronger, so the solver
+    // must take a wider hue step and a finer luminance one to resolve the same
+    // difference. Range and step belong to the control, not to the optimizer.
+    add_param({Knob::hue, int(band), -100, 100, 8, .05}, band_hue[band], 0, present);
     add_param({Knob::sat, int(band), -80, 80, 4, .04}, band_saturation[band], 0, present);
-    add_param({Knob::lum, int(band), -60, 60, 4, .05}, 0, 0, present);
+    add_param({Knob::lum, int(band), -60, 60, 1, .05}, 0, 0, present);
   }
   for (int i = 0; i < 2; ++i) {
     add_param({Knob::wheel_u, i, -100, 100, 4, .01}, wheels[std::size_t(i)][0], 0, true);

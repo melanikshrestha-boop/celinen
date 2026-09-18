@@ -142,6 +142,18 @@ function hslRgb(h: number, s: number, l: number): [number, number, number] {
 }
 
 /** Same look as native apply_profile. Adobe Color is a no-op. */
+/**
+ * How much of a positive Vibrance a pixel receives. Skin — the oranges around
+ * 25 degrees — keeps most of its own saturation, which is why Lightroom's
+ * Vibrance is the portrait slider and Saturation is not. Mirrors the C++ in
+ * native/src/develop.cpp; the two renderers must agree pixel for pixel.
+ */
+export function developVibranceSkinGuard(r: number, g: number, b: number) {
+  const hue = rgbHsl(r, g, b).h * 360;
+  const distance = Math.min(Math.abs(hue - 25), 360 - Math.abs(hue - 25));
+  return 1 - 0.7 * Math.max(0, 1 - distance / 25);
+}
+
 export function applyDevelopProfileRgb(
   r: number,
   g: number,

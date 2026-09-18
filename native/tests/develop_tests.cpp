@@ -228,8 +228,8 @@ int main() {
       check(lenslabs::develop(source,middle).rgba!=original,"Tonal midtones still work when blending is zero.");
     }
     {
-      // New sharpening metadata is neutral until Amount is enabled. Texture
-      // continues through the exact legacy path, including its denoise threshold.
+      // New sharpening metadata is neutral until Amount is enabled. Texture runs
+      // on its own band either way, and keeps its denoise threshold.
       for(double texture:{-100.,0.,100.})for(double denoise:{0.,60.}) {
         auto old=neutral;old.texture=texture;old.noise_reduction=denoise;
         const auto baseline=lenslabs::develop(source,old);
@@ -401,8 +401,15 @@ int main() {
       edits.emplace_back([member](auto& s){s.tonal_grading=true;(s.*member).hue=210;(s.*member).saturation=65;});
       edits.emplace_back([member](auto& s){s.tonal_grading=true;(s.*member).luminance=40;});
     }
-    // Pre-optimization fingerprints cover every control below and the existing
-    // 1000 combined recipes. Performance changes must not alter even one byte.
+    // Fingerprints cover every control below and the existing 1000 combined
+    // recipes. Performance changes must not alter even one byte; only a
+    // deliberate, described change of what a control means may move them.
+    // Moved once since: Texture became a mid-frequency band of its own instead
+    // of a weaker copy of Sharpening, the HSL Hue slider's reach halved to
+    // Lightroom's ~30 degrees, HSL Luminance stopped fading out across the whole
+    // saturation range, and Vibrance began protecting skin. The 1000-recipe
+    // fingerprint below touches none of those and is unchanged, which is the
+    // proof that nothing else moved with them.
     std::uint64_t controls_compatibility=14695981039346656037ull;
     for(const auto& edit:edits) {
       auto s=neutral;edit(s);const auto first=lenslabs::develop(source,s),second=lenslabs::develop(source,s);
@@ -413,7 +420,7 @@ int main() {
       check(source.rgba==original,"Source memory remains unchanged.");
       for(std::size_t i=3;i<original.size();i+=4) check(first.rgba[i]==original[i],"Image adjustments preserve alpha.");
     }
-    check(controls_compatibility==5908271974342230509ull,"All individual controls preserve pre-optimization pixels exactly.");
+    check(controls_compatibility==6647071472942118187ull,"All individual controls preserve their fingerprinted pixels exactly.");
     std::uint64_t combinations_compatibility=14695981039346656037ull;
     for(int iteration=0;iteration<1000;++iteration) {
       auto s=neutral; s.exposure=(iteration%101-50)/10.0; s.contrast=iteration%201-100; s.temperature=(iteration*7)%201-100;
