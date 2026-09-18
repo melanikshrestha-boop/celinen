@@ -550,6 +550,27 @@ int main() {
       modern.grain=0;modern.fade=45;modern.film_falloff=70;modern.vignette=-70;
       auto noAdaptive=modern;noAdaptive.grain_luminance=0;
       check(lenslabs::develop(source,modern).rgba==lenslabs::develop(source,noAdaptive).rgba,"Luminance response does nothing when grain amount is zero.");
+      auto gray_grain=neutral;gray_grain.grain=70;gray_grain.grain_luminance=100;
+      auto color_grain=gray_grain;color_grain.grain_color=80;
+      check(lenslabs::develop(gray,gray_grain).rgba!=lenslabs::develop(gray,color_grain).rgba,
+            "Raising grain color changes the render versus gray grain.");
+      const auto dyed=lenslabs::develop(gray,color_grain);
+      bool chroma=false;int agree=0;
+      for(std::size_t i=0;i<dyed.rgba.size();i+=4) {
+        if(dyed.rgba[i]!=dyed.rgba[i+1]||dyed.rgba[i]!=dyed.rgba[i+2]) chroma=true;
+        if((int(dyed.rgba[i])-128)*(int(dyed.rgba[i+1])-128)>0) ++agree;
+      }
+      check(chroma,"Color grain tints dye layers instead of adding gray mush.");
+      check(agree>int(gray.rgba.size()/4)/4,"Color grain stays correlated, not RGB confetti.");
+      auto idle=neutral;idle.grain_color=100;
+      check(lenslabs::is_neutral_develop(idle)&&lenslabs::develop(source,idle).rgba==original,
+            "Grain color does nothing when grain amount is zero.");
+      {
+        auto protocol7=protocol4;protocol7.replace(0,14,"FOTO_DEVELOP_7");protocol7+="1\n0 0 0\n42\n";
+        std::istringstream input(protocol7);const auto loaded=lenslabs::read_develop_protocol(input);
+        check(loaded.grain_color==42&&loaded.treatment==0&&loaded.curve_interpolation==1,
+              "Protocol7 round trips colorful grain without losing earlier fields.");
+      }
     }
     lenslabs::Image ramp{256,1,256,1,{}};ramp.rgba.resize(256*4);
     for(unsigned v=0;v<256;++v){for(int c=0;c<3;++c)ramp.rgba[v*4+c]=std::uint8_t(v);ramp.rgba[v*4+3]=255;}

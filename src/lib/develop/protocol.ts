@@ -28,14 +28,17 @@ export function developProtocol(
     (isBlackAndWhiteDevelop(s) ||
       !isIdentityDevelopProfile(s.profile) ||
       s.whiteBalance !== "as-shot");
+  const colorGrain = !options.legacy && s.grainColor !== 0;
   const lines: Array<string | number[]> = [
-    basic
-      ? "FOTO_DEVELOP_6"
-      : smoothCurve
-        ? "FOTO_DEVELOP_5"
-        : extendedDetail
-          ? "FOTO_DEVELOP_4"
-          : "FOTO_DEVELOP_3",
+    colorGrain
+      ? "FOTO_DEVELOP_7"
+      : basic
+        ? "FOTO_DEVELOP_6"
+        : smoothCurve
+          ? "FOTO_DEVELOP_5"
+          : extendedDetail
+            ? "FOTO_DEVELOP_4"
+            : "FOTO_DEVELOP_3",
     [
       s.exposure,
       s.contrast,
@@ -101,14 +104,15 @@ export function developProtocol(
       s.grainLuminance,
     ],
   ];
-  if (extendedDetail || smoothCurve || basic)
+  if (extendedDetail || smoothCurve || basic || colorGrain)
     lines.push([s.sharpeningRadius, s.sharpeningDetail, s.sharpeningMasking]);
-  if (smoothCurve || basic) lines.push([s.curveInterpolation === "smooth" ? 1 : 0]);
-  if (basic)
+  if (smoothCurve || basic || colorGrain) lines.push([s.curveInterpolation === "smooth" ? 1 : 0]);
+  if (basic || colorGrain)
     lines.push([
       s.treatment === "black-and-white" ? 1 : 0,
       developProfileIndex(s.profile),
       developWhiteBalanceIndex(s.whiteBalance),
     ]);
+  if (colorGrain) lines.push([s.grainColor]);
   return lines.map((l) => (typeof l === "string" ? l : l.join(" "))).join("\n") + "\n";
 }
