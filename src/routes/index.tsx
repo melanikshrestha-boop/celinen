@@ -21,13 +21,15 @@ export const Route = createFileRoute("/")({
       { title: PRODUCT_HEADLINE },
       {
         name: "description",
-        content: "Celinen for photography.",
+        content:
+          "Go where the good light takes you. Review, edit, and send galleries — originals stay yours.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
-        content: "Celinen for photography.",
+        content:
+          "Review, edit and prepare your photography for delivery. Your decisions stay yours.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -61,27 +63,22 @@ function Index() {
               <br />
               good light takes you.
             </h1>
-            <div className="marketing-products" aria-label="Celinen">
-              <article>
-                <h2>Celinen</h2>
-                <p>Photography</p>
-                <PublicEntryCta
-                  className="marketing-action marketing-action--primary"
-                  next="/dashboard"
-                  guestLabel={
-                    <>
-                      Open
-                      <span aria-hidden="true">→</span>
-                    </>
-                  }
-                  memberLabel={
-                    <>
-                      Open
-                      <span aria-hidden="true">→</span>
-                    </>
-                  }
-                />
-              </article>
+            <div className="marketing-actions">
+              <PublicEntryCta
+                className="marketing-action marketing-action--primary"
+                guestLabel={
+                  <>
+                    Get started
+                    <span aria-hidden="true">→</span>
+                  </>
+                }
+                memberLabel={
+                  <>
+                    Dashboard
+                    <span aria-hidden="true">→</span>
+                  </>
+                }
+              />
             </div>
           </div>
         </section>
