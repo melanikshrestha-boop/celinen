@@ -52,8 +52,8 @@ Permissions: **`pages_show_list`**, **`pages_read_engagement`**, **`pages_manage
 
 Apply, in order, **before deploying this code**:
 
-1. `drizzle/migrations/0024_instagram_account_management.sql` — if it has not been applied yet (it ships with the Instagram feed work).
-2. `drizzle/migrations/0025_story_broadcasts.sql` — additive only: **one partial index**. No new table, no new column, no change to any existing row.
+1. `drizzle/migrations/0026_instagram_account_management.sql` — if it has not been applied yet (it ships with the Instagram feed work).
+2. `drizzle/migrations/0027_story_broadcasts.sql` — additive only: **one partial index**. No new table, no new column, no change to any existing row.
 
 Story sets reuse `social_publications` and the private `publishing-media-v1` bucket that Instagram feed posts already use. Nothing else is needed.
 

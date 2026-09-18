@@ -153,14 +153,14 @@
       "idx": 21,
       "version": "7",
       "when": 1789603200000,
-      "tag": "0024_instagram_account_management",
+      "tag": "0026_instagram_account_management",
       "breakpoints": true
     },
     {
       "idx": 22,
       "version": "7",
       "when": 1789689600000,
-      "tag": "0025_story_broadcasts",
+      "tag": "0027_story_broadcasts",
       "breakpoints": true
     }
   ]

@@ -38,7 +38,7 @@ Tokens are AES-256-GCM sealed, with the Celinen owner id as associated data, in 
 
 ### 1. Database (Supabase `yzyvooeoyavqtmjvsptv`)
 
-Apply `drizzle/migrations/0024_instagram_account_management.sql` **before deploying this code**. It is additive only:
+Apply `drizzle/migrations/0026_instagram_account_management.sql` **before deploying this code**. It is additive only:
 
 - It adds `scopes`, `account_type` and `token_refreshed_at` to `social_connections`.
 - It adds a partial index on `social_publications`.
