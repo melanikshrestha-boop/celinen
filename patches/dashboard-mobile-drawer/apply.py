@@ -80,6 +80,13 @@ text = text.replace(old_shown, new_shown)
 start = text.index("  return (\n    <DashboardContext.Provider value={true}>")
 end = text.index("        <main\n          className={`celinen-dash__body")
 prefix = (root / "rail-prefix.txt").read_text()
+# Some uploads mangle the two-char sequence quote+gt; rebuild JSX openers safely.
+gt = chr(62)
+broken_drawer = 'className="celinen-dash__rail celinen-dash__rail--drawer" {railBody}'
+fixed_drawer = 'className="celinen-dash__rail celinen-dash__rail--drawer"' + gt + '{railBody}'
+broken_rail = 'className="celinen-dash__rail" {railBody}'
+fixed_rail = 'className="celinen-dash__rail"' + gt + '{railBody}'
+prefix = prefix.replace(broken_drawer, fixed_drawer).replace(broken_rail, fixed_rail)
 text = text[:start] + prefix + text[end:]
 
 old_theme = """        <main
