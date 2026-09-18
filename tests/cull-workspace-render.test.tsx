@@ -250,3 +250,16 @@ describe("cull loupe", () => {
     expect(html).not.toMatch(/data-verdict="undecided"[^>]*disabled=""/);
   });
 });
+
+describe("cull workspace Instagram entry", () => {
+  const instagram = (html: string) => />Instagram<\/button>/.test(html);
+  test("appears only with keepers and a composer to open", () => {
+    const keepers = [
+      cullFrame("k1", null, { verdict: "keep", decided: true }),
+      cullFrame("u1", null),
+    ];
+    expect(instagram(renderWorkspace(keepers, { onInstagram: noop }))).toBe(true);
+    expect(instagram(renderWorkspace(keepers))).toBe(false);
+    expect(instagram(renderWorkspace([cullFrame("u1", null)], { onInstagram: noop }))).toBe(false);
+  });
+});

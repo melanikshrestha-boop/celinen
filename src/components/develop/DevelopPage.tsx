@@ -17,7 +17,9 @@ import {
   Copy,
   Crop,
   Grid2X2,
+  Heart,
   ImagePlus,
+  Instagram,
   Layers2,
   Maximize,
   Plus,
@@ -135,10 +137,13 @@ import {
   type ExportNightKitStore,
 } from "@/lib/develop/export-night-kit";
 import { useDevelopPointer } from "./useDevelopPointer";
+import { InstagramComposer, type InstagramCandidate } from "@/components/social/InstagramComposer";
+import { StoryBroadcast, type StoryCandidate } from "@/components/social/StoryBroadcast";
 import {
   currentDevelopRender,
   currentDevelopExportProof,
   filteredDevelopSelection,
+  developFilterMatches,
   developProcessingSource,
   type DevelopExportProof,
   type DevelopExportRequest,
@@ -582,14 +587,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const currentHistogramError =
     histogramError?.url === displayedUrl ? histogramError.message : null;
   const histogramPending = !currentHistogramError && (rendering || displayedUrl !== histogramUrl);
-  const visible = library.photos.filter(
-    (p) =>
-      filter === "all" ||
-      (filter === "picks"
-        ? library.documents[p.id]?.metadata.flag === "pick"
-        : filter === "rated"
-          ? (library.documents[p.id]?.metadata.rating ?? 0) >= 3
-          : library.documents[p.id]?.metadata.flag !== "reject"),
+  const visible = library.photos.filter((p) =>
+    developFilterMatches(filter, library.documents[p.id]?.metadata),
   );
   const filmstripPhotos = visible.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
   const flushLatest = useRef<() => Promise<boolean>>(async () => true);
@@ -1228,15 +1227,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     const visibleIds = library.photos
       .filter((p) => {
         if (!p.sourceBlob?.size && !p.previewBlob?.size) return false;
-        const metadata = docs.current[p.id]?.metadata;
-        return (
-          next === "all" ||
-          (next === "picks"
-            ? metadata?.flag === "pick"
-            : next === "rated"
-              ? (metadata?.rating ?? 0) >= 3
-              : metadata?.flag !== "reject")
-        );
+        return developFilterMatches(next, docs.current[p.id]?.metadata);
       })
       .map((p) => p.id);
     const filtered = filteredDevelopSelection(visibleIds, selectedRef.current, selectedSet);
@@ -2126,6 +2117,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         current = id ? docs.current[id] : null;
       if (current && /^[0-5]$/.test(key))
         persistBatch([{ ...current, metadata: { ...current.metadata, rating: Number(key) } }]);
+      if (current && key === "h")
+        persistBatch([
+          { ...current, metadata: { ...current.metadata, hearted: !current.metadata.hearted } },
+        ]);
       if (current && (key === "p" || key === "u" || (key === "x" && tool !== "crop")))
         persistBatch([
           {
@@ -2160,6 +2155,72 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       window.removeEventListener("blur", drop);
     };
   });
+
+  // Instagram: the selected photos (or the one in hand), each rendered through the
+  // same C++ Develop engine as Export, with the live recipe for the active photo.
+  const [instagramIds, setInstagramIds] = useState<string[] | null>(null);
+  const instagramCandidates = useMemo<InstagramCandidate[]>(() => {
+    if (!instagramIds) return [];
+    return instagramIds.flatMap((id) => {
+      const entry = library.photos.find((p) => p.id === id);
+      if (!entry) return [];
+      return [
+        {
+          id,
+          name: entry.name,
+          thumbnail: async () => (entry.previewBlob?.size ? entry.previewBlob : null),
+          source: async () => {
+            const { source: pixels, sourceMode } = developProcessingSource(entry, exportSourceMode);
+            const document = docs.current[id];
+            if (!pixels || (!document && id !== selectedRef.current)) return null;
+            const recipe =
+              id === selectedRef.current
+                ? cloneDevelopSettings(draftRef.current)
+                : currentRecipe(document!);
+            // 2160px long edge: twice Instagram's 1080px frame, so the crop stays sharp.
+            return renderDevelop(pixels, recipe, { edge: 2160, quality: 0.95, sourceMode });
+          },
+        },
+      ];
+    });
+    // The candidate list is fixed while the composer is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instagramIds]);
+
+  // Stories: the hearted photos of this shoot, in filmstrip order. Each is
+  // rendered through the same C++ Develop engine as Export, with the live
+  // recipe for the photo in hand.
+  const [storyIds, setStoryIds] = useState<string[] | null>(null);
+  const heartedIds = library.photos
+    .filter((p) => library.documents[p.id]?.metadata.hearted)
+    .map((p) => p.id);
+  const storyCandidates = useMemo<StoryCandidate[]>(() => {
+    if (!storyIds) return [];
+    return storyIds.flatMap((id) => {
+      const entry = library.photos.find((p) => p.id === id);
+      if (!entry) return [];
+      return [
+        {
+          id,
+          name: entry.name,
+          preview: async () => (entry.previewBlob?.size ? entry.previewBlob : null),
+          source: async () => {
+            const { source: pixels, sourceMode } = developProcessingSource(entry, exportSourceMode);
+            const document = docs.current[id];
+            if (!pixels || (!document && id !== selectedRef.current)) return null;
+            const recipe =
+              id === selectedRef.current
+                ? cloneDevelopSettings(draftRef.current)
+                : currentRecipe(document!);
+            // 2160px long edge: more than the 1920px story frame needs, so the crop stays sharp.
+            return renderDevelop(pixels, recipe, { edge: 2160, quality: 0.95, sourceMode });
+          },
+        },
+      ];
+    });
+    // The candidate list is fixed while the composer is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyIds]);
 
   if (loadError)
     return (
@@ -2293,6 +2354,26 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             >
               <ArrowDownToLine size={14} />
               Export
+            </button>
+          )}
+          {availablePhotos.length > 0 && (
+            <button
+              disabled={!!busy || !!saveError || !selected}
+              onClick={() => {
+                const chosen = filmstripPhotos
+                  .filter((p) => p.id === selected || selectedSet.has(p.id))
+                  .map((p) => p.id);
+                setInstagramIds(chosen.length ? chosen : selected ? [selected] : []);
+              }}
+            >
+              <Instagram size={14} />
+              Instagram
+            </button>
+          )}
+          {heartedIds.length > 0 && (
+            <button disabled={!!busy || !!saveError} onClick={() => setStoryIds(heartedIds)}>
+              <Heart size={14} />
+              Stories
             </button>
           )}
         </div>
@@ -3168,6 +3249,22 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             </div>
             <div>
               {doc && (
+                <button
+                  type="button"
+                  className="develop-heart"
+                  disabled={!!saveError}
+                  aria-label="Heart photo"
+                  aria-pressed={doc.metadata.hearted}
+                  onClick={() =>
+                    persistBatch([
+                      { ...doc, metadata: { ...doc.metadata, hearted: !doc.metadata.hearted } },
+                    ])
+                  }
+                >
+                  <Heart size={12} fill={doc.metadata.hearted ? "currentColor" : "none"} />
+                </button>
+              )}
+              {doc && (
                 <div className="develop-rating" role="group" aria-label="Photo rating">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
@@ -3199,6 +3296,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               >
                 <option value="all">All photos</option>
                 <option value="picks">Picks</option>
+                <option value="hearted">Hearted</option>
                 <option value="rated">3 stars and up</option>
                 <option value="not-rejected">Not rejected</option>
               </select>
@@ -3660,6 +3758,24 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               )}
           </section>
         </div>
+      )}
+      {instagramIds && (
+        <InstagramComposer
+          open
+          onOpenChange={(open) => (open ? undefined : setInstagramIds(null))}
+          origin="develop"
+          candidates={instagramCandidates}
+          initial={instagramIds}
+        />
+      )}
+      {storyIds && (
+        <StoryBroadcast
+          open
+          onOpenChange={(open) => (open ? undefined : setStoryIds(null))}
+          origin="develop"
+          candidates={storyCandidates}
+          initial={storyIds}
+        />
       )}
     </section>
   );

@@ -35,12 +35,9 @@ import {
   type PasteSocialId,
 } from "@/lib/social-paste";
 import { publishPastePost } from "@/lib/social-paste-client";
-import {
-  buildSocialPost,
-  fireCompose,
-  readSocialDraft,
-  type SocialPost,
-} from "@/lib/social-post";
+import { buildSocialPost, fireCompose, readSocialDraft, type SocialPost } from "@/lib/social-post";
+import { InstagramAccount } from "@/components/social/InstagramAccount";
+import { FacebookAccount } from "@/components/social/FacebookAccount";
 import "./social-accounts.css";
 
 const TONES = ["Professional", "Casual", "Warm"] as const;
@@ -196,7 +193,9 @@ export function SocialAccounts() {
             </span>
             <h1>What should we post?</h1>
           </div>
-          <p>Turn a simple idea into a polished, on-brand social post ready to refine and publish.</p>
+          <p>
+            Turn a simple idea into a polished, on-brand social post ready to refine and publish.
+          </p>
         </div>
         <form
           className="social-post__composer"
@@ -222,7 +221,11 @@ export function SocialAccounts() {
               <Hash size={16} />
               Hashtags
             </button>
-            <button type="button" className="social-post__chip" onClick={() => file.current?.click()}>
+            <button
+              type="button"
+              className="social-post__chip"
+              onClick={() => file.current?.click()}
+            >
               <Image size={16} />
               Images
             </button>
@@ -282,8 +285,7 @@ export function SocialAccounts() {
             </span>
             <span className="social-post__spacer" />
             <Link to="/pricing" className="social-post__credits" title="Credits">
-              <Zap size={14} />
-              1
+              <Zap size={14} />1
             </Link>
             <button
               type="button"
@@ -299,7 +301,12 @@ export function SocialAccounts() {
               onSend={(text) => makePost(text)}
               inputRef={box}
             />
-            <button type="submit" className="social-post__send" disabled={!draft.trim()} aria-label="Send">
+            <button
+              type="submit"
+              className="social-post__send"
+              disabled={!draft.trim()}
+              aria-label="Send"
+            >
               <ArrowUp size={18} />
             </button>
           </div>
@@ -339,35 +346,45 @@ export function SocialAccounts() {
               </button>
               {targets.length ? (
                 targets.map((row) => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => void postTo([row.id])}
-                  >
+                  <button key={row.id} type="button" onClick={() => void postTo([row.id])}>
                     <BrandMark id={row.id} />
                     {SOCIAL_NETWORKS.find((item) => item.id === row.id)?.title}
                   </button>
                 ))
               ) : (
-                <button type="button" className="social-post__connect" onClick={() => void connectEvery()}>
+                <button
+                  type="button"
+                  className="social-post__connect"
+                  onClick={() => void connectEvery()}
+                >
                   Connect all socials
                 </button>
               )}
             </div>
             {targets.length && targets.length < SOCIAL_NETWORKS.length ? (
-              <button type="button" className="social-post__more" onClick={() => void connectEvery()}>
+              <button
+                type="button"
+                className="social-post__more"
+                onClick={() => void connectEvery()}
+              >
                 Connect all socials
               </button>
             ) : null}
             {status ? <p className="social-post__hint">{status}</p> : null}
           </div>
         ) : null}
+        <InstagramAccount />
+        <FacebookAccount />
         <div className="social-post__suggest">
           <span>Suggestions</span>
           {SUGGEST.map((item) => {
             const Icon = item.icon;
             return (
-              <button key={item.label} type="button" onClick={() => setDraft((value) => value || item.label)}>
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => setDraft((value) => value || item.label)}
+              >
                 <Icon size={14} />
                 {item.label}
               </button>
@@ -389,7 +406,9 @@ export function SocialAccounts() {
             </span>
             <span>
               <strong>Planning multiple posts?</strong>
-              <small>Turn this idea into a coordinated campaign with multiple scheduled posts.</small>
+              <small>
+                Turn this idea into a coordinated campaign with multiple scheduled posts.
+              </small>
             </span>
             <em>
               Create a campaign

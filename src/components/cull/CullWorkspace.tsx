@@ -96,6 +96,8 @@ export type CullWorkspaceProps = {
   onFace?: ((frameId: string, box: PortraitFace) => void) | undefined;
   /** Opens Develop with this session's keepers. */
   onDevelop?: (() => void) | undefined;
+  /** Opens the Instagram composer on the keepers, in grid order, with the frame in hand. */
+  onInstagram?: ((keeperIds: readonly string[], currentId: string | null) => void) | undefined;
 };
 
 const number = (value: number) => value.toLocaleString("en-US");
@@ -161,6 +163,7 @@ export function CullWorkspace({
   viewport,
   onFace,
   onDevelop,
+  onInstagram,
 }: CullWorkspaceProps) {
   const { frames, progress, notice, canUndo } = snapshot;
   const [filter, setFilter] = useState<CullFilter>("all");
@@ -593,6 +596,14 @@ export function CullWorkspace({
     return shared ?? "";
   }, [pickedCount, picked, frames]);
 
+  // Keepers as the grid shows them, then any the current filter or stacks hide.
+  const keeperOrder = () => {
+    const seen = new Set<string>();
+    for (const frame of [...cells.map((cell) => cell.frame), ...frames])
+      if (matchesFilter(frame, "keepers")) seen.add(frame.id);
+    return [...seen];
+  };
+
   const alert = notice ?? dropNote;
   const backupControl = (
     <CullBackupControl
@@ -721,6 +732,15 @@ export function CullWorkspace({
                 ids={exportIds}
                 onExport={onExport}
               />
+            )}
+            {onInstagram && counts.keepers > 0 && !reading && (
+              <button
+                type="button"
+                className="rounded-md px-2.5 py-1.5 hover:bg-ink/5"
+                onClick={() => onInstagram(keeperOrder(), current?.frame.id ?? null)}
+              >
+                Instagram
+              </button>
             )}
             {frames.length > 0 && backupControl}
             {frames.length > 0 && importButtons}

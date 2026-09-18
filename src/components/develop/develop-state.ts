@@ -90,3 +90,27 @@ export function filteredDevelopSelection(
   if (active) selected.add(active);
   return { activeId: active, selectedIds: selected };
 }
+
+/** The library filters, in one place: the toolbar, the visible list and
+ * changeFilter must agree, and an unknown value must mean "all" rather than
+ * falling through to whichever branch happens to be last. */
+export const DEVELOP_FILTERS = ["all", "picks", "hearted", "rated", "not-rejected"] as const;
+export type DevelopFilter = (typeof DEVELOP_FILTERS)[number];
+
+export function developFilterMatches(
+  filter: string,
+  metadata: { rating?: number; flag?: "pick" | "reject" | null; hearted?: boolean } | undefined,
+): boolean {
+  switch (filter) {
+    case "picks":
+      return metadata?.flag === "pick";
+    case "hearted":
+      return metadata?.hearted === true;
+    case "rated":
+      return (metadata?.rating ?? 0) >= 3;
+    case "not-rejected":
+      return metadata?.flag !== "reject";
+    default:
+      return true;
+  }
+}

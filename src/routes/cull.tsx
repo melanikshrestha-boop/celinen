@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CullWorkspace } from "@/components/cull/CullWorkspace";
 import { importName } from "@/components/cull/cull-review";
+import { InstagramComposer, type InstagramCandidate } from "@/components/social/InstagramComposer";
 import { PRODUCT_NAME } from "@/lib/product";
 import { CullController, NO_CODES, type CullSnapshot } from "@/lib/studio/cull/controller";
 import { opfsRoot } from "@/lib/studio/cull/opfs";
@@ -232,26 +233,68 @@ function CullSessionHost({ scope }: { scope: string }) {
       .catch(report);
   }, [controller, navigate, report]);
 
+  // Instagram: keepers this tab can decode post from their originals. RAW keepers
+  // and reopened sessions have no readable original here; Develop posts those.
+  const [instagram, setInstagram] = useState<{ ids: readonly string[]; initial: string[] } | null>(
+    null,
+  );
+  const onInstagram = useCallback(
+    (ids: readonly string[], currentId: string | null) =>
+      setInstagram({
+        ids,
+        initial: currentId && ids.includes(currentId) ? [currentId] : ids.slice(0, 1),
+      }),
+    [],
+  );
+  const candidates = useMemo<InstagramCandidate[]>(() => {
+    if (!instagram || !controller) return [];
+    const names = new Map(snapshot.frames.map((frame) => [frame.id, frame.name]));
+    return instagram.ids.map((id) => ({
+      id,
+      name: names.get(id) ?? "Photo",
+      thumbnail: () => controller.thumbnail(id),
+      preview: async () => (await preview(id))?.blob ?? null,
+      source: async () => {
+        const original = controller.original(id);
+        return original && /^image\/(jpeg|png|webp)$/.test(original.type) ? original : null;
+      },
+    }));
+    // Frame names only label tiles; the candidate list is fixed while the composer is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instagram, controller, preview]);
+
   const shown = failure && !snapshot.notice ? { ...snapshot, notice: failure } : snapshot;
   return (
-    <CullWorkspace
-      snapshot={shown}
-      onImport={onImport}
-      onCancelImport={onCancelImport}
-      onCancelBackup={onCancelBackup}
-      onExport={onExport}
-      onMark={onMark}
-      onUndo={onUndo}
-      onKeepTarget={onKeepTarget}
-      onAddCodes={onAddCodes}
-      onRemoveCodes={onRemoveCodes}
-      thumbnail={thumbnail}
-      preview={preview}
-      onReconnect={onReconnect}
-      sessions={sessions}
-      onOpenSession={onOpenSession}
-      onFace={(id, box) => controller?.noteFace(id, box)}
-      onDevelop={onDevelop}
-    />
+    <>
+      {instagram && (
+        <InstagramComposer
+          open
+          onOpenChange={(open) => (open ? undefined : setInstagram(null))}
+          origin="cull"
+          candidates={candidates}
+          initial={instagram.initial}
+        />
+      )}
+      <CullWorkspace
+        snapshot={shown}
+        onImport={onImport}
+        onCancelImport={onCancelImport}
+        onCancelBackup={onCancelBackup}
+        onExport={onExport}
+        onMark={onMark}
+        onUndo={onUndo}
+        onKeepTarget={onKeepTarget}
+        onAddCodes={onAddCodes}
+        onRemoveCodes={onRemoveCodes}
+        thumbnail={thumbnail}
+        preview={preview}
+        onReconnect={onReconnect}
+        sessions={sessions}
+        onOpenSession={onOpenSession}
+        onFace={(id, box) => controller?.noteFace(id, box)}
+        onDevelop={onDevelop}
+        onInstagram={onInstagram}
+      />
+    </>
   );
 }
