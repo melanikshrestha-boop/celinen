@@ -1509,17 +1509,19 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     renderKey,
   ]);
   const renderRecipe = useMemo(
-    () =>
-      tool === "edit"
-        ? draft
-        : {
-            ...draft,
-            crop: defaultDevelopSettings().crop,
-            // Guides are drawn in the photograph's own coordinates, so the
-            // correction is lifted while they are being drawn.
-            ...(tool === "guided" ? { geometry: defaultDevelopGeometry() } : {}),
-          },
-    () => (tool === "crop" || tool === "mask" ? { ...draft, crop: defaultDevelopSettings().crop } : draft),
+    () => {
+      if (tool === "edit" || tool === "wb") return draft;
+      if (tool === "guided") {
+        return {
+          ...draft,
+          crop: defaultDevelopSettings().crop,
+          // Guides are drawn in the photograph's own coordinates, so the
+          // correction is lifted while they are being drawn.
+          geometry: defaultDevelopGeometry(),
+        };
+      }
+      return { ...draft, crop: defaultDevelopSettings().crop };
+    },
     [draft, tool],
   );
   const neutralRecipe = useMemo(() => isNeutralDevelopRecipe(renderRecipe), [renderRecipe]);

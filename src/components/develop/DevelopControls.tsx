@@ -43,7 +43,7 @@ import {
 } from "@/lib/develop/upright";
 
 export type DevelopChange = (settings: DevelopSettings, label: string, commit?: boolean) => void;
-export type DevelopTool = "edit" | "crop" | "mask" | "guided";
+export type DevelopTool = "edit" | "crop" | "mask" | "guided" | "wb";
 export function Panel({
   title,
   children,
