@@ -36,6 +36,7 @@ export function isNeutralDevelopRecipe(input: unknown): boolean {
   const parsed = developSettingsSchema.safeParse(input);
   if (!parsed.success) return false;
   const s = parsed.data;
+  if (s.treatment !== "color" || s.profile !== "adobe-color") return false;
   if (effectiveAmounts.some((key) => s[key] !== 0)) return false;
   const identity = (curve: DevelopSettings["curve"]) =>
     curve.length === 2 &&

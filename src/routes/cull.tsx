@@ -4,7 +4,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { CullWorkspace } from "@/components/cull/CullWorkspace";
 import { importName } from "@/components/cull/cull-review";
 import { PRODUCT_NAME } from "@/lib/product";
-import { CullController, type CullSnapshot } from "@/lib/studio/cull/controller";
+import { CullController, NO_CODES, type CullSnapshot } from "@/lib/studio/cull/controller";
 import { opfsRoot } from "@/lib/studio/cull/opfs";
 import { PreviewLibrary } from "@/lib/studio/cull/preview-library";
 import { PreviewQueue, workerPreviewEncoder } from "@/lib/studio/cull/preview-queue";
@@ -40,6 +40,10 @@ const EMPTY: CullSnapshot = {
   notice: null,
   canUndo: false,
   originals: "unavailable",
+  backup: null,
+  keepTarget: null,
+  ranked: 0,
+  codes: NO_CODES,
 };
 
 /** Review previews need a private file system, a worker that can draw, and a
@@ -84,6 +88,7 @@ function CullSessionHost({ scope }: { scope: string }) {
         });
         unsubscribe = owned.subscribe(setSnapshot);
         setController(owned);
+        void owned.loadCodes();
         // Photos dropped on Home start culling the moment the store is open.
         const queued = takeStudioImport();
         if (queued.length)
@@ -124,20 +129,47 @@ function CullSessionHost({ scope }: { scope: string }) {
   }, []);
 
   const onImport = useCallback(
-    (name: string, files: readonly File[], roots?: readonly CullSourceRoot[]) => {
+    (
+      name: string,
+      files: readonly File[],
+      roots?: readonly CullSourceRoot[],
+      backup?: Parameters<CullController["importCard"]>[3],
+    ) => {
       if (!controller) return;
       setFailure(null);
       controller
-        .importCard(name, files, roots)
+        .importCard(name, files, roots, backup)
         .catch(report)
         .finally(() => void refreshSessions());
     },
     [controller, report, refreshSessions],
   );
   const onCancelImport = useCallback(() => controller?.cancelImport(), [controller]);
-  const onDecide = useCallback(
-    (ids: readonly string[], verdict: Parameters<CullController["decide"]>[1]) =>
-      void controller?.decide(ids, verdict).catch(report),
+  const onCancelBackup = useCallback(() => controller?.cancelBackup(), [controller]);
+  const onExport = useCallback(
+    (request: Parameters<CullController["exportFrames"]>[0]) =>
+      controller
+        ? controller.exportFrames(request)
+        : Promise.reject(new Error("Cull is not ready.")),
+    [controller],
+  );
+  const onMark = useCallback(
+    (ids: readonly string[], marks: Parameters<CullController["mark"]>[1]) =>
+      void controller?.mark(ids, marks).catch(report),
+    [controller, report],
+  );
+  const onKeepTarget = useCallback(
+    (target: number | null) => controller?.setKeepTarget(target),
+    [controller],
+  );
+  // The code panel reports its own problems next to the file it could not read.
+  const onAddCodes = useCallback(
+    (input: Parameters<CullController["addCodes"]>[0]) =>
+      controller ? controller.addCodes(input) : Promise.reject(new Error("Cull is not ready.")),
+    [controller],
+  );
+  const onRemoveCodes = useCallback(
+    (id: string) => void controller?.removeCodes(id).catch(report),
     [controller, report],
   );
   const onUndo = useCallback(() => void controller?.undo().catch(report), [controller, report]);
@@ -187,8 +219,13 @@ function CullSessionHost({ scope }: { scope: string }) {
       snapshot={shown}
       onImport={onImport}
       onCancelImport={onCancelImport}
-      onDecide={onDecide}
+      onCancelBackup={onCancelBackup}
+      onExport={onExport}
+      onMark={onMark}
       onUndo={onUndo}
+      onKeepTarget={onKeepTarget}
+      onAddCodes={onAddCodes}
+      onRemoveCodes={onRemoveCodes}
       thumbnail={thumbnail}
       preview={preview}
       onReconnect={onReconnect}

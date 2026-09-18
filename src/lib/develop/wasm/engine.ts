@@ -159,7 +159,7 @@ export async function instantiateDevelopWasm(
       return new Uint8ClampedArray(wasm.memory.buffer, pointer, width * height * 4);
     },
     develop(settings, highResolution = false) {
-      const protocol = new TextEncoder().encode(developProtocol(settings));
+      const protocol = new TextEncoder().encode(developProtocol(settings, { legacy: true }));
       const upright = uprightTransformValues(settings.geometry);
       const uprightDevelop = wasm.celinen_upright_develop;
       if (upright && !uprightDevelop) throw new Error("Reload Develop to use Upright.");
@@ -243,7 +243,7 @@ export async function instantiateDevelopWasm(
         looks.length * LOOK_DESCRIPTOR_SIZE,
       );
       looks.forEach((look, index) => room.set(look, index * LOOK_DESCRIPTOR_SIZE));
-      const protocol = new TextEncoder().encode(developProtocol(settings));
+      const protocol = new TextEncoder().encode(developProtocol(settings, { legacy: true }));
       const pointer = wasm.celinen_alloc(protocol.length);
       if (!pointer)
         throw new Error("This photo is too large for the browser's memory at this size.");

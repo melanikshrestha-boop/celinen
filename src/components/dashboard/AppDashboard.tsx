@@ -9,6 +9,7 @@ import {
   Download,
   House,
   Images,
+  Menu,
   Moon,
   PanelLeft,
   Plus,
@@ -21,6 +22,13 @@ import {
 import { useAccount } from "@/components/account/AccountProvider";
 import { useSignedOutRedirect } from "@/components/account/useSignedOutRedirect";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { SocialDock } from "./SocialDock";
 import { LogoMark } from "@/components/lensos/Logo";
@@ -174,6 +182,8 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   }
   const [openWidth, setOpenWidth] = useState(readOpenWidth);
   const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ startX: number; startW: number } | null>(null);
   const liveRef = useRef<number | null>(null);
   const winMove = useRef<(event: globalThis.PointerEvent) => void>(undefined);
@@ -269,12 +279,19 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
   useEffect(() => () => detachResize(), []);
 
   useEffect(() => {
-    if (!mobile) return;
+    if (!mobile) {
+      setMobileNavOpen(false);
+      return;
+    }
     drag.current = null;
     detachResize();
     liveRef.current = null;
     setLiveWidth(null);
   }, [mobile]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname, search]);
 
   useSignedOutRedirect();
 
@@ -449,116 +466,145 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     }
   }
 
-  // Narrow-screen presentation is temporary; retain the user's desktop rail settings.
-  const shown = mobile ? MINI_W : shownWidth();
-  const visual = mobile ? "mini" : liveWidth == null ? rail : widthToMode(liveWidth);
+  // Narrow screens hide the permanent rail; desktop settings stay untouched in memory.
+  const shown = mobile ? 0 : shownWidth();
+  const visual = mobile ? "open" : liveWidth == null ? rail : widthToMode(liveWidth);
+
+  const galleryLabel = (() => {
+    try {
+      if (typeof localStorage === "undefined") return "Gallery";
+      return Number(localStorage.getItem("celinen.gallery.count.v1") || "0") > 1
+        ? "Galleries"
+        : "Gallery";
+    } catch {
+      return "Gallery";
+    }
+  })();
+
+  const navLinks = MAIN.map((item) => {
+    const calendar = "view" in item;
+    const label = item.to === "/deliver" ? galleryLabel : item.label;
+    const on = calendar
+      ? calendarOpen
+      : "end" in item && item.end
+        ? pathname === "/dashboard" && !calendarOpen
+        : pathname === item.to || pathname.startsWith(`${item.to}/`);
+    return (
+      <Link
+        key={"view" in item ? `${item.to}:${item.view}` : item.to}
+        to={item.to}
+        title={label}
+        aria-label={label}
+        search={calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined}
+        activeOptions={"end" in item || calendar ? { exact: true } : undefined}
+        className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
+        activeProps={{
+          className:
+            "end" in item && item.end && calendarOpen
+              ? "celinen-dash__link"
+              : "celinen-dash__link is-active",
+        }}
+        onClick={() => setMobileNavOpen(false)}
+      >
+        <span className="celinen-dash__ico" aria-hidden="true">
+          <item.icon size={20} strokeWidth={1.5} />
+        </span>
+        <span>{label}</span>
+      </Link>
+    );
+  });
+
+  const railBody = (
+    <>
+      <div className="celinen-dash__top">
+        {mobile || visual !== "mini" ? (
+          <>
+            <Link
+              to="/dashboard"
+              className="celinen-dash__brand"
+              aria-label={mobile ? "Home" : undefined}
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <LogoMark size={28} />
+              <span>{PRODUCT_NAME}</span>
+            </Link>
+            {!mobile ? (
+              <button
+                type="button"
+                className="celinen-dash__close"
+                aria-label="Minimize sidebar"
+                onClick={() => setRail("mini")}
+              >
+                <PanelLeft size={18} strokeWidth={1.5} />
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <button
+            type="button"
+            className="celinen-dash__brand"
+            aria-label="Expand sidebar"
+            onClick={() => setRail("open")}
+          >
+            <LogoMark size={28} />
+          </button>
+        )}
+      </div>
+      <nav className="celinen-dash__nav" aria-label="Dashboard">
+        {navLinks}
+      </nav>
+      <div className="celinen-dash__foot">
+        <Link
+          to="/pricing"
+          title="Upgrade"
+          aria-label="Upgrade"
+          className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
+          onClick={() => setMobileNavOpen(false)}
+        >
+          <span className="celinen-dash__ico" aria-hidden="true">
+            <Sparkles size={20} strokeWidth={1.5} />
+          </span>
+          <span>Upgrade</span>
+        </Link>
+        <div className="celinen-dash__social">
+          <SocialDock mini={!mobile && visual === "mini"} />
+        </div>
+        <div className="celinen-dash__account">
+          <AccountMenu />
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <DashboardContext.Provider value={true}>
       <div
-        className={`celinen-dash${visual === "mini" ? " is-mini" : ""}${liveWidth != null ? " is-resizing" : ""}`}
+        className={`celinen-dash${mobile ? " is-mobile" : visual === "mini" ? " is-mini" : ""}${liveWidth != null ? " is-resizing" : ""}`}
         style={{ ["--rail" as string]: `${shown}px` }}
         onPointerDown={onHapticPress}
       >
-        <aside className="celinen-dash__rail">
-          <div className="celinen-dash__top">
-            {mobile ? (
-              <Link to="/dashboard" className="celinen-dash__brand" aria-label="Home">
-                <LogoMark size={28} />
-              </Link>
-            ) : visual === "mini" ? (
-              <button
-                type="button"
-                className="celinen-dash__brand"
-                aria-label="Expand sidebar"
-                onClick={() => setRail("open")}
-              >
-                <LogoMark size={28} />
-              </button>
-            ) : (
-              <>
-                <Link to="/dashboard" className="celinen-dash__brand">
-                  <LogoMark size={28} />
-                  <span>{PRODUCT_NAME}</span>
-                </Link>
-                <button
-                  type="button"
-                  className="celinen-dash__close"
-                  aria-label="Minimize sidebar"
-                  onClick={() => setRail("mini")}
-                >
-                  <PanelLeft size={18} strokeWidth={1.5} />
-                </button>
-              </>
-            )}
-          </div>
-          <nav className="celinen-dash__nav" aria-label="Dashboard">
-            {MAIN.map((item) => {
-              const calendar = "view" in item;
-              const label =
-                item.to === "/deliver"
-                  ? (() => {
-                      try {
-                        if (typeof localStorage === "undefined") return "Gallery";
-                        return Number(localStorage.getItem("celinen.gallery.count.v1") || "0") > 1
-                          ? "Galleries"
-                          : "Gallery";
-                      } catch {
-                        return "Gallery";
-                      }
-                    })()
-                  : item.label;
-              const on = calendar
-                ? calendarOpen
-                : "end" in item && item.end
-                  ? pathname === "/dashboard" && !calendarOpen
-                  : pathname === item.to || pathname.startsWith(`${item.to}/`);
-              return (
-                <Link
-                  key={"view" in item ? `${item.to}:${item.view}` : item.to}
-                  to={item.to}
-                  title={label}
-                  aria-label={label}
-                  search={
-                    calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined
-                  }
-                  activeOptions={"end" in item || calendar ? { exact: true } : undefined}
-                  className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
-                  activeProps={{
-                    className:
-                      "end" in item && item.end && calendarOpen
-                        ? "celinen-dash__link"
-                        : "celinen-dash__link is-active",
-                  }}
-                >
-                  <span className="celinen-dash__ico" aria-hidden="true">
-                    <item.icon size={20} strokeWidth={1.5} />
-                  </span>
-                  <span>{label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="celinen-dash__foot">
-            <Link
-              to="/pricing"
-              title="Upgrade"
-              aria-label="Upgrade"
-              className={`celinen-dash__link celinen-dash__upgrade${pathname === "/pricing" ? " is-active" : ""}`}
+        {mobile ? (
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <SheetContent
+              side="left"
+              className="celinen-dash__drawer"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                menuTrigger.current?.focus();
+              }}
             >
-              <span className="celinen-dash__ico" aria-hidden="true">
-                <Sparkles size={20} strokeWidth={1.5} />
-              </span>
-              <span>Upgrade</span>
-            </Link>
-            <div className="celinen-dash__social">
-              <SocialDock mini={visual === "mini"} />
-            </div>
-            <div className="celinen-dash__account">
-              <AccountMenu />
-            </div>
-          </div>
-        </aside>
+              <SheetHeader className="sr-only">
+                <SheetTitle>Celinen navigation</SheetTitle>
+                <SheetDescription>
+                  Home, Cull, Gallery, Develop, Calendar, Analytics, Social, and Tools.
+                </SheetDescription>
+              </SheetHeader>
+              <aside className="celinen-dash__rail celinen-dash__rail--drawer">{railBody}</aside>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <aside className="celinen-dash__rail">{railBody}</aside>
+        )}
         {!mobile && (
           <div
             className="celinen-dash__resize"
@@ -580,6 +626,18 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         <main
           className={`celinen-dash__body${children ? " is-tool" : calendarOpen ? " is-cal" : " is-chat"}`}
         >
+          {mobile ? (
+            <button
+              ref={menuTrigger}
+              type="button"
+              className="celinen-dash__menu"
+              aria-label="Open menu"
+              title="Open menu"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <Menu size={22} strokeWidth={1.75} />
+            </button>
+          ) : null}
           {account && account.status === "in" ? (
             <div className="celinen-dash__theme" role="group" aria-label="Appearance">
               <button

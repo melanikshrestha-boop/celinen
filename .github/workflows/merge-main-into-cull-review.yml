@@ -1,0 +1,28 @@
+name: merge-main-into-cull-review
+on:
+  workflow_dispatch:
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ship/cull-review
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge origin/main and resolve CullGrid
+        run: |
+          set -euo pipefail
+          git config user.name "Celine Nova"
+          git config user.email "melanikshrestha@gmail.com"
+          git fetch origin main
+          if git merge origin/main -m "Merge origin/main into ship/cull-review"; then
+            echo "clean merge"
+          else
+            python3 .github/scripts/resolve_cullgrid.py
+            git add -A
+            git -c core.editor=true merge --continue || git commit --no-edit -m "Merge origin/main into ship/cull-review"
+          fi
+          git push origin HEAD:ship/cull-review

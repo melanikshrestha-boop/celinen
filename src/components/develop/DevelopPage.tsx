@@ -64,6 +64,7 @@ import {
   type UprightSolveRequest,
 } from "@/lib/develop/upright";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
+import { whiteBalanceFromSample } from "@/lib/develop/lightroom-basic";
 import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
   asDevelopViewBlob,
@@ -481,9 +482,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     border: nightKitStore.border,
     kit: applyWatermarkKit ? activeWatermarkKit(nightKitStore) : null,
   };
-  const dressingKey = dressingIsActive(exportDressing)
-    ? exportDressingKey(exportDressing)
-    : "";
+  const dressingKey = dressingIsActive(exportDressing) ? exportDressingKey(exportDressing) : "";
   const exportTargets =
     selectedSet.size > 1
       ? availablePhotos.filter((item) => selectedSet.has(item.id))
@@ -505,7 +504,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const proofReady = currentDevelopExportProof(exportProof, exportRequest);
   const proofUrl = useBlobUrl(proofReady ? exportProof?.blob : null);
   const url = useBlobUrl(
-      currentDevelopRender(renderOwner.current, selected, previewSource, tool !== "edit", renderKey)
+      currentDevelopRender(
+        renderOwner.current,
+        selected,
+        previewSource,
+        tool === "crop" || tool === "mask",
+        renderKey,
+      )
         ? renderBlob
         : null,
     ),
@@ -1302,6 +1307,29 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (alive.current) setNotice(errorMessage(error));
     }
   }
+  async function autoWhiteBalance() {
+    const id = selectedRef.current;
+    if (editsLocked() || !id || !previewSource) return;
+    try {
+      const suggestion = await suggestDevelopWasm(previewSource, exportEdge);
+      if (!alive.current || selectedRef.current !== id || editsLocked()) return;
+      if (!suggestion?.applicable || !suggestion.whiteBalanceMeasured) {
+        setNotice("No neutral region to measure.");
+        return;
+      }
+      change(
+        {
+          ...draftRef.current,
+          whiteBalance: "auto",
+          temperature: suggestion.patch.temperature,
+          tint: suggestion.patch.tint,
+        },
+        "White balance",
+      );
+    } catch (error) {
+      if (alive.current) setNotice(errorMessage(error));
+    }
+  }
   // A look is solved on the pixels the browser decodes. A RAW rendered from
   // sensor data would not look like what was solved, so it cannot take one.
   function lookSource(target: DevelopPhoto) {
@@ -1486,15 +1514,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   ]);
   const renderRecipe = useMemo(
     () =>
-      tool === "edit"
-        ? draft
-        : {
-            ...draft,
-            crop: defaultDevelopSettings().crop,
-            // Guides are drawn in the photograph's own coordinates, so the
-            // correction is lifted while they are being drawn.
-            ...(tool === "guided" ? { geometry: defaultDevelopGeometry() } : {}),
-          },
+      tool === "crop" || tool === "mask"
+        ? { ...draft, crop: defaultDevelopSettings().crop }
+        : // Guides are drawn in the photograph's own coordinates, so the
+          // correction is lifted while they are being drawn.
+          tool === "guided"
+          ? { ...draft, geometry: defaultDevelopGeometry() }
+          : draft,
     [draft, tool],
   );
   const neutralRecipe = useMemo(() => isNeutralDevelopRecipe(renderRecipe), [renderRecipe]);
@@ -1547,7 +1573,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 renderOwner.current = {
                   id: selected,
                   source: previewSource,
-                  sourceGeometry: tool !== "edit",
+                  sourceGeometry: tool === "crop" || tool === "mask",
                   renderKey,
                 };
                 if (selected)
@@ -1931,9 +1957,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             };
             setBusy(`Exporting ${targets.indexOf(target) + 1} of ${targets.length}…`);
             const undressed =
-              targets.length === 1 &&
-              currentDevelopExportProof(exportProof, request) &&
-              exportProof
+              targets.length === 1 && currentDevelopExportProof(exportProof, request) && exportProof
                 ? null
                 : currentDevelopExportProof(editorProof.current, {
                       ...request,
@@ -1947,18 +1971,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                       sourceMode,
                     });
             const blob =
-              targets.length === 1 &&
-              currentDevelopExportProof(exportProof, request) &&
-              exportProof
+              targets.length === 1 && currentDevelopExportProof(exportProof, request) && exportProof
                 ? exportProof.blob
-                : (
-                    await finishExportBlob(
-                      undressed!,
-                      dressing,
-                      quality,
-                      signal,
-                    )
-                  ).blob;
+                : (await finishExportBlob(undressed!, dressing, quality, signal)).blob;
             const bitmap = await decodeDevelopPreview(blob);
             lastSize = `${bitmap.width} × ${bitmap.height}`;
             bitmap.close();
@@ -2047,6 +2062,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (key === "g") setMode("library");
       if (key === "d") setMode("develop");
       if (key === "r") changeTool(tool === "crop" ? "edit" : "crop");
+      if (key === "w") changeTool(tool === "wb" ? "edit" : "wb");
       if (key === "y" && source) {
         setCompare((v) => !v);
         setTool("edit");
@@ -2791,6 +2807,19 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                           }
                         : null
                     }
+                    onWhiteBalancePick={(sample) => {
+                      const picked = whiteBalanceFromSample(sample.red, sample.green, sample.blue);
+                      change(
+                        {
+                          ...draftRef.current,
+                          whiteBalance: "custom",
+                          temperature: picked.temperature,
+                          tint: picked.tint,
+                        },
+                        "White balance",
+                      );
+                      changeTool("edit");
+                    }}
                     overlay={
                       <>
                         {inspirations.items.length > 0 && (
@@ -2986,7 +3015,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 maskId={maskId}
                 onMask={setMaskId}
                 sourceAspect={sourceAspect}
-                {...(wasmEngine ? {} : { onSuggestCrop: () => openDialog("auto-crop") })}
+                {...(wasmEngine
+                  ? {
+                      onAuto: () => void autoDevelop(),
+                      onAutoWhiteBalance: () => void autoWhiteBalance(),
+                    }
+                  : { onSuggestCrop: () => openDialog("auto-crop") })}
+                autoBusy={!!busy}
                 browserOnly={browserOnly}
                 uprightSolving={uprightSolving}
               />

@@ -159,7 +159,7 @@ describe("cull workspace", () => {
     expect(html).toContain(">Cancel</button>");
     expect(cards(html)).toBe(40);
     expect(html).toMatch(/disabled=""[^>]*>Import folder</);
-    expect(html).toContain("← → J L move · K keep · X reject");
+    expect(html).toContain("← → J L move · K P keep · X reject");
   });
 
   test("Go to Develop is the next step once there are keepers", () => {
