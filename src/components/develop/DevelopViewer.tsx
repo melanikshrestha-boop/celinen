@@ -5,6 +5,10 @@ import { developImageReady } from "./develop-state";
 import { type DevelopHistogramData } from "@/lib/develop/histogram";
 import { analyzeDevelopBlob } from "@/lib/develop/pixel-analysis";
 import { useDevelopPixelSample, type DevelopPixelSample } from "./useDevelopPixelSample";
+import {
+  developPixelCoordinate,
+  readDevelopPixelSample,
+} from "@/lib/develop/pixel-sample";
 
 const ignorePixelSample = (_sample: DevelopPixelSample | null) => {};
 
@@ -28,6 +32,7 @@ export function DevelopViewer({
   knownHistogram,
   onPixelSample = ignorePixelSample,
   clipping,
+  onWhiteBalancePick,
   overlay = null,
   exportFrame = null,
 }: {
@@ -50,6 +55,7 @@ export function DevelopViewer({
   knownHistogram?: DevelopHistogramData | null;
   onPixelSample?: (sample: DevelopPixelSample | null) => void;
   clipping: { shadows: boolean; highlights: boolean };
+  onWhiteBalancePick?: (sample: DevelopPixelSample) => void;
   /** Drawn over the stage, outside the photo's zoom and pan. */
   overlay?: ReactNode;
   /** Visible edit-mode border preview matching export night kit. */
@@ -57,6 +63,7 @@ export function DevelopViewer({
 }) {
   const stage = useRef<HTMLDivElement>(null),
     sampleImage = useRef<HTMLImageElement>(null),
+    uneditedImage = useRef<HTMLImageElement>(null),
     gesture = useRef<{ x: number; y: number; settings: DevelopSettings } | null>(null);
   const latest = useRef(settings);
   const clippingCanvas = useRef<HTMLCanvasElement>(null);
@@ -75,7 +82,7 @@ export function DevelopViewer({
   const pixelPointer = useDevelopPixelSample({
     image: sampleImage,
     sourceUrl: displayedUrl,
-    enabled: geometryReady && tool === "edit" && !compare,
+    enabled: geometryReady && (tool === "edit" || tool === "wb") && !compare,
     onSample: onPixelSample,
   });
   useEffect(() => {
@@ -191,8 +198,44 @@ export function DevelopViewer({
           )}
           <div
             className={`develop-image-frame${exportFrame ? " has-export-border" : ""}`}
-            style={frameStyle}
+            style={{ ...frameStyle, cursor: tool === "wb" ? "crosshair" : undefined }}
             {...pixelPointer}
+            onPointerDown={(event) => {
+              if (tool !== "wb" || event.button !== 0 || !onWhiteBalancePick) return;
+              const visible = sampleImage.current;
+              if (!visible?.complete) return;
+              const point = developPixelCoordinate(
+                event.clientX,
+                event.clientY,
+                visible.getBoundingClientRect(),
+                visible.naturalWidth,
+                visible.naturalHeight,
+              );
+              if (!point) return;
+              const source =
+                uneditedImage.current?.complete && uneditedImage.current.naturalWidth
+                  ? uneditedImage.current
+                  : visible;
+              const mapped = {
+                x: Math.min(
+                  source.naturalWidth - 1,
+                  Math.floor((point.x / visible.naturalWidth) * source.naturalWidth),
+                ),
+                y: Math.min(
+                  source.naturalHeight - 1,
+                  Math.floor((point.y / visible.naturalHeight) * source.naturalHeight),
+                ),
+              };
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 1;
+              const context = canvas.getContext("2d", {
+                colorSpace: "srgb",
+                willReadFrequently: true,
+              });
+              if (!context) return;
+              event.preventDefault();
+              onWhiteBalancePick(readDevelopPixelSample(source, context, mapped));
+            }}
           >
             <img
               ref={sampleImage}
@@ -211,6 +254,9 @@ export function DevelopViewer({
                 onDimensions(img.naturalWidth, img.naturalHeight);
               }}
             />
+            {beforeUrl && beforeUrl !== displayedUrl && (
+              <img ref={uneditedImage} src={beforeUrl} alt="" hidden />
+            )}
             <canvas
               ref={clippingCanvas}
               className="develop-clipping-overlay"

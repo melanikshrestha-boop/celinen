@@ -468,6 +468,39 @@ int main() {
       std::istringstream input(protocol5);const auto smoothed=lenslabs::read_develop_protocol(input);
       check(smoothed.curve_interpolation==mode&&smoothed.sharpening_radius==1.75&&smoothed.global_grade.saturation==72,"Protocol5 adds a strict interpolation flag without losing previous controls.");
     }
+    {
+      auto protocol6=protocol4;protocol6.replace(0,14,"FOTO_DEVELOP_6");protocol6+="1\n1 4 8\n";
+      std::istringstream input(protocol6);const auto basic=lenslabs::read_develop_protocol(input);
+      check(basic.curve_interpolation==1&&basic.treatment==1&&basic.profile==4&&basic.white_balance==8,
+            "Protocol6 round trips treatment, profile and white-balance mode.");
+    }
+    for(const auto& tail:{"", "2 0 0", "0 6 0", "0 0 9", "1 4", "1 4 8 extra"}) {
+      auto invalid=protocol4;invalid.replace(0,14,"FOTO_DEVELOP_6");invalid+="1\n";invalid+=tail;invalid+="\n";
+      rejects([&]{std::istringstream input(invalid);lenslabs::read_develop_protocol(input);},"Protocol6 rejects truncated, out-of-range and trailing Basic-panel fields.");
+    }
+    {
+      auto color=neutral;auto bw=neutral;bw.treatment=1;
+      check(lenslabs::develop(source,color).rgba!=lenslabs::develop(source,bw).rgba,"Black & White treatment converts chroma.");
+      auto identity=neutral;identity.profile=0;
+      check(lenslabs::develop(source,identity).rgba==original,"Adobe Color is identity in this working space.");
+      auto vivid=neutral;vivid.profile=4;
+      check(lenslabs::develop(source,vivid).rgba!=original,"Adobe Vivid changes the look.");
+      auto mono=neutral;mono.profile=5;
+      const auto grey=lenslabs::develop(source,mono);
+      bool chroma=false;
+      for(std::size_t i=0;i+3<grey.rgba.size();i+=4)
+        if(grey.rgba[i]!=grey.rgba[i+1]||grey.rgba[i]!=grey.rgba[i+2]) chroma=true;
+      check(!chroma,"Adobe Monochrome is a single-channel conversion.");
+      check(!lenslabs::is_neutral_develop(bw)&&!lenslabs::is_neutral_develop(vivid),"Treatment and profile block the no-op path.");
+      lenslabs::Image patch;patch.width=patch.height=patch.source_width=patch.source_height=1;
+      patch.rgba={158,128,102,255};
+      const auto sample=lenslabs::develop_white_balance_from_sample(158/255.0,128/255.0,102/255.0);
+      auto warmed=neutral;warmed.temperature=sample.temperature;warmed.tint=sample.tint;
+      const auto corrected=lenslabs::develop(patch,warmed);
+      check(std::abs(int(corrected.rgba[0])-int(corrected.rgba[1]))<=2 &&
+            std::abs(int(corrected.rgba[1])-int(corrected.rgba[2]))<=2,
+            "Eyedropper white balance neutralizes the sampled pixel.");
+    }
     for(const auto& tail:{"", "-1", "2", "0.5", "nan", "1 extra"}) {
       auto invalid=protocol4;invalid.replace(0,14,"FOTO_DEVELOP_5");invalid+=tail;
       rejects([&]{std::istringstream input(invalid);lenslabs::read_develop_protocol(input);},"Protocol5 rejects missing, unsupported, fractional and trailing interpolation flags.");

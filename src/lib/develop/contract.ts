@@ -105,9 +105,33 @@ export const developMaskSchema = z
     saturation: signed,
   })
   .strict();
+export const developTreatmentSchema = z.enum(["color", "black-and-white"]);
+export const developProfileSchema = z.enum([
+  "adobe-color",
+  "adobe-landscape",
+  "adobe-portrait",
+  "adobe-neutral",
+  "adobe-vivid",
+  "adobe-monochrome",
+]);
+export const developWhiteBalanceSchema = z.enum([
+  "as-shot",
+  "auto",
+  "daylight",
+  "cloudy",
+  "shade",
+  "tungsten",
+  "fluorescent",
+  "flash",
+  "custom",
+]);
 export const developSettingsSchema = z
   .object({
     version: z.literal(1),
+    // Lightroom Classic Basic panel. Defaults keep every saved recipe pixel-identical.
+    treatment: developTreatmentSchema.default("color"),
+    profile: developProfileSchema.default("adobe-color"),
+    whiteBalance: developWhiteBalanceSchema.default("as-shot"),
     exposure: z.number().finite().min(-5).max(5),
     contrast: signed,
     highlights: signed,
@@ -209,6 +233,9 @@ export function defaultDevelopSettings(): DevelopSettings {
   const grade = () => ({ hue: 0, saturation: 0, luminance: 0 });
   return {
     version: 1,
+    treatment: "color",
+    profile: "adobe-color",
+    whiteBalance: "as-shot",
     exposure: 0,
     contrast: 0,
     highlights: 0,

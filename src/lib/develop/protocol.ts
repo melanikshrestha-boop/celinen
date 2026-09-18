@@ -3,17 +3,39 @@
  * hosted and local renders on the same validated recipe semantics.
  */
 import { developSettingsSchema, type DevelopSettings } from "./contract";
+import {
+  developProfileIndex,
+  developWhiteBalanceIndex,
+  expandLightroomBasicForLegacyEngine,
+  isBlackAndWhiteDevelop,
+  isIdentityDevelopProfile,
+} from "./lightroom-basic";
 import { transportDevelopSettings } from "./parametric";
 
-export function developProtocol(input: DevelopSettings): string {
-  const s = developSettingsSchema.parse(input),
+export function developProtocol(
+  input: DevelopSettings,
+  options: { legacy?: boolean } = {},
+): string {
+  const parsed = developSettingsSchema.parse(input);
+  const s = options.legacy ? expandLightroomBasicForLegacyEngine(parsed) : parsed,
     transported = transportDevelopSettings(s),
     c = transported.crop;
   const extendedDetail =
     s.sharpeningRadius !== 1 || s.sharpeningDetail !== 100 || s.sharpeningMasking !== 0;
   const smoothCurve = s.curveInterpolation === "smooth";
+  const basic =
+    !options.legacy &&
+    (isBlackAndWhiteDevelop(s) ||
+      !isIdentityDevelopProfile(s.profile) ||
+      s.whiteBalance !== "as-shot");
   const lines: Array<string | number[]> = [
-    smoothCurve ? "FOTO_DEVELOP_5" : extendedDetail ? "FOTO_DEVELOP_4" : "FOTO_DEVELOP_3",
+    basic
+      ? "FOTO_DEVELOP_6"
+      : smoothCurve
+        ? "FOTO_DEVELOP_5"
+        : extendedDetail
+          ? "FOTO_DEVELOP_4"
+          : "FOTO_DEVELOP_3",
     [
       s.exposure,
       s.contrast,
@@ -79,8 +101,14 @@ export function developProtocol(input: DevelopSettings): string {
       s.grainLuminance,
     ],
   ];
-  if (extendedDetail || smoothCurve)
+  if (extendedDetail || smoothCurve || basic)
     lines.push([s.sharpeningRadius, s.sharpeningDetail, s.sharpeningMasking]);
-  if (smoothCurve) lines.push([1]);
+  if (smoothCurve || basic) lines.push([s.curveInterpolation === "smooth" ? 1 : 0]);
+  if (basic)
+    lines.push([
+      s.treatment === "black-and-white" ? 1 : 0,
+      developProfileIndex(s.profile),
+      developWhiteBalanceIndex(s.whiteBalance),
+    ]);
   return lines.map((l) => (typeof l === "string" ? l : l.join(" "))).join("\n") + "\n";
 }

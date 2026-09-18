@@ -61,6 +61,12 @@ struct DevelopMask {
   double exposure = 0, temperature = 0, saturation = 0;
 };
 struct DevelopSettings {
+  // Lightroom Classic Basic: 0 color / 1 black-and-white.
+  int treatment = 0;
+  // 0 Adobe Color (identity in this working space) … 5 Adobe Monochrome.
+  int profile = 0;
+  // 0 as-shot … 8 custom. Named presets only change temperature/tint.
+  int white_balance = 0;
   double exposure = 0, contrast = 0, highlights = 0, shadows = 0, whites = 0, blacks = 0;
   double temperature = 0, tint = 0, saturation = 0, vibrance = 0;
   double texture = 0, clarity = 0, dehaze = 0;
@@ -86,6 +92,7 @@ void validate_develop(const DevelopSettings& settings);
 // still runs, including fields that have no effect at zero strength.
 inline bool is_neutral_develop(const DevelopSettings& s) {
   validate_develop(s);
+  if (s.treatment != 0 || s.profile != 0) return false;
   for (double value : {s.exposure,s.contrast,s.highlights,s.shadows,s.whites,s.blacks,
       s.temperature,s.tint,s.saturation,s.vibrance,s.texture,s.clarity,s.dehaze,
       s.grain,s.fade,s.vignette,s.bloom,s.halation,s.film_falloff,
@@ -126,4 +133,7 @@ Image decode_raw_develop(const std::filesystem::path& path, std::uint32_t max_ed
                          double exposure, double temperature, double tint,
                          RawWhiteBalanceModel white_balance_model);
 double develop_mask_weight(const DevelopMask& mask, double x, double y);
+// Inverse of the RGB white-balance gains. Sample is 0–1 sRGB.
+struct WhiteBalanceSample { double temperature = 0, tint = 0; };
+WhiteBalanceSample develop_white_balance_from_sample(double red, double green, double blue);
 } // namespace lenslabs

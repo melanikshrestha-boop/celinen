@@ -122,6 +122,42 @@ void temperature(Pixel& p, double t, double tint) {
   p[1] = float(clamp(p[1] * std::exp2(-tint * .002)));
   p[2] = float(clamp(p[2] * std::exp2(-t * .0035 + tint * .001)));
 }
+// Relative looks vs Adobe Color (identity in this already-rendered working space).
+void apply_profile(Pixel& p, int profile) {
+  if (profile <= 0 || profile == 5) return;
+  auto color = rgb_hsl(p);
+  double h = color[0], s = color[1], l = color[2], hue = h * 360;
+  if (profile == 1) {
+    if (hue >= 60 && hue <= 180) s = clamp(s * 1.14);
+    else if (hue > 180 && hue < 270) s = clamp(s * 1.12);
+    l = .5 + (l - .5) * 1.10;
+  } else if (profile == 2) {
+    l = .5 + (l - .5) * .92;
+    if (hue < 50 || hue > 330) s = clamp(s * .92);
+    else if (hue >= 20 && hue <= 55) s = clamp(s * .88);
+  } else if (profile == 3) {
+    s = clamp(s * .90);
+    l = .5 + (l - .5) * .86;
+  } else if (profile == 4) {
+    s = clamp(s * 1.18);
+    l = .5 + (l - .5) * 1.14;
+  }
+  p = hsl_rgb(h, s, clamp(l));
+}
+void apply_black_and_white(Pixel& p, const DevelopSettings& s) {
+  const std::array<double, 8> centers{0, 30, 60, 120, 180, 240, 275, 315};
+  auto color = rgb_hsl(p);
+  const double hue = color[0] * 360;
+  double gain = 1;
+  for (std::size_t c = 0; c < centers.size(); ++c) {
+    double distance = std::abs(hue - centers[c]);
+    distance = std::min(distance, 360 - distance);
+    gain += std::max(0.0, 1 - distance / 60) * s.hsl[c].luminance / 100;
+  }
+  double y = clamp((0.22 * p[0] + 0.72 * p[1] + 0.06 * p[2]) * gain);
+  if (s.profile == 5) y = clamp(.5 + (y - .5) * 1.12);
+  p = {float(y), float(y), float(y)};
+}
 // The source stage receives exactly 256 possible codes per channel. This is an
 // exhaustive mapping, not an interpolated or approximate color LUT. Retain both
 // float rounding boundaries and the existing independent channel expressions.
@@ -333,6 +369,9 @@ Image geometry(const Image& in, const DevelopCrop& c) {
 } // namespace
 
 void validate_develop(const DevelopSettings& s) {
+  if (s.treatment != 0 && s.treatment != 1) throw std::invalid_argument("Invalid treatment.");
+  if (s.profile < 0 || s.profile > 5) throw std::invalid_argument("Invalid profile.");
+  if (s.white_balance < 0 || s.white_balance > 8) throw std::invalid_argument("Invalid white balance.");
   bounded(s.exposure, -5, 5);
   for (double v : {s.contrast,s.highlights,s.shadows,s.whites,s.blacks,s.temperature,s.tint,s.saturation,s.vibrance,s.texture,s.clarity,s.dehaze,s.balance,s.vignette}) bounded(v, -100, 100);
   for (double v : {s.blending,s.grain,s.grain_luminance,s.fade,s.film_falloff,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
@@ -349,7 +388,7 @@ void validate_develop(const DevelopSettings& s) {
 }
 
 DevelopSettings read_develop_protocol(std::istream& in) {
-  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2" && marker != "FOTO_DEVELOP_3" && marker != "FOTO_DEVELOP_4" && marker != "FOTO_DEVELOP_5") throw std::invalid_argument("Invalid Develop protocol.");
+  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2" && marker != "FOTO_DEVELOP_3" && marker != "FOTO_DEVELOP_4" && marker != "FOTO_DEVELOP_5" && marker != "FOTO_DEVELOP_6") throw std::invalid_argument("Invalid Develop protocol.");
   DevelopSettings s;
   in >> s.exposure >> s.contrast >> s.highlights >> s.shadows >> s.whites >> s.blacks >> s.temperature >> s.tint >> s.saturation >> s.vibrance >> s.texture >> s.clarity >> s.dehaze;
   int count = 0; in >> count; if (count < 2 || count > 16) throw std::invalid_argument("Invalid curve count.");
@@ -367,11 +406,12 @@ DevelopSettings read_develop_protocol(std::istream& in) {
     }
     in >> s.film_falloff;
   }
-  if(marker=="FOTO_DEVELOP_3"||marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5") {
+  if(marker=="FOTO_DEVELOP_3"||marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6") {
     in >> s.tonal_grading >> s.global_grade.hue >> s.global_grade.saturation >> s.global_grade.luminance >> s.grain_luminance;
   }
-  if(marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5")in >> s.sharpening_radius >> s.sharpening_detail >> s.sharpening_masking;
-  if(marker=="FOTO_DEVELOP_5")in >> s.curve_interpolation;
+  if(marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6")in >> s.sharpening_radius >> s.sharpening_detail >> s.sharpening_masking;
+  if(marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6")in >> s.curve_interpolation;
+  if(marker=="FOTO_DEVELOP_6") in >> s.treatment >> s.profile >> s.white_balance;
   if (!in) throw std::invalid_argument("Truncated Develop settings.");
   in >> std::ws; if (!in.eof()) throw std::invalid_argument("Extra Develop settings.");
   validate_develop(s); return s;
@@ -427,6 +467,7 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
   for (unsigned y = 0; y < h; ++y) for (unsigned x = 0; x < w; ++x) {
     const auto i = std::size_t(y) * w + x;
     Pixel p{source_table[source.rgba[i*4]][0],source_table[source.rgba[i*4+1]][1],source_table[source.rgba[i*4+2]][2]};
+    if (s.profile) apply_profile(p, s.profile);
     // The identity tone group cannot change these bounded working pixels.
     // Keep the active arithmetic/order intact; curves remain independent.
     if(use_tone) {
@@ -443,14 +484,18 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
       if(use_curve) v=float(s.curve_interpolation?master_curve.value(v):curve_value(v,s.curve));
       if(use_channel_curve[channel]) v=float(s.curve_interpolation?channel_curves[channel].value(v):curve_value(v,s.channel_curves[channel]));
     }
-    if (s.saturation != 0 || s.vibrance != 0) {
-      const double spread = std::max({p[0],p[1],p[2]})-std::min({p[0],p[1],p[2]});
-      saturate(p,std::max(0.0,1+s.saturation*.01+s.vibrance*.01*(1-spread)));
-    }
-    if (use_hsl) {
-      auto color = rgb_hsl(p); double dh=0, ds=0, dl=0, total=0;
-      for (std::size_t c=0;c<centers.size();++c) { double distance=std::abs(color[0]*360-centers[c]); distance=std::min(distance,360-distance); const double weight=std::max(0.0,1-distance/60); dh+=weight*s.hsl[c].hue; ds+=weight*s.hsl[c].saturation; dl+=weight*s.hsl[c].luminance; total+=weight; }
-      if (total>0) p=hsl_rgb(color[0]+dh/total/600,color[1]*(1+ds/total/100),color[2]+dl/total/200*color[1]);
+    const bool black_white = s.treatment == 1 || s.profile == 5;
+    if (black_white) apply_black_and_white(p, s);
+    else {
+      if (s.saturation != 0 || s.vibrance != 0) {
+        const double spread = std::max({p[0],p[1],p[2]})-std::min({p[0],p[1],p[2]});
+        saturate(p,std::max(0.0,1+s.saturation*.01+s.vibrance*.01*(1-spread)));
+      }
+      if (use_hsl) {
+        auto color = rgb_hsl(p); double dh=0, ds=0, dl=0, total=0;
+        for (std::size_t c=0;c<centers.size();++c) { double distance=std::abs(color[0]*360-centers[c]); distance=std::min(distance,360-distance); const double weight=std::max(0.0,1-distance/60); dh+=weight*s.hsl[c].hue; ds+=weight*s.hsl[c].saturation; dl+=weight*s.hsl[c].luminance; total+=weight; }
+        if (total>0) p=hsl_rgb(color[0]+dh/total/600,color[1]*(1+ds/total/100),color[2]+dl/total/200*color[1]);
+      }
     }
     if(use_grading&&s.tonal_grading) {
       // Independent FOTO model, not Adobe's proprietary algorithm. Normalized Gaussian
@@ -574,5 +619,12 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
   // const-reference identity branch otherwise copies another full RGBA buffer.
   if(identity_crop(s.crop)) return out;
   return geometry(out,s.crop);
+}
+
+WhiteBalanceSample develop_white_balance_from_sample(double red, double green, double blue) {
+  red = std::max(red, 1.0 / 255); green = std::max(green, 1.0 / 255); blue = std::max(blue, 1.0 / 255);
+  const double lr = std::log2(red), lg = std::log2(green), lb = std::log2(blue);
+  return {std::clamp(std::round((lb - lr) / .007), -100.0, 100.0),
+          std::clamp(std::round((2 * lg - lr - lb) / .006), -100.0, 100.0)};
 }
 } // namespace lenslabs
