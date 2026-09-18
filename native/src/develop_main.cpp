@@ -1,5 +1,8 @@
 #include "lenslabs/develop.hpp"
+#include "lenslabs/upright.hpp"
 #include <iostream>
+#include <iterator>
+#include <sstream>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -10,7 +13,21 @@ int main(int argc, char** argv) {
     auto number=[](const char* raw) { const std::string text(raw); std::size_t used=0; const double n=std::stod(text,&used); if(used!=text.size()) throw std::invalid_argument("Invalid number."); return n; };
     const double edge=number(argv[2]), quality=number(argv[3]);
     if(!std::isfinite(edge)||edge<32||edge>lenslabs::develop_max_edge||std::floor(edge)!=edge||!std::isfinite(quality)||quality<.5||quality>1) throw std::invalid_argument("Invalid export dimensions.");
-    auto settings=lenslabs::read_develop_protocol(std::cin);
+    // The recipe may be followed by one "UPRIGHT_1" line of 13 numbers: the
+    // perspective transform, applied to the decoded source before the recipe.
+    const std::string text{std::istreambuf_iterator<char>(std::cin),std::istreambuf_iterator<char>()};
+    const auto marker=text.find("UPRIGHT_1");
+    std::istringstream recipe(text.substr(0,marker));
+    auto settings=lenslabs::read_develop_protocol(recipe);
+    lenslabs::UprightTransform upright;
+    if(marker!=std::string::npos) {
+      std::istringstream line(text.substr(marker+9));
+      double values[13];
+      for(auto& value:values) if(!(line>>value)) throw std::invalid_argument("Truncated Upright values.");
+      line>>std::ws;
+      if(!line.eof()) throw std::invalid_argument("Extra Upright values.");
+      upright=lenslabs::read_upright_values(values,13);
+    }
     const std::string mode=argc==5?argv[4]:"preview";
     if(mode!="preview"&&mode!="raw") throw std::invalid_argument("Invalid source mode.");
     lenslabs::Image decoded;
@@ -18,6 +35,7 @@ int main(int argc, char** argv) {
       decoded=lenslabs::decode_raw_develop(argv[1],static_cast<unsigned>(edge),settings.exposure,settings.temperature,settings.tint);
       settings.exposure=0;settings.temperature=0;settings.tint=0;
     } else decoded=lenslabs::decode_develop_preview(argv[1],static_cast<unsigned>(edge));
+    if(!lenslabs::upright_identity(upright)) decoded=lenslabs::apply_upright(decoded,upright);
     // RAW exposure/WB have already been applied above. Do not allocate and run
     // millions of identity edits for imports or exposure/WB-only RAW recipes.
     // Moving the owned decoded buffer preserves its exact bytes and dimensions.

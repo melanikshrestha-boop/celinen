@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultDevelopGeometry, developGeometrySchema } from "./upright";
 export const developSourceModeSchema = z.enum(["preview", "raw"]);
 export type DevelopSourceMode = z.infer<typeof developSourceModeSchema>;
 
@@ -226,6 +227,8 @@ export const developSettingsSchema = z
       .array(developMaskSchema)
       .max(12)
       .refine((m) => new Set(m.map((v) => v.id)).size === m.length, "Mask IDs must be unique."),
+    // Additive: Upright and the Transform sliders. Applied before the recipe.
+    geometry: developGeometrySchema.default(defaultDevelopGeometry),
   })
   .strict();
 export type DevelopSettings = z.infer<typeof developSettingsSchema>;
@@ -305,6 +308,7 @@ export function defaultDevelopSettings(): DevelopSettings {
     colorNoiseReduction: 0,
     crop: { x: 0, y: 0, width: 1, height: 1, angle: 0, rotate: 0, flipX: false, flipY: false },
     masks: [],
+    geometry: defaultDevelopGeometry(),
   };
 }
 /** Drop additive unknown keys, then parse. A newer field must not brick the desk. */

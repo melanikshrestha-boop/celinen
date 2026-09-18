@@ -60,6 +60,8 @@ async function run(
       kind: "look-matched",
       match: wasm.matchLook(job.looks, job.settings, job.outputEdge),
     };
+  if (job.kind === "upright")
+    return { id: job.id, kind: "upright", solution: wasm.solveUpright(job.request, job.exif) };
   const image = wasm.develop(job.settings, job.edge > 4096);
   const canvas = new OffscreenCanvas(image.width, image.height);
   const context = canvas.getContext("2d", { colorSpace: "srgb" });
