@@ -234,7 +234,7 @@ function CullSessionHost({ scope }: { scope: string }) {
       id,
       name: names.get(id) ?? "Photo",
       thumbnail: () => controller.thumbnail(id),
-      preview: () => preview(id),
+      preview: async () => (await preview(id))?.blob ?? null,
       source: async () => {
         const original = controller.original(id);
         return original && /^image\/(jpeg|png|webp)$/.test(original.type) ? original : null;

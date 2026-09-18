@@ -21,7 +21,7 @@ export type DevelopViewBaseline = {
 export function developViewFilter(filter: string): string {
   return filter === "keepers"
     ? "picks"
-    : ["picks", "rated", "not-rejected"].includes(filter)
+    : ["picks", "hearted", "rated", "not-rejected"].includes(filter)
       ? filter
       : "all";
 }

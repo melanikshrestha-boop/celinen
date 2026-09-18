@@ -30,6 +30,7 @@
   --dv-thumb: #f0f0f0;
   --dv-thumb-on: #e2e2e2;
   --dv-focus: #171717;
+  --dv-heart: #cf3f5c;
   --dv-left: 220px;
   --dv-right: 300px;
   color: var(--dv-text);
@@ -80,6 +81,7 @@ html.dark .foto-develop {
   --dv-thumb: #535353;
   --dv-thumb-on: #858585;
   --dv-focus: #d1d1d1;
+  --dv-heart: #ef6e87;
   color-scheme: dark;
 }
 .foto-develop * {
@@ -1023,6 +1025,22 @@ html.dark .foto-develop {
   position: absolute;
   right: 5px;
   top: 3px;
+}
+/* Bottom-right is the only free corner: the number, the pick check and the
+   name already own the other three. */
+.develop-frame-heart {
+  position: absolute;
+  right: 5px;
+  bottom: 13px;
+  color: var(--dv-heart);
+}
+.develop-heart {
+  padding: 1px;
+  min-height: 18px;
+}
+.develop-heart[aria-pressed="true"] {
+  background: transparent;
+  color: var(--dv-heart);
 }
 .develop-save-status {
   white-space: nowrap;

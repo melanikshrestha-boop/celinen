@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Heart } from "lucide-react";
 import type { DevelopDocument, DevelopPhoto } from "@/lib/develop/store";
 import {
   filmstripMountedIndices,
@@ -68,6 +68,7 @@ type FrameProps = {
   pressed: boolean;
   tabStop: boolean;
   picked: boolean;
+  hearted: boolean;
   onSelect: (id: string, multi: boolean) => void;
   retainFocus: (element: HTMLButtonElement | null) => void;
 };
@@ -80,6 +81,7 @@ const Frame = memo(function Frame({
   pressed,
   tabStop,
   picked,
+  hearted,
   onSelect,
   retainFocus,
 }: FrameProps) {
@@ -103,6 +105,7 @@ const Frame = memo(function Frame({
       <DevelopFilmstripThumb photo={photo} />
       <span className="develop-frame-name">{photo.name}</span>
       {picked && <Check className="develop-frame-flag" size={12} />}
+      {hearted && <Heart className="develop-frame-heart" size={11} fill="currentColor" />}
     </button>
   );
 });
@@ -327,6 +330,7 @@ export const DevelopFilmstrip = memo(function DevelopFilmstrip({
             pressed={selectedIds.has(photo.id)}
             tabStop={index === tabIndex}
             picked={documents[photo.id]?.metadata.flag === "pick"}
+            hearted={documents[photo.id]?.metadata.hearted === true}
             onSelect={onSelect}
             retainFocus={retainFocus}
           />

@@ -17,6 +17,7 @@ import {
   Copy,
   Crop,
   Grid2X2,
+  Heart,
   ImagePlus,
   Instagram,
   Layers2,
@@ -141,6 +142,7 @@ import {
   currentDevelopRender,
   currentDevelopExportProof,
   filteredDevelopSelection,
+  developFilterMatches,
   developProcessingSource,
   type DevelopExportProof,
   type DevelopExportRequest,
@@ -554,14 +556,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const currentHistogramError =
     histogramError?.url === displayedUrl ? histogramError.message : null;
   const histogramPending = !currentHistogramError && (rendering || displayedUrl !== histogramUrl);
-  const visible = library.photos.filter(
-    (p) =>
-      filter === "all" ||
-      (filter === "picks"
-        ? library.documents[p.id]?.metadata.flag === "pick"
-        : filter === "rated"
-          ? (library.documents[p.id]?.metadata.rating ?? 0) >= 3
-          : library.documents[p.id]?.metadata.flag !== "reject"),
+  const visible = library.photos.filter((p) =>
+    developFilterMatches(filter, library.documents[p.id]?.metadata),
   );
   const filmstripPhotos = visible.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
   const flushLatest = useRef<() => Promise<boolean>>(async () => true);
@@ -1199,15 +1195,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     const visibleIds = library.photos
       .filter((p) => {
         if (!p.sourceBlob?.size && !p.previewBlob?.size) return false;
-        const metadata = docs.current[p.id]?.metadata;
-        return (
-          next === "all" ||
-          (next === "picks"
-            ? metadata?.flag === "pick"
-            : next === "rated"
-              ? (metadata?.rating ?? 0) >= 3
-              : metadata?.flag !== "reject")
-        );
+        return developFilterMatches(next, docs.current[p.id]?.metadata);
       })
       .map((p) => p.id);
     const filtered = filteredDevelopSelection(visibleIds, selectedRef.current, selectedSet);
@@ -2092,6 +2080,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         current = id ? docs.current[id] : null;
       if (current && /^[0-5]$/.test(key))
         persistBatch([{ ...current, metadata: { ...current.metadata, rating: Number(key) } }]);
+      if (current && key === "h")
+        persistBatch([
+          { ...current, metadata: { ...current.metadata, hearted: !current.metadata.hearted } },
+        ]);
       if (current && (key === "p" || key === "u" || (key === "x" && tool !== "crop")))
         persistBatch([
           {
@@ -3159,6 +3151,22 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             </div>
             <div>
               {doc && (
+                <button
+                  type="button"
+                  className="develop-heart"
+                  disabled={!!saveError}
+                  aria-label="Heart photo"
+                  aria-pressed={doc.metadata.hearted}
+                  onClick={() =>
+                    persistBatch([
+                      { ...doc, metadata: { ...doc.metadata, hearted: !doc.metadata.hearted } },
+                    ])
+                  }
+                >
+                  <Heart size={12} fill={doc.metadata.hearted ? "currentColor" : "none"} />
+                </button>
+              )}
+              {doc && (
                 <div className="develop-rating" role="group" aria-label="Photo rating">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
@@ -3190,6 +3198,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               >
                 <option value="all">All photos</option>
                 <option value="picks">Picks</option>
+                <option value="hearted">Hearted</option>
                 <option value="rated">3 stars and up</option>
                 <option value="not-rejected">Not rejected</option>
               </select>
