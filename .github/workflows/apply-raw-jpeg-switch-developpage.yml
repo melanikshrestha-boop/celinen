@@ -1,0 +1,31 @@
+name: Apply RAW-JPEG DevelopPage patch
+on:
+  push:
+    branches: [feat/raw-jpeg-switch]
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ !contains(github.event.head_commit.message || '', 'Wire RAW') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/raw-jpeg-switch
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply DevelopPage patch
+        run: |
+          set -euo pipefail
+          git config user.name "celinen-bot"
+          git config user.email "melanikshrestha@gmail.com"
+          if grep -q RawJpegSwitch src/components/develop/DevelopPage.tsx; then
+            echo already wired
+            exit 0
+          fi
+          git apply patches/raw-jpeg-switch-develop-page.patch
+          grep -q RawJpegSwitch src/components/develop/DevelopPage.tsx
+          git add src/components/develop/DevelopPage.tsx
+          git commit -m "Wire RAW↔JPEG switch into Develop filmstrip"
+          git push origin HEAD:feat/raw-jpeg-switch
