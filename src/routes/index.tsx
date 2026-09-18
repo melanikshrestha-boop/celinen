@@ -22,13 +22,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Two products on lenslab.dev: Celinen for photography, and Video for vlog editing.",
+          "Lenslab products: Celinen for photography, Video for vlogs, and Latch (TBD) for AI clipping.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
-        content: "Celinen for photography. Video for vlog editing.",
+        content: "Celinen for photography. Video for vlogs. Latch (TBD) for AI clipping.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -103,6 +103,17 @@ function Index() {
                   }
                 />
               </article>
+              <article>
+                <h2>
+                  Latch <span className="text-moss">(TBD)</span>
+                </h2>
+                <p>AI clipping</p>
+                <Link to="/latch" className="marketing-action marketing-action--primary">
+                  Open
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </article>
+
             </div>
           </div>
         </section>
