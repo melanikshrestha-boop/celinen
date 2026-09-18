@@ -67,7 +67,7 @@ Story publishing uses `instagram_business_content_publish`, which the Instagram 
 
 ### 3. Facebook — a Page, and secrets that may not be set yet
 
-The Facebook connection code already exists (`src/lib/business/facebook.server.ts`) and is what the Page story publisher uses. Check whether it was ever configured.
+The Facebook connection code already existed (`src/lib/business/facebook.server.ts`) but had no mounted UI: the desk that handled the `?connector=facebook` callback and the Page picker was orphaned, so Facebook could be started and never finished. **Social accounts** (`/publish`) now has a Facebook card that completes the callback and chooses the Page. Check whether the app was ever configured.
 
 At **developers.facebook.com**, on the same Business app:
 

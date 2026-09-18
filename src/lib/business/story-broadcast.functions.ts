@@ -41,6 +41,21 @@ export const storyDestinations = createServerFn({ method: "GET" })
     };
   });
 
+/** The Facebook card in Social accounts: the Pages this owner granted, and
+ * which one stories go to. Page access tokens never leave the server. */
+export const facebookAccount = createServerFn({ method: "GET" })
+  .middleware(auth)
+  .handler(async ({ context }) => {
+    const status = await (await import("./facebook.server")).facebookStatus(context.userId);
+    return {
+      configured: status.configured,
+      active: status.active,
+      pages: status.pages,
+      selected: status.selected,
+      selectedName: status.pages.find((page) => page.id === status.selected)?.name ?? "",
+    };
+  });
+
 export const createStoryBroadcast = createServerFn({ method: "POST" })
   .middleware(auth)
   .validator(storyBroadcastInput)
