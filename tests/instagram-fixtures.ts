@@ -12,6 +12,9 @@ const read = (row: Row, key: string): unknown => {
 };
 
 export class FakeDatabase {
+  /** The clock rows are stamped with. Tests that move a fake clock set this, so
+   * a row's age is measured on the same clock the code under test reads. */
+  now: () => number = () => Date.now();
   tables = new Map<string, Row[]>();
   objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
   removed: string[] = [];
@@ -42,7 +45,7 @@ export class FakeDatabase {
           revision: 0,
           lease: null,
           lease_until: null,
-          created_at: new Date().toISOString(),
+          created_at: new Date(db.now()).toISOString(),
           ...row,
         });
         return { data: null, error: null };
