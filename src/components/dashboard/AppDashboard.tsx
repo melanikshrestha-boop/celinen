@@ -293,9 +293,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
     const videos = files.filter(isVideoFile);
     const photos = files.filter((file) => !isVideoFile(file));
     if (videos.length) queueVideoImport(videos);
-    if (photos.length) queueStudioImport(photos);
-    if (videos.length && !photos.length) void navigate({ to: "/video" });
-    else if (photos.length) void navigate({ to: "/cull" });
+    if (photos.length) {
+      queueStudioImport(photos);
+      void navigate({ to: "/cull" });
+      return;
+    }
+    void navigate({ to: "/video" });
   }
 
   useEffect(() => {
@@ -530,7 +533,11 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   to={item.to}
                   title={label}
                   aria-label={label}
-                  search={calendar ? { view: "calendar" } : {}}
+                  {...(calendar
+                    ? { search: { view: "calendar" as const } }
+                    : "end" in item && item.end
+                      ? { search: {} }
+                      : {})}
                   activeOptions={"end" in item || calendar ? { exact: true } : undefined}
                   className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
                   activeProps={{
@@ -723,7 +730,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   <label
                     htmlFor="celinen-home-photos"
                     className="celinen-dash__plus"
-                    aria-label="Add photos or video"
+                    aria-label="Add photos"
                     onClick={(event) => event.stopPropagation()}
                   >
                     <Plus size={20} strokeWidth={1.8} />

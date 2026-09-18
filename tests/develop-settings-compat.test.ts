@@ -51,6 +51,12 @@ describe("Develop settings stay readable across additive recipe fields", () => {
     expect("futureDevinKnob" in recipe).toBe(false);
   });
 
+  test("out-of-range exposure is clamped instead of unmounting Develop", () => {
+    expect(readDevelopSettings({ ...defaultDevelopSettings(), exposure: 12 }).exposure).toBe(5);
+    expect(readDevelopSettings({ ...defaultDevelopSettings(), exposure: -12 }).exposure).toBe(-5);
+    expect(readDevelopSettings({ ...defaultDevelopSettings(), grainSize: 0.1 }).grainSize).toBe(0.5);
+  });
+
   test("readDevelopSettings keeps known parametric fields and drops junk", () => {
     const raw = {
       ...cloneDevelopSettings(defaultDevelopSettings()),

@@ -68,6 +68,23 @@ const card = (html: string, id: string) =>
   )?.[0];
 
 describe("cull workspace", () => {
+  test("a 50,000-frame card mounts only the visible window", () => {
+    const html = renderWorkspace(sportsCard(50_000));
+    const window = libraryGridWindow({
+      count: 50_000,
+      viewportWidth: VIEWPORT.width,
+      viewportHeight: VIEWPORT.height,
+      scrollTop: 0,
+      minCardWidth: 176,
+      cardHeight: 164,
+      gap: 8,
+      padding: 16,
+    });
+    expect(html).toContain('data-cell-count="50000"');
+    expect(cards(html)).toBe(window.end - window.start);
+    expect(cards(html)).toBeLessThan(100);
+  });
+
   test("a 10,000-frame card mounts only the visible window", () => {
     const html = renderWorkspace(sportsCard(10_000));
     const window = libraryGridWindow({

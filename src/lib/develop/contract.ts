@@ -277,6 +277,38 @@ export function defaultDevelopSettings(): DevelopSettings {
     masks: [],
   };
 }
+/** Slider float noise or a slightly-wide saved recipe must not unmount Develop. */
+function clampNumericIssues(
+  input: Record<string, unknown>,
+  issues: z.ZodIssue[],
+): Record<string, unknown> {
+  const next = structuredClone(input) as Record<string, unknown>;
+  for (const issue of issues) {
+    if ((issue.code !== "too_big" && issue.code !== "too_small") || issue.path.length === 0)
+      continue;
+    let cursor: unknown = next;
+    for (let index = 0; index < issue.path.length - 1; index++) {
+      if (!cursor || typeof cursor !== "object") {
+        cursor = null;
+        break;
+      }
+      cursor = (cursor as Record<string | number, unknown>)[issue.path[index]!];
+    }
+    if (!cursor || typeof cursor !== "object") continue;
+    const key = issue.path[issue.path.length - 1];
+    if (key === undefined) continue;
+    const value = (cursor as Record<string | number, unknown>)[key];
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    let clamped = value;
+    if (issue.code === "too_small" && "minimum" in issue && typeof issue.minimum === "number")
+      clamped = Math.max(issue.minimum, clamped);
+    if (issue.code === "too_big" && "maximum" in issue && typeof issue.maximum === "number")
+      clamped = Math.min(issue.maximum, clamped);
+    (cursor as Record<string | number, unknown>)[key] = clamped;
+  }
+  return next;
+}
+
 /** Drop additive unknown keys, then parse. A newer field must not brick the desk. */
 export function readDevelopSettings(input: unknown): DevelopSettings {
   const first = developSettingsSchema.safeParse(input);
@@ -290,6 +322,9 @@ export function readDevelopSettings(input: unknown): DevelopSettings {
   }
   const second = developSettingsSchema.safeParse(trimmed);
   if (second.success) return second.data;
+  const clamped = clampNumericIssues(trimmed, second.error.issues);
+  const third = developSettingsSchema.safeParse(clamped);
+  if (third.success) return third.data;
   throw first.error;
 }
 
