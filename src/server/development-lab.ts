@@ -1,7 +1,17 @@
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
-export const LAB_PORT = 8085;
+/**
+ * 8085 unless LENSLAB_LAB_PORT names another loopback port, so a second checkout
+ * (a worktree) can run its own lab without stopping the one already on 8085.
+ * Every origin check below is derived from this, so an alternate port is still
+ * pinned to one exact host — it does not widen what the lab accepts.
+ */
+function configuredLabPort(): number {
+  const raw = Number(process.env["LENSLAB_LAB_PORT"] ?? "");
+  return Number.isInteger(raw) && raw >= 1024 && raw <= 65535 ? raw : 8085;
+}
+export const LAB_PORT = configuredLabPort();
 export const LAB_HOST = `127.0.0.1:${LAB_PORT}`;
 export const LAB_ORIGIN = `http://${LAB_HOST}`;
 
@@ -71,7 +81,7 @@ export function developmentLabPlugin(root: string): Plugin {
         response.setHeader(
           "Content-Security-Policy",
           [
-            "connect-src 'self' ws://127.0.0.1:8085",
+            `connect-src 'self' ws://127.0.0.1:${LAB_PORT}`,
             "form-action 'self'",
             "frame-ancestors 'none'",
             "object-src 'none'",
