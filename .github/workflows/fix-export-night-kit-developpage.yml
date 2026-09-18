@@ -1,0 +1,32 @@
+name: Fix export night kit DevelopPage
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/export-night-kit
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore DevelopPage and apply night-kit patch
+        run: |
+          set -euo pipefail
+          git config user.name "celinen-bot"
+          git config user.email "melanikshrestha@gmail.com"
+          git checkout 7dd774e94455ed12743233e01beaf64b279bfc0b -- src/components/develop/DevelopPage.tsx
+          if ! grep -q ExportNightKitControls src/components/develop/DevelopPage.tsx; then
+            git apply patches/export-night-kit-develop-page.patch
+          fi
+          grep -q ExportNightKitControls src/components/develop/DevelopPage.tsx
+          test "$(wc -c < src/components/develop/DevelopPage.tsx)" -gt 100000
+          git add src/components/develop/DevelopPage.tsx
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git commit -m "Wire export night kit into Develop export dialog and serial queue"
+          git push origin HEAD:feat/export-night-kit
