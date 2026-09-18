@@ -105,7 +105,7 @@ Use your own test account:
 ## Known limits
 
 - Cull can only post keepers whose original JPEG, PNG or WebP was read in this browser tab. RAW keepers, and sessions reopened later, post from Develop.
-- Feed photos only: no Reels, Stories (the older delivery Stories path is unchanged), video, scheduling, alt text, user tags or location.
+- Feed photos only: no Reels, video, scheduling, alt text, user tags or location. Stories are a separate path — hearted sets broadcast from Develop; see `docs/STORIES-SETUP.md`. The older delivery Stories path is unchanged.
 - Posting is request-driven. If the tab closes while Instagram is still processing, the post stays in **Social accounts** with **Check again**. There is no background job.
 - Token refresh happens when the account is used. A connection left unused for 60 days expires and needs **Reconnect**.
 - `/publish` also handles the Facebook callback (`?connector=facebook`). That handler lived in the unmounted `PublishDesk` and is still not mounted; see the audit notes in the implementation report.
