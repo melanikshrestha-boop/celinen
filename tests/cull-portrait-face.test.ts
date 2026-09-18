@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { findPortraitFace, loupeFaceCrop } from "../src/lib/studio/cull/portrait-face";
+import {
+  findPortraitFace,
+  findPortraitFaceOriented,
+  loupeFaceCrop,
+} from "../src/lib/studio/cull/portrait-face";
 
 function canvas(w: number, h: number, fill: [number, number, number]) {
   const rgba = new Uint8ClampedArray(w * h * 4);
@@ -50,6 +54,19 @@ test("a skin-colored head in a street frame is a face", () => {
 test("a gray detailed frame is not a face", () => {
   const { rgba, w, h } = canvas(160, 100, [128, 128, 128]);
   expect(findPortraitFace(rgba, w, h)).toBeNull();
+});
+
+test("a tungsten night face is still a face", () => {
+  const { rgba, w, h } = canvas(160, 100, [28, 30, 38]);
+  oval(rgba, w, h, 0.34, 0.4, 0.11, 0.17, [92, 58, 46]);
+  expect(findPortraitFace(rgba, w, h)).not.toBeNull();
+});
+
+test("a sideways RAW still yields a face box", () => {
+  const { rgba, w, h } = canvas(100, 160, [30, 32, 40]);
+  oval(rgba, w, h, 0.5, 0.38, 0.16, 0.12, [175, 118, 92]);
+  const found = findPortraitFaceOriented(rgba, w, h);
+  expect(found).not.toBeNull();
 });
 
 test("the loupe crop tightens around a found face", () => {

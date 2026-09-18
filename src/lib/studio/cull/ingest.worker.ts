@@ -10,7 +10,7 @@ import { cullEngine } from "./client";
 import { instantiateIngestWasm, type IngestEngine } from "./ingest-engine";
 import type { IngestReply, IngestRequest } from "./ingest-messages";
 import { browserPixels, readPhoto } from "./ingest-read";
-import { cullFaceFromBox, findPortraitFace } from "./portrait-face";
+import { cullFaceFromBox, findPortraitFaceOriented } from "./portrait-face";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -34,22 +34,27 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
       decodePixels: browserPixels,
     });
     if (!result.reading.hasFace) {
-      const found = findPortraitFace(result.frame.rgba, result.frame.width, result.frame.height);
+      const found = findPortraitFaceOriented(
+        result.frame.rgba,
+        result.frame.width,
+        result.frame.height,
+        result.afPoint,
+      );
       if (found) {
         const engine = await cullEngine();
         if (engine) {
           result.reading = engine.measure(result.frame.rgba, result.frame.width, result.frame.height, [
-            cullFaceFromBox(found),
+            cullFaceFromBox(found.box),
           ]);
         } else {
           result.reading = {
             ...result.reading,
             hasFace: true,
-            subjectX: found.x + found.width / 2,
-            subjectY: found.y + found.height * 0.42,
+            subjectX: found.box.x + found.box.width / 2,
+            subjectY: found.box.y + found.box.height * 0.42,
           };
         }
-        result.reading.faceBox = found;
+        result.reading.faceBox = found.box;
       }
     }
     const reply: IngestReply = {

@@ -80,6 +80,7 @@ function CullSessionHost({ scope }: { scope: string }) {
         owned = new CullController(store, {
           previews: previewsFor(scope, store),
           canLocate: folderPickerSupported(),
+          scope,
         });
         unsubscribe = owned.subscribe(setSnapshot);
         setController(owned);

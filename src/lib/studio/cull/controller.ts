@@ -5,6 +5,7 @@
  */
 import { cullEngine } from "./client";
 import type { CullRow, CullVerdict } from "./engine";
+import { applyTaste, keepBiasFromEye, loadEye, rememberDecision, saveEye } from "./eye";
 import { pickLoupeImage, type LoupeImage } from "./loupe-source";
 import type { PortraitFace } from "./portrait-face";
 import { ingestFiles } from "./pool";
@@ -43,6 +44,8 @@ export type CullControllerOptions = {
   previews?: { library: PreviewLibrary; queue: PreviewQueue } | null | undefined;
   /** This browser has a folder picker that returns a handle. */
   canLocate?: boolean | undefined;
+  /** Account scope for on-device taste memory. */
+  scope?: string | undefined;
 };
 
 export type CullSnapshot = {
@@ -430,12 +433,14 @@ export class CullController {
     }
     let rows: CullRow[];
     try {
+      const eye = this.options.scope ? loadEye(this.options.scope) : { samples: [] };
       rows = engine.shoot(
         measured.map((frame) => ({
-          reading: frame.reading!,
+          reading: applyTaste(frame.reading!, eye),
           captureTimeMs: frame.captureTimeMs,
           verdict: frame.decided ? frame.verdict : "undecided",
         })),
+        { keepBias: keepBiasFromEye(eye) },
       );
     } catch (error) {
       this.notice = error instanceof Error ? error.message : "The shoot could not be ranked.";
@@ -488,7 +493,16 @@ export class CullController {
     this.undoStack.push({ frames: before });
     if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
     this.replace(next);
+    if (this.options.scope) {
+      let eye = loadEye(this.options.scope);
+      for (const frame of changed) {
+        if (!frame.reading) continue;
+        eye = rememberDecision(eye, frame.reading, verdict);
+      }
+      saveEye(this.options.scope, eye);
+    }
     await this.persist(changed);
+    this.scheduleRerank();
   }
 
   async undo(): Promise<void> {

@@ -157,7 +157,14 @@ export function CullLoupePicture({
           const probeCtx = probe.getContext("2d");
           if (probeCtx) {
             probeCtx.drawImage(bitmap, 0, 0, w, h);
-            const found = findPortraitFace(probeCtx.getImageData(0, 0, w, h).data, w, h);
+            const found = findPortraitFace(
+              probeCtx.getImageData(0, 0, w, h).data,
+              w,
+              h,
+              frame.reading
+                ? { x: Math.max(0, frame.reading.subjectX - 0.12), y: Math.max(0, frame.reading.subjectY - 0.16), w: 0.24, h: 0.32 }
+                : undefined,
+            );
             if (found) {
               foundFace.current = { id: frame.id, box: found };
               box = found;
