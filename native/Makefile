@@ -85,6 +85,24 @@ $(BUILD_DIR)/raw-preview-tests: tests/raw_preview_tests.cpp $(BUILD_DIR)/raw_pre
 
 $(BUILD_DIR)/raw_preview.o: include/lenslabs/raw_preview.hpp include/lenslabs/exif.hpp
 
+# The RAW converter: sensor data at the sensor's own resolution. No LibRaw and
+# no system framework, because the same objects compile to WebAssembly.
+RAW_DECODE_HEADERS = include/lenslabs/raw_decode.hpp include/lenslabs/raw_color.hpp
+RAW_DECODE = $(BUILD_DIR)/raw_decode.o $(BUILD_DIR)/raw_unpack.o $(BUILD_DIR)/raw_demosaic.o \
+	$(BUILD_DIR)/raw_pipeline.o $(BUILD_DIR)/raw_color.o $(BUILD_DIR)/raw_profiles.o
+$(RAW_DECODE) $(BUILD_DIR)/raw_decode_main.o: $(RAW_DECODE_HEADERS)
+
+$(BUILD_DIR)/lenslabs-raw-decode: $(BUILD_DIR)/raw_decode_main.o $(RAW_DECODE)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+$(BUILD_DIR)/raw-decode-tests: tests/raw_decode_tests.cpp $(RAW_DECODE) $(RAW_DECODE_HEADERS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(RAW_DECODE) -o $@
+
+.PHONY: raw-decode
+# Just the RAW converter and its tests, without LibRaw or the other engines.
+raw-decode: $(BUILD_DIR)/lenslabs-raw-decode $(BUILD_DIR)/raw-decode-tests
+	$(BUILD_DIR)/raw-decode-tests
+
 # Links cull.o too: the tests hold focus_hit's acuity to measure_cull()'s.
 $(BUILD_DIR)/focus-hit-tests: tests/focus_hit_tests.cpp $(BUILD_DIR)/focus_hit.o $(BUILD_DIR)/cull.o include/lenslabs/focus_hit.hpp include/lenslabs/cull.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/focus_hit.o $(BUILD_DIR)/cull.o -o $@
