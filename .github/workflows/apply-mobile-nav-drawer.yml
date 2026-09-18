@@ -1,0 +1,30 @@
+name: Apply mobile nav drawer patch
+on:
+  push:
+    branches: [fix/mobile-nav-drawer]
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ !contains(github.event.head_commit.message || '', 'Mobile: hide pinned') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-nav-drawer
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply patch
+        run: |
+          set -euo pipefail
+          git config user.name "celinen-bot"
+          git config user.email "melanikshrestha@gmail.com"
+          if grep -q 'workbench-mobile-menu' src/components/workbench/Workbench.tsx && ! grep -q 'foto-mobile-rail' src/components/workbench/Workbench.tsx; then
+            echo already applied
+            exit 0
+          fi
+          git apply patches/mobile-nav-drawer.patch
+          git add -A
+          git commit -m "Mobile: hide pinned nav rail; ChatGPT-style hamburger drawer"
+          git push origin HEAD:fix/mobile-nav-drawer
