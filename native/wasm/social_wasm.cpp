@@ -106,18 +106,20 @@ std::uint8_t* celinen_social_source(std::uint32_t width, std::uint32_t height) {
   return source.rgba.data();
 }
 
-// format: 0 portrait (1080x1350, 4:5), 1 square (1080x1080). Stories are not a
-// feed format and are rejected here. fit: 0 fill (crop), 1 fit (pad).
+// format: 0 portrait (1080x1350, 4:5), 1 square (1080x1080), 2 story
+// (1080x1920, 9:16). fit: 0 fill (crop), 1 fit (pad).
 int celinen_social_frame(int format, int fit, double x, double y, double zoom, int white,
                          int quality) {
   error.clear();
   jpeg.clear();
   try {
     if (!source.width) throw std::invalid_argument("No photo is loaded.");
-    if (format != 0 && format != 1) throw std::invalid_argument("Invalid feed format.");
+    if (format < 0 || format > 2) throw std::invalid_argument("Invalid social format.");
     if (quality < 60 || quality > 95) throw std::invalid_argument("Invalid JPEG quality.");
     lenslabs::SocialFrame frame;
-    frame.format = format == 0 ? lenslabs::SocialFormat::portrait : lenslabs::SocialFormat::square;
+    frame.format = format == 0   ? lenslabs::SocialFormat::portrait
+                   : format == 1 ? lenslabs::SocialFormat::square
+                                 : lenslabs::SocialFormat::story;
     frame.fit = fit != 0;
     frame.x = x;
     frame.y = y;

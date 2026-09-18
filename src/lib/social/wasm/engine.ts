@@ -21,8 +21,17 @@ type Exports = {
   celinen_social_release: () => void;
 };
 
+/** The three geometries `frame_social()` produces. Stories are 9:16; the two
+ * feed sizes are 4:5 and 1:1. */
+export type SocialFormat = "portrait" | "square" | "story";
+export const SOCIAL_FORMAT_CODE: Record<SocialFormat, number> = {
+  portrait: 0,
+  square: 1,
+  story: 2,
+};
+
 export type FeedFrame = {
-  format: "portrait" | "square";
+  format: SocialFormat;
   /** 0..1: which part of an over-wide or over-tall photo stays in frame. */
   x: number;
   y: number;
@@ -72,7 +81,7 @@ export async function instantiateSocialWasm(
       // A view taken after the call: allocation may have grown (and detached) memory.
       new Uint8Array(wasm.memory.buffer, pointer, rgba.length).set(rgba);
       const ok = wasm.celinen_social_frame(
-        frame.format === "portrait" ? 0 : 1,
+        SOCIAL_FORMAT_CODE[frame.format],
         0,
         frame.x,
         frame.y,

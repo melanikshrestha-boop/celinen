@@ -138,6 +138,7 @@ import {
 } from "@/lib/develop/export-night-kit";
 import { useDevelopPointer } from "./useDevelopPointer";
 import { InstagramComposer, type InstagramCandidate } from "@/components/social/InstagramComposer";
+import { StoryBroadcast, type StoryCandidate } from "@/components/social/StoryBroadcast";
 import {
   currentDevelopRender,
   currentDevelopExportProof,
@@ -2130,6 +2131,41 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instagramIds]);
 
+  // Stories: the hearted photos of this shoot, in filmstrip order. Each is
+  // rendered through the same C++ Develop engine as Export, with the live
+  // recipe for the photo in hand.
+  const [storyIds, setStoryIds] = useState<string[] | null>(null);
+  const heartedIds = library.photos
+    .filter((p) => library.documents[p.id]?.metadata.hearted)
+    .map((p) => p.id);
+  const storyCandidates = useMemo<StoryCandidate[]>(() => {
+    if (!storyIds) return [];
+    return storyIds.flatMap((id) => {
+      const entry = library.photos.find((p) => p.id === id);
+      if (!entry) return [];
+      return [
+        {
+          id,
+          name: entry.name,
+          preview: async () => (entry.previewBlob?.size ? entry.previewBlob : null),
+          source: async () => {
+            const { source: pixels, sourceMode } = developProcessingSource(entry, exportSourceMode);
+            const document = docs.current[id];
+            if (!pixels || (!document && id !== selectedRef.current)) return null;
+            const recipe =
+              id === selectedRef.current
+                ? cloneDevelopSettings(draftRef.current)
+                : currentRecipe(document!);
+            // 2160px long edge: more than the 1920px story frame needs, so the crop stays sharp.
+            return renderDevelop(pixels, recipe, { edge: 2160, quality: 0.95, sourceMode });
+          },
+        },
+      ];
+    });
+    // The candidate list is fixed while the composer is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyIds]);
+
   if (loadError)
     return (
       <div className="foto-develop develop-loading">
@@ -2276,6 +2312,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
             >
               <Instagram size={14} />
               Instagram
+            </button>
+          )}
+          {heartedIds.length > 0 && (
+            <button disabled={!!busy || !!saveError} onClick={() => setStoryIds(heartedIds)}>
+              <Heart size={14} />
+              Stories
             </button>
           )}
         </div>
@@ -3663,6 +3705,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           origin="develop"
           candidates={instagramCandidates}
           initial={instagramIds}
+        />
+      )}
+      {storyIds && (
+        <StoryBroadcast
+          open
+          onOpenChange={(open) => (open ? undefined : setStoryIds(null))}
+          origin="develop"
+          candidates={storyCandidates}
+          initial={storyIds}
         />
       )}
     </section>

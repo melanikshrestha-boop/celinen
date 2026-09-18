@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { instantiateSocialWasm, type SocialWasmEngine } from "../src/lib/social/wasm/engine";
 import { instagramPostItem, jpegDimensions, sha256Hex } from "../src/lib/social/instagram-post";
+import { storyItem } from "../src/lib/social/story-broadcast";
 
 // The committed binary: the exact bytes lenslab.dev serves.
 const binary = readFileSync(new URL("../src/lib/social/wasm/celinen-social.wasm", import.meta.url));
@@ -56,6 +57,35 @@ describe("C++ social framing compiled to wasm", () => {
       b = run();
     expect(jpegDimensions(a)).toEqual({ width: 1080, height: 1080 });
     expect(await sha256Hex(a)).toBe(await sha256Hex(b));
+  });
+
+  test("frames a landscape photo to the 9:16 story JPEG both platforms want", async () => {
+    const jpeg = engine.frame(gradient(3000, 2000), 3000, 2000, {
+      format: "story",
+      x: 0.5,
+      y: 0.5,
+      zoom: 1,
+    });
+    expect(jpegDimensions(jpeg)).toEqual({ width: 1080, height: 1920 });
+    const item = {
+      sha256: await sha256Hex(jpeg),
+      bytes: jpeg.byteLength,
+      width: 1080,
+      height: 1920,
+    };
+    expect(storyItem.safeParse(item).success).toBe(true);
+    // A story is not a feed photo: the feed shape must reject it.
+    expect(instagramPostItem.safeParse(item).success).toBe(false);
+  });
+
+  test("the story crop follows the placement, and the same input encodes the same bytes", async () => {
+    const at = (x: number) =>
+      engine.frame(gradient(3000, 2000), 3000, 2000, { format: "story", x, y: 0.5, zoom: 1 });
+    const left = at(0.1),
+      right = at(0.9);
+    expect(jpegDimensions(left)).toEqual({ width: 1080, height: 1920 });
+    expect(await sha256Hex(left)).not.toBe(await sha256Hex(right));
+    expect(await sha256Hex(at(0.1))).toBe(await sha256Hex(left));
   });
 
   test("rejects out-of-range framing and oversize sources without poisoning the instance", () => {

@@ -51,6 +51,95 @@ export function facebookConfigured() {
     return false;
   }
 }
+/** A Graph failure, classified the way the story broadcaster needs it: the
+ * difference between "Facebook refused, nothing happened" and "no answer
+ * arrived" decides whether a retry is safe or the story may already exist.
+ * `message` is always Celinen's own words; upstream text can echo request data.
+ */
+export class FacebookApiError extends Error {
+  constructor(
+    message: string,
+    /** HTTP status, or 0 when no response arrived (network, timeout). */
+    readonly status: number,
+    readonly code: number | null,
+    readonly subcode: number | null,
+    readonly kind:
+      "rate-limit" | "auth" | "permission" | "duplicate" | "media" | "rejected" | "unavailable",
+  ) {
+    super(message);
+    this.name = "FacebookApiError";
+  }
+  /** Facebook answered and the answer means the request did nothing. */
+  get definitive() {
+    return this.status >= 400 && this.status < 500;
+  }
+}
+
+function classifyFacebook(status: number, body: unknown): FacebookApiError {
+  const error =
+    body && typeof body === "object" && "error" in body
+      ? (body as { error?: { code?: unknown; error_subcode?: unknown } }).error
+      : undefined;
+  const code = typeof error?.code === "number" ? error.code : null;
+  const subcode = typeof error?.error_subcode === "number" ? error.error_subcode : null;
+  const make = (message: string, kind: FacebookApiError["kind"]) =>
+    new FacebookApiError(message, status, code, subcode, kind);
+  if (status === 429 || (code !== null && [4, 17, 32, 341, 613].includes(code)))
+    return make("Facebook is busy. Try again later.", "rate-limit");
+  // 492: the person who connected no longer has a role on the Page. The most
+  // common Pages failure, and it is a reconnect rather than a retry.
+  if (code === 190 || status === 401 || subcode === 492 || subcode === 463 || subcode === 467)
+    return make("Facebook access expired. Reconnect Facebook.", "auth");
+  if (code === 10 || code === 3 || (code !== null && code >= 200 && code < 300) || status === 403)
+    return make("Facebook did not grant Page publishing. Reconnect and allow it.", "permission");
+  // A photo already used in a published post cannot become a story.
+  if (code === 506) return make("Facebook already has this photo in a post.", "duplicate");
+  if (code === 324) return make("Facebook could not read the photo.", "media");
+  if (code === 368) return make("Facebook declined to publish this.", "rejected");
+  if (status >= 500) return make("Facebook is unavailable right now. Try again.", "unavailable");
+  return make(
+    "Facebook did not accept this request. Check Page publishing permissions.",
+    "rejected",
+  );
+}
+
+/** One Graph call with classified failures. `facebookRequest` keeps its own
+ * plain-Error behaviour for the delivery publishing path. */
+export async function facebookCall(
+  path: string,
+  token: string,
+  options: { body?: URLSearchParams; fetch?: typeof fetch; timeoutMs?: number } = {},
+): Promise<Record<string, unknown>> {
+  if (!/^[a-zA-Z0-9_/?=&,%.-]+$/.test(path) || path.includes(".."))
+    throw new Error("Invalid Facebook request.");
+  const version = process.env["FACEBOOK_API_VERSION"] || "v23.0";
+  if (!/^v\d+\.0$/.test(version)) throw new Error("Invalid Facebook API version.");
+  let response: Response;
+  try {
+    response = await (options.fetch ?? fetch)(`https://graph.facebook.com/${version}/${path}`, {
+      method: options.body ? "POST" : "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      ...(options.body ? { body: options.body } : {}),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 20000),
+      redirect: "error",
+    });
+  } catch {
+    throw new FacebookApiError("Facebook did not answer. Try again.", 0, null, null, "unavailable");
+  }
+  if (!response.ok)
+    throw classifyFacebook(response.status, await response.json().catch(() => null));
+  const payload = await response.json().catch(() => null);
+  if (!payload || typeof payload !== "object")
+    throw new FacebookApiError(
+      "Facebook returned an unreadable answer.",
+      0,
+      null,
+      null,
+      "unavailable",
+    );
+  return payload as Record<string, unknown>;
+}
+
 export async function facebookRequest(
   path: string,
   token: string,
@@ -210,6 +299,22 @@ export async function selectFacebookPage(owner: string, id: string) {
   if (saved.error) throw new Error("Could not select this Page.");
   return { selected: id };
 }
+export type FacebookPageSession = { pageId: string; pageName: string; token: string };
+
+/** The Page the photographer chose, with its Page access token. The only way a
+ * server path obtains one: bound to the signed-in owner (the AES-GCM associated
+ * data), and never returned to the page. */
+export async function facebookPageSession(owner: string): Promise<FacebookPageSession> {
+  const value = await connection(owner);
+  if (!value) throw new Error("Connect Facebook first.");
+  if (Date.parse(value.expiresAt) <= Date.now() + 60000)
+    throw new Error("Facebook access expired. Reconnect Facebook.");
+  if (!value.selected) throw new Error("Choose a Facebook Page first.");
+  const page = value.pages.find((page) => page.id === value.selected);
+  if (!page) throw new Error("Reconnect Facebook and choose an authorized Page.");
+  return { pageId: page.id, pageName: page.name, token: page.access_token };
+}
+
 export async function facebookCredential(owner: string, pageId: string) {
   const value = await connection(owner),
     page = value?.pages.find((page) => page.id === pageId);
