@@ -63,6 +63,13 @@ function hostedDevelopEngineStatus(engine: string): DevelopEngineStatus {
   };
 }
 
+/** What a local page falls back to when the loopback engine is not running. */
+async function hostedFallbackStatus(): Promise<DevelopEngineStatus> {
+  return hostedDevelopEngineStatus(
+    (await developWasmReady()) ? WASM_DEVELOP_ENGINE : BROWSER_DEVELOP_ENGINE,
+  );
+}
+
 export async function developEngineStatus(refresh = false): Promise<DevelopEngineStatus | null> {
   if (typeof window === "undefined") return null;
   if (!isLocalDevelopHost(window.location.hostname))
@@ -78,17 +85,24 @@ export async function developEngineStatus(refresh = false): Promise<DevelopEngin
         cache: "no-store",
         signal: AbortSignal.timeout(3000),
       });
-      if (!response.ok) return null;
-      return statusSchema.parse(await response.json());
+      if (!response.ok) return hostedFallbackStatus();
+      const local = statusSchema.parse(await response.json());
+      // A loopback checkout without `make -C native` still has the same C++ as
+      // WebAssembly. Without this the editor silently dropped to the script
+      // renderer, which refuses Texture, Clarity and everything past Basic.
+      if (!local.ready || !local.token) return hostedFallbackStatus();
+      return local;
     } catch {
-      return null;
+      return hostedFallbackStatus();
     }
   })();
   inflight = request;
   void request.then((status) => {
     if (inflight === request) inflight = null;
     // A miss must not occupy the 5s cache. JPEG import retries instead of failing four files.
-    if (status?.ready && status.token) {
+    // The in-page fallback is never cached either, so a `make -C native` that
+    // finishes mid-session is picked up on the next probe.
+    if (status?.ready && status.token && !isHostedDevelopEngine(status.engine)) {
       cached = Promise.resolve(status);
       checked = Date.now();
     } else {
