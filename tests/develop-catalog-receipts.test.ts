@@ -32,7 +32,8 @@ const subscriptionCode = between(
   "  useEffect(() => {\n    setImportFailures",
 );
 const refreshCode = between(
-  "  useEffect(() => {\n    if (!ready || !hydration.current.ready",
+  // Anchored past the cull hand-off effect, which shares this opening line.
+  "  useEffect(() => {\n    if (!ready || !hydration.current.ready || failed.current",
   "  function persistBatch(",
 ).replace("void (async () => {", "return (async () => {");
 const saveCode = [
