@@ -1,4 +1,5 @@
 import type { ExportBorder, WatermarkKit } from "@/lib/develop/export-night-kit";
+import "./export-night-kit.css";
 
 export function ExportNightKitControls({
   border,

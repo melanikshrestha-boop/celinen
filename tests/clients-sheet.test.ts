@@ -58,6 +58,7 @@ describe("client sheet commands", () => {
     expect(rows[0]?.nda).toBe("Signed");
     expect(rows[0]?.gps).toBe("Stripped");
     expect(rows[0]?.download).toBe("Off");
+    expect(rows[0]?.watermark).toBe("Client proof");
     expect(findClient(rows, "Atelier")?.name).toBe("Elise Moreau");
     expect(rows[2]?.alias).toBe("Atelier");
     expect(rows[2]?.channel).toBe("Signal");
