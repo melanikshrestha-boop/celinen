@@ -209,6 +209,10 @@ const metadataSchema = z
     rating: z.number().int().min(0).max(5),
     flag: z.enum(["pick", "reject"]).nullable(),
     colorLabel: z.enum(["red", "yellow", "green", "blue", "purple"]).nullable(),
+    /** The photographer's "post this" mark, independent of the cull verdict.
+     * Defaulted, not versioned: documents stored before hearts existed parse
+     * as not hearted and are written back with the field on their next save. */
+    hearted: z.boolean().default(false),
   })
   .strict();
 const initialStateSchema = z
@@ -405,7 +409,7 @@ export function createDevelopDocument(
     ],
     cursor: 0,
     snapshots: [],
-    metadata: { rating: 0, flag: null, colorLabel: null },
+    metadata: { rating: 0, flag: null, colorLabel: null, hearted: false },
     updatedAt: now,
   });
 }

@@ -22,6 +22,7 @@ const qaMetadata = (index) => ({
   rating: index % 6,
   flag: index % 10 === 0 ? "pick" : index % 10 === 1 ? "reject" : null,
   colorLabel: null,
+  hearted: false,
 });
 function qaCommand(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))

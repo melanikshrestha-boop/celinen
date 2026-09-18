@@ -23,7 +23,10 @@ export async function listPublications(owner: string) {
     .limit(100);
   if (error)
     throw new Error("Publishing needs the business workspace migration and server connection.");
-  return (data ?? []).map((row) => row.record as Publication);
+  // Studio Instagram posts share the table but not the delivery publication shape.
+  return (data ?? [])
+    .filter((row) => (row.record as { kind?: unknown }).kind === undefined)
+    .map((row) => row.record as Publication);
 }
 export async function createPublication(owner: string, input: PublicationInput) {
   const db = businessDatabase();

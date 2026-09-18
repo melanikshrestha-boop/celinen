@@ -468,7 +468,7 @@ describe("Develop local photo identity and workspace boundary", () => {
     expect(settings.crop.x).toBeCloseTo(1 / 6, 12);
     expect(settings.crop.width).toBeCloseTo(2 / 3, 12);
     expect(settings.crop.height).toBe(1);
-    expect(doc.metadata).toEqual({ rating: 4, flag: "pick", colorLabel: "blue" });
+    expect(doc.metadata).toEqual({ rating: 4, flag: "pick", colorLabel: "blue", hearted: false });
     expect(doc.history.map((entry) => entry.label)).toEqual(["Original", "Studio settings"]);
     expect(currentRecipe(undoHistory(doc))).toEqual(defaultDevelopSettings());
     expect(
@@ -479,7 +479,7 @@ describe("Develop local photo identity and workspace boundary", () => {
   test("Studio neutral metadata imports never invent stars or infer a pick from quality", () => {
     const doc = developDocumentForImport(developPhotoFromShot(studioPhoto()));
     expect(doc.history).toHaveLength(1);
-    expect(doc.metadata).toEqual({ rating: 0, flag: null, colorLabel: null });
+    expect(doc.metadata).toEqual({ rating: 0, flag: null, colorLabel: null, hearted: false });
     expect(
       developInitialStateFromShot(
         studioPhoto({
@@ -487,7 +487,7 @@ describe("Develop local photo identity and workspace boundary", () => {
           develop: { origin: "sidecar", at: 1, rating: -1, label: "Red" },
         }),
       ).metadata,
-    ).toEqual({ rating: 0, flag: "reject", colorLabel: "red" });
+    ).toEqual({ rating: 0, flag: "reject", colorLabel: "red", hearted: false });
     expect(
       developInitialStateFromShot(
         studioPhoto({
@@ -495,7 +495,7 @@ describe("Develop local photo identity and workspace boundary", () => {
           develop: { origin: "sidecar", at: 1, rating: 5, label: "Personal custom label" },
         }),
       ).metadata,
-    ).toEqual({ rating: 5, flag: null, colorLabel: null });
+    ).toEqual({ rating: 5, flag: null, colorLabel: null, hearted: false });
   });
 
   test("legacy gain conversion is finite and bounded at the black-exposure endpoint", () => {
@@ -900,7 +900,7 @@ describe("Develop explicit edit recovery", () => {
 
   test("prepares an undoable treatment while preserving current metadata, snapshots and original bytes", async () => {
     const saved = addSnapshot(createDevelopDocument("studio:one"), "Keep this snapshot");
-    saved.metadata = { rating: 5, flag: "pick", colorLabel: "green" };
+    saved.metadata = { rating: 5, flag: "pick", colorLabel: "green", hearted: false };
     saved.revision = 7;
     const library = await fixture(saved);
     const imported = pushHistory(
@@ -908,7 +908,7 @@ describe("Develop explicit edit recovery", () => {
       { ...defaultDevelopSettings(), exposure: 2 },
       "Unsaved treatment",
     );
-    imported.metadata = { rating: 1, flag: "reject", colorLabel: "red" };
+    imported.metadata = { rating: 1, flag: "reject", colorLabel: "red", hearted: false };
     imported.revision = 99;
     const recovery = parseDevelopRecovery(exportText({ [saved.photoId]: imported }), target);
     const before = JSON.stringify({ saved, imported });

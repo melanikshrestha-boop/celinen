@@ -203,6 +203,7 @@ describe("Cull is a canonical review projection", () => {
       flag: "pick",
       rating: 0,
       colorLabel: null,
+      hearted: false,
     });
     loaded.shots[0]!.verdict = "reject";
     await view.save(loaded.shots, loaded.shots[0]!.id, "all");
@@ -276,6 +277,7 @@ describe("Cull is a canonical review projection", () => {
       flag: "pick",
       rating: 4,
       colorLabel: "blue",
+      hearted: false,
     });
     expect(fake.state.photos[0]!.legacy?.metadata).toBeDefined();
     const outgoing = createCullLightroomVerdicts(updated.shots);
