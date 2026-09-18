@@ -15,6 +15,7 @@ import {
   FlipVertical2,
   Plus,
   Trash2,
+  Pipette,
 } from "lucide-react";
 import {
   defaultDevelopSettings,
@@ -22,6 +23,15 @@ import {
   type DevelopSettings,
   type DevelopMask,
 } from "@/lib/develop/contract";
+import {
+  DEVELOP_PROFILES,
+  DEVELOP_WHITE_BALANCE,
+  DEVELOP_WHITE_BALANCE_PRESETS,
+  isBlackAndWhiteDevelop,
+  kelvinToTemperature,
+  temperatureToKelvin,
+  type DevelopWhiteBalance,
+} from "@/lib/develop/lightroom-basic";
 import { ColorGrading } from "./ColorGrading";
 import { curveDisplayPath } from "@/lib/develop/curve-interpolation";
 import {
@@ -79,6 +89,11 @@ export function DevelopSlider({
   disabled = false,
   id,
   onChange,
+  toDisplay,
+  fromDisplay,
+  displayMin,
+  displayMax,
+  displayStep,
 }: {
   label: string;
   displayLabel?: string;
@@ -91,6 +106,11 @@ export function DevelopSlider({
   disabled?: boolean;
   id?: string;
   onChange: (value: number, commit: boolean) => void;
+  toDisplay?: (value: number) => number;
+  fromDisplay?: (value: number) => number;
+  displayMin?: number;
+  displayMax?: number;
+  displayStep?: number;
 }) {
   const last = useRef(value);
   // True while a live preview from this slider still awaits its commit. Gate on that, never on
@@ -146,15 +166,16 @@ export function DevelopSlider({
         disabled={disabled}
         aria-label={`${label} value`}
         title={help}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        min={displayMin ?? min}
+        max={displayMax ?? max}
+        step={displayStep ?? step}
+        value={toDisplay ? toDisplay(value) : value}
         onChange={(e) => {
           if (disabled) return;
-          const v = Number(e.target.value);
-          if (Number.isFinite(v)) {
-            const newValue = Math.min(max, Math.max(min, v));
+          const typed = Number(e.target.value);
+          if (Number.isFinite(typed)) {
+            const mapped = fromDisplay ? fromDisplay(typed) : typed;
+            const newValue = Math.min(max, Math.max(min, mapped));
             if (newValue !== last.current) {
               last.current = newValue;
               uncommitted.current = true;
@@ -559,6 +580,9 @@ export function DevelopControls({
   onMask,
   sourceAspect = 1.5,
   onSuggestCrop,
+  onAuto,
+  onAutoWhiteBalance,
+  autoBusy = false,
   browserOnly = false,
   uprightSolving = false,
 }: {
@@ -571,6 +595,9 @@ export function DevelopControls({
   onMask: (id: string | null) => void;
   sourceAspect?: number;
   onSuggestCrop?: () => void;
+  onAuto?: () => void;
+  onAutoWhiteBalance?: () => void;
+  autoBusy?: boolean;
   browserOnly?: boolean;
   /** True while the C++ engine is measuring this photo's lines. */
   uprightSolving?: boolean;
@@ -596,7 +623,16 @@ export function DevelopControls({
     min = -100,
     max = 100,
     step = 1,
-    options: { displayLabel?: string; help?: string; disabled?: boolean } = {},
+    options: {
+      displayLabel?: string;
+      help?: string;
+      disabled?: boolean;
+      toDisplay?: (value: number) => number;
+      fromDisplay?: (value: number) => number;
+      displayMin?: number;
+      displayMax?: number;
+      displayStep?: number;
+    } = {},
   ) => (
     <DevelopSlider
       key={key}
@@ -608,7 +644,11 @@ export function DevelopControls({
       max={max}
       step={step}
       reset={defaults[key] as number}
-      onChange={(n, c) => change({ ...value, [key]: n }, label, c)}
+      onChange={(n, c) => {
+        if (key === "temperature" || key === "tint")
+          change({ ...value, [key]: n, whiteBalance: "custom" }, label, c);
+        else change({ ...value, [key]: n }, label, c);
+      }}
     />
   );
 
@@ -772,22 +812,124 @@ export function DevelopControls({
       <Panel title="Basic" id="panel-basic" open>
         <div className="develop-inline">
           <span>Treatment</span>
-          <button
-            aria-pressed={value.saturation === -100}
-            onClick={() =>
-              change(
-                { ...value, saturation: value.saturation === -100 ? 0 : -100 },
-                "Black & white",
-              )
-            }
-          >
-            {value.saturation === -100 ? "Black & white" : "Color"}
-          </button>
+          <div className="develop-treatment" role="group" aria-label="Treatment">
+            <button
+              type="button"
+              aria-label="Color"
+              aria-pressed={!isBlackAndWhiteDevelop(value)}
+              onClick={() =>
+                change(
+                  {
+                    ...value,
+                    treatment: "color",
+                    profile:
+                      value.profile === "adobe-monochrome" ? "adobe-color" : value.profile,
+                    saturation: value.saturation === -100 ? 0 : value.saturation,
+                  },
+                  "Color",
+                )
+              }
+            >
+              Color
+            </button>
+            <button
+              type="button"
+              aria-label="Black and White"
+              aria-pressed={isBlackAndWhiteDevelop(value)}
+              onClick={() =>
+                change(
+                  {
+                    ...value,
+                    treatment: "black-and-white",
+                    saturation: value.saturation === -100 ? 0 : value.saturation,
+                  },
+                  "Black & White",
+                )
+              }
+            >
+              Black & White
+            </button>
+          </div>
         </div>
-        <p className="develop-control-heading">White balance</p>
-        {scalar("temperature", "Temp")}
+        <div className="develop-inline">
+          <span>Profile</span>
+          <select
+            aria-label="Profile"
+            value={value.profile}
+            onChange={(event) => {
+              const profile = event.target.value as DevelopSettings["profile"];
+              change(
+                {
+                  ...value,
+                  profile,
+                  treatment:
+                    profile === "adobe-monochrome" ? "black-and-white" : value.treatment,
+                },
+                "Profile",
+              );
+            }}
+          >
+            {DEVELOP_PROFILES.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="develop-control-heading">WB</p>
+        <div className="develop-wb-row">
+          <button
+            type="button"
+            aria-label="White balance eyedropper"
+            aria-pressed={tool === "wb"}
+            title="Click a neutral pixel"
+            onClick={() => onTool(tool === "wb" ? "edit" : "wb")}
+          >
+            <Pipette size={12} />
+          </button>
+          <select
+            aria-label="White balance"
+            value={value.whiteBalance}
+            onChange={(event) => {
+              const next = event.target.value as DevelopWhiteBalance;
+              if (next === "auto") {
+                onAutoWhiteBalance?.();
+                return;
+              }
+              if (next === "custom") {
+                change({ ...value, whiteBalance: "custom" }, "White balance");
+                return;
+              }
+              const preset = DEVELOP_WHITE_BALANCE_PRESETS[next];
+              change(
+                { ...value, whiteBalance: next, temperature: preset.temperature, tint: preset.tint },
+                "White balance",
+              );
+            }}
+          >
+            {DEVELOP_WHITE_BALANCE.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {scalar("temperature", "Temp", -100, 100, 1, {
+          toDisplay: temperatureToKelvin,
+          fromDisplay: kelvinToTemperature,
+          displayMin: 2000,
+          displayMax: 50000,
+          displayStep: 10,
+        })}
         {scalar("tint", "Tint")}
-        <p className="develop-control-heading">Tone</p>
+        <div className="develop-inline">
+          <p className="develop-control-heading">Tone</p>
+          {onAuto && (
+            <button type="button" aria-label="Auto" disabled={autoBusy} onClick={onAuto}>
+              Auto
+            </button>
+          )}
+        </div>
         {scalar("exposure", "Exposure", -5, 5, 0.05)}
         {scalar("contrast", "Contrast")}
         {scalar("highlights", "Highlights")}
@@ -804,8 +946,12 @@ export function DevelopControls({
           ...(browserOnly ? { help: "Requires the local C++ Develop engine." } : {}),
         })}
         {scalar("dehaze", "Dehaze")}
-        {scalar("vibrance", "Vibrance")}
-        {scalar("saturation", "Saturation")}
+        {!isBlackAndWhiteDevelop(value) && (
+          <>
+            {scalar("vibrance", "Vibrance")}
+            {scalar("saturation", "Saturation")}
+          </>
+        )}
       </Panel>
       <Panel title="Tone Curve" id="panel-curve" disabled={browserOnly}>
         <div className="develop-parametric-controls">
@@ -869,6 +1015,7 @@ export function DevelopControls({
         {scalar("grain", "Grain", 0)}
         {scalar("grainSize", "Grain size", 0.5, 4, 0.1)}
         {scalar("grainLuminance", "Grain luminance", 0)}
+        {scalar("grainColor", "Grain color", 0)}
         {scalar("halation", "Halation", 0)}
         {scalar("bloom", "Bloom", 0)}
         {scalar("fade", "Fade", 0)}

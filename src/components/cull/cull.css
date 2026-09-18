@@ -2,6 +2,12 @@
   /* Keep green and reject red, the same pair cullToneClass paints in Studio. */
   --cull-keep: #1f9d5c;
   --cull-reject: #e24b4a;
+  /* Lightroom's label colors. */
+  --cull-label-red: #e24b4a;
+  --cull-label-yellow: #e3b505;
+  --cull-label-green: #1f9d5c;
+  --cull-label-blue: #3d7fe0;
+  --cull-label-purple: #9b6ce8;
   background: var(--paper);
   color: var(--ink);
   height: 100dvh;
@@ -101,7 +107,7 @@
 .cull-thumb > img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .cull-card[data-verdict="reject"][data-source="photographer"] .cull-thumb > img {
   opacity: 0.4;
@@ -204,6 +210,180 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.cull-card-meta > :not(.cull-name) {
+  flex: 0 0 auto;
+}
+/* Middle ellipsis: the head gives way, the tail (frame number, extension) stays. */
+.cull-name {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  margin-right: auto;
+  white-space: nowrap;
+}
+.cull-name-head {
+  min-width: 1ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cull-name-tail {
+  flex: 0 0 auto;
+}
+.cull-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink);
+}
+.cull-label,
+.cull-refine-label {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cull-label-color);
+}
+[data-label="red"] {
+  --cull-label-color: var(--cull-label-red);
+}
+[data-label="yellow"] {
+  --cull-label-color: var(--cull-label-yellow);
+}
+[data-label="green"] {
+  --cull-label-color: var(--cull-label-green);
+}
+[data-label="blue"] {
+  --cull-label-color: var(--cull-label-blue);
+}
+[data-label="purple"] {
+  --cull-label-color: var(--cull-label-purple);
+}
+.cull-stars {
+  letter-spacing: -0.02em;
+}
+.cull-tag {
+  display: inline-grid;
+  place-items: center;
+  color: var(--rust);
+}
+.cull-card.is-picked .cull-thumb {
+  outline: 2px solid color-mix(in srgb, var(--ink) 55%, transparent);
+  outline-offset: -2px;
+}
+.cull-card.is-picked {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.cull-refine {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+.cull-refine > button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--moss);
+  font-size: 12px;
+  line-height: 1;
+}
+.cull-refine > button:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.cull-refine-star[data-lit] {
+  color: var(--ink);
+}
+.cull-refine > .cull-refine-label {
+  width: 12px;
+  height: 12px;
+  margin: 0 3px;
+  background: var(--cull-label-color);
+  opacity: 0.45;
+}
+.cull-refine > .cull-refine-label:hover {
+  background: var(--cull-label-color);
+  opacity: 0.8;
+}
+.cull-refine > .cull-refine-label[aria-pressed="true"] {
+  opacity: 1;
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 3.5px var(--cull-label-color);
+}
+.cull-refine-tag[aria-pressed="true"] {
+  color: var(--rust);
+  background: color-mix(in srgb, var(--rust) 12%, transparent);
+}
+
+.cull-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 8px;
+  color: var(--moss);
+}
+.cull-target[data-set] {
+  color: var(--ink);
+}
+.cull-target > label {
+  min-width: 9ch;
+  font-variant-numeric: tabular-nums;
+}
+.cull-target > input[type="range"] {
+  width: 120px;
+  accent-color: var(--cull-keep);
+}
+
+.cull-selection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 10px;
+}
+
+.cull-caption {
+  display: grid;
+  gap: 6px;
+}
+.cull-caption textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--input, color-mix(in srgb, var(--ink) 18%, transparent));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.cull-caption textarea:focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: 1px;
+}
+.cull-caption[data-inline] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 560px;
+}
+.cull-caption[data-inline] textarea {
+  resize: none;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.cull-codes > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.cull-codes > summary::-webkit-details-marker {
+  display: none;
+}
 
 .cull-loupe {
   position: fixed;
@@ -233,6 +413,52 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+/* The picture box. Its canvas is drawn at the box's own device pixels by
+   CullLoupePicture, so nothing here scales it. */
+.cull-picture {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: zoom-in;
+}
+.cull-picture > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.cull-picture > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* The camera's AF area. Green on the subject, amber when something in front or
+   behind is sharper, red when nothing is. */
+.cull-af {
+  position: absolute;
+  box-sizing: border-box;
+  min-width: 10px;
+  min-height: 10px;
+  border: 2px solid color-mix(in srgb, #fff 80%, transparent);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45);
+  pointer-events: none;
+}
+.cull-af[data-verdict="on-subject"] {
+  border-color: var(--cull-keep);
+}
+.cull-af[data-verdict="front-or-back-focus"] {
+  border-color: var(--cull-label-yellow);
+}
+.cull-af[data-verdict="missed"] {
+  border-color: var(--cull-reject);
+}
+.cull-af-best {
+  border: 1.5px dashed color-mix(in srgb, #fff 70%, transparent);
 }
 .cull-loupe-side {
   grid-row: 2 / span 2;
@@ -301,6 +527,54 @@
   color: var(--ink);
 }
 
+/* Compare: two to four frames at once, the focused one outlined. */
+.cull-loupe.cull-compare-view {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.cull-compare-panes {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 16px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+}
+.cull-compare-panes[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.cull-compare-pane {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  border-radius: 6px;
+  outline: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.cull-compare-pane[aria-current="true"] {
+  outline: 2px solid var(--rust);
+}
+.cull-compare-stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  color: var(--moss);
+}
+.cull-compare-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 10px 8px;
+  color: var(--moss);
+}
+.cull-compare-meta > .cull-name {
+  margin-right: 0;
+  max-width: 40%;
+}
+.cull-compare-key {
+  color: var(--ink);
+}
+
 @media (max-width: 900px) {
   .cull-grid {
     --cull-min-width: 132px;
@@ -309,18 +583,24 @@
   }
   .cull-loupe {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(40vh, 1fr) auto auto;
-    overflow-y: auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    height: 100dvh;
+    overflow: hidden;
   }
-  .cull-loupe-stage,
+  .cull-loupe-stage {
+    grid-row: 2;
+    min-height: 0;
+    padding: 4px 8px;
+  }
   .cull-compare {
     grid-row: auto;
   }
   .cull-loupe-side {
     grid-row: auto;
     grid-column: 1;
-    padding: 8px 20px 24px;
-    overflow: visible;
+    padding: 8px 16px 16px;
+    overflow-y: auto;
+    max-height: 28dvh;
   }
 }
 @media (prefers-reduced-motion: reduce) {

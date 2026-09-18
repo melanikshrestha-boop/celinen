@@ -3,10 +3,16 @@
  * decisions with undo. No React here, so the same controller drives the screen,
  * the tests and anything else that wants to run a cull.
  */
+import { mergeCodeTables, parseCodeReplacements, rosterCodes, type CodeTable } from "./captions";
 import { cullEngine } from "./client";
 import type { CullRow, CullVerdict } from "./engine";
 import { decodeScaled } from "./decode";
 import { applyTaste, keepBiasFromEye, loadEye, rememberDecision, saveEye } from "./eye";
+import { startBackupIngest, type BackupReport } from "./handoff/backup-ingest";
+import { exportKeepers } from "./handoff/export-keepers";
+import type { HandoffTarget } from "./handoff/target";
+import type { HandoffProgress, HandoffReport } from "./handoff/types";
+import { rankKeepers, refineFocusRows, targetRow } from "./keepers";
 import { pickLoupeImage, type LoupeImage } from "./loupe-source";
 import { findPortraitFaceOriented, type PortraitFace } from "./portrait-face";
 import { ingestFiles } from "./pool";
@@ -17,7 +23,10 @@ import {
   decide,
   effectiveVerdict,
   ingestProgress,
+  markFrame,
   type CullFrame,
+  type CullLabel,
+  type CullMarks,
   type CullProgress,
 } from "./session";
 import {
@@ -28,7 +37,75 @@ import {
   type CullPermission,
   type CullSourceRoot,
 } from "./sources";
-import { createCullWriter, type CullStore } from "./store";
+import { createCullWriter, type CullCodeTableRow, type CullStore } from "./store";
+
+/** One loaded caption code source, as the screen lists it. */
+export type CullCodeSource = {
+  id: string;
+  name: string;
+  kind: "codes" | "roster";
+  prefix: string;
+  count: number;
+};
+
+/** Every caption code this account has loaded, merged in load order. */
+export type CullCodes = { sources: readonly CullCodeSource[]; table: CodeTable };
+
+/** Where a card's backup copy stands. Second copies are optional and never
+ * hold up the cull: a failed backup is reported, never thrown. */
+export type CullBackupState = {
+  files: number;
+  totalFiles: number;
+  bytes: number;
+  totalBytes: number;
+  /** Copies both destinations have finished, when there are two. */
+  done: boolean;
+  failed: number;
+  cancelled: boolean;
+};
+
+/** Where the keepers go and how they are named. */
+export type CullExportRequest = {
+  target: HandoffTarget;
+  /** The frames to send; without it, the shoot's keepers. */
+  ids?: readonly string[] | undefined;
+  /** File name template without extension; `{filename}` by default. */
+  renameTemplate?: string | undefined;
+  folderTemplate?: string | undefined;
+  /** Write XMP (stars, label, caption, tag) beside or inside the copies. Default on. */
+  sidecars?: boolean | undefined;
+  signal?: AbortSignal | undefined;
+  onProgress?: ((progress: HandoffProgress) => void) | undefined;
+  /** Told while the originals are being found, before any copy starts. */
+  onPrepare?: ((found: number, total: number) => void) | undefined;
+};
+
+/** Originals resolved at once when a reopened session has to find them again. */
+const RESOLVE_LANES = 8;
+
+/** Lightroom's own label names, which it matches by text. */
+const LABEL_NAMES: Record<CullLabel, string> = {
+  red: "Red",
+  yellow: "Yellow",
+  green: "Green",
+  blue: "Blue",
+  purple: "Purple",
+};
+
+/** Photo Mechanic's tag has no XMP field of its own; a keyword is what every
+ * other program can act on. */
+const TAGGED_KEYWORDS: readonly string[] = ["tagged"];
+
+export const NO_CODES: CullCodes = {
+  sources: [],
+  table: { codes: new Map(), folded: new Map() },
+};
+
+function parseCodeRow(row: Pick<CullCodeTableRow, "kind" | "prefix" | "text">) {
+  return row.kind === "roster"
+    ? rosterCodes(row.text, row.prefix)
+    : parseCodeReplacements(row.text);
+}
 
 /**
  * Where the session's originals stand, for the loupe.
@@ -57,6 +134,13 @@ export type CullSnapshot = {
   notice: string | null;
   canUndo: boolean;
   originals: CullOriginals;
+  /** Where the card's second copy stands, while one is being made. */
+  backup: CullBackupState | null;
+  /** The "Keep ~N" line, or null for the engine's own verdicts. */
+  keepTarget: number | null;
+  /** Frames the keep line runs across: measured and readable. */
+  ranked: number;
+  codes: CullCodes;
 };
 
 type Listener = (snapshot: CullSnapshot) => void;
@@ -65,6 +149,7 @@ type Listener = (snapshot: CullSnapshot) => void;
 // once a second while a card reads keeps suggestions current at no visible cost.
 const RERANK_INTERVAL_MS = 1000;
 const UNDO_DEPTH = 50;
+const TARGET_SAVE_MS = 250;
 /** Frames tried when adopting a picked folder as a session's originals. */
 const LOCATE_PROBES = 8;
 
@@ -91,6 +176,18 @@ export class CullController {
   private originalsState: CullOriginals = "unavailable";
   private previewRun: { abort: AbortController; done: Promise<void> } | null = null;
   private emitQueued = false;
+  // The engine's rows after focus demotion, the shoot ranked by them once, and
+  // the keep line across that ranking. Moving the line reads these; only a
+  // rerank rebuilds them.
+  private rows = new Map<string, CullRow>();
+  private order: string[] = [];
+  private keepTarget: number | null = null;
+  private codes: CullCodes = NO_CODES;
+  private codesLoaded: Promise<void> | null = null;
+  private targetSave: ReturnType<typeof setTimeout> | null = null;
+  private backup: CullBackupState | null = null;
+  private backupJob: ReturnType<typeof startBackupIngest> | null = null;
+  private sessionName = "";
 
   constructor(
     private readonly store: CullStore,
@@ -112,6 +209,10 @@ export class CullController {
       notice: this.notice,
       canUndo: this.undoStack.length > 0,
       originals: this.originalsState,
+      backup: this.backup,
+      keepTarget: this.keepTarget,
+      ranked: this.order.length,
+      codes: this.codes,
     };
   }
 
@@ -139,6 +240,13 @@ export class CullController {
     this.changed();
   }
 
+  /** Same frames in the same order, some of them changed: the id index stands.
+   * This is the keypress path, so it must not rebuild anything per frame. */
+  private swap(next: CullFrame[]) {
+    this.frames = next;
+    this.changed();
+  }
+
   private changed() {
     this.published = null;
     this.emit();
@@ -153,11 +261,20 @@ export class CullController {
     this.cancelImport();
     this.stopPreviews();
     if (sessionId !== this.sessionId) this.forgetOriginals();
-    const frames = await this.store.frames(sessionId);
+    const [frames, summary] = await Promise.all([
+      this.store.frames(sessionId),
+      this.store
+        .list()
+        .then((all) => all.find((session) => session.id === sessionId))
+        .catch(() => undefined),
+    ]);
     this.sessionId = sessionId;
+    this.sessionName = summary?.name ?? "";
     this.undoStack = [];
     this.progress = null;
     this.notice = null;
+    this.keepTarget = summary?.keepTarget ?? null;
+    this.resetRanking();
     this.replace(frames);
     await this.rerank();
     void this.rescanMissedFaces();
@@ -170,14 +287,19 @@ export class CullController {
     name: string,
     files: readonly File[],
     roots: readonly CullSourceRoot[] = [],
+    /** Second (and third) copies of the card, made while it is read. */
+    backup?: { primary: HandoffTarget; secondary?: HandoffTarget | undefined } | undefined,
   ): Promise<void> {
     this.cancelImport();
     this.stopPreviews();
     const photos = files.filter((file) => file.size > 0);
     const session = await this.store.create(name);
+    this.sessionName = session.name;
     this.sessionId = session.id;
     this.undoStack = [];
     this.notice = null;
+    this.keepTarget = null;
+    this.resetRanking();
     this.forgetOriginals();
     this.originalsState = "live";
     if (roots.length) {
@@ -203,6 +325,46 @@ export class CullController {
     });
     const started = performance.now();
     this.progress = ingestProgress(photos.length, 0, 0, 0);
+    // The card is copied while it is read, one file at a time per destination
+    // (backup-ingest's default), so the ingest pool keeps the cores and the
+    // photographer is reviewing long before the copy finishes.
+    const copy = backup
+      ? startBackupIngest({
+          primary: backup.primary,
+          ...(backup.secondary ? { secondary: backup.secondary } : {}),
+          shootName: session.name,
+          onProgress: (progress) => {
+            this.backup = {
+              files: progress.files,
+              totalFiles: progress.totalFiles,
+              bytes: progress.bytes,
+              totalBytes: progress.totalBytes,
+              done: false,
+              failed: this.backup?.failed ?? 0,
+              cancelled: false,
+            };
+            this.changed();
+          },
+        })
+      : null;
+    if (copy) {
+      this.backup = {
+        files: 0,
+        totalFiles: photos.length,
+        bytes: 0,
+        totalBytes: photos.reduce((sum, file) => sum + file.size, 0),
+        done: false,
+        failed: 0,
+        cancelled: false,
+      };
+      copy.add(photos);
+      copy.close();
+      this.backupJob = copy;
+      void copy.done.then(
+        (report) => this.finishBackup(report),
+        () => this.finishBackup(null),
+      );
+    }
     try {
       await ingestFiles(photos, {
         signal: controller.signal,
@@ -232,6 +394,90 @@ export class CullController {
   cancelImport() {
     this.importing?.abort();
     this.importing = null;
+  }
+
+  /** Stops the card's second copy. The photos already copied stay where they are. */
+  cancelBackup() {
+    this.backupJob?.cancel();
+  }
+
+  private finishBackup(report: BackupReport | null) {
+    this.backupJob = null;
+    const failed = report
+      ? report.primary.failed.length + (report.secondary?.failed.length ?? 0)
+      : 1;
+    this.backup = {
+      files: this.backup?.files ?? 0,
+      totalFiles: this.backup?.totalFiles ?? 0,
+      bytes: this.backup?.bytes ?? 0,
+      totalBytes: this.backup?.totalBytes ?? 0,
+      done: true,
+      failed,
+      cancelled: report?.cancelled ?? false,
+    };
+    if (failed)
+      this.notice = report
+        ? `${failed.toLocaleString("en-US")} of the card's photos could not be copied to the backup.`
+        : "The card backup stopped before it finished.";
+    this.emit();
+  }
+
+  /**
+   * Copies the chosen frames — keepers by default — to a folder or zip, with
+   * their RAW/JPEG partners, renamed by template, and stars, color label, tag
+   * and caption written as XMP so Lightroom and Photo Mechanic open the shoot
+   * already culled. Resolves with what happened to every file; a per-file
+   * problem is reported, never thrown.
+   */
+  async exportFrames(request: CullExportRequest): Promise<HandoffReport> {
+    const frames = this.frames;
+    // Every original of the card, so a JPEG travels with its RAW even when only
+    // one of the pair is a frame in the review.
+    const files = new Map<string, File>();
+    const resolver = this.originalsState === "connected" ? this.resolver : null;
+    let checked = 0;
+    let next = 0;
+    const lanes = Array.from({ length: Math.min(RESOLVE_LANES, frames.length || 1) }, async () => {
+      for (;;) {
+        const frame = frames[next++];
+        if (!frame) return;
+        if (request.signal?.aborted) return;
+        if (!frame.error) {
+          const file =
+            this.originals.get(frame.id) ??
+            (resolver ? await resolver.resolve(frame).catch(() => null) : null);
+          if (file) files.set(frame.id, file);
+        }
+        request.onPrepare?.(++checked, frames.length);
+      }
+    });
+    await Promise.all(lanes);
+
+    const wanted = request.ids ? new Set(request.ids) : null;
+    return exportKeepers({
+      target: request.target,
+      frames,
+      files,
+      library: [...files.values()],
+      ...(wanted ? { select: (frame) => wanted.has(frame.id) } : {}),
+      ...(request.renameTemplate ? { renameTemplate: request.renameTemplate } : {}),
+      ...(request.folderTemplate ? { folderTemplate: request.folderTemplate } : {}),
+      ...(this.sessionName ? { shootName: this.sessionName } : {}),
+      ...(request.signal ? { signal: request.signal } : {}),
+      ...(request.onProgress ? { onProgress: request.onProgress } : {}),
+      sidecars:
+        request.sidecars === false
+          ? { enabled: false }
+          : {
+              // The photographer's own marks, straight from the frame.
+              caption: (frame) => this.frame(frame.id)?.caption,
+              label: (frame) => {
+                const label = this.frame(frame.id)?.label;
+                return label ? LABEL_NAMES[label] : null;
+              },
+              keywords: (frame) => (this.frame(frame.id)?.tagged ? TAGGED_KEYWORDS : undefined),
+            },
+    });
   }
 
   private forgetOriginals() {
@@ -408,6 +654,8 @@ export class CullController {
       this.sessionId = null;
       this.undoStack = [];
       this.progress = null;
+      this.keepTarget = null;
+      this.resetRanking();
       this.replace([]);
       // A preview mid-write would otherwise land after its folder is gone.
       await stopped;
@@ -449,7 +697,15 @@ export class CullController {
       this.notice = error instanceof Error ? error.message : "The shoot could not be ranked.";
       return this.emit();
     }
-    const suggestions = new Map(rows.map((row, index) => [measured[index]!.id, row]));
+    // The engine's rows, then the AF evidence it does not see (keepers.ts).
+    this.rows = refineFocusRows(
+      this.frames,
+      new Map(rows.map((row, index) => [measured[index]!.id, row])),
+    );
+    // A target above the ranked count is kept as set: frames still arriving fill it.
+    this.order = rankKeepers(this.frames, this.rows);
+    const suggestions = new Map<string, CullRow>();
+    this.order.forEach((id, position) => suggestions.set(id, this.suggestionAt(id, position)));
     // Suggestions are not saved: reopening a session ranks it again from the
     // stored measurements, and saving them here would rewrite thousands of rows
     // a second while a card reads. Only the photographer's decisions persist.
@@ -536,30 +792,97 @@ export class CullController {
     }
   }
 
+  private resetRanking() {
+    this.rows = new Map();
+    this.order = [];
+  }
+
+  /** A frame's suggestion at its place in the ranking, under the current keep line. */
+  private suggestionAt(id: string, position: number): CullRow {
+    const row = this.rows.get(id)!;
+    return this.keepTarget === null ? row : targetRow(row, position < this.keepTarget);
+  }
+
+  /**
+   * Moves the keep line: the top `target` frames of the ranking are suggested
+   * keeps and the rest rejects; null returns to the engine's own verdicts.
+   * Only frames between the old and new line change, so a slider drag over ten
+   * thousand frames does work proportional to how far it moved. Decisions are
+   * never changed: a decided frame's verdict is the photographer's.
+   */
+  setKeepTarget(target: number | null): void {
+    const next =
+      target === null || !Number.isFinite(target)
+        ? null
+        : Math.max(0, Math.min(this.order.length, Math.round(target)));
+    const previous = this.keepTarget;
+    if (next === previous) return;
+    this.keepTarget = next;
+    // From or to the engine's verdicts every frame may differ; between two lines only the band does.
+    const [from, to] =
+      previous === null || next === null
+        ? [0, this.order.length]
+        : [Math.min(previous, next), Math.min(this.order.length, Math.max(previous, next))];
+    let frames: CullFrame[] | null = null;
+    for (let position = from; position < to; position++) {
+      const id = this.order[position]!;
+      const index = this.byId.get(id);
+      if (index === undefined) continue;
+      const current = (frames ?? this.frames)[index]!;
+      const suggestion = this.suggestionAt(id, position);
+      if (current.suggestion === suggestion) continue;
+      frames ??= this.frames.slice();
+      frames[index] = { ...current, suggestion };
+    }
+    if (frames) this.swap(frames);
+    else this.emit();
+    // A drag moves the line sixty times a second; storage needs only where it stops.
+    const sessionId = this.sessionId;
+    if (this.targetSave) clearTimeout(this.targetSave);
+    this.targetSave = null;
+    if (!sessionId) return;
+    this.targetSave = setTimeout(() => {
+      this.targetSave = null;
+      void Promise.resolve()
+        .then(() => this.store.setKeepTarget(sessionId, next))
+        // A target is a view of the suggestions; losing it loses nothing decided.
+        .catch(() => {});
+    }, TARGET_SAVE_MS);
+  }
+
   /** Records the photographer's decision on these frames. Undoable. */
-  async decide(ids: readonly string[], verdict: CullVerdict): Promise<void> {
+  decide(ids: readonly string[], verdict: CullVerdict): Promise<void> {
+    return this.mark(ids, { verdict });
+  }
+
+  /**
+   * Sets verdict, stars, label, tag or caption on these frames as one undo
+   * step. Work is proportional to the frames named, never to the shoot.
+   */
+  async mark(ids: readonly string[], marks: CullMarks): Promise<void> {
     const changed: CullFrame[] = [];
     const before: CullFrame[] = [];
-    const next = [...this.frames];
+    let next: CullFrame[] | null = null;
     for (const id of ids) {
       const index = this.byId.get(id);
       if (index === undefined) continue;
-      const current = next[index]!;
-      const updated = decide(current, verdict);
+      const current = (next ?? this.frames)[index]!;
+      const updated = markFrame(current, marks);
       if (updated === current) continue;
+      next ??= this.frames.slice();
       before.push(current);
       next[index] = updated;
       changed.push(updated);
     }
-    if (!changed.length) return;
+    if (!next) return;
     this.undoStack.push({ frames: before });
     if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
-    this.replace(next);
-    if (this.options.scope) {
+    this.swap(next);
+    if (this.options.scope && marks.verdict) {
       let eye = loadEye(this.options.scope);
       for (const frame of changed) {
         if (!frame.reading) continue;
-        eye = rememberDecision(eye, frame.reading, verdict);
+        eye = rememberDecision(eye, frame.reading, marks.verdict);
       }
       saveEye(this.options.scope, eye);
     }
@@ -570,13 +893,87 @@ export class CullController {
   async undo(): Promise<void> {
     const step = this.undoStack.pop();
     if (!step) return;
-    const next = [...this.frames];
-    for (const frame of step.frames) {
-      const index = this.byId.get(frame.id);
-      if (index !== undefined) next[index] = frame;
+    const next = this.frames.slice();
+    const restored: CullFrame[] = [];
+    for (const saved of step.frames) {
+      const index = this.byId.get(saved.id);
+      if (index === undefined) continue;
+      // Only the photographer's own fields go back; a rerank or keep line since
+      // then has moved the suggestion on, and undo must not bring the old one back.
+      const frame: CullFrame = { ...saved, suggestion: next[index]!.suggestion };
+      if (!frame.suggestion) delete frame.suggestion;
+      next[index] = frame;
+      restored.push(frame);
     }
-    this.replace(next);
-    await this.persist(step.frames);
+    this.swap(next);
+    await this.persist(restored);
+  }
+
+  /** Loads this account's caption codes once; later calls share the load. */
+  loadCodes(): Promise<void> {
+    this.codesLoaded ??= Promise.resolve()
+      .then(() => this.store.codeTables())
+      .then(
+        (rows) => this.setCodes(rows),
+        // Captions still work by hand without stored codes.
+        () => {},
+      );
+    return this.codesLoaded;
+  }
+
+  private setCodes(rows: readonly CullCodeTableRow[]) {
+    const sources: CullCodeSource[] = [];
+    const tables: CodeTable[] = [];
+    for (const row of rows) {
+      const { table } = parseCodeRow(row);
+      tables.push(table);
+      sources.push({
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        prefix: row.prefix,
+        count: table.codes.size,
+      });
+    }
+    this.codes = { sources, table: mergeCodeTables(...tables) };
+    this.emit();
+  }
+
+  /**
+   * Adds a Photo Mechanic code replacement file or a roster CSV for this
+   * account. Rejected, with the file's first problem, when it yields no codes.
+   */
+  async addCodes(input: {
+    name: string;
+    kind: "codes" | "roster";
+    prefix?: string | undefined;
+    text: string;
+  }): Promise<CullCodeSource> {
+    const prefix = input.kind === "roster" ? (input.prefix ?? "").trim() : "";
+    const { table, issues } = parseCodeRow({ kind: input.kind, prefix, text: input.text });
+    if (!table.codes.size)
+      throw new Error(
+        issues[0] ? `Line ${issues[0].line}: ${issues[0].message}` : "No codes in that file.",
+      );
+    const existing = await this.store.codeTables();
+    const row: CullCodeTableRow = {
+      id: crypto.randomUUID(),
+      name: input.name.slice(0, 120) || "Codes",
+      kind: input.kind,
+      prefix,
+      text: input.text,
+      // Strictly after every stored table, so it wins collisions even within one millisecond.
+      createdAt: Math.max(Date.now(), (existing.at(-1)?.createdAt ?? 0) + 1),
+    };
+    await this.store.putCodeTable(row);
+    const rows = await this.store.codeTables();
+    this.setCodes(rows);
+    return this.codes.sources.find((source) => source.id === row.id)!;
+  }
+
+  async removeCodes(id: string): Promise<void> {
+    await this.store.deleteCodeTable(id);
+    this.setCodes(await this.store.codeTables());
   }
 
   /** Every session stored for this account, newest first. */
@@ -620,6 +1017,11 @@ export class CullController {
     this.cancelImport();
     this.stopPreviews();
     if (this.rerankTimer) clearTimeout(this.rerankTimer);
+    if (this.targetSave && this.sessionId) {
+      clearTimeout(this.targetSave);
+      // The transaction opens synchronously, so it completes before close() takes effect.
+      void this.store.setKeepTarget(this.sessionId, this.keepTarget).catch(() => {});
+    }
     this.listeners.clear();
     this.forgetOriginals();
     this.store.close();

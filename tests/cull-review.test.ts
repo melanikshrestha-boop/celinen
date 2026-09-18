@@ -97,20 +97,63 @@ describe("keyboard", () => {
     [{ key: "l" }, { kind: "move", axis: "cell", step: 1 }],
     [{ key: "j" }, { kind: "move", axis: "cell", step: -1 }],
     [{ key: "k" }, { kind: "decide", verdict: "keep" }],
+    // Shift applies and stays on the frame (Lightroom's caps-lock opposite).
     [
       { key: "K", shiftKey: true },
-      { kind: "decide", verdict: "keep" },
+      { kind: "decide", verdict: "keep", stay: true },
     ],
     [{ key: "x" }, { kind: "decide", verdict: "reject" }],
     [{ key: "u" }, { kind: "decide", verdict: "undecided" }],
+    // Photo Mechanic / Lightroom flags, stars, labels and tag.
+    [{ key: "p" }, { kind: "decide", verdict: "keep" }],
+    [
+      { key: "0", code: "Digit0" },
+      { kind: "rate", stars: 0 },
+    ],
+    [
+      { key: "5", code: "Digit5" },
+      { kind: "rate", stars: 5 },
+    ],
+    [
+      { key: "#", code: "Digit3", shiftKey: true },
+      { kind: "rate", stars: 3, stay: true },
+    ],
+    [
+      { key: "6", code: "Digit6" },
+      { kind: "label", label: "red" },
+    ],
+    [
+      { key: "9", code: "Numpad9" },
+      { kind: "label", label: "blue" },
+    ],
+    [{ key: "t" }, { kind: "tag" }],
+    [
+      { key: "T", shiftKey: true },
+      { kind: "tag", stay: true },
+    ],
     [{ key: " " }, { kind: "toggle" }],
     [{ key: "s" }, { kind: "stack" }],
+    [{ key: "f" }, { kind: "af" }],
+    [{ key: "c" }, { kind: "compare" }],
+    [{ key: "z" }, { kind: "zoom" }],
     [{ key: "Enter" }, { kind: "open" }],
     [{ key: "Escape" }, { kind: "close" }],
+    // Option-digit focuses a compare pane; Option on macOS changes the character, not the code.
+    [
+      { key: "¡", code: "Digit1", altKey: true },
+      { kind: "pane", index: 0 },
+    ],
+    [
+      { key: "¢", code: "Digit4", altKey: true },
+      { kind: "pane", index: 3 },
+    ],
+    [{ key: "º", code: "Digit5", altKey: true }, null],
     // Modified keys belong to the browser and the app's edit keys (⌘Z, ⌘X).
     [{ key: "z", metaKey: true }, null],
     [{ key: "x", ctrlKey: true }, null],
+    [{ key: "3", code: "Digit3", metaKey: true }, null],
     [{ key: "k", altKey: true }, null],
+    [{ key: "ArrowRight", shiftKey: true }, null],
     [{ key: "q" }, null],
     [{ key: "Tab" }, null],
   ];
@@ -289,7 +332,8 @@ describe("plain-language measurements", () => {
     );
     expect(value(cullReading(), "Exposure")).toBe("Good");
     expect(value(cullReading({ eyesClosed: true }), "Subject")).toBe("Eyes closed");
-    expect(value(cullReading({ hasFace: false }), "Subject")).toBe("No face found");
+    // No face is not a flaw, so it is not listed as one.
+    expect(value(cullReading({ hasFace: false }), "Subject")).toBeUndefined();
   });
 
   test("formats the ingest rate", () => {

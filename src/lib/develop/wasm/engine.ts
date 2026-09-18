@@ -178,6 +178,17 @@ export async function instantiateDevelopWasm(
             : wasm.celinen_develop(pointer, protocol.length, highResolution ? 1 : 0);
         if (!ok) throw failure();
       });
+      const protocol = new TextEncoder().encode(developProtocol(settings, { legacy: true }));
+      const pointer = wasm.celinen_alloc(protocol.length);
+      if (!pointer)
+        throw new Error("This photo is too large for the browser's memory at this size.");
+      try {
+        new Uint8Array(wasm.memory.buffer, pointer, protocol.length).set(protocol);
+        if (!wasm.celinen_develop(pointer, protocol.length, highResolution ? 1 : 0))
+          throw failure();
+      } finally {
+        wasm.celinen_release(pointer);
+      }
       const width = wasm.celinen_result_width(),
         height = wasm.celinen_result_height();
       // Copy out before releasing: the result lives in wasm memory, which the
@@ -243,7 +254,7 @@ export async function instantiateDevelopWasm(
         looks.length * LOOK_DESCRIPTOR_SIZE,
       );
       looks.forEach((look, index) => room.set(look, index * LOOK_DESCRIPTOR_SIZE));
-      const protocol = new TextEncoder().encode(developProtocol(settings));
+      const protocol = new TextEncoder().encode(developProtocol(settings, { legacy: true }));
       const pointer = wasm.celinen_alloc(protocol.length);
       if (!pointer)
         throw new Error("This photo is too large for the browser's memory at this size.");

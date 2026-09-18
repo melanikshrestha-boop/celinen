@@ -1,0 +1,31 @@
+name: Apply dashboard mobile drawer
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/dashboard-mobile-drawer]
+    paths:
+      - patches/dashboard-mobile-drawer/**
+      - .github/workflows/apply-dashboard-mobile-drawer.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dashboard-mobile-drawer
+          fetch-depth: 0
+      - name: Apply dashboard mobile drawer changes
+        run: |
+          set -euo pipefail
+          if grep -q 'celinen-dash__drawer' src/components/dashboard/AppDashboard.tsx && grep -q 'mobile ? 0' src/components/dashboard/AppDashboard.tsx; then
+            echo "Already applied"
+            exit 0
+          fi
+          python3 patches/dashboard-mobile-drawer/apply.py
+          git add src/components/dashboard/AppDashboard.tsx src/components/dashboard/dashboard.css tests/dashboard-mobile-layout.test.ts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Dashboard: hide permanent mobile rail; ChatGPT-style hamburger drawer"
+          git push origin HEAD:fix/dashboard-mobile-drawer

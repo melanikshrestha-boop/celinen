@@ -224,6 +224,9 @@ void read_ifd(const Reader& tiff, std::size_t offset, ExifFacts& facts, Collecte
           c.maker_bytes = e.bytes;
         }
         break;
+      // What a shoot-membership check reads besides the camera key.
+      case 0xa434: if (is_text) facts.lens = tiff.text(e.at, e.count); break;
+      case 0x0131: if (is_text) facts.software = tiff.text(e.at, e.count); break;
       case 0xa002: c.exif_width = unsigned_value(tiff, e); break;
       case 0xa003: c.exif_height = unsigned_value(tiff, e); break;
       case 0x920a: if (e.type == 5) facts.focal_length_mm = tiff.rational(e.at); break;
@@ -481,6 +484,11 @@ void finish(ExifFacts& facts, const Collected& c) noexcept {
     if (std::isfinite(long_mm) && long_mm > 1 && long_mm < 200) facts.sensor_long_edge_mm = long_mm;
   }
   facts.capture_time_ms = parse_capture_time(c.stamp, c.subsecond, c.time_offset, facts.capture_time_utc);
+  facts.make = c.make;
+  facts.model = c.model;
+  facts.serial = c.serial;
+  facts.exif_width = c.exif_width;
+  facts.exif_height = c.exif_height;
   // Model alone identifies a body poorly at a game with two of the same camera;
   // the serial separates them when the file carries one.
   for (const auto* part : {&c.make, &c.model, &c.serial}) {
@@ -493,6 +501,7 @@ void finish(ExifFacts& facts, const Collected& c) noexcept {
 // A whole TIFF structure: IFD0, the EXIF IFD, then the maker note.
 void read_tiff(Reader tiff, ExifFacts& facts) noexcept {
   if (!open_tiff(tiff)) return;
+  facts.has_exif = true;
   Collected c;
   const auto ifd0 = tiff.u32(4);
   read_ifd(tiff, ifd0, facts, c);

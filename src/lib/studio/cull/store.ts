@@ -12,12 +12,15 @@ import type { CullFrame } from "./session";
 import type { CullSourceRoot } from "./sources";
 
 // 2: the card's file handles and the review-size previews' index.
-const VERSION = 2;
+// 3: caption code tables. Additive: frame rows gained only optional fields
+// (stars, label, tag, caption, AF area), which need no migration.
+const VERSION = 3;
 const SESSIONS = "sessions";
 const FRAMES = "frames";
 const THUMBNAILS = "thumbnails";
 const SOURCES = "sources";
 const PREVIEWS = "previews";
+const CODE_TABLES = "codeTables";
 
 export type CullSessionSummary = {
   id: string;
@@ -25,6 +28,21 @@ export type CullSessionSummary = {
   createdAt: number;
   updatedAt: number;
   frameCount: number;
+  /** The "Keep ~N" line, when the photographer set one. */
+  keepTarget?: number | undefined;
+};
+
+/** A caption code source as loaded: kept as its original text, so a parser fix
+ * applies to tables loaded before it. One account's tables serve every session. */
+export type CullCodeTableRow = {
+  id: string;
+  /** The file's name. */
+  name: string;
+  kind: "codes" | "roster";
+  /** Roster code prefix, e.g. "u" for `\u23\`. Empty for code files. */
+  prefix: string;
+  text: string;
+  createdAt: number;
 };
 
 type FrameRow = CullFrame & { sessionId: string };
@@ -92,6 +110,12 @@ export type CullStore = {
   /** Removes a session and everything stored for it here. The preview files
    * themselves are removed by the preview library. */
   deleteSession(sessionId: string): Promise<void>;
+  /** Saves the session's keeper target; null removes it. */
+  setKeepTarget(sessionId: string, target: number | null): Promise<void>;
+  /** This account's caption code tables, oldest first. */
+  codeTables(): Promise<CullCodeTableRow[]>;
+  putCodeTable(row: CullCodeTableRow): Promise<void>;
+  deleteCodeTable(id: string): Promise<void>;
   close(): void;
 };
 
@@ -118,6 +142,8 @@ export async function openCullStore(
         const previews = db.createObjectStore(PREVIEWS, { keyPath: ["sessionId", "frameId"] });
         previews.createIndex("session", "sessionId");
       }
+      if (!db.objectStoreNames.contains(CODE_TABLES))
+        db.createObjectStore(CODE_TABLES, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open cull storage."));
@@ -277,6 +303,42 @@ export async function openCullStore(
       const previews = transaction.objectStore(PREVIEWS);
       for (const key of await result(previews.index("session").getAllKeys(sessionId)))
         previews.delete(key);
+      await committed;
+    },
+    async setKeepTarget(sessionId, target) {
+      const transaction = database.transaction(SESSIONS, "readwrite");
+      const committed = done(transaction);
+      const sessions = transaction.objectStore(SESSIONS);
+      const summary = await result(
+        sessions.get(sessionId) as IDBRequest<CullSessionSummary | undefined>,
+      );
+      if (summary) {
+        const { keepTarget: _previous, ...rest } = summary;
+        // Not a content change, so updatedAt stays: the session list keeps its order.
+        sessions.put(target === null ? rest : { ...rest, keepTarget: target });
+      }
+      await committed;
+    },
+    async codeTables() {
+      const rows = await result(
+        database
+          .transaction(CODE_TABLES, "readonly")
+          .objectStore(CODE_TABLES)
+          .getAll() as IDBRequest<CullCodeTableRow[]>,
+      );
+      // Later tables win where codes collide, so load order is merge order.
+      return rows.sort((a, b) => a.createdAt - b.createdAt);
+    },
+    async putCodeTable(row) {
+      const transaction = database.transaction(CODE_TABLES, "readwrite");
+      const committed = done(transaction);
+      transaction.objectStore(CODE_TABLES).put(row);
+      await committed;
+    },
+    async deleteCodeTable(id) {
+      const transaction = database.transaction(CODE_TABLES, "readwrite");
+      const committed = done(transaction);
+      transaction.objectStore(CODE_TABLES).delete(id);
       await committed;
     },
     close: () => database.close(),

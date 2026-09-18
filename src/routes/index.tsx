@@ -22,13 +22,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Two products on lenslab.dev: Celinen for photography, and Video for vlog editing.",
+          "Two products on lenslab.dev: Celinen for photography, and Latch (TBD) for AI video clipping.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
-        content: "Celinen for photography. Video for vlog editing.",
+        content: "Celinen for photography. Latch (TBD) for AI video clipping.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -84,24 +84,19 @@ function Index() {
                 />
               </article>
               <article>
-                <h2>Video</h2>
-                <p>Vlog editor</p>
-                <PublicEntryCta
+                <h2>
+                  Latch <span className="marketing-products__tbd">TBD</span>
+                </h2>
+                <p>AI video clipping</p>
+                <a
                   className="marketing-action marketing-action--primary"
-                  next="/video"
-                  guestLabel={
-                    <>
-                      Open
-                      <span aria-hidden="true">→</span>
-                    </>
-                  }
-                  memberLabel={
-                    <>
-                      Open
-                      <span aria-hidden="true">→</span>
-                    </>
-                  }
-                />
+                  href="https://latch-efc.pages.dev/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open
+                  <span aria-hidden="true">→</span>
+                </a>
               </article>
             </div>
           </div>

@@ -98,7 +98,11 @@ describe("compact sidebar presentation without identity changes", () => {
     expect(chat).toContain("<span>{sidebarConversationTitle(row)}</span>");
     expect(chat).toContain("[data-history-menu]");
     expect(chat).toContain('querySelector<HTMLElement>("[data-history-new]")');
-    expect(source("Workbench.tsx").match(/<NewShootAction /g)).toHaveLength(2); // desktop + mobile rail, never simultaneously expanded
+    expect(source("Workbench.tsx").match(/<NewShootAction /g)).toHaveLength(1); // drawer/sheet only — no permanent mobile rail
+    const workbench = source("Workbench.tsx");
+    expect(workbench).toContain('className="workbench-sidebar-toggle workbench-mobile-menu"');
+    expect(workbench).toContain("setOpenMobile(true)");
+    expect(workbench).not.toContain("foto-mobile-rail");
   });
 
   test("no active marker, shared compact row metric, focus rings and touch targets retained", () => {

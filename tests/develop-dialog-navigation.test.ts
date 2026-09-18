@@ -19,6 +19,12 @@ import {
 import { photoExportFilename } from "../src/lib/develop/photo-management";
 import { productOperation, connectProductAnalytics } from "../src/lib/product-lifecycle";
 import { createProductAnalytics } from "../src/lib/product-analytics";
+import { developProcessingSource } from "../src/components/develop/develop-state";
+import {
+  dressingIsActive,
+  dressExportJpeg,
+  runSerialExportQueue,
+} from "../src/lib/develop/export-night-kit";
 
 // Execute the actual editor actions, draft update, navigation fence, and leave guard.
 // Only React setters and persistence I/O are replaced with instance-local doubles.
@@ -48,7 +54,7 @@ const actionCode = [
   ),
   between("  function updateDoc(", "  function change(next:"),
   between("  function commitDraft(", "  flushLatest.current ="),
-  between("  async function previewExport() {", "  async function confirmDialog() {"),
+  between("  async function finishExportBlob(", "  async function confirmDialog() {"),
   between(
     "  async function confirmDialog() {",
     "  useEffect(() => {\n    const handler = (e: KeyboardEvent)",
@@ -98,7 +104,10 @@ function fixture(delayFirstFlush = false, action: "snapshot" | "export" = "snaps
   const photos = ["a", "b"].map((id) => ({
     id,
     name: `${id}.jpg`,
+    isRaw: false,
+    sourceAvailable: true,
     sourceBlob: new Blob([`synthetic ${id}`]),
+    previewBlob: new Blob([`preview ${id}`]),
   }));
   const docs = { current: structuredClone(documents) };
   const selectedRef = { current: "a" };
@@ -170,6 +179,7 @@ function fixture(delayFirstFlush = false, action: "snapshot" | "export" = "snaps
       edge: 1600,
       quality: 95,
       sourceMode: "preview",
+      dressingKey: "",
     },
     exportProof: null,
     editorProof: { current: null },
@@ -190,6 +200,16 @@ function fixture(delayFirstFlush = false, action: "snapshot" | "export" = "snaps
     setSelected: (value: string) => (selectedRef.current = value),
     setSelectedSet: () => {},
     setDraftDirty: (value: boolean) => (draftDirtyRef.current = value),
+    dressingKey: "",
+    exportDressing: { border: { enabled: false, widthRatio: 0.03, color: "#ffffff" }, kit: null },
+    exportTargets: [photos[0]],
+    exportEdge: 1600,
+    exportQuality: 95,
+    exportSourceMode: "preview" as const,
+    developProcessingSource,
+    dressingIsActive,
+    dressExportJpeg,
+    runSerialExportQueue,
   };
   const actions = execute(
     actionCode,
