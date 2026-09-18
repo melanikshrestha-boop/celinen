@@ -26,6 +26,7 @@ import type { FramedStory } from "@/lib/social/instagram-frame";
 import {
   advanceStoryBroadcast,
   createStoryBroadcast,
+  reconcileStoryBroadcast,
   storyDestinations,
 } from "@/lib/business/story-broadcast.functions";
 import { startInstagramConnection } from "@/lib/business/instagram.functions";
@@ -53,6 +54,11 @@ const errorText = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
+/** Anything a read-back could still settle. */
+const needsChecking = (broadcast: StoryBroadcastView | null) =>
+  !!broadcast?.destinations.some(
+    (line) => line.status === "uncertain" || line.status === "partial",
+  );
 
 function usePreview(candidate: StoryCandidate | undefined) {
   const [url, setUrl] = useState<string | null>(null);
@@ -106,6 +112,8 @@ export function StoryBroadcast({
   // One broadcast id per exact set of bytes: a second Post of the same photos
   // resumes the same broadcast rather than starting one that could double-post.
   const broadcastIds = useRef(new Map<string, string>());
+  /** The set that was last sent, so the result can be checked again. */
+  const lastId = useRef<string | null>(null);
 
   const loadReadiness = useCallback(async () => {
     setReadyError(null);
@@ -262,6 +270,13 @@ export function StoryBroadcast({
           step("Posting");
           await wait(Math.min(20_000, 1500 + attempt * 2_500));
         }
+        // A photo whose confirmation was lost is settled by reading the platform
+        // back, never by sending it again. Worth one pass before showing a result.
+        if (needsChecking(broadcast)) {
+          step("Checking");
+          broadcast = await reconcileStoryBroadcast({ data: { id } }).catch(() => broadcast);
+        }
+        lastId.current = id;
       }
       setPhase({ kind: "result", broadcast, photos, urls });
     } catch (reason) {
@@ -567,6 +582,28 @@ export function StoryBroadcast({
                     onClick={() => void handOffToSnapchat(phase.photos)}
                   >
                     Save for Snapchat
+                  </button>
+                ) : null}
+                {needsChecking(phase.broadcast) && lastId.current ? (
+                  <button
+                    type="button"
+                    className={buttonQuiet}
+                    onClick={() =>
+                      void reconcileStoryBroadcast({ data: { id: lastId.current! } })
+                        .then((broadcast) =>
+                          setPhase({
+                            kind: "result",
+                            broadcast,
+                            photos: phase.photos,
+                            urls: phase.urls,
+                          }),
+                        )
+                        .catch((reason: unknown) =>
+                          setError(errorText(reason, "That could not be checked.")),
+                        )
+                    }
+                  >
+                    Check again
                   </button>
                 ) : null}
                 {phase.broadcast?.destinations.some(
