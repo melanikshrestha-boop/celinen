@@ -199,16 +199,23 @@ function CullSessionHost({ scope }: { scope: string }) {
 
   const onDevelop = useCallback(() => {
     if (!controller) return;
-    const files = controller.keeperFiles();
-    if (!files.length) {
-      setFailure("Keep the originals in this tab, then Go to Develop.");
-      return;
-    }
-    setFailure(null);
-    void snapshotPhotoFiles(files)
-      .then((copies) => {
+    void controller
+      .keeperFiles()
+      .then(async ({ files, missing }) => {
+        if (!files.length) {
+          setFailure("Keep the originals in this tab, then Go to Develop.");
+          return;
+        }
+        // Naming what stayed behind beats a Develop that quietly holds fewer
+        // photographs than the shoot has keepers.
+        setFailure(
+          missing.length
+            ? `${missing.length} keeper${missing.length === 1 ? "" : "s"} could not be read from the card: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? "…" : ""}`
+            : null,
+        );
+        const copies = await snapshotPhotoFiles(files);
         queueDevelopImport(copies);
-        return navigate({ to: "/develop" });
+        await navigate({ to: "/develop" });
       })
       .catch(report);
   }, [controller, navigate, report]);

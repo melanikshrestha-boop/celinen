@@ -991,15 +991,26 @@ export class CullController {
     return this.originals.get(frameId) ?? null;
   }
 
-  /** Keepers this tab still holds as Files, in capture order. */
-  keeperFiles(): File[] {
+  /**
+   * Keepers this tab can hand to Develop, in capture order, and the names of the
+   * keepers whose original it cannot reach. Resolves through a reconnected
+   * folder exactly as Export does, so the two can never disagree about which
+   * originals exist, and a keeper that is left behind is named rather than
+   * quietly dropped.
+   */
+  async keeperFiles(): Promise<{ files: File[]; missing: string[] }> {
+    const resolver = this.originalsState === "connected" ? this.resolver : null;
     const files: File[] = [];
+    const missing: string[] = [];
     for (const frame of this.frames) {
       if (effectiveVerdict(frame) !== "keep") continue;
-      const file = this.originals.get(frame.id);
+      let file = this.originals.get(frame.id) ?? null;
+      if (!file?.size && resolver && !frame.error)
+        file = await resolver.resolve(frame).catch(() => null);
       if (file?.size) files.push(file);
+      else missing.push(frame.name);
     }
-    return files;
+    return { files, missing };
   }
 
   thumbnail(frameId: string): Promise<Blob | null> {
