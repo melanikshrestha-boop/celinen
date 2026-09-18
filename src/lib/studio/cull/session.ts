@@ -103,13 +103,28 @@ export function matchesFilter(frame: CullFrame, filter: CullFilter): boolean {
       return verdict === "undecided";
     case "out-of-focus":
       // Missed focus is a focus problem the photographer wants in this list.
-      return reason === "out-of-focus" || reason === "missed-focus";
+      // Also include soft readings even when another reason won the label.
+      return (
+        reason === "out-of-focus" ||
+        reason === "missed-focus" ||
+        Boolean(frame.reading && frame.reading.acuitySubject < 0.28 && !frame.reading.globalSmear)
+      );
     case "motion-blur":
-      return reason === "motion-blur";
+      return reason === "motion-blur" || Boolean(frame.reading?.globalSmear);
     case "eyes-closed":
-      return reason === "eyes-closed";
+      return reason === "eyes-closed" || Boolean(frame.reading?.eyesClosed);
     case "exposure":
-      return reason === "exposure";
+      return (
+        reason === "exposure" ||
+        Boolean(
+          frame.reading &&
+            (frame.reading.subjectLuma < 26 ||
+              frame.reading.subjectLuma > 242 ||
+              frame.reading.subjectClipped > 45 ||
+              frame.reading.clippedHighlights > 0.18 ||
+              frame.reading.clippedShadows > 0.22),
+        )
+      );
     case "duplicates":
       return Boolean(frame.suggestion?.duplicate || frame.suggestion?.bestOfGroup);
   }
