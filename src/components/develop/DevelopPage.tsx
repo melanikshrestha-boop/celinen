@@ -109,6 +109,19 @@ import {
 } from "@/lib/develop/pixel-sample";
 import { DevelopRecoveryDialog } from "./DevelopRecoveryDialog";
 import { DevelopReconnectDialog } from "./DevelopReconnectDialog";
+import { ExportNightKitControls } from "./ExportNightKitControls";
+import {
+  activeWatermarkKit,
+  dressingIsActive,
+  dressExportJpeg,
+  exportDressingKey,
+  loadExportNightKitStore,
+  runSerialExportQueue,
+  saveExportNightKitStore,
+  upsertWatermarkKit,
+  type ExportDressing,
+  type ExportNightKitStore,
+} from "@/lib/develop/export-night-kit";
 import { useDevelopPointer } from "./useDevelopPointer";
 import {
   currentDevelopRender,
@@ -417,6 +430,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     [exportEdge, setExportEdge] = useState<number>(DEVELOP_ENGINE_LIMITS.defaultExportEdge),
     [exportQuality, setExportQuality] = useState(95),
     [exportSourceMode, setExportSourceMode] = useState<"raw" | "preview">("raw");
+  const [nightKitStore, setNightKitStore] = useState<ExportNightKitStore>(() =>
+    loadExportNightKitStore(),
+  );
+  const [applyWatermarkKit, setApplyWatermarkKit] = useState(false);
   const [exportProof, setExportProof] = useState<DevelopExportProof | null>(null),
     [proofZoom, setProofZoom] = useState(false);
   const [syncCrop, setSyncCrop] = useState(false),
@@ -446,6 +463,19 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     exportSourceMode,
   );
   const renderKey = `${processingMode}:${exportEdge}:${exportQuality}`;
+  const exportDressing: ExportDressing = {
+    border: nightKitStore.border,
+    kit: applyWatermarkKit ? activeWatermarkKit(nightKitStore) : null,
+  };
+  const dressingKey = dressingIsActive(exportDressing)
+    ? exportDressingKey(exportDressing)
+    : "";
+  const exportTargets =
+    selectedSet.size > 1
+      ? availablePhotos.filter((item) => selectedSet.has(item.id))
+      : photo
+        ? [photo]
+        : [];
   const exportRequest: DevelopExportRequest | null =
     photo && previewSource
       ? {
@@ -455,6 +485,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           edge: exportEdge,
           quality: exportQuality,
           sourceMode: processingMode,
+          dressingKey,
         }
       : null;
   const proofReady = currentDevelopExportProof(exportProof, exportRequest);
@@ -1496,6 +1527,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     edge: exportEdge,
                     quality: exportQuality,
                     sourceMode: processingMode,
+                    dressingKey: "",
                     blob,
                     width: bitmap.width,
                     height: bitmap.height,
@@ -1639,12 +1671,29 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (alive.current) setBusy("");
     }
   }
+  async function finishExportBlob(
+    rendered: Blob,
+    dressing: ExportDressing,
+    quality: number,
+    signal: AbortSignal,
+  ): Promise<{ blob: Blob; width: number; height: number }> {
+    if (!dressingIsActive(dressing)) {
+      const bitmap = await decodeDevelopPreview(rendered);
+      try {
+        return { blob: rendered, width: bitmap.width, height: bitmap.height };
+      } finally {
+        bitmap.close();
+      }
+    }
+    return dressExportJpeg(rendered, dressing, { quality: quality / 100, signal });
+  }
   async function previewExport() {
     if (dialog !== "export" || editsLocked() || !exportRequest) return;
     const owner = hydration.current;
     const current = () => alive.current && hydration.current === owner;
     const recipe = cloneDevelopSettings(draftRef.current);
-    const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
+    const request = { ...exportRequest, recipeKey: JSON.stringify(recipe), dressingKey };
+    const dressing = exportDressing;
     operationLock.current = "dialog";
     setDialogError("");
     setExportProof(null);
@@ -1656,24 +1705,32 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
       if (!current()) return;
       controller.signal.throwIfAborted();
-      const cached = currentDevelopExportProof(editorProof.current, request)
-        ? editorProof.current
-        : null;
-      const blob =
-        cached?.blob ??
+      const undressedProof =
+        currentDevelopExportProof(editorProof.current, { ...request, dressingKey: "" }) &&
+        editorProof.current
+          ? editorProof.current
+          : null;
+      const undressed =
+        undressedProof?.blob ??
         (await renderDevelop(request.source, recipe, {
           edge: request.edge,
           quality: request.quality / 100,
           sourceMode: request.sourceMode,
           signal: controller.signal,
         }));
-      const bitmap = await decodeDevelopPreview(blob);
-      try {
-        if (current() && !controller.signal.aborted)
-          setExportProof({ ...request, blob, width: bitmap.width, height: bitmap.height });
-      } finally {
-        bitmap.close();
-      }
+      const finished = await finishExportBlob(
+        undressed,
+        dressing,
+        request.quality,
+        controller.signal,
+      );
+      if (current() && !controller.signal.aborted)
+        setExportProof({
+          ...request,
+          blob: finished.blob,
+          width: finished.width,
+          height: finished.height,
+        });
     } catch (e) {
       if (current())
         setDialogError(controller.signal.aborted ? "Export preview cancelled." : errorMessage(e));
@@ -1697,7 +1754,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     exportAbort.current = controller;
     const telemetry =
       action === "export"
-        ? productOperation(scope, shootId ?? projectId ?? undefined, "export", { photo_count: 1 })
+        ? productOperation(scope, shootId ?? projectId ?? undefined, "export", {
+            photo_count: Math.max(1, exportTargets.length),
+          })
         : undefined;
     try {
       if (!(await flush()))
@@ -1761,32 +1820,100 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         if (current()) setNotice(`Settings synced to ${updates.length} photos`);
       }
       if (action === "export") {
-        if (!photo || !exportRequest) throw new Error("Choose a photo with a source first.");
-        const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
-        const { sourceMode } = request;
-        // Download the exact proof bytes when all inputs still match. A changed
-        // source, recipe, size or quality can never reuse a stale preview.
-        const blob =
-          currentDevelopExportProof(exportProof, request) && exportProof
-            ? exportProof.blob
-            : currentDevelopExportProof(editorProof.current, request) && editorProof.current
-              ? editorProof.current.blob
-              : await renderDevelop(request.source, recipe, {
-                  edge: request.edge,
-                  quality: request.quality / 100,
-                  signal: controller.signal,
-                  sourceMode,
-                });
-        const bitmap = await decodeDevelopPreview(blob);
-        const size = `${bitmap.width} × ${bitmap.height}`;
-        bitmap.close();
-        if (current() && !controller.signal.aborted) {
-          download(blob, photoExportFilename(photo.name));
-          telemetry?.finish();
-          setNotice(
-            `Exported ${size} JPEG${photo.isRaw ? (sourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}`,
+        if (!exportTargets.length) throw new Error("Choose a photo with a source first.");
+        const dressing = exportDressing;
+        const targets = exportTargets;
+        const edge = exportEdge;
+        const quality = exportQuality;
+        const sourceModePreference = exportSourceMode;
+        let lastSize = "";
+        const queue = await runSerialExportQueue(
+          targets,
+          async (target, signal) => {
+            if (!current()) throw new DOMException("Export cancelled.", "AbortError");
+            signal.throwIfAborted();
+            const document = docs.current[target.id];
+            if (!document) throw new Error(`${target.name} is no longer available.`);
+            const targetRecipe =
+              target.id === activeId ? recipe : cloneDevelopSettings(currentRecipe(document));
+            const { source: targetSource, sourceMode } = developProcessingSource(
+              target,
+              sourceModePreference,
+            );
+            if (!targetSource) throw new Error(`${target.name} has no exportable source.`);
+            const request: DevelopExportRequest = {
+              id: target.id,
+              source: targetSource,
+              recipeKey: JSON.stringify(targetRecipe),
+              edge,
+              quality,
+              sourceMode,
+              dressingKey,
+            };
+            setBusy(`Exporting ${targets.indexOf(target) + 1} of ${targets.length}…`);
+            const undressed =
+              targets.length === 1 &&
+              currentDevelopExportProof(exportProof, request) &&
+              exportProof
+                ? null
+                : currentDevelopExportProof(editorProof.current, {
+                      ...request,
+                      dressingKey: "",
+                    }) && editorProof.current
+                  ? editorProof.current.blob
+                  : await renderDevelop(targetSource, targetRecipe, {
+                      edge,
+                      quality: quality / 100,
+                      signal,
+                      sourceMode,
+                    });
+            const blob =
+              targets.length === 1 &&
+              currentDevelopExportProof(exportProof, request) &&
+              exportProof
+                ? exportProof.blob
+                : (
+                    await finishExportBlob(
+                      undressed!,
+                      dressing,
+                      quality,
+                      signal,
+                    )
+                  ).blob;
+            const bitmap = await decodeDevelopPreview(blob);
+            lastSize = `${bitmap.width} × ${bitmap.height}`;
+            bitmap.close();
+            signal.throwIfAborted();
+            if (!current()) throw new DOMException("Export cancelled.", "AbortError");
+            download(blob, photoExportFilename(target.name));
+          },
+          {
+            signal: controller.signal,
+            onProgress: (done, total) => {
+              if (current()) setBusy(`Exporting ${done} of ${total}…`);
+            },
+          },
+        );
+        if (!current()) return;
+        if (queue.cancelled) {
+          setDialogError(
+            `Export cancelled after ${queue.completed} file${queue.completed === 1 ? "" : "s"}. Finished downloads are kept.`,
           );
+          return;
         }
+        if (queue.failures.length && !queue.completed) {
+          setDialogError(queue.failures[0]?.message ?? "Export failed.");
+          return;
+        }
+        telemetry?.finish();
+        const failNote = queue.failures.length
+          ? ` · ${queue.failures.length} failed (${queue.failures.map((f) => f.item.name).join(", ")})`
+          : "";
+        setNotice(
+          targets.length === 1
+            ? `Exported ${lastSize} JPEG${photo?.isRaw ? (exportSourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}${failNote}`
+            : `Exported ${queue.completed} of ${targets.length} JPEGs in series${failNote}`,
+        );
       }
       if (current()) {
         setDialog(null);
@@ -2559,6 +2686,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                       (before && beforeUrl) || viewerBlob === neutralBlob ? sourceHistogram : null
                     }
                     clipping={clipping}
+                    exportFrame={
+                      nightKitStore.border.enabled
+                        ? {
+                            insetRatio: nightKitStore.border.widthRatio,
+                            color: nightKitStore.border.color,
+                          }
+                        : null
+                    }
                     overlay={
                       <>
                         {inspirations.items.length > 0 && (
@@ -2992,6 +3127,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     ...exportRequest,
                     edge: removalRenderEdge(exportRequest.edge),
                     recipeKey: JSON.stringify(recipe),
+                    dressingKey: "",
                   };
                   if (
                     editorProof.current &&
@@ -3205,6 +3341,31 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     }
                   />
                 </label>
+                <ExportNightKitControls
+                  border={nightKitStore.border}
+                  kits={nightKitStore.kits}
+                  activeKitId={applyWatermarkKit ? nightKitStore.activeKitId : null}
+                  applyKit={applyWatermarkKit}
+                  disabled={!!busy}
+                  exportCount={exportTargets.length || 1}
+                  onBorderChange={(border) =>
+                    setNightKitStore((store) => saveExportNightKitStore({ ...store, border }))
+                  }
+                  onActiveKitChange={(id) => {
+                    setApplyWatermarkKit(Boolean(id));
+                    if (id)
+                      setNightKitStore((store) =>
+                        saveExportNightKitStore({ ...store, activeKitId: id }),
+                      );
+                  }}
+                  onKitTextChange={(kitText) => {
+                    const active = activeWatermarkKit(nightKitStore);
+                    if (!active) return;
+                    setNightKitStore((store) =>
+                      upsertWatermarkKit(store, { ...active, text: kitText }),
+                    );
+                  }}
+                />
                 <div className="develop-proof-toolbar">
                   <button
                     type="button"
@@ -3264,8 +3425,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               dialog !== "remove" &&
               dialog !== "auto-crop" && (
                 <div className="develop-dialog-actions">
-                  {busy === "Rendering export preview…" && (
-                    <button onClick={() => exportAbort.current?.abort()}>Stop preview</button>
+                  {(busy === "Rendering export preview…" || busy.startsWith("Exporting ")) && (
+                    <button onClick={() => exportAbort.current?.abort()}>
+                      {busy.startsWith("Exporting ") ? "Cancel queue" : "Stop preview"}
+                    </button>
                   )}
                   <button disabled={!!busy} onClick={() => setDialog(null)}>
                     Cancel
@@ -3281,7 +3444,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   >
                     {busy ||
                       (dialog === "export"
-                        ? "Export JPEG"
+                        ? exportTargets.length > 1
+                          ? `Export ${exportTargets.length} JPEGs`
+                          : "Export JPEG"
                         : dialog === "sync"
                           ? "Sync settings"
                           : "Save")}
