@@ -18,17 +18,25 @@ jobs:
           git config user.name "Celine Nova"
           git config user.email "melanikshrestha@gmail.com"
           git fetch origin main
-          git fetch origin ship/cull-review
-          # Prefer resolve script from ship/cull-review tip if present
-          if [ ! -f .github/scripts/resolve_cullgrid.py ]; then
-            echo "resolve script missing on branch"
-            exit 1
-          fi
-          if git merge origin/main -m "Merge origin/main into ship/cull-review"; then
-            echo "clean merge"
-          else
+          set +e
+          git merge origin/main -m "Merge origin/main into ship/cull-review"
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -ne 0 ]; then
             python3 .github/scripts/resolve_cullgrid.py
+            # Do not change workflow files vs first parent (GITHUB_TOKEN cannot update workflows).
+            git checkout --ours -- .github/workflows/merge-main-into-cull-review.yml \
+              .github/scripts/resolve_cullgrid.py 2>/dev/null || true
             git add -A
+            # Unstage any workflow path changes so the merge commit does not touch them.
+            git restore --staged --worktree --source=HEAD -- .github/workflows/merge-main-into-cull-review.yml \
+              .github/scripts/resolve_cullgrid.py 2>/dev/null || true
+            git add src/components/cull/CullGrid.tsx
+            git add -u
+            git status
             git -c core.editor=true merge --continue || git commit --no-edit -m "Merge origin/main into ship/cull-review"
+          else
+            echo "clean merge"
           fi
+          # Ensure push diff vs first-parent tip does not alter workflow files
           git push origin HEAD:ship/cull-review
