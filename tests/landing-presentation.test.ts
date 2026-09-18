@@ -227,13 +227,14 @@ if (!process.argv.includes(fixtureFlag)) {
     const startsWith = (label: string) =>
       links.filter((match) => text(match[2]!).startsWith(label));
     assert.ok(html.includes("<h2>Celinen</h2>"));
-    assert.ok(html.includes("<h2>Video</h2>"));
-    assert.ok(html.includes("Photography"));
-    assert.ok(html.includes("Vlog editor"));
+    assert.ok(!html.includes("<h2>Video</h2>"));
+    assert.ok(!html.includes("Latch"));
+    assert.ok(!html.includes("latch-efc.pages.dev"));
+    assert.ok(html.includes("Photography and video"));
     if (current === "in") {
       assert.equal(startsWith("Dashboard").length, 3);
       assert.equal(startsWith("Sign In").length, 0);
-      assert.equal(startsWith("Open").length, 2, "Hero has one Open per product");
+      assert.equal(startsWith("Open").length, 1, "Hero has one Open for Celinen");
     } else if (current === "loading") {
       assert.equal(startsWith("Sign In").length, 1, "Nav still has Sign In while auth restores");
       assert.equal(startsWith("Get started").length, 2, "Savings and closing stay Get started");
@@ -257,17 +258,20 @@ if (!process.argv.includes(fixtureFlag)) {
       }
     }
     const opens = startsWith("Open");
-    assert.ok(opens.length >= 2);
+    assert.ok(opens.length >= 1);
     const openHrefs = opens.map((entry) =>
       new URL(entry[1]!.match(/href="([^"]+)"/)![1]!.replaceAll("&amp;", "&"), "https://foto.test"),
     );
     if (current === "in") {
-      assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
-      assert.ok(openHrefs.some((url) => url.pathname === "/video"));
+      assert.ok(openHrefs.every((url) => url.pathname === "/dashboard"));
+    } else if (current === "out") {
+      assert.ok(openHrefs.every((url) => url.searchParams.get("next") === "/dashboard"));
     } else {
+      assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
       assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/dashboard"));
-      assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/video"));
     }
+    assert.ok(!openHrefs.some((url) => url.pathname === "/video"));
+    assert.ok(!openHrefs.some((url) => url.searchParams.get("next") === "/video"));
     assert.ok(!html.includes('id="features"'));
     assert.ok(html.includes("id=\"pricing\""));
     assert.ok(html.includes("USD 20"));

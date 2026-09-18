@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 
-type AppNext = "/dashboard" | "/video";
+type AppNext = "/dashboard" | "/video" | "/studio";
 
 type Props = {
   className?: string;

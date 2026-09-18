@@ -9,6 +9,7 @@ export const WORKBENCH_TOOLS = [
   { path: "/library", label: "Library", group: "Workspace" },
   { path: "/money", label: "Earnings (legacy link)", group: "Business" },
   { path: "/studio", label: "Studio", group: "Workspace" },
+  { path: "/video", label: "Video", group: "Workspace" },
   { path: "/develop", label: "Develop", group: "Workspace" },
   { path: "/projects", label: "Projects", group: "Workspace" },
   { path: "/deliver", label: "Delivery", group: "Workspace" },
@@ -165,6 +166,7 @@ export function studioBindingHref(binding: StudioWorkbenchBinding) {
  * swapped the whole interface out from under the photographer mid-cull. */
 export const DASHBOARD_APP_PATHS = [
   "/studio",
+  "/video",
   "/cull",
   "/shoots",
   "/tonight",
@@ -191,7 +193,6 @@ export function isDashboardAppRoute(routeIds: readonly string[], pathname = "") 
   return DASHBOARD_APP_PATHS.some((path) => routeIds.includes(path));
 }
 
-/** Video is a separate product on this domain. It never uses Celinen's shell. */
 export function isVideoAppPath(pathname: string) {
   const path = pathname.replace(/\/$/, "").toLowerCase() || "/";
   return path === "/video" || path.startsWith("/video/");

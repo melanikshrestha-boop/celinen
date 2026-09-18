@@ -42,3 +42,5 @@ Build-time public Stripe: `VITE_PAYMENTS_CLIENT_TOKEN` on Cloudflare Builds.
 - Unpaid signup: Continue with Google → `/auth?mode=signup&next=/studio` (no WaitlistForm / dead checkout banner)
 - Consent cookie: write `celinen_consent`, read legacy `foto_consent`
 - Speed is the moat; fix user-breaking bugs before polish
+- **One product.** Celinen is photography and video. Do not sell Latch as a second door. `/video` is a dashboard tool (Premiere-shaped timeline + chat), same sign-in as Pick/Develop.
+- Latch (`latchcut`, latch-efc.pages.dev) is absorbed. Do not rebuild a separate video SaaS.

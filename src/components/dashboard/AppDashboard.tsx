@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Sun,
+  Video,
   Wrench,
 } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
@@ -37,6 +38,8 @@ import { chatCopyText, chatShareFile, dashboardChatRecord } from "@/lib/chat-sha
 import { isChatGreeting, isPhotographyConversation } from "@/lib/photography-assistant";
 import { collectDroppedFiles } from "@/lib/studio/drop-import";
 import { queueStudioImport } from "@/lib/studio/pending-import";
+import { isVideoFile } from "@/lib/video/media";
+import { queueVideoImport } from "@/lib/video/pending-import";
 import { registerAppKeys } from "@/lib/app-keys";
 import "./dashboard.css";
 import "./social-accounts.css";
@@ -44,6 +47,7 @@ import "./social-accounts.css";
 const MAIN = [
   { to: "/dashboard", label: "Home", icon: House, end: true },
   { to: "/cull", label: "Cull", icon: Aperture },
+  { to: "/video", label: "Video", icon: Video },
   { to: "/deliver", label: "Gallery", icon: Images },
   { to: "/develop", label: "Develop", icon: SlidersHorizontal },
   { to: "/dashboard", label: "Calendar", icon: CalendarDays, view: "calendar" as const },
@@ -104,14 +108,16 @@ function replyFor(text: string) {
   if (isPhotographyConversation(text)) return null;
   if (
     !isPostIntent(text) &&
-    !/^(?:open|show|go to|switch to|check)\s+(?:(?:my|the)\s+)?(?:pick|keepers|studio|develop|lightroom|calendar|bookings|earnings|analytics|clients|galleries|gallery|social accounts)[.!]?$/i.test(
+    !/^(?:open|show|go to|switch to|check)\s+(?:(?:my|the)\s+)?(?:pick|keepers|studio|develop|lightroom|calendar|bookings|earnings|analytics|clients|galleries|gallery|social accounts|video|timeline|premiere)[.!]?$/i.test(
       text.trim(),
     ) &&
     !/^(?:send|share)\s+(?:(?:a|the|my)\s+)?gallery[.!]?$/i.test(text.trim()) &&
-    !/^(?:cull|pick|edit|develop)(?:\s+(?:this|my|the)\s+shoot)?[.!]?$/i.test(text.trim())
+    !/^(?:cull|pick|edit|develop)(?:\s+(?:this|my|the)\s+shoot)?[.!]?$/i.test(text.trim()) &&
+    !/^(?:edit|cut|razor|split)\b/.test(text.trim())
   )
     return null;
   if (/\bcalendar\b/i.test(text)) return { text: "Opening Calendar.", href: "/dashboard" };
+  if (/\b(video|timeline|premiere|vlog)\b/i.test(text)) return { text: "Opening Video.", href: "/video" };
   if (/\bdevelop\b/i.test(text)) return { text: "Opening Develop.", href: "/develop" };
   if (/\banalytics\b/i.test(text)) return { text: "Opening Analytics.", href: "/earnings" };
   if (isPostIntent(text)) {
@@ -131,6 +137,7 @@ function replyFor(text: string) {
   if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
   if (path === "/adobe") return { text: "Opening Develop.", href: "/develop" };
   if (path === "/studio") return { text: "Opening Pick in chat.", href: "/studio" };
+  if (path === "/video") return { text: "Opening Video.", href: "/video" };
   if (path === "/bookings") return { text: "Opening Calendar.", href: "/dashboard" };
   return { text: "Say send a gallery, check earnings, or open Pick to keep frames.", href: null };
 }
@@ -283,9 +290,12 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
 
   function ingestPhotos(files: File[]) {
     if (!files.length) return;
-    queueStudioImport(files);
-    // A dropped card is culled first; Develop comes after the keepers are picked.
-    void navigate({ to: "/cull" });
+    const videos = files.filter(isVideoFile);
+    const photos = files.filter((file) => !isVideoFile(file));
+    if (videos.length) queueVideoImport(videos);
+    if (photos.length) queueStudioImport(photos);
+    if (videos.length && !photos.length) void navigate({ to: "/video" });
+    else if (photos.length) void navigate({ to: "/cull" });
   }
 
   useEffect(() => {
@@ -444,6 +454,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
         if (href === "/dashboard")
           void navigate({ to: "/dashboard", search: { view: "calendar" } });
         else if (href === "/publish") void navigate({ to: "/publish" });
+        else if (href === "/video") void navigate({ to: "/video" });
         else void navigate({ to: href as "/studio" });
       }, 280);
     }
@@ -519,9 +530,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   to={item.to}
                   title={label}
                   aria-label={label}
-                  search={
-                    calendar ? { view: "calendar" } : "end" in item && item.end ? {} : undefined
-                  }
+                  search={calendar ? { view: "calendar" } : {}}
                   activeOptions={"end" in item || calendar ? { exact: true } : undefined}
                   className={on ? "celinen-dash__link is-active" : "celinen-dash__link"}
                   activeProps={{
@@ -631,7 +640,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                 type="file"
                 multiple
                 tabIndex={-1}
-                accept="image/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw,.xmp"
+                accept="image/*,video/*,.nef,.cr2,.cr3,.arw,.dng,.raf,.orf,.rw2,.pef,.srw,.xmp,.mov,.mp4,.m4v,.webm"
                 className="absolute h-px w-px overflow-hidden opacity-0"
                 onChange={(event) => {
                   ingestPhotos(Array.from(event.target.files ?? []));
@@ -714,7 +723,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                   <label
                     htmlFor="celinen-home-photos"
                     className="celinen-dash__plus"
-                    aria-label="Add photos"
+                    aria-label="Add photos or video"
                     onClick={(event) => event.stopPropagation()}
                   >
                     <Plus size={20} strokeWidth={1.8} />

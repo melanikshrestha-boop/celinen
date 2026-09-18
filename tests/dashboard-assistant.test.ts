@@ -117,6 +117,12 @@ test("explicit Open calendar still navigates, without a paid AI request", async 
   expect(f.requests).toHaveLength(0);
   expect(f.navigations[0]).toEqual({ to: "/dashboard", search: { view: "calendar" } });
 });
+test("explicit Open video still navigates, without a paid AI request", async () => {
+  const f = callbackFixture();
+  await f.send("Open video");
+  expect(f.requests).toHaveLength(0);
+  expect(f.navigations[0]).toEqual({ to: "/video" });
+});
 
 function fixture(
   options: { local?: boolean; enabled?: boolean; owner?: string; response?: Response } = {},

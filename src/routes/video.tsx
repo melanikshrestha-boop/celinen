@@ -1,31 +1,27 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useSignedOutRedirect } from "@/components/account/useSignedOutRedirect";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
+import { VideoEditor } from "@/components/video/VideoEditor";
+import { PRODUCT_TITLE } from "@/lib/product";
+import { parseVideoCommand } from "@/lib/video/commands";
+import { isVideoFile } from "@/lib/video/media";
+import { takeVideoImport } from "@/lib/video/pending-import";
 import { VIDEO_PRODUCT_TITLE } from "@/lib/video/product";
+import {
+  appendSource,
+  clipUnderTime,
+  emptySequence,
+  insertSourceAtPlayhead,
+  pruneMissingSources,
+  razorAt,
+  rippleDelete,
+  setPlayhead,
+  type Sequence,
+} from "@/lib/video/sequence";
+import { clearVideoSequence, loadVideoSequence, saveVideoSequence } from "@/lib/video/sequence-store";
 import { workspaceStorageKey } from "@/lib/workspace-storage";
-import {
-  ArrowLeft,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Film,
-  FolderOpen,
-  RotateCcw,
-  Video as VideoIcon,
-  X,
-} from "lucide-react";
-import {
-  type DragEvent,
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { LogoMark } from "@/components/lensos/Logo";
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearVideoReviewSession,
   commitVideoReviewSession,
@@ -41,10 +37,10 @@ import {
 export const Route = createFileRoute("/video")({
   head: () => ({
     meta: [
-      { title: VIDEO_PRODUCT_TITLE },
+      { title: `${VIDEO_PRODUCT_TITLE} — ${PRODUCT_TITLE}` },
       {
         name: "description",
-        content: "Local vlog editor. Footage stays on this device.",
+        content: "Edit video in Celinen. Footage stays on this device.",
       },
     ],
   }),
@@ -60,7 +56,6 @@ type ProbeResult = Pick<VideoClip, "duration" | "width" | "height" | "metadataSt
   failure: "error" | "timeout" | null;
 };
 
-const VIDEO_EXTENSIONS = ["mp4", "mov", "m4v", "webm", "ogv", "ogg"];
 const VIDEO_PENDING_COMMAND_KEY = "lenslabs.pending-command.v1:video";
 const LEGACY_PENDING_COMMAND_KEY = "lenslabs.pending-command.v1";
 
@@ -72,35 +67,11 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 const QUICK_COMMANDS = [
+  "split at playhead",
+  "insert this on the timeline",
   "keep clips longer than 10 seconds",
-  "show undecided clips",
-  "export selects manifest",
+  "play sequence",
 ];
-
-function isVideoFile(file: File) {
-  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-  return file.type.startsWith("video/") || VIDEO_EXTENSIONS.includes(extension);
-}
-
-function formatDuration(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "duration unavailable";
-  const rounded = Math.round(seconds);
-  const hours = Math.floor(rounded / 3600);
-  const minutes = Math.floor((rounded % 3600) / 60);
-  const remainder = rounded % 60;
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${remainder
-      .toString()
-      .padStart(2, "0")}`;
-  }
-  return `${minutes}:${remainder.toString().padStart(2, "0")}`;
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))} KB`;
-  if (bytes < 1_000_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
-  return `${(bytes / 1_000_000_000).toFixed(2)} GB`;
-}
 
 function toPersistedClip(clip: VideoClip): PersistedVideoClip {
   return {
@@ -199,6 +170,7 @@ function VideoReview() {
   const storageScope = account?.scope ?? "device-local";
   const fileRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
+  const programRef = useRef<HTMLVideoElement>(null);
   const objectUrls = useRef(new Set<string>());
   const importingRef = useRef(false);
   const importRunRef = useRef(0);
@@ -222,6 +194,11 @@ function VideoReview() {
   } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [sequence, setSequence] = useState<Sequence>(() => emptySequence());
+  const [tool, setTool] = useState<"select" | "razor">("select");
+  const [playing, setPlaying] = useState(false);
+  const playingRef = useRef(false);
+  const clipsRef = useRef<VideoClip[]>([]);
 
   const counts = useMemo(
     () => ({
@@ -245,6 +222,7 @@ function VideoReview() {
   );
 
   const selected = visible.find((clip) => clip.id === selectedId) ?? visible[0] ?? null;
+  clipsRef.current = clips;
 
   useEffect(() => {
     const restored = loadVideoReviewSession(undefined, storageScope);
@@ -280,6 +258,11 @@ function VideoReview() {
         `Restored ${session.clips.length} clip${session.clips.length === 1 ? "" : "s"} and review marks. Reconnect originals to resume playback; media bytes were never stored.`,
       );
     }
+    const restoredSequence = pruneMissingSources(
+      loadVideoSequence(storageScope),
+      new Set((session?.clips ?? []).map((clip) => clip.id)),
+    );
+    setSequence(restoredSequence);
     setHydrated(true);
   }, [storageScope]);
 
@@ -374,6 +357,11 @@ function VideoReview() {
 
   useEffect(() => {
     if (!hydrated) return;
+    saveVideoSequence(sequence, storageScope);
+  }, [hydrated, sequence, storageScope]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     const saveBeforeLeaving = () => {
       void persistReview();
     };
@@ -462,6 +450,20 @@ function VideoReview() {
     [selected?.id, visible],
   );
 
+  const razorPlayhead = useCallback(() => {
+    setSequence((current) => razorAt(current, current.playhead));
+    setNote("Split at playhead.");
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    playingRef.current = !playingRef.current;
+    setPlaying(playingRef.current);
+    const video = programRef.current;
+    if (!video) return;
+    if (playingRef.current) void video.play();
+    else video.pause();
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -475,7 +477,14 @@ function VideoReview() {
       ) {
         return;
       }
-      if (event.key.toLowerCase() === "k" && selected) {
+      if (event.key === " ") {
+        event.preventDefault();
+        togglePlay();
+      } else if (event.key.toLowerCase() === "c") {
+        razorPlayhead();
+      } else if (event.key.toLowerCase() === "v") {
+        setTool("select");
+      } else if (event.key.toLowerCase() === "k" && selected) {
         applyVerdict([selected.id], "keep", "Kept");
       } else if (event.key.toLowerCase() === "x" && selected) {
         applyVerdict([selected.id], "reject", "Rejected");
@@ -491,7 +500,7 @@ function VideoReview() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [applyVerdict, selected, step, undo, workbench]);
+  }, [applyVerdict, selected, step, undo]);
 
   const importFiles = async (files: File[]) => {
     if (importingRef.current) {
@@ -629,6 +638,18 @@ function VideoReview() {
       ]);
       setSelectedId((current) => current ?? ready[0]?.clip.id ?? null);
       setFilter("all");
+      if (added.length) {
+        setSequence((current) => {
+          let next = current;
+          const already = new Set(current.videoTracks.flat().map((clip) => clip.sourceId));
+          for (const clip of added) {
+            if (already.has(clip.id) || clip.duration <= 0) continue;
+            next = appendSource(next, clip.id, clip.duration);
+            already.add(clip.id);
+          }
+          return next;
+        });
+      }
 
       const actions = [
         added.length > 0 ? `${added.length} added` : "",
@@ -674,6 +695,8 @@ function VideoReview() {
     setSelectedId(null);
     setFilter("all");
     setJournal([]);
+    setSequence(emptySequence());
+    clearVideoSequence(storageScope);
     setNote("Review data cleared. Original files were not changed.");
   };
 
@@ -714,87 +737,65 @@ function VideoReview() {
   }, [clips]);
 
   const runCommand = (raw: string) => {
-    const value = raw.trim().toLowerCase();
-    if (!value) return;
+    const parsed = parseVideoCommand(raw);
+    if (parsed.kind === "unknown" && !raw.trim()) return;
 
-    if (/\b(export|download|manifest)\b/.test(value)) {
-      exportManifest();
-    } else if (/\bundo\b/.test(value)) {
-      undo();
-    } else if (/\b(show|filter)\b.*\b(keeper|keepers|selects)\b/.test(value)) {
-      setFilter("keepers");
-      setNote("Showing keepers.");
-    } else if (/\b(show|filter)\b.*\b(reject|rejected|cuts)\b/.test(value)) {
-      setFilter("rejected");
-      setNote("Showing rejected clips.");
-    } else if (/\b(show|filter)\b.*\b(todo|undecided|unreviewed)\b/.test(value)) {
-      setFilter("todo");
-      setNote("Showing clips still to review.");
-    } else if (/\b(show|filter)\b.*\ball\b/.test(value)) {
-      setFilter("all");
-      setNote("Showing every clip.");
-    } else if (/\bkeep\b.*\b(selected|this|current)\b/.test(value) && selected) {
-      applyVerdict([selected.id], "keep", "Kept");
-    } else if (/\b(reject|cut)\b.*\b(selected|this|current)\b/.test(value) && selected) {
-      applyVerdict([selected.id], "reject", "Rejected");
-    } else {
-      const longer = value.match(
-        /\bkeep\b.*\b(?:longer|over|more than)\s+(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds)?\b/,
-      );
-      const shorter = value.match(
-        /\b(?:reject|cut)\b.*\b(?:shorter|under|less than)\s+(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds)?\b/,
-      );
-      const first = value.match(/\bkeep\b.*\bfirst\s+(\d+)\b/);
-
-      if (longer) {
-        const threshold = Number(longer[1]);
-        applyVerdict(
-          clips.filter((clip) => clip.duration > threshold).map((clip) => clip.id),
-          "keep",
-          `Kept clips over ${threshold}s`,
-        );
-      } else if (shorter) {
-        const threshold = Number(shorter[1]);
-        applyVerdict(
-          clips
-            .filter((clip) => clip.duration > 0 && clip.duration < threshold)
-            .map((clip) => clip.id),
-          "reject",
-          `Rejected clips under ${threshold}s`,
-        );
-      } else if (first) {
-        const amount = Math.max(0, Number(first[1]));
-        applyVerdict(
-          clips.slice(0, amount).map((clip) => clip.id),
-          "keep",
-          `Kept first ${amount}`,
-        );
-      } else if (/\bkeep\b.*\ball\b/.test(value)) {
-        applyVerdict(
-          clips.map((clip) => clip.id),
-          "keep",
-          "Kept all",
-        );
-      } else if (/\b(reject|cut)\b.*\ball\b/.test(value)) {
-        applyVerdict(
-          clips.map((clip) => clip.id),
-          "reject",
-          "Rejected all",
-        );
-      } else if (clips.length === 0) {
-        setNote("Import footage first, then run the command.");
-      } else {
-        setNote(
-          "Try: keep clips longer than 10 seconds, show undecided clips, undo, or export the manifest.",
-        );
+    if (parsed.kind === "export") exportManifest();
+    else if (parsed.kind === "undo") undo();
+    else if (parsed.kind === "play") {
+      if (!playingRef.current) togglePlay();
+      setNote("Playing.");
+    } else if (parsed.kind === "pause") {
+      if (playingRef.current) togglePlay();
+      setNote("Paused.");
+    } else if (parsed.kind === "razor") razorPlayhead();
+    else if (parsed.kind === "ripple-delete") {
+      const clip = clipUnderTime(sequence, sequence.playhead);
+      if (!clip) setNote("Move the playhead onto a clip to delete it.");
+      else {
+        setSequence((current) => rippleDelete(current, clip.id));
+        setNote("Ripple deleted.");
       }
+    } else if (parsed.kind === "insert-selected") {
+      if (!selected) setNote("Select a clip in the bin first.");
+      else if (selected.duration <= 0) setNote("Reconnect the clip before inserting it.");
+      else {
+        setSequence((current) => insertSourceAtPlayhead(current, selected.id, selected.duration));
+        setNote(`Inserted ${selected.name}.`);
+      }
+    } else if (parsed.kind === "filter") {
+      setFilter(parsed.filter);
+      setNote(`Showing ${parsed.filter}.`);
+    } else if (parsed.kind === "verdict") {
+      const ids =
+        parsed.ids === "all" ? clips.map((clip) => clip.id) : selected ? [selected.id] : [];
+      if (ids.length === 0) setNote("Nothing to mark.");
+      else applyVerdict(ids, parsed.verdict, parsed.verdict === "keep" ? "Kept" : "Rejected");
+    } else if (parsed.kind === "verdict-duration") {
+      const ids = clips
+        .filter((clip) =>
+          parsed.compare === "over" ? clip.duration > parsed.seconds : clip.duration > 0 && clip.duration < parsed.seconds,
+        )
+        .map((clip) => clip.id);
+      applyVerdict(
+        ids,
+        parsed.verdict,
+        parsed.compare === "over"
+          ? `Kept clips over ${parsed.seconds}s`
+          : `Rejected clips under ${parsed.seconds}s`,
+      );
+    } else if (parsed.kind === "verdict-first") {
+      applyVerdict(
+        clips.slice(0, parsed.count).map((clip) => clip.id),
+        "keep",
+        `Kept first ${parsed.count}`,
+      );
+    } else if (clips.length === 0) {
+      setNote("Import footage first, then run the command.");
+    } else {
+      setNote("Try: split at playhead, insert this on the timeline, or keep clips longer than 10 seconds.");
     }
     setCommand("");
-  };
-
-  const submitCommand = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    runCommand(command);
   };
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
@@ -803,331 +804,77 @@ function VideoReview() {
     void importFiles(Array.from(event.dataTransfer.files));
   };
 
+  useEffect(() => {
+    if (!hydrated) return;
+    const pending = takeVideoImport();
+    if (pending.length) void importFiles(pending);
+  }, [hydrated]);
+
+  useEffect(() => {
+    const video = programRef.current;
+    if (!video) return;
+    const onTime = () => {
+      const sourceId = selected?.id;
+      if (!sourceId) return;
+      const placed = sequence.videoTracks.flat().find((clip) => clip.sourceId === sourceId);
+      if (!placed) return;
+      setSequence((current) =>
+        setPlayhead(current, placed.start + Math.max(0, video.currentTime - placed.inPoint)),
+      );
+    };
+    video.addEventListener("timeupdate", onTime);
+    return () => video.removeEventListener("timeupdate", onTime);
+  }, [selected?.id, sequence.videoTracks]);
+
   return (
-    <div className="min-h-screen bg-paper p-2 text-ink sm:p-3">
-      <div className="mx-auto flex min-h-[calc(100vh-1rem)] max-w-[1800px] flex-col gap-2 sm:min-h-[calc(100vh-1.5rem)]">
-        <header className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl bg-card px-3 py-2 sm:px-4">
-          <Link to="/" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-muted">
-            <ArrowLeft size={14} className="text-moss" />
-            <LogoMark size={22} className="text-ink" />
-            <span className="font-display text-sm font-semibold tracking-tight">
-              {VIDEO_PRODUCT_TITLE}
-            </span>
-          </Link>
-          <span className="font-mono text-[10px] text-moss">
-            {counts.all} clips · {counts.todo} to review · {counts.keepers} keepers
-          </span>
-          <div className="ml-auto flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={undo}
-              disabled={journal.length === 0}
-              data-app-key="undo"
-              className="grid size-8 place-items-center rounded-lg bg-muted text-moss transition-colors hover:text-ink disabled:opacity-35"
-              aria-label="Undo last verdict"
-              title="Undo · ⌘Z · U"
-            >
-              <RotateCcw size={14} />
-            </button>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={probing !== null}
-              className="flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-[12px] font-medium text-paper2 transition-colors hover:bg-rust disabled:opacity-50"
-            >
-              <FolderOpen size={14} />
-              {clips.some((clip) => !clip.url) ? "Reconnect / add" : "Import footage"}
-            </button>
-            <button
-              type="button"
-              onClick={exportManifest}
-              disabled={counts.keepers === 0}
-              className="hidden items-center gap-2 rounded-lg bg-muted px-3 py-2 text-[12px] text-moss transition-colors hover:text-ink disabled:opacity-35 sm:flex"
-            >
-              <Download size={14} />
-              Export JSON
-            </button>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="video/*,.mov,.mp4,.m4v,.webm,.ogv,.ogg"
-            multiple
-            className="hidden"
-            onChange={(event) => {
-              void importFiles(Array.from(event.target.files ?? []));
-              event.target.value = "";
-            }}
-          />
-        </header>
-
-        <div className="grid flex-1 gap-2 lg:min-h-0 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
-          <main
-            className={`order-1 flex min-h-[520px] flex-col rounded-xl bg-[#080809] p-3 transition-colors lg:col-start-2 lg:row-start-1 lg:min-h-0 ${
-              dragging ? "bg-muted" : ""
-            }`}
-            onDragEnter={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragOver={(event) => event.preventDefault()}
-            onDragLeave={(event) => {
-              if (event.currentTarget === event.target) setDragging(false);
-            }}
-            onDrop={onDrop}
-          >
-            {probing ? (
-              <div
-                className="mb-2 rounded-lg bg-card px-3 py-2 font-mono text-[10px] text-moss"
-                role="status"
-                aria-live="polite"
-              >
-                Reading metadata · {probing.done}/{probing.total}
-                {probing.failed > 0 ? ` · ${probing.failed} unavailable` : ""}
-              </div>
-            ) : null}
-
-            {selected ? (
-              <>
-                <div className="flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-lg bg-black">
-                  {selected.url ? (
-                    <video
-                      key={selected.id}
-                      src={selected.url}
-                      controls
-                      playsInline
-                      preload="metadata"
-                      aria-label={`Preview ${selected.name}`}
-                      className="max-h-[calc(100vh-230px)] max-w-full"
-                    >
-                      This browser cannot play {selected.name}.
-                    </video>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      disabled={probing !== null}
-                      className="flex max-w-md flex-col items-center rounded-xl bg-card px-7 py-8 text-center text-ink transition-colors hover:bg-paper disabled:opacity-50"
-                    >
-                      <FolderOpen size={24} strokeWidth={1.5} className="text-moss" />
-                      <span className="mt-4 font-display text-xl font-semibold tracking-tight">
-                        Reconnect {selected.name}
-                      </span>
-                      <span className="mt-2 text-[12px] leading-relaxed text-moss">
-                        Review marks and metadata were restored. Choose the matching original files
-                        to resume playback; Video never stored the video bytes.
-                      </span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-2 px-1">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium">{selected.name}</p>
-                    <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.08em] text-moss">
-                      {formatDuration(selected.duration)} · {selected.width || "?"}×
-                      {selected.height || "?"} · {formatBytes(selected.size)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => step(-1)}
-                    className="grid size-8 place-items-center rounded-lg bg-muted text-moss hover:text-ink"
-                    aria-label="Previous clip"
-                  >
-                    <ChevronLeft size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => step(1)}
-                    className="grid size-8 place-items-center rounded-lg bg-muted text-moss hover:text-ink"
-                    aria-label="Next clip"
-                  >
-                    <ChevronRight size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyVerdict([selected.id], "keep", "Kept")}
-                    aria-pressed={selected.verdict === "keep"}
-                    aria-keyshortcuts="K"
-                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors ${
-                      selected.verdict === "keep"
-                        ? "bg-ink text-paper2"
-                        : "bg-muted text-moss hover:text-ink"
-                    }`}
-                  >
-                    <Check size={14} /> Keep · K
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyVerdict([selected.id], "reject", "Rejected")}
-                    aria-pressed={selected.verdict === "reject"}
-                    aria-keyshortcuts="X"
-                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-medium transition-colors ${
-                      selected.verdict === "reject"
-                        ? "bg-rust text-paper2"
-                        : "bg-muted text-moss hover:text-ink"
-                    }`}
-                  >
-                    <X size={14} /> Reject · X
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={probing !== null}
-                className="m-1 flex flex-1 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-input px-6 py-20 text-center transition-colors hover:border-ink/30"
-              >
-                <VideoIcon size={28} strokeWidth={1.4} className="text-moss" />
-                <h1 className="mt-5 font-display text-[clamp(1.8rem,4vw,3rem)] font-semibold tracking-[-0.04em]">
-                  Drop footage here.
-                </h1>
-                <p className="mt-2 max-w-[460px] text-[13px] leading-relaxed text-moss">
-                  Video reads local metadata and plays formats your browser supports. It does not
-                  upload, modify, or transcode originals.
-                </p>
-                <span className="mt-6 rounded-lg bg-ink px-4 py-2 text-[12px] font-medium text-paper2">
-                  Choose video files
-                </span>
-              </button>
-            )}
-          </main>
-
-          <aside className="order-2 flex min-h-[320px] flex-col rounded-xl bg-card p-3 lg:col-start-1 lg:row-start-1 lg:min-h-0">
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Video filters">
-              {FILTERS.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setFilter(item.key)}
-                  aria-pressed={filter === item.key}
-                  className={`rounded-md px-2 py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] transition-colors ${
-                    filter === item.key ? "bg-ink text-paper2" : "bg-muted text-moss hover:text-ink"
-                  }`}
-                >
-                  {item.label} {counts[item.key]}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
-              {visible.length === 0 ? (
-                <p className="rounded-lg bg-muted/60 px-3 py-6 text-center text-[12px] text-moss">
-                  {clips.length === 0 ? "No clips loaded" : "No clips in this filter"}
-                </p>
-              ) : (
-                visible.map((clip, index) => (
-                  <button
-                    key={clip.id}
-                    type="button"
-                    onClick={() => setSelectedId(clip.id)}
-                    aria-current={selected?.id === clip.id ? "true" : undefined}
-                    aria-label={`${clip.name}, ${clip.verdict}${clip.url ? "" : ", reconnect source"}`}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors ${
-                      selected?.id === clip.id ? "bg-muted text-ink" : "text-moss hover:bg-muted/60"
-                    }`}
-                  >
-                    <span className="grid size-8 shrink-0 place-items-center rounded-md bg-paper">
-                      {clip.verdict === "keep" ? (
-                        <Check size={14} className="text-ink" />
-                      ) : clip.verdict === "reject" ? (
-                        <X size={14} className="text-rust" />
-                      ) : (
-                        <Film size={14} />
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12px] font-medium text-ink">
-                        {index + 1}. {clip.name}
-                      </span>
-                      <span className="mt-0.5 block font-mono text-[9px] text-moss">
-                        {formatDuration(clip.duration)} · {formatBytes(clip.size)}
-                        {!clip.url ? " · reconnect" : ""}
-                      </span>
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-
-            {clips.length > 0 ? (
-              <button
-                type="button"
-                onClick={clearReview}
-                disabled={probing !== null}
-                className="mt-2 self-start rounded-md px-2 py-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-moss transition-colors hover:bg-muted hover:text-ink disabled:opacity-35"
-              >
-                Clear saved review
-              </button>
-            ) : null}
-          </aside>
-
-          <aside className="order-3 flex min-h-[360px] flex-col rounded-xl bg-card p-4 lg:col-start-3 lg:row-start-1 lg:min-h-0">
-            <div className="flex items-center gap-2">
-              <span className="size-1.5 rounded-full bg-rust" />
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-moss">
-                Local commands
-              </p>
-            </div>
-            <p className="mt-5 text-[13px] leading-relaxed text-moss">
-              Commands change review marks and filters only. Every verdict is reversible with U.
-            </p>
-
-            <div className="mt-5 space-y-1">
-              {QUICK_COMMANDS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => runCommand(item)}
-                  className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-[12px] text-moss transition-colors hover:bg-muted hover:text-ink"
-                >
-                  <span className="font-mono text-rust">›</span>
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-auto pt-8">
-              <p
-                className="min-h-10 rounded-lg bg-muted/60 px-3 py-2 text-[11px] leading-relaxed text-moss"
-                role="status"
-                aria-live="polite"
-              >
-                {note}
-              </p>
-              <form onSubmit={submitCommand} className="mt-2 rounded-lg bg-paper p-2">
-                <input
-                  ref={commandRef}
-                  value={command}
-                  onChange={(event) => setCommand(event.target.value)}
-                  placeholder="Keep clips longer than 10 seconds…"
-                  aria-label="Run a local video command"
-                  className="w-full bg-transparent px-1 py-1.5 text-[12px] outline-none placeholder:text-moss/70"
-                />
-                <div className="mt-1 flex items-center px-1 font-mono text-[9px] text-moss">
-                  Enter to run
-                  <button
-                    type="submit"
-                    className="ml-auto rounded-md bg-ink px-2 py-1 text-paper2 hover:bg-rust"
-                  >
-                    Run
-                  </button>
-                </div>
-              </form>
-            </div>
-          </aside>
-        </div>
-
-        <div className="flex min-h-7 flex-wrap items-center gap-3 rounded-lg bg-card px-3 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-moss">
-          <span className="size-1.5 rounded-full bg-rust" />
-          Local metadata + playback
-          <span>originals read-only</span>
-          <span>review marks saved locally · media never stored</span>
-          <span className="ml-auto">K keep · X reject · U undo · ← → move</span>
-        </div>
-      </div>
-    </div>
+    <VideoEditor
+      clips={clips}
+      visible={visible}
+      selected={selected}
+      filter={filter}
+      filters={FILTERS}
+      counts={counts}
+      sequence={sequence}
+      tool={tool}
+      playing={playing}
+      probing={probing}
+      dragging={dragging}
+      note={note}
+      command={command}
+      commandRef={commandRef}
+      fileRef={fileRef}
+      programRef={programRef}
+      onFilter={setFilter}
+      onSelect={setSelectedId}
+      onKeep={() => selected && applyVerdict([selected.id], "keep", "Kept")}
+      onReject={() => selected && applyVerdict([selected.id], "reject", "Rejected")}
+      onUndo={undo}
+      onImport={() => fileRef.current?.click()}
+      onFiles={(files) => void importFiles(files)}
+      onDrop={onDrop}
+      onDragState={setDragging}
+      onTool={setTool}
+      onPlayToggle={togglePlay}
+      onRazor={razorPlayhead}
+      onTimelineClick={(time) => {
+        setSequence((current) => {
+          const next = setPlayhead(current, time);
+          return tool === "razor" ? razorAt(next, next.playhead) : next;
+        });
+        const video = programRef.current;
+        const clip = selected;
+        if (video && clip) {
+          const placed = sequence.videoTracks.flat().find((item) => item.sourceId === clip.id);
+          if (placed) video.currentTime = placed.inPoint + Math.max(0, time - placed.start);
+        }
+      }}
+      onSelectTimelineClip={(clip) => {
+        setSelectedId(clip.sourceId);
+        setSequence((current) => setPlayhead(current, clip.start));
+      }}
+      onCommandChange={setCommand}
+      onCommand={runCommand}
+      quickCommands={QUICK_COMMANDS}
+    />
   );
 }

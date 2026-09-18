@@ -313,8 +313,20 @@ html:has(.celinen-dash) {
 .celinen-dash__body.is-chat {
   overflow: hidden;
 }
-.celinen-dash__body.is-tool:not(:has(.foto-develop)) {
+.celinen-dash__body.is-tool:not(:has(.foto-develop)):not(:has(.celinen-video)) {
   padding-right: 92px;
+}
+.celinen-dash__body:has(.celinen-video) {
+  overflow: hidden;
+  padding-right: 0;
+}
+.celinen-dash__body:has(.celinen-video) .celinen-dash__theme {
+  display: none;
+}
+.celinen-dash .celinen-video {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
 }
 .celinen-dash__body.is-cal {
   padding-right: 0;
