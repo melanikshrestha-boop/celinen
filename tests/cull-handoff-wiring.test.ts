@@ -124,7 +124,7 @@ test("the hand-off reaches keepers through a reconnected card, not only this tab
   );
   // A reopened session holds no Files; without the resolver Develop is handed
   // nothing and reports that the originals could not be read.
-  expect(source).toContain("async keeperFiles(): Promise<File[]>");
+  expect(source).toContain("async keeperFiles(): Promise<{ files: File[]; missing: string[] }>");
   expect(source).toContain("canDevelop()");
   const route = readFileSync(new URL("../src/routes/cull.tsx", import.meta.url), "utf8");
   expect(route).toContain("Reconnect the originals, then Go to Develop.");
