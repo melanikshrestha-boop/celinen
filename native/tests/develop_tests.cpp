@@ -468,6 +468,39 @@ int main() {
       std::istringstream input(protocol5);const auto smoothed=lenslabs::read_develop_protocol(input);
       check(smoothed.curve_interpolation==mode&&smoothed.sharpening_radius==1.75&&smoothed.global_grade.saturation==72,"Protocol5 adds a strict interpolation flag without losing previous controls.");
     }
+    {
+      auto protocol6=protocol4;protocol6.replace(0,14,"FOTO_DEVELOP_6");protocol6+="1\n1 4 8\n";
+      std::istringstream input(protocol6);const auto basic=lenslabs::read_develop_protocol(input);
+      check(basic.curve_interpolation==1&&basic.treatment==1&&basic.profile==4&&basic.white_balance==8,
+            "Protocol6 round trips treatment, profile and white-balance mode.");
+    }
+    for(const auto& tail:{"", "2 0 0", "0 6 0", "0 0 9", "1 4", "1 4 8 extra"}) {
+      auto invalid=protocol4;invalid.replace(0,14,"FOTO_DEVELOP_6");invalid+="1\n";invalid+=tail;invalid+="\n";
+      rejects([&]{std::istringstream input(invalid);lenslabs::read_develop_protocol(input);},"Protocol6 rejects truncated, out-of-range and trailing Basic-panel fields.");
+    }
+    {
+      auto color=neutral;auto bw=neutral;bw.treatment=1;
+      check(lenslabs::develop(source,color).rgba!=lenslabs::develop(source,bw).rgba,"Black & White treatment converts chroma.");
+      auto identity=neutral;identity.profile=0;
+      check(lenslabs::develop(source,identity).rgba==original,"Adobe Color is identity in this working space.");
+      auto vivid=neutral;vivid.profile=4;
+      check(lenslabs::develop(source,vivid).rgba!=original,"Adobe Vivid changes the look.");
+      auto mono=neutral;mono.profile=5;
+      const auto grey=lenslabs::develop(source,mono);
+      bool chroma=false;
+      for(std::size_t i=0;i+3<grey.rgba.size();i+=4)
+        if(grey.rgba[i]!=grey.rgba[i+1]||grey.rgba[i]!=grey.rgba[i+2]) chroma=true;
+      check(!chroma,"Adobe Monochrome is a single-channel conversion.");
+      check(!lenslabs::is_neutral_develop(bw)&&!lenslabs::is_neutral_develop(vivid),"Treatment and profile block the no-op path.");
+      lenslabs::Image patch;patch.width=patch.height=patch.source_width=patch.source_height=1;
+      patch.rgba={158,128,102,255};
+      const auto sample=lenslabs::develop_white_balance_from_sample(158/255.0,128/255.0,102/255.0);
+      auto warmed=neutral;warmed.temperature=sample.temperature;warmed.tint=sample.tint;
+      const auto corrected=lenslabs::develop(patch,warmed);
+      check(std::abs(int(corrected.rgba[0])-int(corrected.rgba[1]))<=2 &&
+            std::abs(int(corrected.rgba[1])-int(corrected.rgba[2]))<=2,
+            "Eyedropper white balance neutralizes the sampled pixel.");
+    }
     for(const auto& tail:{"", "-1", "2", "0.5", "nan", "1 extra"}) {
       auto invalid=protocol4;invalid.replace(0,14,"FOTO_DEVELOP_5");invalid+=tail;
       rejects([&]{std::istringstream input(invalid);lenslabs::read_develop_protocol(input);},"Protocol5 rejects missing, unsupported, fractional and trailing interpolation flags.");
@@ -517,6 +550,27 @@ int main() {
       modern.grain=0;modern.fade=45;modern.film_falloff=70;modern.vignette=-70;
       auto noAdaptive=modern;noAdaptive.grain_luminance=0;
       check(lenslabs::develop(source,modern).rgba==lenslabs::develop(source,noAdaptive).rgba,"Luminance response does nothing when grain amount is zero.");
+      auto gray_grain=neutral;gray_grain.grain=70;gray_grain.grain_luminance=100;
+      auto color_grain=gray_grain;color_grain.grain_color=80;
+      check(lenslabs::develop(gray,gray_grain).rgba!=lenslabs::develop(gray,color_grain).rgba,
+            "Raising grain color changes the render versus gray grain.");
+      const auto dyed=lenslabs::develop(gray,color_grain);
+      bool chroma=false;int agree=0;
+      for(std::size_t i=0;i<dyed.rgba.size();i+=4) {
+        if(dyed.rgba[i]!=dyed.rgba[i+1]||dyed.rgba[i]!=dyed.rgba[i+2]) chroma=true;
+        if((int(dyed.rgba[i])-128)*(int(dyed.rgba[i+1])-128)>0) ++agree;
+      }
+      check(chroma,"Color grain tints dye layers instead of adding gray mush.");
+      check(agree>int(gray.rgba.size()/4)/4,"Color grain stays correlated, not RGB confetti.");
+      auto idle=neutral;idle.grain_color=100;
+      check(lenslabs::is_neutral_develop(idle)&&lenslabs::develop(source,idle).rgba==original,
+            "Grain color does nothing when grain amount is zero.");
+      {
+        auto protocol7=protocol4;protocol7.replace(0,14,"FOTO_DEVELOP_7");protocol7+="1\n0 0 0\n42\n";
+        std::istringstream input(protocol7);const auto loaded=lenslabs::read_develop_protocol(input);
+        check(loaded.grain_color==42&&loaded.treatment==0&&loaded.curve_interpolation==1,
+              "Protocol7 round trips colorful grain without losing earlier fields.");
+      }
     }
     lenslabs::Image ramp{256,1,256,1,{}};ramp.rgba.resize(256*4);
     for(unsigned v=0;v<256;++v){for(int c=0;c<3;++c)ramp.rgba[v*4+c]=std::uint8_t(v);ramp.rgba[v*4+3]=255;}

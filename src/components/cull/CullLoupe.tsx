@@ -5,10 +5,14 @@ import type { CullVerdict } from "@/lib/studio/cull/engine";
 import type { LoupeSourceKind } from "@/lib/studio/cull/loupe-source";
 import type { CullFrame } from "@/lib/studio/cull/session";
 import { CULL_REASON_LABELS } from "@/lib/studio/cull/session";
-import { plainReading } from "./cull-review";
-import { CullMark, CullThumb, type CullThumbnailSource } from "./CullGrid";
+import type { CullCodes } from "@/lib/studio/cull/controller";
+import { detailRows } from "./cull-review";
+import { CullAfBox } from "./CullAfBox";
+import { CullCaption, CullCodeSources, type CullCodesInput } from "./CullCaption";
+import { CullMark, CullMarks, CullName, CullThumb, type CullThumbnailSource } from "./CullGrid";
 import { CullLoupePicture, type CullLoupeSource } from "./CullLoupePicture";
 import type { PortraitFace } from "@/lib/studio/cull/portrait-face";
+import type { PictureView } from "./picture-view";
 
 export type CullLoupeProps = {
   frame: CullFrame;
@@ -30,6 +34,15 @@ export type CullLoupeProps = {
   onSelect: (id: string) => void;
   onClose: () => void;
   onFace?: ((box: PortraitFace) => void) | undefined;
+  /** Draw the camera's AF area on the photo (F). */
+  showAf?: boolean | undefined;
+  /** Zoom and pan (Z, click, drag). */
+  view?: PictureView | undefined;
+  /** Caption codes; with onCaption, the caption field shows. */
+  codes?: CullCodes | undefined;
+  onCaption?: ((caption: string) => void) | undefined;
+  onAddCodes?: ((input: CullCodesInput) => Promise<unknown>) | undefined;
+  onRemoveCodes?: ((id: string) => void) | undefined;
 };
 
 const NO_NEIGHBORS: readonly string[] = [];
@@ -55,6 +68,12 @@ export function CullLoupe({
   onSelect,
   onClose,
   onFace,
+  showAf = true,
+  view,
+  codes,
+  onCaption,
+  onAddCodes,
+  onRemoveCodes,
 }: CullLoupeProps) {
   const dialog = useRef<HTMLDivElement>(null);
   // Focus follows the loupe in, so Tab stays inside it and not on the grid behind.
@@ -136,7 +155,10 @@ export function CullLoupe({
             epoch={originals ?? ""}
             onKind={setShownKind}
             onFace={onFace}
-          />
+            view={view}
+          >
+            {showAf && <CullAfBox frame={frame} />}
+          </CullLoupePicture>
         ) : (
           <CullThumb frame={frame} thumbnail={thumbnail} />
         )}
@@ -157,7 +179,11 @@ export function CullLoupe({
                 <CullMark frame={member} size={10} />
               </span>
               <span className="cull-card-meta font-mono text-[10px]">
-                <span>{member.suggestion?.bestOfGroup ? "Best" : member.name}</span>
+                {member.suggestion?.bestOfGroup ? (
+                  <span>Best</span>
+                ) : (
+                  <CullName name={member.name} />
+                )}
                 {member.suggestion && <span className="text-ink">{member.suggestion.score}</span>}
               </span>
             </button>
@@ -180,9 +206,11 @@ export function CullLoupe({
           )}
         </div>
 
+        <CullMarks frame={frame} />
+
         {frame.reading ? (
           <dl className="mt-6 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
-            {plainReading(frame.reading).map((row) => (
+            {detailRows(frame).map((row) => (
               <div key={row.label} className="contents">
                 <dt className="font-mono text-[10px] uppercase leading-[19.5px] tracking-wider text-moss">
                   {row.label}
@@ -212,6 +240,21 @@ export function CullLoupe({
             </button>
           ))}
         </div>
+
+        {onCaption && codes && (
+          <div className="mt-6 grid gap-2">
+            <CullCaption
+              key={frame.id}
+              value={frame.caption ?? ""}
+              count={1}
+              codes={codes}
+              onCommit={onCaption}
+            />
+            {onAddCodes && onRemoveCodes && (
+              <CullCodeSources codes={codes} onAdd={onAddCodes} onRemove={onRemoveCodes} />
+            )}
+          </div>
+        )}
       </aside>
     </div>
   );

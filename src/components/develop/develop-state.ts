@@ -54,6 +54,8 @@ export type DevelopExportRequest = {
   edge: number;
   quality: number;
   sourceMode: "raw" | "preview";
+  /** Border + watermark kit fingerprint; proof reuse requires an exact match. */
+  dressingKey: string;
 };
 export type DevelopExportProof = DevelopExportRequest & {
   blob: Blob;
@@ -72,7 +74,8 @@ export function currentDevelopExportProof(
     proof.recipeKey === request.recipeKey &&
     proof.edge === request.edge &&
     proof.quality === request.quality &&
-    proof.sourceMode === request.sourceMode,
+    proof.sourceMode === request.sourceMode &&
+    proof.dressingKey === request.dressingKey,
   );
 }
 /** Filtering cannot leave invisible edit targets selected or active. */

@@ -13,6 +13,8 @@
 #include "lenslabs/develop.hpp"
 #include "lenslabs/develop_auto.hpp"
 #include "lenslabs/look_match.hpp"
+#include "lenslabs/upright.hpp"
+#include <array>
 #include <cstdlib>
 #include <new>
 #include <sstream>
@@ -162,5 +164,85 @@ const double* celinen_look_match(std::uint32_t count, const char* protocol, std:
       look_matched.push_back(v);
   });
   return matched ? look_matched.data() : nullptr;
+}
+}
+
+// Upright (Transform). Additive: celinen_develop above is unchanged.
+//   celinen_upright_solve   measures the resident source and returns a solution.
+//   celinen_upright_develop renders the resident source through a perspective
+//                           transform, then the recipe. The warped source is
+//                           kept for preview drags until the transform changes.
+//   celinen_upright_forget  drops that warp; the worker calls it on every new source.
+namespace {
+lenslabs::Image upright_source;
+std::array<double, 13> upright_key{};
+bool upright_cached = false;
+} // namespace
+
+extern "C" {
+void celinen_upright_forget() {
+  upright_source = {};
+  upright_cached = false;
+}
+
+int celinen_upright_develop(const char* protocol, std::uint32_t length, int high_resolution,
+                            const double* values, std::uint32_t count) {
+  return guarded([&] {
+    if (!protocol || !source.width) throw std::invalid_argument("No Develop image is loaded.");
+    const auto transform = lenslabs::read_upright_values(values, count);
+    std::istringstream input(std::string(protocol, length));
+    const auto settings = lenslabs::read_develop_protocol(input);
+    result = {};
+    if (lenslabs::upright_identity(transform)) {
+      result = lenslabs::develop(source, settings, high_resolution != 0);
+      return;
+    }
+    std::array<double, 13> key{};
+    for (std::uint32_t i = 0; i < 13; ++i) key[i] = values[i];
+    if (!upright_cached || key != upright_key || upright_source.width != source.width ||
+        upright_source.height != source.height) {
+      upright_cached = false;
+      upright_source = {};
+      upright_source = lenslabs::apply_upright(source, transform);
+      upright_key = key;
+      upright_cached = true;
+    }
+    result = lenslabs::develop(upright_source, settings, high_resolution != 0);
+    // An export-size warp is not worth holding next to the source in wasm32.
+    if (high_resolution) celinen_upright_forget();
+  });
+}
+
+// request: mode, analysis edge, focal (f/diagonal, 0 = EXIF/default), k1,
+// guide count, then x1 y1 x2 y2 per guide. Returns 12 doubles:
+// requested, applied, fallback, roll, pitch, yaw, focal, focal source,
+// confidence, segments, vertical segments, horizontal segments.
+const double* celinen_upright_solve(const double* request, std::uint32_t count,
+                                    const std::uint8_t* exif, std::uint32_t exif_size) {
+  static double values[12];
+  lenslabs::UprightSolution solution;
+  const bool solved = guarded([&] {
+    if (!source.width) throw std::invalid_argument("No Develop image is loaded.");
+    if (!request || count < 5) throw std::invalid_argument("Invalid Upright request.");
+    const double mode = request[0], guides = request[4];
+    if (mode != std::floor(mode) || mode < 0 || mode > 5 || guides != std::floor(guides) || guides < 0 ||
+        guides > 4 || count != 5 + std::uint32_t(guides) * 4 || !(request[1] >= 256 && request[1] <= 2048))
+      throw std::invalid_argument("Invalid Upright request.");
+    lenslabs::UprightRequest r;
+    r.mode = static_cast<lenslabs::UprightMode>(int(mode));
+    r.analysis_edge = std::uint32_t(request[1]);
+    r.focal = request[2];
+    r.k1 = request[3];
+    for (int i = 0; i < int(guides); ++i)
+      r.guides.push_back({request[5 + i * 4], request[6 + i * 4], request[7 + i * 4], request[8 + i * 4]});
+    solution = lenslabs::solve_upright(source, r, exif_size ? exif : nullptr, exif_size);
+  });
+  if (!solved) return nullptr;
+  const double next[12] = {double(int(solution.requested)), double(int(solution.applied)), double(solution.fallback),
+                           solution.roll, solution.pitch, solution.yaw, solution.focal,
+                           double(int(solution.focal_source)), solution.confidence, double(solution.segments),
+                           double(solution.vertical_segments), double(solution.horizontal_segments)};
+  for (int i = 0; i < 12; ++i) values[i] = next[i];
+  return values;
 }
 }

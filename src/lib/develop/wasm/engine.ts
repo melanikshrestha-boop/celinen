@@ -13,6 +13,13 @@ import {
   type LookDescriptor,
   type LookMatchResult,
 } from "../look-match";
+import {
+  uprightSolutionFromValues,
+  uprightSolveValues,
+  uprightTransformValues,
+  type UprightSolution,
+  type UprightSolveRequest,
+} from "../upright";
 
 type Exports = {
   memory: WebAssembly.Memory;
@@ -36,6 +43,21 @@ type Exports = {
     protocol: number,
     length: number,
     outputEdge: number,
+  ) => number;
+  // Upright exports. Optional so an older committed binary still loads.
+  celinen_upright_forget?: () => void;
+  celinen_upright_develop?: (
+    protocol: number,
+    length: number,
+    highResolution: number,
+    values: number,
+    count: number,
+  ) => number;
+  celinen_upright_solve?: (
+    request: number,
+    count: number,
+    exif: number,
+    exifSize: number,
   ) => number;
 };
 
@@ -82,6 +104,10 @@ export type DevelopWasmEngine = {
     settings: DevelopSettings,
     outputEdge: number,
   ): LookMatchResult;
+  /** Measure the resident photo's lines for one Upright mode. `exif` is the
+   * file's leading bytes, read for its focal length.
+   */
+  solveUpright(request: UprightSolveRequest, exif?: Uint8Array | null): UprightSolution;
 };
 
 // The engine is pure computation. Its only imports are the WASI stubs libc++
@@ -109,26 +135,49 @@ export async function instantiateDevelopWasm(
     return new TextDecoder().decode(bytes.subarray(0, end));
   };
   const failure = () => new Error(text(wasm.celinen_error()) || "Develop failed.");
+  // Copy bytes into engine scratch memory for the duration of one call.
+  const withBytes = <T>(bytes: Uint8Array, work: (pointer: number) => T): T => {
+    const pointer = bytes.length ? wasm.celinen_alloc(bytes.length) : 0;
+    if (bytes.length && !pointer)
+      throw new Error("This photo is too large for the browser's memory at this size.");
+    try {
+      if (bytes.length) new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
+      return work(pointer);
+    } finally {
+      if (pointer) wasm.celinen_release(pointer);
+    }
+  };
+  const doubles = (values: ArrayLike<number>) => new Uint8Array(Float64Array.from(values).buffer);
 
   return {
     version: text(wasm.celinen_engine()),
     source(width, height) {
+      // A cached warp belongs to the previous photo.
+      wasm.celinen_upright_forget?.();
       const pointer = wasm.celinen_source(width, height);
       if (!pointer) throw failure();
       return new Uint8ClampedArray(wasm.memory.buffer, pointer, width * height * 4);
     },
     develop(settings, highResolution = false) {
-      const protocol = new TextEncoder().encode(developProtocol(settings));
-      const pointer = wasm.celinen_alloc(protocol.length);
-      if (!pointer)
-        throw new Error("This photo is too large for the browser's memory at this size.");
-      try {
-        new Uint8Array(wasm.memory.buffer, pointer, protocol.length).set(protocol);
-        if (!wasm.celinen_develop(pointer, protocol.length, highResolution ? 1 : 0))
-          throw failure();
-      } finally {
-        wasm.celinen_release(pointer);
-      }
+      const protocol = new TextEncoder().encode(developProtocol(settings, { legacy: true }));
+      const upright = uprightTransformValues(settings.geometry);
+      const uprightDevelop = wasm.celinen_upright_develop;
+      if (upright && !uprightDevelop) throw new Error("Reload Develop to use Upright.");
+      withBytes(protocol, (pointer) => {
+        const ok =
+          upright && uprightDevelop
+            ? withBytes(doubles(upright), (values) =>
+                uprightDevelop(
+                  pointer,
+                  protocol.length,
+                  highResolution ? 1 : 0,
+                  values,
+                  upright.length,
+                ),
+              )
+            : wasm.celinen_develop(pointer, protocol.length, highResolution ? 1 : 0);
+        if (!ok) throw failure();
+      });
       const width = wasm.celinen_result_width(),
         height = wasm.celinen_result_height();
       // Copy out before releasing: the result lives in wasm memory, which the
@@ -139,6 +188,18 @@ export async function instantiateDevelopWasm(
       );
       wasm.celinen_result_release();
       return { width, height, rgba };
+    },
+    solveUpright(request, exif) {
+      const solve = wasm.celinen_upright_solve;
+      if (!solve) throw new Error("Reload Develop to use Upright.");
+      const values = uprightSolveValues(request);
+      const result = withBytes(new Uint8Array(values.buffer), (requestPointer) =>
+        withBytes(exif ?? new Uint8Array(), (exifPointer) =>
+          solve(requestPointer, values.length, exifPointer, exif?.length ?? 0),
+        ),
+      );
+      if (!result) throw failure();
+      return uprightSolutionFromValues(new Float64Array(wasm.memory.buffer, result, 12), request);
     },
     suggest() {
       const pointer = wasm.celinen_suggest();
@@ -182,7 +243,7 @@ export async function instantiateDevelopWasm(
         looks.length * LOOK_DESCRIPTOR_SIZE,
       );
       looks.forEach((look, index) => room.set(look, index * LOOK_DESCRIPTOR_SIZE));
-      const protocol = new TextEncoder().encode(developProtocol(settings));
+      const protocol = new TextEncoder().encode(developProtocol(settings, { legacy: true }));
       const pointer = wasm.celinen_alloc(protocol.length);
       if (!pointer)
         throw new Error("This photo is too large for the browser's memory at this size.");
@@ -206,3 +267,4 @@ export async function instantiateDevelopWasm(
     },
   };
 }
+// restored tip

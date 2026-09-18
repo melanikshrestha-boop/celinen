@@ -426,6 +426,57 @@ html.dark .foto-develop {
   min-height: 20px;
   padding: 1px 5px;
 }
+.develop-treatment {
+  display: flex;
+  gap: 0;
+}
+.develop-treatment button {
+  border-radius: 0;
+}
+.develop-treatment button:first-child {
+  border-radius: 2px 0 0 2px;
+}
+.develop-treatment button:last-child {
+  border-radius: 0 2px 2px 0;
+}
+.develop-treatment button[aria-pressed="true"] {
+  background: var(--dv-text);
+  color: var(--dv-bg);
+}
+.develop-inline select,
+.develop-wb-row select {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--dv-input-line);
+  border-radius: 2px;
+  background: var(--dv-input);
+  color: var(--dv-text);
+  font: inherit;
+  font-size: 10px;
+}
+.develop-wb-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.develop-wb-row button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.develop-wb-row button[aria-pressed="true"] {
+  background: var(--dv-text);
+  color: var(--dv-bg);
+}
+.develop-inline .develop-control-heading {
+  margin: 0;
+}
 .develop-preset-list {
   display: flex;
   flex-direction: column;
@@ -1425,4 +1476,39 @@ html.dark .foto-develop {
   .develop-dialog {
     padding: 20px;
   }
+}
+.develop-upright-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 7px 0;
+}
+.develop-upright-modes button {
+  background: var(--dv-button);
+  border-color: var(--dv-input-line);
+}
+.develop-guide {
+  cursor: pointer;
+}
+.develop-loupe {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid #ffffff5c;
+  box-shadow: 0 6px 18px #0000007a;
+  pointer-events: none;
+}
+.develop-loupe-view {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.develop-loupe-cross {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, transparent calc(50% - 1px), #ffd479 50%, transparent calc(50% + 1px)),
+    linear-gradient(to bottom, transparent calc(50% - 1px), #ffd479 50%, transparent calc(50% + 1px));
+  opacity: 0.85;
 }

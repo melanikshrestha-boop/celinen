@@ -62,7 +62,7 @@ $(BUILD_DIR)/lenslabs-social: $(BUILD_DIR)/social_main.o $(BUILD_DIR)/social.o $
 $(BUILD_DIR)/social-tests: tests/social_tests.cpp $(BUILD_DIR)/social.o include/lenslabs/social.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/social.o -o $@
 
-$(BUILD_DIR)/lenslabs-develop: $(BUILD_DIR)/develop_main.o $(BUILD_DIR)/develop.o $(BUILD_DIR)/develop_raw.o $(DECODER) $(LIBRAW)
+$(BUILD_DIR)/lenslabs-develop: $(BUILD_DIR)/develop_main.o $(BUILD_DIR)/develop.o $(BUILD_DIR)/develop_raw.o $(BUILD_DIR)/upright.o $(BUILD_DIR)/exif.o $(DECODER) $(LIBRAW)
 	$(CXX) $(CXXFLAGS) $^ $(FRAMEWORKS) -o $@
 
 $(BUILD_DIR)/develop-auto-tests: tests/develop_auto_tests.cpp $(BUILD_DIR)/develop_auto.o $(BUILD_DIR)/develop.o include/lenslabs/develop_auto.hpp
@@ -103,6 +103,19 @@ $(NN): include/lenslabs/nn.hpp src/nn_graph.hpp
 
 $(BUILD_DIR)/nn-tests: tests/nn_tests.cpp $(NN) include/lenslabs/nn.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(NN) -o $@
+$(BUILD_DIR)/upright.o $(BUILD_DIR)/develop_main.o: include/lenslabs/upright.hpp include/lenslabs/exif.hpp
+
+$(BUILD_DIR)/upright-tests: tests/upright_tests.cpp $(BUILD_DIR)/upright.o $(BUILD_DIR)/exif.o include/lenslabs/upright.hpp include/lenslabs/exif.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/upright.o $(BUILD_DIR)/exif.o -o $@
+# Cull intelligence: the validity gate, shoot membership, subject focus, scoring
+# heads and burst roles. Separate objects from cull.o so the per-frame scorer and
+# these passes change independently.
+CULL_INTEL_HEADERS = include/lenslabs/cull.hpp include/lenslabs/cull_validity.hpp include/lenslabs/cull_subject.hpp include/lenslabs/cull_heads.hpp include/lenslabs/cull_sequence.hpp include/lenslabs/cull_shoot_membership.hpp src/cull_dsp.hpp
+CULL_INTEL = $(BUILD_DIR)/cull_validity.o $(BUILD_DIR)/cull_gate.o $(BUILD_DIR)/cull_subject.o $(BUILD_DIR)/cull_heads.o $(BUILD_DIR)/cull_sequence.o $(BUILD_DIR)/cull_shoot_membership.o
+$(CULL_INTEL): $(CULL_INTEL_HEADERS)
+
+$(BUILD_DIR)/cull-intel-tests: tests/cull_intel_tests.cpp tests/cull_fixtures.hpp $(CULL_INTEL) $(BUILD_DIR)/cull.o $(BUILD_DIR)/exif.o $(CULL_INTEL_HEADERS) include/lenslabs/exif.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(CULL_INTEL) $(BUILD_DIR)/cull.o $(BUILD_DIR)/exif.o -o $@
 
 $(BUILD_DIR)/voice-tests: tests/voice_tests.cpp $(BUILD_DIR)/voice.o include/lenslabs/voice.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/voice.o -o $@
@@ -170,7 +183,7 @@ $(BUILD_DIR)/calendar-tests: tests/calendar_tests.cpp $(BUILD_DIR)/calendar.o in
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests $(BUILD_DIR)/cull-tests $(BUILD_DIR)/look-match-tests $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests $(BUILD_DIR)/raw-preview-tests $(BUILD_DIR)/nn-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests $(BUILD_DIR)/cull-tests $(BUILD_DIR)/look-match-tests $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests $(BUILD_DIR)/raw-preview-tests $(BUILD_DIR)/nn-tests $(BUILD_DIR)/upright-tests $(BUILD_DIR)/cull-intel-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
@@ -193,6 +206,8 @@ test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-t
 	$(BUILD_DIR)/focus-hit-tests
 	$(BUILD_DIR)/raw-preview-tests
 	$(BUILD_DIR)/nn-tests ../src/lib/studio/cull/models
+	$(BUILD_DIR)/upright-tests
+	$(BUILD_DIR)/cull-intel-tests
 
 sanitize:
 	$(MAKE) BUILD_DIR=build-sanitize CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -pthread -fsanitize=address,undefined -fno-omit-frame-pointer" test

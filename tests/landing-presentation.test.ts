@@ -227,9 +227,10 @@ if (!process.argv.includes(fixtureFlag)) {
     const startsWith = (label: string) =>
       links.filter((match) => text(match[2]!).startsWith(label));
     assert.ok(html.includes("<h2>Celinen</h2>"));
-    assert.ok(html.includes("<h2>Video</h2>"));
+    // The second door is Latch, still marked TBD, and it links out to its own site.
+    assert.ok(/<h2>\s*Latch\b/.test(html));
     assert.ok(html.includes("Photography"));
-    assert.ok(html.includes("Vlog editor"));
+    assert.ok(html.includes("AI video clipping"));
     if (current === "in") {
       assert.equal(startsWith("Dashboard").length, 3);
       assert.equal(startsWith("Sign In").length, 0);
@@ -237,7 +238,11 @@ if (!process.argv.includes(fixtureFlag)) {
     } else if (current === "loading") {
       assert.equal(startsWith("Sign In").length, 1, "Nav still has Sign In while auth restores");
       assert.equal(startsWith("Get started").length, 2, "Savings and closing stay Get started");
-      assert.equal(startsWith("Dashboard").length, 3, "Dashboard is already in the DOM for a remembered session");
+      assert.equal(
+        startsWith("Dashboard").length,
+        3,
+        "Dashboard is already in the DOM for a remembered session",
+      );
     } else {
       assert.equal(startsWith("Get started").length, 2, "Savings and closing stay Get started");
       assert.equal(startsWith("Sign In").length, 1, "Nav CTA is Sign In");
@@ -258,18 +263,24 @@ if (!process.argv.includes(fixtureFlag)) {
     }
     const opens = startsWith("Open");
     assert.ok(opens.length >= 2);
-    const openHrefs = opens.map((entry) =>
-      new URL(entry[1]!.match(/href="([^"]+)"/)![1]!.replaceAll("&amp;", "&"), "https://foto.test"),
+    const openHrefs = opens.map(
+      (entry) =>
+        new URL(
+          entry[1]!.match(/href="([^"]+)"/)![1]!.replaceAll("&amp;", "&"),
+          "https://foto.test",
+        ),
     );
-    if (current === "in") {
-      assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
-      assert.ok(openHrefs.some((url) => url.pathname === "/video"));
-    } else {
-      assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/dashboard"));
-      assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/video"));
-    }
+    // Celinen opens in the app; Latch is still its own site, opened in a new tab.
+    if (current === "in") assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
+    else assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/dashboard"));
+    assert.ok(openHrefs.some((url) => url.hostname === "latch-efc.pages.dev"));
+    assert.ok(
+      opens.some(
+        (entry) => entry[1]!.includes('target="_blank"') && entry[1]!.includes("noreferrer"),
+      ),
+    );
     assert.ok(!html.includes('id="features"'));
-    assert.ok(html.includes("id=\"pricing\""));
+    assert.ok(html.includes('id="pricing"'));
     assert.ok(html.includes("USD 20"));
     assert.ok(html.includes("USD 30"));
     assert.ok(html.includes("$20"));
@@ -290,7 +301,10 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes("Most Popular"));
     assert.ok(html.includes("home-pricing__shine"));
     expect(
-      readFileSync(new URL("../src/components/marketing/home-product.css", import.meta.url), "utf8"),
+      readFileSync(
+        new URL("../src/components/marketing/home-product.css", import.meta.url),
+        "utf8",
+      ),
     ).toContain("home-pricing-shine");
     assert.ok(!html.includes("Agency"));
     assert.ok(!html.includes("Sideline"));

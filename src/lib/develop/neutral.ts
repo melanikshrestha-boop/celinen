@@ -1,5 +1,6 @@
 import { developSettingsSchema, type DevelopSettings } from "./contract";
 import { lensIsNeutral, parametricIsNeutral } from "./parametric";
+import { geometryIsNeutral } from "./upright";
 
 const effectiveAmounts = [
   "exposure",
@@ -35,6 +36,7 @@ export function isNeutralDevelopRecipe(input: unknown): boolean {
   const parsed = developSettingsSchema.safeParse(input);
   if (!parsed.success) return false;
   const s = parsed.data;
+  if (s.treatment !== "color" || s.profile !== "adobe-color") return false;
   if (effectiveAmounts.some((key) => s[key] !== 0)) return false;
   const identity = (curve: DevelopSettings["curve"]) =>
     curve.length === 2 &&
@@ -60,6 +62,7 @@ export function isNeutralDevelopRecipe(input: unknown): boolean {
     return false;
   if (!parametricIsNeutral(s.parametricCurve)) return false;
   if (!lensIsNeutral(s.lensCorrection)) return false;
+  if (!geometryIsNeutral(s.geometry)) return false;
   const c = s.crop;
   return (
     c.x === 0 &&

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultDevelopGeometry, developGeometrySchema } from "./upright";
 export const developSourceModeSchema = z.enum(["preview", "raw"]);
 export type DevelopSourceMode = z.infer<typeof developSourceModeSchema>;
 
@@ -105,9 +106,33 @@ export const developMaskSchema = z
     saturation: signed,
   })
   .strict();
+export const developTreatmentSchema = z.enum(["color", "black-and-white"]);
+export const developProfileSchema = z.enum([
+  "adobe-color",
+  "adobe-landscape",
+  "adobe-portrait",
+  "adobe-neutral",
+  "adobe-vivid",
+  "adobe-monochrome",
+]);
+export const developWhiteBalanceSchema = z.enum([
+  "as-shot",
+  "auto",
+  "daylight",
+  "cloudy",
+  "shade",
+  "tungsten",
+  "fluorescent",
+  "flash",
+  "custom",
+]);
 export const developSettingsSchema = z
   .object({
     version: z.literal(1),
+    // Lightroom Classic Basic panel. Defaults keep every saved recipe pixel-identical.
+    treatment: developTreatmentSchema.default("color"),
+    profile: developProfileSchema.default("adobe-color"),
+    whiteBalance: developWhiteBalanceSchema.default("as-shot"),
     exposure: z.number().finite().min(-5).max(5),
     contrast: signed,
     highlights: signed,
@@ -168,6 +193,8 @@ export const developSettingsSchema = z
     grain: amount,
     grainSize: z.number().finite().min(0.5).max(4),
     grainLuminance: amount.default(0),
+    // 0 keeps the old shared-luma (gray) grain. Raised values add dye-layer chroma.
+    grainColor: amount.default(0),
     fade: amount,
     filmFalloff: amount.default(0),
     vignette: signed,
@@ -200,6 +227,8 @@ export const developSettingsSchema = z
       .array(developMaskSchema)
       .max(12)
       .refine((m) => new Set(m.map((v) => v.id)).size === m.length, "Mask IDs must be unique."),
+    // Additive: Upright and the Transform sliders. Applied before the recipe.
+    geometry: developGeometrySchema.default(defaultDevelopGeometry),
   })
   .strict();
 export type DevelopSettings = z.infer<typeof developSettingsSchema>;
@@ -209,6 +238,9 @@ export function defaultDevelopSettings(): DevelopSettings {
   const grade = () => ({ hue: 0, saturation: 0, luminance: 0 });
   return {
     version: 1,
+    treatment: "color",
+    profile: "adobe-color",
+    whiteBalance: "as-shot",
     exposure: 0,
     contrast: 0,
     highlights: 0,
@@ -262,6 +294,7 @@ export function defaultDevelopSettings(): DevelopSettings {
     grain: 0,
     grainSize: 1,
     grainLuminance: 0,
+    grainColor: 0,
     fade: 0,
     filmFalloff: 0,
     vignette: 0,
@@ -275,6 +308,7 @@ export function defaultDevelopSettings(): DevelopSettings {
     colorNoiseReduction: 0,
     crop: { x: 0, y: 0, width: 1, height: 1, angle: 0, rotate: 0, flipX: false, flipY: false },
     masks: [],
+    geometry: defaultDevelopGeometry(),
   };
 }
 /** Drop additive unknown keys, then parse. A newer field must not brick the desk. */

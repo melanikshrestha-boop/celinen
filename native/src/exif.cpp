@@ -38,6 +38,11 @@ struct Reader {
                       : std::uint32_t(bytes[at + 3]) << 24 | std::uint32_t(bytes[at + 2]) << 16 |
                             std::uint32_t(bytes[at + 1]) << 8 | bytes[at];
   }
+  // A RATIONAL value: two unsigned longs, numerator over denominator.
+  double rational(std::size_t at) const noexcept {
+    const auto denominator = u32(at + 4);
+    return denominator ? double(u32(at)) / denominator : 0;
+  }
   bool matches(std::size_t at, const char* signature, std::size_t count) const noexcept {
     return has(at, count) && std::memcmp(bytes + at, signature, count) == 0;
   }
@@ -180,6 +185,10 @@ struct Collected {
   bool has_maker_note = false;
   std::size_t maker_at = 0, maker_bytes = 0;
   std::uint32_t exif_width = 0, exif_height = 0;
+  // Focal-plane resolution: pixels per unit on the sensor, which with the
+  // pixel dimensions above gives the sensor's size in millimetres.
+  double focal_plane_x = 0, focal_plane_y = 0;
+  int focal_plane_unit = 2; // 2 inch, 3 centimetre, 4 millimetre, 5 micrometre
 };
 
 std::uint32_t unsigned_value(const Reader& r, const Entry& e) noexcept {
@@ -215,8 +224,16 @@ void read_ifd(const Reader& tiff, std::size_t offset, ExifFacts& facts, Collecte
           c.maker_bytes = e.bytes;
         }
         break;
+      // What a shoot-membership check reads besides the camera key.
+      case 0xa434: if (is_text) facts.lens = tiff.text(e.at, e.count); break;
+      case 0x0131: if (is_text) facts.software = tiff.text(e.at, e.count); break;
       case 0xa002: c.exif_width = unsigned_value(tiff, e); break;
       case 0xa003: c.exif_height = unsigned_value(tiff, e); break;
+      case 0x920a: if (e.type == 5) facts.focal_length_mm = tiff.rational(e.at); break;
+      case 0xa405: if (e.type == 3) facts.focal_length_35mm = tiff.u16(e.at); break;
+      case 0xa20e: if (e.type == 5) c.focal_plane_x = tiff.rational(e.at); break;
+      case 0xa20f: if (e.type == 5) c.focal_plane_y = tiff.rational(e.at); break;
+      case 0xa210: if (e.type == 3) c.focal_plane_unit = tiff.u16(e.at); break;
       default: break;
     }
   });
@@ -454,7 +471,24 @@ AfArea maker_note_af(const Reader& tiff, const Collected& c) noexcept {
 }
 
 void finish(ExifFacts& facts, const Collected& c) noexcept {
+  // A focal length longer than any lens, or a nonsense equivalent, is no reading.
+  if (!std::isfinite(facts.focal_length_mm) || facts.focal_length_mm <= 0 ||
+      facts.focal_length_mm > 5000)
+    facts.focal_length_mm = 0;
+  if (facts.focal_length_35mm > 5000) facts.focal_length_35mm = 0;
+  // Sensor size = pixels / pixels-per-unit. Trusted only when every part is there.
+  const double unit_mm = c.focal_plane_unit == 2 ? 25.4 : c.focal_plane_unit == 3 ? 10
+                       : c.focal_plane_unit == 4 ? 1 : c.focal_plane_unit == 5 ? 0.001 : 0;
+  if (unit_mm > 0 && c.focal_plane_x > 0 && c.focal_plane_y > 0 && c.exif_width && c.exif_height) {
+    const double long_mm = std::max(c.exif_width / c.focal_plane_x, c.exif_height / c.focal_plane_y) * unit_mm;
+    if (std::isfinite(long_mm) && long_mm > 1 && long_mm < 200) facts.sensor_long_edge_mm = long_mm;
+  }
   facts.capture_time_ms = parse_capture_time(c.stamp, c.subsecond, c.time_offset, facts.capture_time_utc);
+  facts.make = c.make;
+  facts.model = c.model;
+  facts.serial = c.serial;
+  facts.exif_width = c.exif_width;
+  facts.exif_height = c.exif_height;
   // Model alone identifies a body poorly at a game with two of the same camera;
   // the serial separates them when the file carries one.
   for (const auto* part : {&c.make, &c.model, &c.serial}) {
@@ -467,6 +501,7 @@ void finish(ExifFacts& facts, const Collected& c) noexcept {
 // A whole TIFF structure: IFD0, the EXIF IFD, then the maker note.
 void read_tiff(Reader tiff, ExifFacts& facts) noexcept {
   if (!open_tiff(tiff)) return;
+  facts.has_exif = true;
   Collected c;
   const auto ifd0 = tiff.u32(4);
   read_ifd(tiff, ifd0, facts, c);

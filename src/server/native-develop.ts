@@ -16,6 +16,7 @@ import {
   type DevelopSettings,
 } from "../lib/develop/contract";
 import { developProtocol } from "../lib/develop/protocol";
+import { uprightProtocolLine } from "../lib/develop/upright";
 import { authorizeNativeRequest, NativeBridgeError } from "./native-studio-plugin";
 import { jpegDimensions } from "../lib/delivery/media-integrity";
 
@@ -193,7 +194,8 @@ export function runNativeDevelop(
         reject(error instanceof Error ? error : new Error("Invalid Develop image receipt."));
       }
     });
-    child.stdin.end(developProtocol(request.settings));
+    // Upright travels as one extra line the executable applies before the recipe.
+    child.stdin.end(developProtocol(request.settings) + uprightProtocolLine(request.settings.geometry));
   });
 }
 async function readBody(req: IncomingMessage, signal: AbortSignal): Promise<Buffer> {

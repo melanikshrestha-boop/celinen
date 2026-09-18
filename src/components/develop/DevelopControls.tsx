@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ChevronDown,
   RotateCcw,
@@ -7,6 +15,7 @@ import {
   FlipVertical2,
   Plus,
   Trash2,
+  Pipette,
 } from "lucide-react";
 import {
   defaultDevelopSettings,
@@ -14,11 +23,27 @@ import {
   type DevelopSettings,
   type DevelopMask,
 } from "@/lib/develop/contract";
+import {
+  DEVELOP_PROFILES,
+  DEVELOP_WHITE_BALANCE,
+  DEVELOP_WHITE_BALANCE_PRESETS,
+  isBlackAndWhiteDevelop,
+  kelvinToTemperature,
+  temperatureToKelvin,
+  type DevelopWhiteBalance,
+} from "@/lib/develop/lightroom-basic";
 import { ColorGrading } from "./ColorGrading";
 import { curveDisplayPath } from "@/lib/develop/curve-interpolation";
+import {
+  currentUprightSolution,
+  defaultDevelopGeometry,
+  UPRIGHT_MAX_GUIDES,
+  type DevelopGeometry,
+  type UprightMode,
+} from "@/lib/develop/upright";
 
 export type DevelopChange = (settings: DevelopSettings, label: string, commit?: boolean) => void;
-export type DevelopTool = "edit" | "crop" | "mask";
+export type DevelopTool = "edit" | "crop" | "mask" | "wb" | "guided";
 export function Panel({
   title,
   children,
@@ -64,6 +89,11 @@ export function DevelopSlider({
   disabled = false,
   id,
   onChange,
+  toDisplay,
+  fromDisplay,
+  displayMin,
+  displayMax,
+  displayStep,
 }: {
   label: string;
   displayLabel?: string;
@@ -76,6 +106,11 @@ export function DevelopSlider({
   disabled?: boolean;
   id?: string;
   onChange: (value: number, commit: boolean) => void;
+  toDisplay?: (value: number) => number;
+  fromDisplay?: (value: number) => number;
+  displayMin?: number;
+  displayMax?: number;
+  displayStep?: number;
 }) {
   const last = useRef(value);
   // True while a live preview from this slider still awaits its commit. Gate on that, never on
@@ -131,15 +166,16 @@ export function DevelopSlider({
         disabled={disabled}
         aria-label={`${label} value`}
         title={help}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        min={displayMin ?? min}
+        max={displayMax ?? max}
+        step={displayStep ?? step}
+        value={toDisplay ? toDisplay(value) : value}
         onChange={(e) => {
           if (disabled) return;
-          const v = Number(e.target.value);
-          if (Number.isFinite(v)) {
-            const newValue = Math.min(max, Math.max(min, v));
+          const typed = Number(e.target.value);
+          if (Number.isFinite(typed)) {
+            const mapped = fromDisplay ? fromDisplay(typed) : typed;
+            const newValue = Math.min(max, Math.max(min, mapped));
             if (newValue !== last.current) {
               last.current = newValue;
               uncommitted.current = true;
@@ -444,13 +480,7 @@ export function ToneCurve({ value, change }: { value: DevelopSettings; change: D
           strokeWidth="1.5"
         />
         {points.map((p, i) => (
-          <circle
-            key={i}
-            id={`curve-point-${i}`}
-            cx={p.x * 200}
-            cy={(1 - p.y) * 200}
-            r="3.3"
-          />
+          <circle key={i} id={`curve-point-${i}`} cx={p.x * 200} cy={(1 - p.y) * 200} r="3.3" />
         ))}
       </svg>
       <div className="develop-inline">
@@ -550,7 +580,11 @@ export function DevelopControls({
   onMask,
   sourceAspect = 1.5,
   onSuggestCrop,
+  onAuto,
+  onAutoWhiteBalance,
+  autoBusy = false,
   browserOnly = false,
+  uprightSolving = false,
 }: {
   value: DevelopSettings;
   change: DevelopChange;
@@ -561,22 +595,27 @@ export function DevelopControls({
   onMask: (id: string | null) => void;
   sourceAspect?: number;
   onSuggestCrop?: () => void;
+  onAuto?: () => void;
+  onAutoWhiteBalance?: () => void;
+  autoBusy?: boolean;
   browserOnly?: boolean;
+  /** True while the C++ engine is measuring this photo's lines. */
+  uprightSolving?: boolean;
 }) {
   const [hslIndex, setHslIndex] = useState(0);
-  
+
   // Reset HSL index when photo changes to avoid state sync issues
   useEffect(() => {
     setHslIndex(0);
   }, [photoId]);
-  
+
   // Validate mask selection - clear if mask no longer exists
   useEffect(() => {
-    if (maskId && !value.masks.find(m => m.id === maskId)) {
+    if (maskId && !value.masks.find((m) => m.id === maskId)) {
       onMask(null);
     }
   }, [maskId, value.masks, onMask]);
-  
+
   const defaults = defaultDevelopSettings();
   const scalar = (
     key: keyof DevelopSettings,
@@ -584,7 +623,16 @@ export function DevelopControls({
     min = -100,
     max = 100,
     step = 1,
-    options: { displayLabel?: string; help?: string; disabled?: boolean } = {},
+    options: {
+      displayLabel?: string;
+      help?: string;
+      disabled?: boolean;
+      toDisplay?: (value: number) => number;
+      fromDisplay?: (value: number) => number;
+      displayMin?: number;
+      displayMax?: number;
+      displayStep?: number;
+    } = {},
   ) => (
     <DevelopSlider
       key={key}
@@ -596,10 +644,14 @@ export function DevelopControls({
       max={max}
       step={step}
       reset={defaults[key] as number}
-      onChange={(n, c) => change({ ...value, [key]: n }, label, c)}
+      onChange={(n, c) => {
+        if (key === "temperature" || key === "tint")
+          change({ ...value, [key]: n, whiteBalance: "custom" }, label, c);
+        else change({ ...value, [key]: n }, label, c);
+      }}
     />
   );
-  
+
   const parametric = value.parametricCurve ?? defaults.parametricCurve;
   const parametricScalar = (
     childKey: "highlights" | "lights" | "darks" | "shadows",
@@ -670,6 +722,49 @@ export function DevelopControls({
       />
     );
   };
+  const geometry = value.geometry ?? defaultDevelopGeometry();
+  const setGeometry = (patch: Partial<DevelopGeometry>, label: string, commit = true) =>
+    change({ ...value, geometry: { ...geometry, ...patch } }, label, commit);
+  const geometryScalar = (
+    key: "vertical" | "horizontal" | "rotate" | "aspect" | "scale" | "xOffset" | "yOffset",
+    label: string,
+    min: number,
+    max: number,
+    step: number,
+    reset = 0,
+  ) => (
+    <DevelopSlider
+      key={key}
+      id={`slider-geometry-${key}`}
+      label={label}
+      value={geometry[key]}
+      min={min}
+      max={max}
+      step={step}
+      reset={reset}
+      onChange={(n, c) => setGeometry({ [key]: n }, label, c)}
+    />
+  );
+  // Said only when the answer differs from what was asked for, so the
+  // photographer is not left wondering why Full looks like Level.
+  const uprightStatus = (() => {
+    if (geometry.upright === "off") return "";
+    if (uprightSolving) return "Measuring…";
+    const solution = currentUprightSolution(geometry);
+    if (!solution) return "";
+    const named: Record<UprightMode, string> = {
+      off: "no correction",
+      auto: "Auto",
+      level: "Level",
+      vertical: "Vertical",
+      full: "Full",
+      guided: "Guided",
+    };
+    if (solution.applied === "off") return "Not enough straight lines to measure.";
+    if (solution.fallback) return `Too few straight lines: applied ${named[solution.applied]}.`;
+    if (solution.confidence < 0.5) return `${named[solution.applied]}, from weak evidence.`;
+    return "";
+  })();
   const crop = value.crop;
   const cropAspect = (sourceAspect * crop.width) / crop.height;
   const aspects = [
@@ -717,22 +812,127 @@ export function DevelopControls({
       <Panel title="Basic" id="panel-basic" open>
         <div className="develop-inline">
           <span>Treatment</span>
-          <button
-            aria-pressed={value.saturation === -100}
-            onClick={() =>
-              change(
-                { ...value, saturation: value.saturation === -100 ? 0 : -100 },
-                "Black & white",
-              )
-            }
-          >
-            {value.saturation === -100 ? "Black & white" : "Color"}
-          </button>
+          <div className="develop-treatment" role="group" aria-label="Treatment">
+            <button
+              type="button"
+              aria-label="Color"
+              aria-pressed={!isBlackAndWhiteDevelop(value)}
+              onClick={() =>
+                change(
+                  {
+                    ...value,
+                    treatment: "color",
+                    profile: value.profile === "adobe-monochrome" ? "adobe-color" : value.profile,
+                    saturation: value.saturation === -100 ? 0 : value.saturation,
+                  },
+                  "Color",
+                )
+              }
+            >
+              Color
+            </button>
+            <button
+              type="button"
+              aria-label="Black and White"
+              aria-pressed={isBlackAndWhiteDevelop(value)}
+              onClick={() =>
+                change(
+                  {
+                    ...value,
+                    treatment: "black-and-white",
+                    saturation: value.saturation === -100 ? 0 : value.saturation,
+                  },
+                  "Black & White",
+                )
+              }
+            >
+              Black & White
+            </button>
+          </div>
         </div>
-        <p className="develop-control-heading">White balance</p>
-        {scalar("temperature", "Temp")}
+        <div className="develop-inline">
+          <span>Profile</span>
+          <select
+            aria-label="Profile"
+            value={value.profile}
+            onChange={(event) => {
+              const profile = event.target.value as DevelopSettings["profile"];
+              change(
+                {
+                  ...value,
+                  profile,
+                  treatment: profile === "adobe-monochrome" ? "black-and-white" : value.treatment,
+                },
+                "Profile",
+              );
+            }}
+          >
+            {DEVELOP_PROFILES.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="develop-control-heading">WB</p>
+        <div className="develop-wb-row">
+          <button
+            type="button"
+            aria-label="White balance eyedropper"
+            aria-pressed={tool === "wb"}
+            title="Click a neutral pixel"
+            onClick={() => onTool(tool === "wb" ? "edit" : "wb")}
+          >
+            <Pipette size={12} />
+          </button>
+          <select
+            aria-label="White balance"
+            value={value.whiteBalance}
+            onChange={(event) => {
+              const next = event.target.value as DevelopWhiteBalance;
+              if (next === "auto") {
+                onAutoWhiteBalance?.();
+                return;
+              }
+              if (next === "custom") {
+                change({ ...value, whiteBalance: "custom" }, "White balance");
+                return;
+              }
+              const preset = DEVELOP_WHITE_BALANCE_PRESETS[next];
+              change(
+                {
+                  ...value,
+                  whiteBalance: next,
+                  temperature: preset.temperature,
+                  tint: preset.tint,
+                },
+                "White balance",
+              );
+            }}
+          >
+            {DEVELOP_WHITE_BALANCE.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {scalar("temperature", "Temp", -100, 100, 1, {
+          toDisplay: temperatureToKelvin,
+          fromDisplay: kelvinToTemperature,
+          displayMin: 2000,
+          displayMax: 50000,
+          displayStep: 10,
+        })}
         {scalar("tint", "Tint")}
-        <p className="develop-control-heading">Tone</p>
+        <div className="develop-inline">
+          <p className="develop-control-heading">Tone</p>
+          {onAuto && (
+            <button type="button" aria-label="Auto" disabled={autoBusy} onClick={onAuto}>
+              Auto
+            </button>
+          )}
+        </div>
         {scalar("exposure", "Exposure", -5, 5, 0.05)}
         {scalar("contrast", "Contrast")}
         {scalar("highlights", "Highlights")}
@@ -749,8 +949,12 @@ export function DevelopControls({
           ...(browserOnly ? { help: "Requires the local C++ Develop engine." } : {}),
         })}
         {scalar("dehaze", "Dehaze")}
-        {scalar("vibrance", "Vibrance")}
-        {scalar("saturation", "Saturation")}
+        {!isBlackAndWhiteDevelop(value) && (
+          <>
+            {scalar("vibrance", "Vibrance")}
+            {scalar("saturation", "Saturation")}
+          </>
+        )}
       </Panel>
       <Panel title="Tone Curve" id="panel-curve" disabled={browserOnly}>
         <div className="develop-parametric-controls">
@@ -814,6 +1018,7 @@ export function DevelopControls({
         {scalar("grain", "Grain", 0)}
         {scalar("grainSize", "Grain size", 0.5, 4, 0.1)}
         {scalar("grainLuminance", "Grain luminance", 0)}
+        {scalar("grainColor", "Grain color", 0)}
         {scalar("halation", "Halation", 0)}
         {scalar("bloom", "Bloom", 0)}
         {scalar("fade", "Fade", 0)}
@@ -944,6 +1149,91 @@ export function DevelopControls({
           />
         ))}
       </Panel>
+      <Panel title="Geometry" id="panel-geometry" open={tool === "guided"} disabled={browserOnly}>
+        <div className="develop-upright-modes">
+          {(
+            [
+              ["off", "Off"],
+              ["auto", "Auto"],
+              ["level", "Level"],
+              ["vertical", "Vertical"],
+              ["full", "Full"],
+              ["guided", "Guided"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              aria-pressed={geometry.upright === mode}
+              onClick={() => {
+                setGeometry(
+                  {
+                    upright: mode,
+                    // A solve belongs to one mode; keep guides, drop the old answer.
+                    solved: mode === geometry.upright ? geometry.solved : null,
+                  },
+                  `Upright ${label}`,
+                  // The measurement that follows commits this step, so choosing
+                  // a mode is one history entry, not two.
+                  false,
+                );
+                if (mode === "guided") onTool("guided");
+                else if (tool === "guided") onTool("edit");
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {geometry.upright === "guided" && (
+          <>
+            <div className="develop-inline">
+              <button
+                aria-pressed={tool === "guided"}
+                onClick={() => onTool(tool === "guided" ? "edit" : "guided")}
+              >
+                {tool === "guided" ? "Done drawing" : "Draw guides"}
+              </button>
+              <button
+                disabled={!geometry.guides.length}
+                onClick={() => setGeometry({ guides: [], solved: null }, "Clear guides")}
+              >
+                Clear
+              </button>
+            </div>
+            <p className="develop-hint">{`${geometry.guides.length} of ${UPRIGHT_MAX_GUIDES} guides`}</p>
+          </>
+        )}
+        {uprightStatus && (
+          <p className="develop-hint" role="status">
+            {uprightStatus}
+          </p>
+        )}
+        {geometryScalar("vertical", "Vertical", -100, 100, 1)}
+        {geometryScalar("horizontal", "Horizontal", -100, 100, 1)}
+        {geometryScalar("rotate", "Rotate", -10, 10, 0.1)}
+        {geometryScalar("aspect", "Aspect", -100, 100, 1)}
+        {geometryScalar("scale", "Scale", 50, 150, 1, 100)}
+        {geometryScalar("xOffset", "X offset", -100, 100, 1)}
+        {geometryScalar("yOffset", "Y offset", -100, 100, 1)}
+        <div className="develop-inline">
+          <label>
+            <input
+              type="checkbox"
+              checked={geometry.constrainCrop}
+              onChange={(e) => setGeometry({ constrainCrop: e.target.checked }, "Constrain crop")}
+            />
+            Constrain crop
+          </label>
+          <button
+            onClick={() => {
+              setGeometry(defaultDevelopGeometry(), "Reset geometry");
+              if (tool === "guided") onTool("edit");
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      </Panel>
       <Panel title="Lens Correction" id="panel-lens" disabled={browserOnly}>
         <div className="develop-inline">
           <span>Enable</span>
@@ -951,10 +1241,15 @@ export function DevelopControls({
             <input
               type="checkbox"
               checked={value.lensCorrection.enabled}
-              onChange={(e) => change({ 
-                ...value, 
-                lensCorrection: { ...value.lensCorrection, enabled: e.target.checked } 
-              }, "Enable lens correction")}
+              onChange={(e) =>
+                change(
+                  {
+                    ...value,
+                    lensCorrection: { ...value.lensCorrection, enabled: e.target.checked },
+                  },
+                  "Enable lens correction",
+                )
+              }
             />
             Lens correction
           </label>
@@ -964,10 +1259,15 @@ export function DevelopControls({
           <select
             aria-label="Lens profile"
             value={value.lensCorrection.profile}
-            onChange={(e) => change({ 
-              ...value, 
-              lensCorrection: { ...value.lensCorrection, profile: e.target.value as any } 
-            }, "Lens profile")}
+            onChange={(e) =>
+              change(
+                {
+                  ...value,
+                  lensCorrection: { ...value.lensCorrection, profile: e.target.value as any },
+                },
+                "Lens profile",
+              )
+            }
           >
             <option value="none">None</option>
             <option value="auto">Auto</option>
@@ -981,13 +1281,21 @@ export function DevelopControls({
             <input
               type="checkbox"
               checked={value.lensCorrection.chromaticAberration.enabled}
-              onChange={(e) => change({ 
-                ...value, 
-                lensCorrection: { 
-                  ...value.lensCorrection, 
-                  chromaticAberration: { ...value.lensCorrection.chromaticAberration, enabled: e.target.checked } 
-                } 
-              }, "Enable chromatic aberration")}
+              onChange={(e) =>
+                change(
+                  {
+                    ...value,
+                    lensCorrection: {
+                      ...value.lensCorrection,
+                      chromaticAberration: {
+                        ...value.lensCorrection.chromaticAberration,
+                        enabled: e.target.checked,
+                      },
+                    },
+                  },
+                  "Enable chromatic aberration",
+                )
+              }
             />
             Chromatic aberration
           </label>
@@ -995,7 +1303,7 @@ export function DevelopControls({
         {lensScalar("chromaticAberration", "amount", "Amount", 0, 100, 1, {
           help: "Amount of chromatic aberration correction",
           reset: 50,
-          disabled: !value.lensCorrection.chromaticAberration.enabled
+          disabled: !value.lensCorrection.chromaticAberration.enabled,
         })}
         <p className="develop-control-heading">Vignette Correction</p>
         <div className="develop-inline">
@@ -1004,66 +1312,28 @@ export function DevelopControls({
             <input
               type="checkbox"
               checked={value.lensCorrection.vignetteCorrection.enabled}
-              onChange={(e) => change({ 
-                ...value, 
-                lensCorrection: { 
-                  ...value.lensCorrection, 
-                  vignetteCorrection: { ...value.lensCorrection.vignetteCorrection, enabled: e.target.checked } 
-                } 
-              }, "Enable vignette correction")}
+              onChange={(e) =>
+                change(
+                  {
+                    ...value,
+                    lensCorrection: {
+                      ...value.lensCorrection,
+                      vignetteCorrection: {
+                        ...value.lensCorrection.vignetteCorrection,
+                        enabled: e.target.checked,
+                      },
+                    },
+                  },
+                  "Enable vignette correction",
+                )
+              }
             />
             Vignette correction
           </label>
         </div>
         {lensScalar("vignetteCorrection", "amount", "Amount", -100, 100, 1, {
           help: "Amount of vignette correction",
-          disabled: !value.lensCorrection.vignetteCorrection.enabled
-        })}
-        <p className="develop-control-heading">Transform (Upright)</p>
-        <div className="develop-inline">
-          <span>Upright</span>
-          <select
-            aria-label="Upright mode"
-            value={value.lensCorrection.transform.upright}
-            onChange={(e) => change({ 
-              ...value, 
-              lensCorrection: { 
-                ...value.lensCorrection, 
-                transform: { ...value.lensCorrection.transform, upright: e.target.value as any } 
-              } 
-            }, "Upright mode")}
-          >
-            <option value="off">Off</option>
-            <option value="auto">Auto</option>
-            <option value="level">Level</option>
-            <option value="vertical">Vertical</option>
-            <option value="full">Full</option>
-          </select>
-        </div>
-        {lensScalar("transform", "rotation", "Rotation", -45, 45, 0.1, {
-          help: "Manual rotation adjustment",
-          reset: 0,
-          disabled: !value.lensCorrection.enabled || value.lensCorrection.transform.upright !== "off"
-        })}
-        {lensScalar("transform", "aspect", "Aspect", -100, 100, 1, {
-          help: "Aspect ratio adjustment",
-          reset: 0,
-          disabled: !value.lensCorrection.enabled || value.lensCorrection.transform.upright !== "off"
-        })}
-        {lensScalar("transform", "scale", "Scale", 50, 150, 1, {
-          help: "Scale adjustment",
-          reset: 100,
-          disabled: !value.lensCorrection.enabled
-        })}
-        {lensScalar("transform", "x", "X offset", -100, 100, 1, {
-          help: "Horizontal offset",
-          reset: 0,
-          disabled: !value.lensCorrection.enabled
-        })}
-        {lensScalar("transform", "y", "Y offset", -100, 100, 1, {
-          help: "Vertical offset",
-          reset: 0,
-          disabled: !value.lensCorrection.enabled
+          disabled: !value.lensCorrection.vignetteCorrection.enabled,
         })}
       </Panel>
       <Panel title="Masking" id="panel-masks" open={tool === "mask"} disabled={browserOnly}>

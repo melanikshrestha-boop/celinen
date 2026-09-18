@@ -50,10 +50,21 @@ import {
 } from "@/lib/develop/contract";
 import { renderDevelop, developEngineStatus } from "@/lib/develop/client";
 import { BROWSER_DEVELOP_ENGINE } from "@/lib/develop/browser-render";
-import { matchLookWasm, suggestDevelopWasm, WASM_DEVELOP_ENGINE } from "@/lib/develop/wasm/client";
+import {
+  matchLookWasm,
+  solveUprightWasm,
+  suggestDevelopWasm,
+  WASM_DEVELOP_ENGINE,
+} from "@/lib/develop/wasm/client";
 import { lookChangedControls } from "@/lib/develop/look-match";
 import { lookDragCount, lookDropFiles, useLookInspirations } from "./useLookInspirations";
+import {
+  defaultDevelopGeometry,
+  uprightNeedsSolve,
+  type UprightSolveRequest,
+} from "@/lib/develop/upright";
 import { unsupportedBrowserDevelopEdits } from "@/lib/develop/browser-capabilities";
+import { whiteBalanceFromSample } from "@/lib/develop/lightroom-basic";
 import { cookDevelopPhotoPreview, prepareDevelopPreview } from "@/lib/develop/preview";
 import {
   asDevelopViewBlob,
@@ -90,6 +101,7 @@ import {
 import { photoExportFilename, uniquePhotoDisplayName } from "@/lib/develop/photo-management";
 import { removalRenderEdge } from "@/lib/develop/object-remove";
 import { DevelopPhotoActions } from "./DevelopPhotoActions";
+import { RawJpegSwitch } from "./RawJpegSwitch";
 import { PresetExchange } from "./PresetExchange";
 import { ReferencePresetDialog } from "./ReferencePresetDialog";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
@@ -109,6 +121,19 @@ import {
 } from "@/lib/develop/pixel-sample";
 import { DevelopRecoveryDialog } from "./DevelopRecoveryDialog";
 import { DevelopReconnectDialog } from "./DevelopReconnectDialog";
+import { ExportNightKitControls } from "./ExportNightKitControls";
+import {
+  activeWatermarkKit,
+  dressingIsActive,
+  dressExportJpeg,
+  exportDressingKey,
+  loadExportNightKitStore,
+  runSerialExportQueue,
+  saveExportNightKitStore,
+  upsertWatermarkKit,
+  type ExportDressing,
+  type ExportNightKitStore,
+} from "@/lib/develop/export-night-kit";
 import { useDevelopPointer } from "./useDevelopPointer";
 import {
   currentDevelopRender,
@@ -352,7 +377,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     [lookTour, setLookTour] = useState<{ key: number; paths: string[] } | null>(null);
   const lookAbort = useRef<AbortController | null>(null);
   const [tool, setTool] = useState<DevelopTool>("edit"),
-    [maskId, setMaskId] = useState<string | null>(null);
+    [maskId, setMaskId] = useState<string | null>(null),
+    // The guide Backspace would delete, and whether a measurement is running.
+    [guideIndex, setGuideIndex] = useState<number | null>(null),
+    [uprightSolving, setUprightSolving] = useState(false);
   const [mode, setMode] = useState<"develop" | "library">("develop"),
     [before, setBefore] = useState(false),
     [compare, setCompare] = useState(false),
@@ -417,6 +445,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     [exportEdge, setExportEdge] = useState<number>(DEVELOP_ENGINE_LIMITS.defaultExportEdge),
     [exportQuality, setExportQuality] = useState(95),
     [exportSourceMode, setExportSourceMode] = useState<"raw" | "preview">("raw");
+  const [nightKitStore, setNightKitStore] = useState<ExportNightKitStore>(() =>
+    loadExportNightKitStore(),
+  );
+  const [applyWatermarkKit, setApplyWatermarkKit] = useState(false);
   const [exportProof, setExportProof] = useState<DevelopExportProof | null>(null),
     [proofZoom, setProofZoom] = useState(false);
   const [syncCrop, setSyncCrop] = useState(false),
@@ -446,6 +478,17 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     exportSourceMode,
   );
   const renderKey = `${processingMode}:${exportEdge}:${exportQuality}`;
+  const exportDressing: ExportDressing = {
+    border: nightKitStore.border,
+    kit: applyWatermarkKit ? activeWatermarkKit(nightKitStore) : null,
+  };
+  const dressingKey = dressingIsActive(exportDressing) ? exportDressingKey(exportDressing) : "";
+  const exportTargets =
+    selectedSet.size > 1
+      ? availablePhotos.filter((item) => selectedSet.has(item.id))
+      : photo
+        ? [photo]
+        : [];
   const exportRequest: DevelopExportRequest | null =
     photo && previewSource
       ? {
@@ -455,12 +498,19 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           edge: exportEdge,
           quality: exportQuality,
           sourceMode: processingMode,
+          dressingKey,
         }
       : null;
   const proofReady = currentDevelopExportProof(exportProof, exportRequest);
   const proofUrl = useBlobUrl(proofReady ? exportProof?.blob : null);
   const url = useBlobUrl(
-      currentDevelopRender(renderOwner.current, selected, previewSource, tool !== "edit", renderKey)
+      currentDevelopRender(
+        renderOwner.current,
+        selected,
+        previewSource,
+        tool === "crop" || tool === "mask",
+        renderKey,
+      )
         ? renderBlob
         : null,
     ),
@@ -1178,10 +1228,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   function changeTool(next: DevelopTool) {
     if (editsLocked() || !source) return;
-    if (browserOnly && next === "mask") {
-      setNotice("Masking requires the local C++ Develop engine. Your saved edits are unchanged.");
+    if (browserOnly && (next === "mask" || next === "guided")) {
+      setNotice(
+        `${next === "mask" ? "Masking" : "Guided Upright"} requires the local C++ Develop engine. Your saved edits are unchanged.`,
+      );
       return;
     }
+    if (next !== "guided") setGuideIndex(null);
     commitDraft();
     setTool(next);
     setCompare(false);
@@ -1190,7 +1243,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   }
   function applyPreset(preset: { name: string; settings: DevelopSettings }) {
     change(
-      { ...cloneDevelopSettings(preset.settings), crop: draft.crop, masks: draft.masks },
+      {
+        ...cloneDevelopSettings(preset.settings),
+        crop: draft.crop,
+        masks: draft.masks,
+        geometry: draft.geometry,
+      },
       `Preset: ${preset.name}`.slice(0, 100),
     );
     setActivePreset(preset.name);
@@ -1245,6 +1303,29 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         return;
       }
       change({ ...draftRef.current, ...suggestion.patch }, "Auto");
+    } catch (error) {
+      if (alive.current) setNotice(errorMessage(error));
+    }
+  }
+  async function autoWhiteBalance() {
+    const id = selectedRef.current;
+    if (editsLocked() || !id || !previewSource) return;
+    try {
+      const suggestion = await suggestDevelopWasm(previewSource, exportEdge);
+      if (!alive.current || selectedRef.current !== id || editsLocked()) return;
+      if (!suggestion?.applicable || !suggestion.whiteBalanceMeasured) {
+        setNotice("No neutral region to measure.");
+        return;
+      }
+      change(
+        {
+          ...draftRef.current,
+          whiteBalance: "auto",
+          temperature: suggestion.patch.temperature,
+          tint: suggestion.patch.tint,
+        },
+        "White balance",
+      );
     } catch (error) {
       if (alive.current) setNotice(errorMessage(error));
     }
@@ -1432,7 +1513,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     renderKey,
   ]);
   const renderRecipe = useMemo(
-    () => (tool === "edit" ? draft : { ...draft, crop: defaultDevelopSettings().crop }),
+    () =>
+      tool === "crop" || tool === "mask"
+        ? { ...draft, crop: defaultDevelopSettings().crop }
+        : // Guides are drawn in the photograph's own coordinates, so the
+          // correction is lifted while they are being drawn.
+          tool === "guided"
+          ? { ...draft, geometry: defaultDevelopGeometry() }
+          : draft,
     [draft, tool],
   );
   const neutralRecipe = useMemo(() => isNeutralDevelopRecipe(renderRecipe), [renderRecipe]);
@@ -1485,7 +1573,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 renderOwner.current = {
                   id: selected,
                   source: previewSource,
-                  sourceGeometry: tool !== "edit",
+                  sourceGeometry: tool === "crop" || tool === "mask",
                   renderKey,
                 };
                 if (selected)
@@ -1496,6 +1584,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     edge: exportEdge,
                     quality: exportQuality,
                     sourceMode: processingMode,
+                    dressingKey: "",
                     blob,
                     width: bitmap.width,
                     height: bitmap.height,
@@ -1539,6 +1628,54 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     renderKey,
     neutralBlob,
   ]);
+
+  // Upright is measured once per photo, mode and guide set, then stored in the
+  // recipe: the export and the local executable warp from the same numbers
+  // without reading the photo's lines again.
+  useEffect(() => {
+    const id = selectedRef.current;
+    const geometry = draft.geometry ?? defaultDevelopGeometry();
+    if (!id || !previewSource || !uprightNeedsSolve(geometry) || editsLocked()) {
+      setUprightSolving(false);
+      return;
+    }
+    const controller = new AbortController();
+    const request: UprightSolveRequest = {
+      mode: geometry.upright as UprightSolveRequest["mode"],
+      guides: geometry.guides.map((guide) => ({ ...guide })),
+    };
+    setUprightSolving(true);
+    void solveUprightWasm(previewSource, exportEdge, request, {
+      exifSource: photo?.sourceBlob ?? previewSource,
+      signal: controller.signal,
+    })
+      .then((solution) => {
+        if (controller.signal.aborted || !alive.current || selectedRef.current !== id) return;
+        setUprightSolving(false);
+        if (!solution) {
+          setNotice("Upright needs the C++ Develop engine. Your saved edits are unchanged.");
+          return;
+        }
+        const current = draftRef.current.geometry ?? defaultDevelopGeometry();
+        // The photographer may have changed mode or guides while it measured.
+        if (
+          current.upright !== request.mode ||
+          JSON.stringify(current.guides) !== JSON.stringify(request.guides)
+        )
+          return;
+        change({ ...draftRef.current, geometry: { ...current, solved: solution } }, "Upright");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || !alive.current) return;
+        setUprightSolving(false);
+        setNotice(errorMessage(error));
+      });
+    return () => {
+      controller.abort();
+      setUprightSolving(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.geometry, previewSource, selected, exportEdge]);
 
   async function importPhotos(incomingFiles: File[] | DataTransfer) {
     if ((Array.isArray(incomingFiles) && !incomingFiles.length) || dialog) return;
@@ -1639,12 +1776,29 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       if (alive.current) setBusy("");
     }
   }
+  async function finishExportBlob(
+    rendered: Blob,
+    dressing: ExportDressing,
+    quality: number,
+    signal: AbortSignal,
+  ): Promise<{ blob: Blob; width: number; height: number }> {
+    if (!dressingIsActive(dressing)) {
+      const bitmap = await decodeDevelopPreview(rendered);
+      try {
+        return { blob: rendered, width: bitmap.width, height: bitmap.height };
+      } finally {
+        bitmap.close();
+      }
+    }
+    return dressExportJpeg(rendered, dressing, { quality: quality / 100, signal });
+  }
   async function previewExport() {
     if (dialog !== "export" || editsLocked() || !exportRequest) return;
     const owner = hydration.current;
     const current = () => alive.current && hydration.current === owner;
     const recipe = cloneDevelopSettings(draftRef.current);
-    const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
+    const request = { ...exportRequest, recipeKey: JSON.stringify(recipe), dressingKey };
+    const dressing = exportDressing;
     operationLock.current = "dialog";
     setDialogError("");
     setExportProof(null);
@@ -1656,24 +1810,32 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
       if (!current()) return;
       controller.signal.throwIfAborted();
-      const cached = currentDevelopExportProof(editorProof.current, request)
-        ? editorProof.current
-        : null;
-      const blob =
-        cached?.blob ??
+      const undressedProof =
+        currentDevelopExportProof(editorProof.current, { ...request, dressingKey: "" }) &&
+        editorProof.current
+          ? editorProof.current
+          : null;
+      const undressed =
+        undressedProof?.blob ??
         (await renderDevelop(request.source, recipe, {
           edge: request.edge,
           quality: request.quality / 100,
           sourceMode: request.sourceMode,
           signal: controller.signal,
         }));
-      const bitmap = await decodeDevelopPreview(blob);
-      try {
-        if (current() && !controller.signal.aborted)
-          setExportProof({ ...request, blob, width: bitmap.width, height: bitmap.height });
-      } finally {
-        bitmap.close();
-      }
+      const finished = await finishExportBlob(
+        undressed,
+        dressing,
+        request.quality,
+        controller.signal,
+      );
+      if (current() && !controller.signal.aborted)
+        setExportProof({
+          ...request,
+          blob: finished.blob,
+          width: finished.width,
+          height: finished.height,
+        });
     } catch (e) {
       if (current())
         setDialogError(controller.signal.aborted ? "Export preview cancelled." : errorMessage(e));
@@ -1697,7 +1859,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     exportAbort.current = controller;
     const telemetry =
       action === "export"
-        ? productOperation(scope, shootId ?? projectId ?? undefined, "export", { photo_count: 1 })
+        ? productOperation(scope, shootId ?? projectId ?? undefined, "export", {
+            photo_count: Math.max(1, exportTargets.length),
+          })
         : undefined;
     try {
       if (!(await flush()))
@@ -1761,32 +1925,89 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         if (current()) setNotice(`Settings synced to ${updates.length} photos`);
       }
       if (action === "export") {
-        if (!photo || !exportRequest) throw new Error("Choose a photo with a source first.");
-        const request = { ...exportRequest, recipeKey: JSON.stringify(recipe) };
-        const { sourceMode } = request;
-        // Download the exact proof bytes when all inputs still match. A changed
-        // source, recipe, size or quality can never reuse a stale preview.
-        const blob =
-          currentDevelopExportProof(exportProof, request) && exportProof
-            ? exportProof.blob
-            : currentDevelopExportProof(editorProof.current, request) && editorProof.current
-              ? editorProof.current.blob
-              : await renderDevelop(request.source, recipe, {
-                  edge: request.edge,
-                  quality: request.quality / 100,
-                  signal: controller.signal,
-                  sourceMode,
-                });
-        const bitmap = await decodeDevelopPreview(blob);
-        const size = `${bitmap.width} × ${bitmap.height}`;
-        bitmap.close();
-        if (current() && !controller.signal.aborted) {
-          download(blob, photoExportFilename(photo.name));
-          telemetry?.finish();
-          setNotice(
-            `Exported ${size} JPEG${photo.isRaw ? (sourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}`,
+        if (!exportTargets.length) throw new Error("Choose a photo with a source first.");
+        const dressing = exportDressing;
+        const targets = exportTargets;
+        const edge = exportEdge;
+        const quality = exportQuality;
+        const sourceModePreference = exportSourceMode;
+        let lastSize = "";
+        const queue = await runSerialExportQueue(
+          targets,
+          async (target, signal) => {
+            if (!current()) throw new DOMException("Export cancelled.", "AbortError");
+            signal.throwIfAborted();
+            const document = docs.current[target.id];
+            if (!document) throw new Error(`${target.name} is no longer available.`);
+            const targetRecipe =
+              target.id === activeId ? recipe : cloneDevelopSettings(currentRecipe(document));
+            const { source: targetSource, sourceMode } = developProcessingSource(
+              target,
+              sourceModePreference,
+            );
+            if (!targetSource) throw new Error(`${target.name} has no exportable source.`);
+            const request: DevelopExportRequest = {
+              id: target.id,
+              source: targetSource,
+              recipeKey: JSON.stringify(targetRecipe),
+              edge,
+              quality,
+              sourceMode,
+              dressingKey,
+            };
+            setBusy(`Exporting ${targets.indexOf(target) + 1} of ${targets.length}…`);
+            const undressed =
+              targets.length === 1 && currentDevelopExportProof(exportProof, request) && exportProof
+                ? null
+                : currentDevelopExportProof(editorProof.current, {
+                      ...request,
+                      dressingKey: "",
+                    }) && editorProof.current
+                  ? editorProof.current.blob
+                  : await renderDevelop(targetSource, targetRecipe, {
+                      edge,
+                      quality: quality / 100,
+                      signal,
+                      sourceMode,
+                    });
+            const blob =
+              targets.length === 1 && currentDevelopExportProof(exportProof, request) && exportProof
+                ? exportProof.blob
+                : (await finishExportBlob(undressed!, dressing, quality, signal)).blob;
+            const bitmap = await decodeDevelopPreview(blob);
+            lastSize = `${bitmap.width} × ${bitmap.height}`;
+            bitmap.close();
+            signal.throwIfAborted();
+            if (!current()) throw new DOMException("Export cancelled.", "AbortError");
+            download(blob, photoExportFilename(target.name));
+          },
+          {
+            signal: controller.signal,
+            onProgress: (done, total) => {
+              if (current()) setBusy(`Exporting ${done} of ${total}…`);
+            },
+          },
+        );
+        if (!current()) return;
+        if (queue.cancelled) {
+          setDialogError(
+            `Export cancelled after ${queue.completed} file${queue.completed === 1 ? "" : "s"}. Finished downloads are kept.`,
           );
+          return;
         }
+        if (queue.failures.length && !queue.completed) {
+          setDialogError(queue.failures[0]?.message ?? "Export failed.");
+          return;
+        }
+        telemetry?.finish();
+        const failNote = queue.failures.length
+          ? ` · ${queue.failures.length} failed (${queue.failures.map((f) => f.item.name).join(", ")})`
+          : "";
+        setNotice(
+          targets.length === 1
+            ? `Exported ${lastSize} JPEG${photo?.isRaw ? (exportSourceMode === "raw" ? " from sensor RAW" : photo.previewOrigin === "raw-demosaic" ? " from a saved sensor-derived preview" : " from RAW preview") : ""}${failNote}`
+            : `Exported ${queue.completed} of ${targets.length} JPEGs in series${failNote}`,
+        );
       }
       if (current()) {
         setDialog(null);
@@ -1827,9 +2048,21 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         e.preventDefault();
         setBefore((v) => !v);
       }
+      if ((key === "backspace" || key === "delete") && tool === "guided" && guideIndex !== null) {
+        e.preventDefault();
+        const geometry = draftRef.current.geometry ?? defaultDevelopGeometry();
+        const guides = geometry.guides.filter((_, index) => index !== guideIndex);
+        setGuideIndex(null);
+        change(
+          { ...draftRef.current, geometry: { ...geometry, guides, solved: null } },
+          "Delete guide",
+        );
+        return;
+      }
       if (key === "g") setMode("library");
       if (key === "d") setMode("develop");
       if (key === "r") changeTool(tool === "crop" ? "edit" : "crop");
+      if (key === "w") changeTool(tool === "wb" ? "edit" : "wb");
       if (key === "y" && source) {
         setCompare((v) => !v);
         setTool("edit");
@@ -2277,7 +2510,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 onClick={() =>
                   clipboard &&
                   change(
-                    { ...cloneDevelopSettings(clipboard), crop: draft.crop, masks: draft.masks },
+                    {
+                      ...cloneDevelopSettings(clipboard),
+                      crop: draft.crop,
+                      masks: draft.masks,
+                      geometry: draft.geometry,
+                    },
                     "Paste settings",
                   )
                 }
@@ -2551,6 +2789,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     settings={draft}
                     change={change}
                     maskId={maskId}
+                    guide={guideIndex}
+                    onGuide={setGuideIndex}
                     onDimensions={onDimensions}
                     onHistogram={onHistogram}
                     onHistogramError={onHistogramError}
@@ -2559,6 +2799,27 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                       (before && beforeUrl) || viewerBlob === neutralBlob ? sourceHistogram : null
                     }
                     clipping={clipping}
+                    exportFrame={
+                      nightKitStore.border.enabled
+                        ? {
+                            insetRatio: nightKitStore.border.widthRatio,
+                            color: nightKitStore.border.color,
+                          }
+                        : null
+                    }
+                    onWhiteBalancePick={(sample) => {
+                      const picked = whiteBalanceFromSample(sample.red, sample.green, sample.blue);
+                      change(
+                        {
+                          ...draftRef.current,
+                          whiteBalance: "custom",
+                          temperature: picked.temperature,
+                          tint: picked.tint,
+                        },
+                        "White balance",
+                      );
+                      changeTool("edit");
+                    }}
                     overlay={
                       <>
                         {inspirations.items.length > 0 && (
@@ -2754,8 +3015,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                 maskId={maskId}
                 onMask={setMaskId}
                 sourceAspect={sourceAspect}
-                {...(wasmEngine ? {} : { onSuggestCrop: () => openDialog("auto-crop") })}
+                {...(wasmEngine
+                  ? {
+                      onAuto: () => void autoDevelop(),
+                      onAutoWhiteBalance: () => void autoWhiteBalance(),
+                    }
+                  : { onSuggestCrop: () => openDialog("auto-crop") })}
+                autoBusy={!!busy}
                 browserOnly={browserOnly}
+                uprightSolving={uprightSolving}
               />
             </fieldset>
             <div className="develop-right-footer">
@@ -2769,7 +3037,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   const p = previous.current ? docs.current[previous.current] : null;
                   if (p)
                     change(
-                      { ...currentRecipe(p), crop: draft.crop, masks: draft.masks },
+                      {
+                        ...currentRecipe(p),
+                        crop: draft.crop,
+                        masks: draft.masks,
+                        geometry: draft.geometry,
+                      },
                       "Previous settings",
                     );
                 }}
@@ -2827,6 +3100,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               >
                 <ChevronRight size={15} />
               </button>
+              <RawJpegSwitch
+                photo={photo}
+                photos={availablePhotos}
+                disabled={!!busy || !!saveError}
+                onSwitch={(id) => select(id)}
+              />
               <span>
                 {availablePhotos.length} available · {selectedSet.size} selected
               </span>
@@ -2992,6 +3271,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     ...exportRequest,
                     edge: removalRenderEdge(exportRequest.edge),
                     recipeKey: JSON.stringify(recipe),
+                    dressingKey: "",
                   };
                   if (
                     editorProof.current &&
@@ -3205,6 +3485,31 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     }
                   />
                 </label>
+                <ExportNightKitControls
+                  border={nightKitStore.border}
+                  kits={nightKitStore.kits}
+                  activeKitId={applyWatermarkKit ? nightKitStore.activeKitId : null}
+                  applyKit={applyWatermarkKit}
+                  disabled={!!busy}
+                  exportCount={exportTargets.length || 1}
+                  onBorderChange={(border) =>
+                    setNightKitStore((store) => saveExportNightKitStore({ ...store, border }))
+                  }
+                  onActiveKitChange={(id) => {
+                    setApplyWatermarkKit(Boolean(id));
+                    if (id)
+                      setNightKitStore((store) =>
+                        saveExportNightKitStore({ ...store, activeKitId: id }),
+                      );
+                  }}
+                  onKitTextChange={(kitText) => {
+                    const active = activeWatermarkKit(nightKitStore);
+                    if (!active) return;
+                    setNightKitStore((store) =>
+                      upsertWatermarkKit(store, { ...active, text: kitText }),
+                    );
+                  }}
+                />
                 <div className="develop-proof-toolbar">
                   <button
                     type="button"
@@ -3264,8 +3569,10 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               dialog !== "remove" &&
               dialog !== "auto-crop" && (
                 <div className="develop-dialog-actions">
-                  {busy === "Rendering export preview…" && (
-                    <button onClick={() => exportAbort.current?.abort()}>Stop preview</button>
+                  {(busy === "Rendering export preview…" || busy.startsWith("Exporting ")) && (
+                    <button onClick={() => exportAbort.current?.abort()}>
+                      {busy.startsWith("Exporting ") ? "Cancel queue" : "Stop preview"}
+                    </button>
                   )}
                   <button disabled={!!busy} onClick={() => setDialog(null)}>
                     Cancel
@@ -3281,7 +3588,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   >
                     {busy ||
                       (dialog === "export"
-                        ? "Export JPEG"
+                        ? exportTargets.length > 1
+                          ? `Export ${exportTargets.length} JPEGs`
+                          : "Export JPEG"
                         : dialog === "sync"
                           ? "Sync settings"
                           : "Save")}

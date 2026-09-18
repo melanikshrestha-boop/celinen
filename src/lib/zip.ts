@@ -11,10 +11,46 @@ const TABLE = (() => {
 })();
 
 export function crc32(bytes: Uint8Array) {
-  let c = 0xffffffff;
-  for (let i = 0; i < bytes.length; i++) c = TABLE[(c ^ bytes[i]!) & 0xff]! ^ (c >>> 8);
+  return crc32Update(0, bytes);
+}
+
+/** Continues a CRC-32 over another chunk: `crc32Update(crc32(a), b) === crc32(a + b)`.
+ * Start from 0. Lets a streaming writer checksum a file it never holds whole. */
+export function crc32Update(crc: number, bytes: Uint8Array) {
+  const t = SLICE_TABLES;
+  let c = (crc ^ 0xffffffff) >>> 0;
+  let i = 0;
+  const n = bytes.length;
+  // Slicing-by-8: eight bytes per table round instead of one. A multi-GB
+  // export zip is checksummed on the page, so the hot loop matters.
+  for (; i + 8 <= n; i += 8) {
+    c ^= bytes[i]! | (bytes[i + 1]! << 8) | (bytes[i + 2]! << 16) | (bytes[i + 3]! << 24);
+    c =
+      t[1792 + (c & 0xff)]! ^
+      t[1536 + ((c >>> 8) & 0xff)]! ^
+      t[1280 + ((c >>> 16) & 0xff)]! ^
+      t[1024 + (c >>> 24)]! ^
+      t[768 + bytes[i + 4]!]! ^
+      t[512 + bytes[i + 5]!]! ^
+      t[256 + bytes[i + 6]!]! ^
+      t[bytes[i + 7]!]!;
+  }
+  for (; i < n; i++) c = TABLE[(c ^ bytes[i]!) & 0xff]! ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
+
+/** Eight 256-entry tables, back to back; table k extends table k-1 by one byte. */
+const SLICE_TABLES = (() => {
+  const t = new Uint32Array(256 * 8);
+  t.set(TABLE);
+  for (let k = 1; k < 8; k++) {
+    for (let i = 0; i < 256; i++) {
+      const prev = t[(k - 1) * 256 + i]!;
+      t[k * 256 + i] = (prev >>> 8) ^ TABLE[prev & 0xff]!;
+    }
+  }
+  return t;
+})();
 
 export interface ZipEntry {
   path: string;
