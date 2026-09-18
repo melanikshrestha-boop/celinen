@@ -213,15 +213,21 @@ function CullSessionHost({ scope }: { scope: string }) {
     setFailure(null);
     void controller
       .keeperFiles()
-      .then((files) => {
+      .then(async ({ files, missing }) => {
         if (!files.length) {
           setFailure("Those originals could not be read. Reconnect the card and try again.");
           return;
         }
-        return snapshotPhotoFiles(files).then((copies) => {
-          queueDevelopImport(copies);
-          return navigate({ to: "/develop" });
-        });
+        // Naming what stayed behind beats a Develop that quietly holds fewer
+        // photographs than the shoot has keepers.
+        setFailure(
+          missing.length
+            ? `${missing.length} keeper${missing.length === 1 ? "" : "s"} could not be read from the card: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? "…" : ""}`
+            : null,
+        );
+        const copies = await snapshotPhotoFiles(files);
+        queueDevelopImport(copies);
+        await navigate({ to: "/develop" });
       })
       .catch(report);
   }, [controller, navigate, report]);

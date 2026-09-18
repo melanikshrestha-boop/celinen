@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
-import { developmentLabPlugin } from "./src/server/development-lab";
+import { developmentLabPlugin, LAB_PORT } from "./src/server/development-lab";
 import { nativeStudioPlugin } from "./src/server/native-studio-plugin";
 import { nativeDevelopPlugin } from "./src/server/native-develop";
 import { nativeReferencePlugin } from "./src/server/native-reference";
@@ -60,6 +60,6 @@ export default viteDefineConfig(async ({ command, mode }) => {
       dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
     },
     plugins: internalPlugins,
-    server: { host: "127.0.0.1", port: 8085, strictPort: true },
+    server: { host: "127.0.0.1", port: LAB_PORT, strictPort: true },
   };
 });

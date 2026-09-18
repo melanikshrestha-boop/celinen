@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { developEngineStatus, renderDevelop } from "../src/lib/develop/client";
+import {
+  developEngineStatus,
+  isHostedDevelopEngine,
+  renderDevelop,
+} from "../src/lib/develop/client";
 import { defaultDevelopSettings } from "../src/lib/develop/contract";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -103,7 +107,7 @@ afterEach(() => {
 });
 
 describe("Develop engine status cache", () => {
-  test("a failed status is not reused as a five-second ready cache", async () => {
+  test("a down loopback engine hands the page its own engine, and is probed again", async () => {
     statusCalls = 0;
     globalThis.fetch = (async (input: string | URL | Request) => {
       if (input === "/__develop/status") {
@@ -112,9 +116,14 @@ describe("Develop engine status cache", () => {
       }
       throw new Error("Unexpected test request");
     }) as typeof fetch;
-    expect(await developEngineStatus(true)).toBe(null);
+    // The same C++ runs in the page, so a checkout without `make -C native`
+    // still edits; it just cannot demosaic sensor RAW.
+    const first = await developEngineStatus(true);
+    expect(first).toMatchObject({ ready: true, rawSupported: false });
+    expect(isHostedDevelopEngine(first?.engine)).toBe(true);
     expect(statusCalls).toBe(1);
-    expect(await developEngineStatus()).toBe(null);
+    // Never cached, so a native build that finishes mid-session is picked up.
+    expect(isHostedDevelopEngine((await developEngineStatus())?.engine)).toBe(true);
     expect(statusCalls).toBe(2);
   });
 });

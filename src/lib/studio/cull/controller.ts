@@ -997,33 +997,31 @@ export class CullController {
   }
 
   /**
-   * The keepers' original files in capture order: the ones this tab read, plus
-   * any it can reach again through a reconnected card. A reopened session has
-   * nothing in memory, so without the reconnected half Develop would be handed
-   * an empty card and say the originals could not be read.
+   * Keepers this tab can hand to Develop, in capture order, and the names of the
+   * keepers whose original it cannot reach. Resolves through a reconnected
+   * folder exactly as Export does, so the two can never disagree about which
+   * originals exist, and a keeper that is left behind is named rather than
+   * quietly dropped.
    */
-  async keeperFiles(): Promise<File[]> {
-    const keepers = this.frames.filter(
-      (frame) => effectiveVerdict(frame) === "keep" && !frame.error,
-    );
+  async keeperFiles(): Promise<{ files: File[]; missing: string[] }> {
     const resolver = this.originalsState === "connected" ? this.resolver : null;
     const files: File[] = [];
-    for (const frame of keepers) {
-      const live = this.originals.get(frame.id);
-      if (live?.size) {
-        files.push(live);
-        continue;
-      }
-      if (!resolver) continue;
-      try {
-        const file = await resolver.resolve(frame);
-        if (file?.size) files.push(file);
-      } catch (error) {
-        if (error instanceof SourcePermissionError && this.resolver === resolver)
-          void this.permissionLost();
-      }
+    const missing: string[] = [];
+    for (const frame of this.frames) {
+      if (effectiveVerdict(frame) !== "keep") continue;
+      let file = this.originals.get(frame.id) ?? null;
+      if (!file?.size && resolver && !frame.error)
+        file = await resolver.resolve(frame).catch((error: unknown) => {
+          // A card unplugged mid-hand-off asks for permission again rather than
+          // reporting every remaining keeper as unreadable.
+          if (error instanceof SourcePermissionError && this.resolver === resolver)
+            void this.permissionLost();
+          return null;
+        });
+      if (file?.size) files.push(file);
+      else missing.push(frame.name);
     }
-    return files;
+    return { files, missing };
   }
 
   /** Whether Develop could be handed anything: keepers with originals in reach. */

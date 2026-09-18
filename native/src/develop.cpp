@@ -269,12 +269,22 @@ class SharpenGuide {
   std::vector<float> horizontal,smoothed;
   std::array<int,3> horizontal_ids{-1,-1,-1},output_ids{-1,-1,-1};
 };
+// Texture is a mid-frequency band: coarser than the edge residual Sharpening
+// works on, finer than Clarity's local contrast. Lightroom separates the three
+// for a reason — a one-pixel residual is the sharpening band, so driving Texture
+// through it only made Sharpening weaker or stronger, and put the same halo on
+// every edge. The band is the difference of two blurs, so a flat area stays
+// flat and an edge contributes to both terms and largely cancels.
+void apply_texture(std::vector<Pixel>& pixels, unsigned w, unsigned h, const DevelopSettings& s) {
+  if(!s.texture) return;
+  const auto fine=blur(pixels,w,h,2), coarse=blur(pixels,w,h,6);
+  for(std::size_t i=0;i<pixels.size();++i)for(int c=0;c<3;++c) {
+    const double band=cleaned_residual(fine[i][c]-coarse[i][c],s.noise_reduction);
+    pixels[i][c]=float(clamp(pixels[i][c]+band*s.texture*.01));
+  }
+}
 void sharpen_extended(std::vector<Pixel>& pixels, unsigned w, unsigned h, const DevelopSettings& s) {
-  // Texture retains its established one-pixel residual and denoise threshold.
-  // Keep its RGB buffer as the combined correction, never blur a sharpened input.
-  auto corrections=s.texture ? blur(pixels,w,h,1) : std::vector<Pixel>(pixels.size());
-  if(s.texture)for(std::size_t i=0;i<pixels.size();++i)for(int c=0;c<3;++c)
-    corrections[i][c]=float(cleaned_residual(pixels[i][c]-corrections[i][c],s.noise_reduction)*s.texture*.007);
+  std::vector<Pixel> corrections(pixels.size());
   // Smoothed-luminance gradients avoid treating small flat-field noise as edges.
   SharpenGuide guide(pixels,w,h,s.sharpening_masking!=0);
   // Subtract before scaling so Detail100 is exactly zero even with fused
@@ -503,12 +513,28 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
     else {
       if (s.saturation != 0 || s.vibrance != 0) {
         const double spread = std::max({p[0],p[1],p[2]})-std::min({p[0],p[1],p[2]});
-        saturate(p,std::max(0.0,1+s.saturation*.01+s.vibrance*.01*(1-spread)));
+        double vibrance = s.vibrance*.01*(1-spread);
+        // Lightroom's Vibrance holds skin back while it lifts everything else,
+        // which is the whole reason a portrait photographer reaches for it
+        // instead of Saturation. Oranges around 25 degrees move least. Pulling
+        // Vibrance down is not protected: that is how a face is desaturated.
+        if (s.vibrance > 0) {
+          double distance = std::abs(rgb_hsl(p)[0]*360-25);
+          distance = std::min(distance, 360-distance);
+          vibrance *= 1-.7*std::max(0.0,1-distance/25);
+        }
+        saturate(p,std::max(0.0,1+s.saturation*.01+vibrance));
       }
       if (use_hsl) {
         auto color = rgb_hsl(p); double dh=0, ds=0, dl=0, total=0;
         for (std::size_t c=0;c<centers.size();++c) { double distance=std::abs(color[0]*360-centers[c]); distance=std::min(distance,360-distance); const double weight=std::max(0.0,1-distance/60); dh+=weight*s.hsl[c].hue; ds+=weight*s.hsl[c].saturation; dl+=weight*s.hsl[c].luminance; total+=weight; }
-        if (total>0) p=hsl_rgb(color[0]+dh/total/600,color[1]*(1+ds/total/100),color[2]+dl/total/200*color[1]);
+        // Hue: +-100 moves about 30 degrees, to the edge of the band, as
+        // Lightroom's does; /600 moved a full 60 and pushed reds through orange.
+        // Luminance: gated to leave true neutrals alone (they have no band), but
+        // at full strength from a quarter saturation up — scaling it linearly by
+        // saturation left every muted colour in the band almost unmoved.
+        const double colored=std::min(1.0,color[1]*4);
+        if (total>0) p=hsl_rgb(color[0]+dh/total/1200,color[1]*(1+ds/total/100),color[2]+dl/total/200*colored);
       }
     }
     if(use_grading&&s.tonal_grading) {
@@ -563,11 +589,12 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
       }
     }
   }
+  apply_texture(pixels,w,h,s);
   if(s.sharpening && (s.sharpening_radius!=1 || s.sharpening_detail!=100 || s.sharpening_masking!=0)) {
     // Independent FOTO controls following familiar sharpening semantics, not
     // Adobe's proprietary sharpening algorithm. Defaults use the exact old path.
     sharpen_extended(pixels,w,h,s);
-  } else if (s.sharpening || s.texture) {
+  } else if (s.sharpening) {
     const auto soft=blur(pixels,w,h,1);
     for(std::size_t i=0;i<n;++i) {
       for(int c=0;c<3;++c) {
@@ -576,7 +603,7 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
         // is enabled; otherwise unsharp masking can re-amplify the same grain.
         const double cleaned_detail=s.noise_reduction
           ? std::copysign(std::max(0.0,std::abs(detail)-s.noise_reduction*.001),detail) : detail;
-        const double value=pixels[i][c]+cleaned_detail*(s.sharpening*.02+s.texture*.007);
+        const double value=pixels[i][c]+cleaned_detail*s.sharpening*.02;
         pixels[i][c]=float(clamp(value));
       }
     }

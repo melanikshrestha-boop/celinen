@@ -55,6 +55,10 @@ beforeEach(async () => {
   globalThis.fetch = (async (resource: string | URL | Request) => {
     const url = typeof resource === "string" ? resource : resource instanceof URL ? resource.href : resource.url;
     if (url.includes("/__develop/status") || resource === "/__develop/status") return statusResponse();
+    if (url.includes("celinen-raw.wasm"))
+      return new Response(
+        readFileSync(new URL("../src/lib/studio/cull/celinen-raw.wasm", import.meta.url)),
+      );
     if (url.includes("/__develop/render") || resource === "/__develop/render") {
       renderCalls++;
       return new Response(jpeg, {
@@ -94,10 +98,25 @@ describe("Develop JPEG import without the C++ engine", () => {
     expect(imported.width).toBe(120);
   });
 
-  test("RAW still requires the local engine", async () => {
+  test("a RAW with no picture inside it says so, and names the file", async () => {
+    // `raw` is not a real container, so the C++ reader finds no embedded JPEG.
+    // The message must name the cause, not tell a photographer to run make.
     await expect(
       prepareDevelopPreview(raw, { isRaw: true }, new AbortController().signal),
-    ).rejects.toThrow("local C++ Develop engine is unavailable");
+    ).rejects.toThrow("_DSC6094.NEF carries no embedded preview");
+    expect(renderCalls).toBe(0);
+  });
+
+  test("a RAW imports on its own embedded JPEG, labeled as such", async () => {
+    const { previews } = await import("./develop-raw-preview.fixture");
+    const sony = previews.arw();
+    const preview = await prepareDevelopPreview(
+      sony,
+      { isRaw: true },
+      new AbortController().signal,
+    );
+    expect(preview.previewOrigin).toBe("embedded");
+    expect(preview.previewBlob.type).toBe("image/jpeg");
     expect(renderCalls).toBe(0);
   });
 

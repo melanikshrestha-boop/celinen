@@ -1,5 +1,6 @@
 import { defaultDevelopSettings } from "./contract";
 import { developEngineStatus, isHostedDevelopEngine, renderDevelop } from "./client";
+import { rawEmbeddedDevelopPreview } from "./raw-preview";
 import {
   asDevelopPreviewBlob,
   decodeDevelopPreview,
@@ -69,9 +70,40 @@ export async function rasterDevelopPreview(
   }
 }
 
+/** The JPEG inside a RAW, as a Develop preview. Throws naming the real cause. */
+async function embeddedRawDevelopPreview(
+  file: File,
+  signal: AbortSignal,
+): Promise<DevelopPreviewResult> {
+  signal.throwIfAborted();
+  let embedded: Awaited<ReturnType<typeof rawEmbeddedDevelopPreview>>;
+  try {
+    embedded = await rawEmbeddedDevelopPreview(file, signal);
+  } catch (error) {
+    signal.throwIfAborted();
+    throw new Error(
+      `The RAW container in ${file.name} could not be read: ${
+        error instanceof Error ? error.message : "unknown reason"
+      }`,
+    );
+  }
+  signal.throwIfAborted();
+  if (!embedded)
+    throw new Error(
+      `${file.name} carries no embedded preview a browser can open. Developing its sensor data needs the local Celinen app.`,
+    );
+  return {
+    previewBlob: embedded.previewBlob,
+    previewOrigin: "embedded",
+    width: embedded.width,
+    height: embedded.height,
+  };
+}
+
 /**
  * C++ preview when the local engine is up. JPEG/PNG/WebP still import if it is down:
- * the original file is the preview, original bytes stay the source.
+ * the original file is the preview, original bytes stay the source. A RAW then
+ * imports on its own embedded JPEG, which is labeled as such everywhere.
  */
 export async function prepareDevelopPreview(
   file: File,
@@ -80,8 +112,15 @@ export async function prepareDevelopPreview(
   options: { priority?: "interactive" | "background" } = {},
 ): Promise<DevelopPreviewResult> {
   const status = await developEngineStatus();
-  if (!input.isRaw && (!status?.ready || !status.token || isHostedDevelopEngine(status.engine)))
+  const localEngine = Boolean(
+    status?.ready && status.token && !isHostedDevelopEngine(status.engine),
+  );
+  if (!localEngine) {
+    // No LibRaw in the page. Sensor demosaic is impossible here; the camera's
+    // own embedded JPEG is, and it is what Lightroom shows first too.
+    if (input.isRaw) return embeddedRawDevelopPreview(file, signal);
     return rasterDevelopPreview(file, signal);
+  }
   try {
     const preview = await renderDevelop(file, defaultDevelopSettings(), {
       edge: 1600,
@@ -97,15 +136,26 @@ export async function prepareDevelopPreview(
   } catch (error) {
     signal.throwIfAborted();
     if (input.isRaw) {
-      if (!(await developEngineStatus())?.rawSupported) throw error;
-      const preview = await renderDevelop(file, defaultDevelopSettings(), {
-        edge: 1600,
-        sourceMode: "raw",
-        signal,
-        ...(options.priority ? { priority: options.priority } : {}),
-      });
-      const size = await measurePreview(preview, signal);
-      return { previewBlob: await webPreviewBlob(preview), previewOrigin: "raw-demosaic", ...size };
+      if ((await developEngineStatus())?.rawSupported)
+        try {
+          const preview = await renderDevelop(file, defaultDevelopSettings(), {
+            edge: 1600,
+            sourceMode: "raw",
+            signal,
+            ...(options.priority ? { priority: options.priority } : {}),
+          });
+          const size = await measurePreview(preview, signal);
+          return {
+            previewBlob: await webPreviewBlob(preview),
+            previewOrigin: "raw-demosaic",
+            ...size,
+          };
+        } catch {
+          signal.throwIfAborted();
+        }
+      // A sensor decode that failed or is unavailable still leaves the camera's
+      // own JPEG. Import on that rather than losing the photo.
+      return embeddedRawDevelopPreview(file, signal);
     }
     try {
       return await rasterDevelopPreview(file, signal);
