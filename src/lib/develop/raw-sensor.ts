@@ -93,7 +93,7 @@ const pending = new Map<number, Pending>();
 
 function ensureWorker(): Worker {
   if (worker) return worker;
-  worker = new Worker(new URL("./raw-decode.worker.ts", import.meta.url), { type: "module" });
+  worker = new Worker(new URL("./wasm/raw-decode.worker.ts", import.meta.url), { type: "module" });
   worker.onmessage = ({ data }: MessageEvent<RawDecodeReply>) => {
     const job = pending.get(data.id);
     if (!job) return;
