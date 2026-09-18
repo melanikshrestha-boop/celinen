@@ -17,7 +17,6 @@ export const WORKBENCH_TOOLS = [
   { path: "/publish", label: "Publish", group: "Workspace" },
   { path: "/shop", label: "Print shop", group: "Business" },
   { path: "/network", label: "Photographer network", group: "Business" },
-  { path: "/video", label: "Video", group: "Workspace" },
   { path: "/mail", label: "Gmail", group: "Connections" },
   { path: "/research", label: "Web research", group: "Connections" },
   { path: "/desk", label: "Event desk", group: "Tools" },
@@ -190,6 +189,12 @@ export function isDashboardAppRoute(routeIds: readonly string[], pathname = "") 
   if (isDashboardAppPath(pathname)) return true;
   if (routeIds.includes("/settings_/$section")) return true;
   return DASHBOARD_APP_PATHS.some((path) => routeIds.includes(path));
+}
+
+/** Video is a separate product on this domain. It never uses Celinen's shell. */
+export function isVideoAppPath(pathname: string) {
+  const path = pathname.replace(/\/$/, "").toLowerCase() || "/";
+  return path === "/video" || path.startsWith("/video/");
 }
 
 export function isWorkbenchRoute(routeIds: readonly string[]) {

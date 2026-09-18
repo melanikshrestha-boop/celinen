@@ -10,6 +10,7 @@ import {
   addWorkbenchTab,
   closeWorkbenchTab,
   isDashboardAppRoute,
+  isVideoAppPath,
   isWorkbenchRoute,
   safeSignInPath,
   studioBindingHref,
@@ -43,7 +44,8 @@ describe("chat-first workspace boundaries", () => {
       "/deliver",
       "/earnings",
     ]);
-    expect(WORKBENCH_TOOLS).toHaveLength(28);
+    expect(WORKBENCH_TOOLS).toHaveLength(27);
+    expect(WORKBENCH_TOOLS.some((tool) => tool.path === "/video")).toBe(false);
     expect(WORKBENCH_TOOLS.some((tool) => tool.path === "/outbound")).toBe(true);
     expect(new Set(WORKBENCH_TOOLS.map((tool) => tool.path)).size).toBe(WORKBENCH_TOOLS.length);
     for (const tool of WORKBENCH_TOOLS) {
@@ -78,6 +80,12 @@ describe("chat-first workspace boundaries", () => {
     test(`dashboard ChatGPT shell owns ${path}`, () =>
       expect(isWorkbenchRoute(["__root__", path])).toBe(false));
   }
+  test("video is its own product, not a Celinen workbench or dashboard tool", () => {
+    expect(isWorkbenchRoute(["__root__", "/video"])).toBe(false);
+    expect(isDashboardAppRoute(["__root__", "/video"], "/video")).toBe(false);
+    expect(isVideoAppPath("/video")).toBe(true);
+    expect(isVideoAppPath("/develop")).toBe(false);
+  });
   test("a shoot's cull, develop and gallery pages open inside Home's dashboard, never the older workspace", () => {
     // Cull's "Open Develop" and the shoot breadcrumb lead here; landing them in
     // the older chrome swapped the whole interface mid-cull.

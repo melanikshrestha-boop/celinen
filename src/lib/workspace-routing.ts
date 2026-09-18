@@ -1,6 +1,5 @@
 export type WorkspaceDestination =
   | "/studio"
-  | "/video"
   | "/deliver"
   | "/clients"
   | "/earnings"
@@ -36,6 +35,5 @@ export function destinationPathFor(text: string): WorkspaceDestination {
   }
   if (/\b(deliver|delivery|gallery|proof|send|share|package)\b/.test(value)) return "/deliver";
   if (/\b(client|clients|contact|customer|booking)\b/.test(value)) return "/clients";
-  if (/\b(video|footage|clip|clips|reel|timeline|b-roll|film)\b/.test(value)) return "/video";
   return "/studio";
 }

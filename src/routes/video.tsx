@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useWorkbench } from "@/components/workbench/context";
+import { useAccount } from "@/components/account/AccountProvider";
+import { useSignedOutRedirect } from "@/components/account/useSignedOutRedirect";
 import { useToolLeaveGuard } from "@/components/workbench/useToolLeaveGuard";
+import { VIDEO_PRODUCT_TITLE } from "@/lib/video/product";
 import { workspaceStorageKey } from "@/lib/workspace-storage";
 import {
   ArrowLeft,
@@ -39,11 +41,10 @@ import {
 export const Route = createFileRoute("/video")({
   head: () => ({
     meta: [
-      { title: "Video Review — Celinen" },
+      { title: VIDEO_PRODUCT_TITLE },
       {
         name: "description",
-        content:
-          "Review local video clips, mark selects, and export a JSON manifest without uploading or changing source media.",
+        content: "Local vlog editor. Footage stays on this device.",
       },
     ],
   }),
@@ -193,8 +194,9 @@ function probeVideo(url: string) {
 }
 
 function VideoReview() {
-  const workbench = useWorkbench();
-  const storageScope = workbench?.storageScope ?? "device-local";
+  useSignedOutRedirect();
+  const account = useAccount();
+  const storageScope = account?.scope ?? "device-local";
   const fileRef = useRef<HTMLInputElement>(null);
   const commandRef = useRef<HTMLInputElement>(null);
   const objectUrls = useRef(new Set<string>());
@@ -464,7 +466,7 @@ function VideoReview() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (workbench && (workbench.activeTool !== "/video" || !target?.closest('[data-workbench-tool="route"]'))) return;
+      if (target?.closest("[data-app-key]") && event.key.toLowerCase() === "z") return;
       if (
         target?.tagName === "INPUT" ||
         target?.tagName === "TEXTAREA" ||
@@ -685,7 +687,7 @@ function VideoReview() {
     const payload = {
       format: "lenslabs-video-selects/v1",
       exportedAt: new Date().toISOString(),
-      note: "References original local files. Celinen did not upload, modify, or transcode media.",
+      note: "References original local files. Video did not upload, modify, or transcode media.",
       clips: keepers.map((clip) => ({
         filename: clip.name,
         durationSeconds: Number(clip.duration.toFixed(3)),
@@ -701,7 +703,7 @@ function VideoReview() {
     );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `celinen-video-selects-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.download = `video-selects-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -808,7 +810,9 @@ function VideoReview() {
           <Link to="/" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-muted">
             <ArrowLeft size={14} className="text-moss" />
             <LogoMark size={22} className="text-ink" />
-            <span className="font-display text-sm font-semibold tracking-tight">Video review</span>
+            <span className="font-display text-sm font-semibold tracking-tight">
+              {VIDEO_PRODUCT_TITLE}
+            </span>
           </Link>
           <span className="font-mono text-[10px] text-moss">
             {counts.all} clips · {counts.todo} to review · {counts.keepers} keepers
@@ -911,7 +915,7 @@ function VideoReview() {
                       </span>
                       <span className="mt-2 text-[12px] leading-relaxed text-moss">
                         Review marks and metadata were restored. Choose the matching original files
-                        to resume playback; Celinen never stored the video bytes.
+                        to resume playback; Video never stored the video bytes.
                       </span>
                     </button>
                   )}
@@ -981,7 +985,7 @@ function VideoReview() {
                   Drop footage here.
                 </h1>
                 <p className="mt-2 max-w-[460px] text-[13px] leading-relaxed text-moss">
-                  Celinen reads local metadata and plays formats your browser supports. It does not
+                  Video reads local metadata and plays formats your browser supports. It does not
                   upload, modify, or transcode originals.
                 </p>
                 <span className="mt-6 rounded-lg bg-ink px-4 py-2 text-[12px] font-medium text-paper2">

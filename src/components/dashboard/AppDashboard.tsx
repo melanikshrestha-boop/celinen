@@ -104,7 +104,7 @@ function replyFor(text: string) {
   if (isPhotographyConversation(text)) return null;
   if (
     !isPostIntent(text) &&
-    !/^(?:open|show|go to|switch to|check)\s+(?:(?:my|the)\s+)?(?:pick|keepers|studio|develop|lightroom|calendar|bookings|earnings|analytics|clients|galleries|gallery|social accounts|video)[.!]?$/i.test(
+    !/^(?:open|show|go to|switch to|check)\s+(?:(?:my|the)\s+)?(?:pick|keepers|studio|develop|lightroom|calendar|bookings|earnings|analytics|clients|galleries|gallery|social accounts)[.!]?$/i.test(
       text.trim(),
     ) &&
     !/^(?:send|share)\s+(?:(?:a|the|my)\s+)?gallery[.!]?$/i.test(text.trim()) &&
@@ -131,7 +131,6 @@ function replyFor(text: string) {
   if (path === "/clients") return { text: "Opening clients.", href: "/clients" };
   if (path === "/adobe") return { text: "Opening Develop.", href: "/develop" };
   if (path === "/studio") return { text: "Opening Pick in chat.", href: "/studio" };
-  if (path === "/video") return { text: "Opening video.", href: "/video" };
   if (path === "/bookings") return { text: "Opening Calendar.", href: "/dashboard" };
   return { text: "Say send a gallery, check earnings, or open Pick to keep frames.", href: null };
 }

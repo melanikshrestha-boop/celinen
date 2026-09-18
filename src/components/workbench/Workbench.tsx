@@ -39,6 +39,7 @@ import {
   closeWorkbenchTab,
   isDashboardAppRoute,
   isPrivateAppRoute,
+  isVideoAppPath,
   isWorkbenchRoute,
   safeSignInPath,
   studioBindingHref,
@@ -117,6 +118,7 @@ export function WorkbenchBoundary({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   if (identity?.status === "in" && !identity.setupComplete && isPrivateAppRoute(routeIds, pathname))
     return <AccountSetup key={identity.scope ?? "setup"} />;
+  if (isVideoAppPath(pathname)) return children;
   if (isDashboardAppRoute(routeIds, pathname)) return <AppDashboard>{children}</AppDashboard>;
   if (!isWorkbenchRoute(routeIds)) return children;
   return <AccountWorkbench>{children}</AccountWorkbench>;
