@@ -22,14 +22,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Go where the good light takes you. Review, edit, and send galleries — originals stay yours.",
+          "Two products on lenslab.dev: Celinen for photography, and Video for vlog editing.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
-        content:
-          "Review, edit and prepare your photography for delivery. Your decisions stay yours.",
+        content: "Celinen for photography. Video for vlog editing.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -63,24 +62,48 @@ function Index() {
               <br />
               good light takes you.
             </h1>
-            <div className="marketing-actions">
-              <PublicEntryCta
-                className="marketing-action marketing-action--primary"
-                guestLabel={
-                  <>
-                    Get started
-                    <span aria-hidden="true">→</span>
-                  </>
-                }
-                memberLabel={
-                  <>
-                    Dashboard
-                    <span aria-hidden="true">→</span>
-                  </>
-                }
-              />
+            <div className="marketing-products" aria-label="Products">
+              <article>
+                <h2>Celinen</h2>
+                <p>Photography</p>
+                <PublicEntryCta
+                  className="marketing-action marketing-action--primary"
+                  next="/dashboard"
+                  guestLabel={
+                    <>
+                      Open
+                      <span aria-hidden="true">→</span>
+                    </>
+                  }
+                  memberLabel={
+                    <>
+                      Open
+                      <span aria-hidden="true">→</span>
+                    </>
+                  }
+                />
+              </article>
+              <article>
+                <h2>Video</h2>
+                <p>Vlog editor</p>
+                <PublicEntryCta
+                  className="marketing-action marketing-action--primary"
+                  next="/video"
+                  guestLabel={
+                    <>
+                      Open
+                      <span aria-hidden="true">→</span>
+                    </>
+                  }
+                  memberLabel={
+                    <>
+                      Open
+                      <span aria-hidden="true">→</span>
+                    </>
+                  }
+                />
+              </article>
             </div>
-            <p className="marketing-hero__note">Made for the person behind the camera.</p>
           </div>
         </section>
         <div className="marketing-promises" aria-label="Your work stays yours">

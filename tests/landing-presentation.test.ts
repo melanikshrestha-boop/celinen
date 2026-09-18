@@ -197,7 +197,7 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("Friday night gallery"));
     assert.ok(!html.includes("Your shoots, edits, and galleries"));
     assert.ok(!html.includes("A little less admin"));
-    assert.ok(html.includes("Made for the person behind the camera"));
+    assert.ok(!html.includes("Made for the person behind the camera"));
     assert.ok(!html.includes("Take a look around"));
     assert.ok(!html.includes("marketing-action--glass"));
     assert.ok(!html.includes("Stay for the last light"));
@@ -226,15 +226,20 @@ if (!process.argv.includes(fixtureFlag)) {
     const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     const startsWith = (label: string) =>
       links.filter((match) => text(match[2]!).startsWith(label));
+    assert.ok(html.includes("<h2>Celinen</h2>"));
+    assert.ok(html.includes("<h2>Video</h2>"));
+    assert.ok(html.includes("Photography"));
+    assert.ok(html.includes("Vlog editor"));
     if (current === "in") {
-      assert.equal(startsWith("Dashboard").length, 4);
+      assert.equal(startsWith("Dashboard").length, 3);
       assert.equal(startsWith("Sign In").length, 0);
+      assert.equal(startsWith("Open").length, 2, "Hero has one Open per product");
     } else if (current === "loading") {
       assert.equal(startsWith("Sign In").length, 1, "Nav still has Sign In while auth restores");
-      assert.equal(startsWith("Get started").length, 3, "Hero, savings, and closing stay Get started");
-      assert.equal(startsWith("Dashboard").length, 4, "Dashboard is already in the DOM for a remembered session");
+      assert.equal(startsWith("Get started").length, 2, "Savings and closing stay Get started");
+      assert.equal(startsWith("Dashboard").length, 3, "Dashboard is already in the DOM for a remembered session");
     } else {
-      assert.equal(startsWith("Get started").length, 3, "Hero, savings, and closing stay Get started");
+      assert.equal(startsWith("Get started").length, 2, "Savings and closing stay Get started");
       assert.equal(startsWith("Sign In").length, 1, "Nav CTA is Sign In");
     }
     for (const entry of current === "in"
@@ -250,6 +255,18 @@ if (!process.argv.includes(fixtureFlag)) {
         assert.equal(url.searchParams.get("mode"), signingIn ? "signin" : "signup");
         if (signingIn) assert.equal(url.searchParams.get("google"), null);
       }
+    }
+    const opens = startsWith("Open");
+    assert.ok(opens.length >= 2);
+    const openHrefs = opens.map((entry) =>
+      new URL(entry[1]!.match(/href="([^"]+)"/)![1]!.replaceAll("&amp;", "&"), "https://foto.test"),
+    );
+    if (current === "in") {
+      assert.ok(openHrefs.some((url) => url.pathname === "/dashboard"));
+      assert.ok(openHrefs.some((url) => url.pathname === "/video"));
+    } else {
+      assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/dashboard"));
+      assert.ok(openHrefs.some((url) => url.searchParams.get("next") === "/video"));
     }
     assert.ok(!html.includes('id="features"'));
     assert.ok(html.includes("id=\"pricing\""));

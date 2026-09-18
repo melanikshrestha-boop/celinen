@@ -2,11 +2,15 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAccount } from "@/components/account/AccountProvider";
 
+type AppNext = "/dashboard" | "/video";
+
 type Props = {
   className?: string;
   guestLabel: ReactNode;
   memberLabel: ReactNode;
   guestMode?: "signin" | "signup";
+  /** Where this door opens after sign-in. Photography stays on Dashboard. */
+  next?: AppNext;
 };
 
 /** While auth is restoring, both links stay in the DOM; CSS shows Dashboard if this browser already signed in. */
@@ -15,19 +19,20 @@ export function PublicEntryCta({
   guestLabel,
   memberLabel,
   guestMode = "signup",
+  next = "/dashboard",
 }: Props) {
   const status = useAccount()?.status;
   const guest = (
     <Link
       to="/auth"
-      search={{ next: "/dashboard", mode: guestMode }}
+      search={{ next, mode: guestMode }}
       className={`${className} entry-guest`.trim()}
     >
       {guestLabel}
     </Link>
   );
   const member = (
-    <Link to="/dashboard" className={`${className} entry-member`.trim()}>
+    <Link to={next} className={`${className} entry-member`.trim()}>
       {memberLabel}
     </Link>
   );

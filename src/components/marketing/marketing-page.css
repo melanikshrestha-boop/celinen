@@ -129,6 +129,42 @@
   line-height: var(--marketing-leading, 1.3);
   color: var(--marketing-muted);
 }
+.marketing-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 440px;
+  margin-top: 32px;
+}
+.marketing-products article {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.marketing-products h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+.marketing-products p {
+  margin: 0;
+  color: var(--marketing-muted);
+  font-size: 15px;
+  line-height: 1.3;
+}
+.marketing-products .marketing-action {
+  margin-top: 4px;
+}
+@media (max-width: 640px) {
+  .marketing-products {
+    grid-template-columns: 1fr;
+    max-width: 280px;
+  }
+}
 .marketing-actions {
   display: flex;
   align-items: center;
