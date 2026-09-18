@@ -90,6 +90,7 @@ import {
 import { photoExportFilename, uniquePhotoDisplayName } from "@/lib/develop/photo-management";
 import { removalRenderEdge } from "@/lib/develop/object-remove";
 import { DevelopPhotoActions } from "./DevelopPhotoActions";
+import { RawJpegSwitch } from "./RawJpegSwitch";
 import { PresetExchange } from "./PresetExchange";
 import { ReferencePresetDialog } from "./ReferencePresetDialog";
 import { DevelopControls, Panel, type DevelopTool } from "./DevelopControls";
@@ -2827,6 +2828,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               >
                 <ChevronRight size={15} />
               </button>
+              <RawJpegSwitch
+                photo={photo}
+                photos={availablePhotos}
+                disabled={!!busy || !!saveError}
+                onSwitch={(id) => select(id)}
+              />
               <span>
                 {availablePhotos.length} available · {selectedSet.size} selected
               </span>
