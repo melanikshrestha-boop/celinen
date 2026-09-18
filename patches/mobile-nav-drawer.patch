@@ -134,20 +134,3 @@ index f9afcd4..f642624 100644
  @media (max-width: 767px) {
    .foto-workflow-header {
      padding-inline: 8px;
-diff --git a/tests/sidebar-presentation.test.tsx b/tests/sidebar-presentation.test.tsx
-index 8bac1ae..bc5aab1 100644
---- a/tests/sidebar-presentation.test.tsx
-+++ b/tests/sidebar-presentation.test.tsx
-@@ -98,7 +98,11 @@ describe("compact sidebar presentation without identity changes", () => {
-     expect(chat).toContain("<span>{sidebarConversationTitle(row)}</span>");
-     expect(chat).toContain("[data-history-menu]");
-     expect(chat).toContain('querySelector<HTMLElement>("[data-history-new]")');
--    expect(source("Workbench.tsx").match(/<NewShootAction /g)).toHaveLength(2); // desktop + mobile rail, never simultaneously expanded
-+    expect(source("Workbench.tsx").match(/<NewShootAction /g)).toHaveLength(1); // drawer/sheet only — no permanent mobile rail
-+    const workbench = source("Workbench.tsx");
-+    expect(workbench).toContain('className="workbench-sidebar-toggle workbench-mobile-menu"');
-+    expect(workbench).toContain("setOpenMobile(true)");
-+    expect(workbench).not.toContain("foto-mobile-rail");
-   });
- 
-   test("no active marker, shared compact row metric, focus rings and touch targets retained", () => {
