@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ImageOff, Layers, X } from "lucide-react";
 import type { CullFrame } from "@/lib/studio/cull/session";
 import { CULL_REASON_LABELS, effectiveVerdict } from "@/lib/studio/cull/session";
@@ -105,6 +105,26 @@ export function CullMark({ frame, size = 12 }: { frame: CullFrame; size?: number
   );
 }
 
+
+/** iOS Safari rarely fires dblclick; two taps within 320ms open loupe. */
+function useDoubleTapOpen(onOpen: (id: string) => void, id: string) {
+  const lastTap = useRef(0);
+  return useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "mouse") return;
+      const now = performance.now();
+      if (now - lastTap.current < 320) {
+        lastTap.current = 0;
+        event.preventDefault();
+        onOpen(id);
+      } else {
+        lastTap.current = now;
+      }
+    },
+    [id, onOpen],
+  );
+}
+
 // Every prop is a primitive or an object the controller replaces only when it
 // changes, so a new snapshot re-renders only the cards that actually changed.
 type CardProps = {
@@ -140,6 +160,7 @@ const Card = memo(function Card({
   onOpen,
   onToggleStack,
 }: CardProps) {
+  const onDoubleTap = useDoubleTapOpen(onOpen, frame.id);
   const reason = frame.suggestion?.reason ?? "none";
   const classes = ["cull-card"];
   if (selected) classes.push("is-selected");
@@ -162,6 +183,7 @@ const Card = memo(function Card({
         tabIndex={selected ? 0 : -1}
         onClick={() => onSelect(frame.id)}
         onDoubleClick={() => onOpen(frame.id)}
+        onPointerUp={onDoubleTap}
       >
         <span className="cull-thumb">
           {frame.error ? (
