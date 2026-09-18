@@ -331,11 +331,24 @@ void denoise_luminance(std::vector<Pixel>& pixels, unsigned w, unsigned h, doubl
     for(auto& value:p)value=float(value+delta);
   }
 }
-double grain(unsigned x, unsigned y, double size) {
+double grain(unsigned x, unsigned y, double size, std::uint32_t salt = 0x9e3779b9u) {
   const unsigned gx = unsigned(std::floor(x / size)), gy = unsigned(std::floor(y / size));
-  std::uint32_t v = (gx * 374761393u + gy * 668265263u + 0x9e3779b9u);
+  std::uint32_t v = (gx * 374761393u + gy * 668265263u + salt);
   v = (v ^ (v >> 13)) * 1274126177u; v ^= v >> 16;
   return (double(v) / std::numeric_limits<std::uint32_t>::max()) * 2 - 1;
+}
+// Dye-cloud chroma: keep a shared structure so it reads as grain, not RGB confetti.
+// Zero color is the exact historical one-sample path.
+std::array<double,3> grain_rgb(unsigned x, unsigned y, double size, double color) {
+  const double shared = grain(x, y, size);
+  if (color == 0) return {shared, shared, shared};
+  const double mix = color * .01 * .55;
+  const double nr = grain(x, y, size, 0xA24BAED5u);
+  const double ng = grain(x, y, size, 0xC2B2AE35u);
+  const double nb = grain(x, y, size, 0x27D4EB2Fu);
+  return {shared * (1 - mix) + nr * mix + mix * .12 * ng,
+          shared * (1 - mix) + ng * mix - mix * .10 * nr,
+          shared * (1 - mix) + nb * mix + mix * .08 * nr};
 }
 bool identity_crop(const DevelopCrop& c) { return c.x == 0 && c.y == 0 && c.width == 1 && c.height == 1 && c.angle == 0 && c.rotate == 0 && !c.flip_x && !c.flip_y; }
 Image geometry(const Image& in, const DevelopCrop& c) {
@@ -374,7 +387,7 @@ void validate_develop(const DevelopSettings& s) {
   if (s.white_balance < 0 || s.white_balance > 8) throw std::invalid_argument("Invalid white balance.");
   bounded(s.exposure, -5, 5);
   for (double v : {s.contrast,s.highlights,s.shadows,s.whites,s.blacks,s.temperature,s.tint,s.saturation,s.vibrance,s.texture,s.clarity,s.dehaze,s.balance,s.vignette}) bounded(v, -100, 100);
-  for (double v : {s.blending,s.grain,s.grain_luminance,s.fade,s.film_falloff,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
+  for (double v : {s.blending,s.grain,s.grain_luminance,s.grain_color,s.fade,s.film_falloff,s.bloom,s.halation,s.sharpening,s.noise_reduction,s.color_noise_reduction}) bounded(v, 0, 100);
   bounded(s.grain_size, .5, 4);
   bounded(s.sharpening_radius,.5,3);bounded(s.sharpening_detail,0,100);bounded(s.sharpening_masking,0,100);
   if(s.curve_interpolation!=0&&s.curve_interpolation!=1)throw std::invalid_argument("Invalid curve interpolation.");
@@ -388,7 +401,7 @@ void validate_develop(const DevelopSettings& s) {
 }
 
 DevelopSettings read_develop_protocol(std::istream& in) {
-  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2" && marker != "FOTO_DEVELOP_3" && marker != "FOTO_DEVELOP_4" && marker != "FOTO_DEVELOP_5" && marker != "FOTO_DEVELOP_6") throw std::invalid_argument("Invalid Develop protocol.");
+  std::string marker; in >> marker; if (marker != "FOTO_DEVELOP_1" && marker != "FOTO_DEVELOP_2" && marker != "FOTO_DEVELOP_3" && marker != "FOTO_DEVELOP_4" && marker != "FOTO_DEVELOP_5" && marker != "FOTO_DEVELOP_6" && marker != "FOTO_DEVELOP_7") throw std::invalid_argument("Invalid Develop protocol.");
   DevelopSettings s;
   in >> s.exposure >> s.contrast >> s.highlights >> s.shadows >> s.whites >> s.blacks >> s.temperature >> s.tint >> s.saturation >> s.vibrance >> s.texture >> s.clarity >> s.dehaze;
   int count = 0; in >> count; if (count < 2 || count > 16) throw std::invalid_argument("Invalid curve count.");
@@ -406,12 +419,13 @@ DevelopSettings read_develop_protocol(std::istream& in) {
     }
     in >> s.film_falloff;
   }
-  if(marker=="FOTO_DEVELOP_3"||marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6") {
+  if(marker=="FOTO_DEVELOP_3"||marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6"||marker=="FOTO_DEVELOP_7") {
     in >> s.tonal_grading >> s.global_grade.hue >> s.global_grade.saturation >> s.global_grade.luminance >> s.grain_luminance;
   }
-  if(marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6")in >> s.sharpening_radius >> s.sharpening_detail >> s.sharpening_masking;
-  if(marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6")in >> s.curve_interpolation;
-  if(marker=="FOTO_DEVELOP_6") in >> s.treatment >> s.profile >> s.white_balance;
+  if(marker=="FOTO_DEVELOP_4"||marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6"||marker=="FOTO_DEVELOP_7")in >> s.sharpening_radius >> s.sharpening_detail >> s.sharpening_masking;
+  if(marker=="FOTO_DEVELOP_5"||marker=="FOTO_DEVELOP_6"||marker=="FOTO_DEVELOP_7")in >> s.curve_interpolation;
+  if(marker=="FOTO_DEVELOP_6"||marker=="FOTO_DEVELOP_7") in >> s.treatment >> s.profile >> s.white_balance;
+  if(marker=="FOTO_DEVELOP_7") in >> s.grain_color;
   if (!in) throw std::invalid_argument("Truncated Develop settings.");
   in >> std::ws; if (!in.eof()) throw std::invalid_argument("Extra Develop settings.");
   validate_develop(s); return s;
@@ -583,7 +597,9 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
   for(unsigned y=0;y<h;++y) for(unsigned x=0;x<w;++x) {
     const auto i=std::size_t(y)*w+x;
     const double distance=std::min(1.0,(std::pow((x+.5)/w-.5,2)+std::pow((y+.5)/h-.5,2))*2);
-    const double vig=s.vignette*.006*smooth(distance), noise=grain(x,y,s.grain_size)*s.grain*.0012;
+    const double vig=s.vignette*.006*smooth(distance);
+    const auto noise = grain_rgb(x, y, s.grain_size, s.grain == 0 ? 0 : s.grain_color);
+    const double amount = s.grain * .0012;
     // Smooth shoulder above 55% with slope 1 at the join; use a shared RGB scale to preserve hue.
     const double peak=std::max({pixels[i][0],pixels[i][1],pixels[i][2]});
     double falloff_scale=1;
@@ -598,20 +614,20 @@ Image develop(const Image& source, const DevelopSettings& s, bool high_resolutio
       finished[c]=value;
       if(s.grain_luminance==0 || s.grain==0) {
         // Preserve original arithmetic/rounding, including its per-channel envelope.
-        value+=noise*(.35+.65*(1-std::abs(value-.5)*2));
+        value+=noise[c]*amount*(.35+.65*(1-std::abs(value-.5)*2));
         out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value)*255));
       }
     }
     if(s.grain_luminance!=0 && s.grain!=0) {
       // A bounded, signal-dependent amplitude, not calibrated film-stock simulation.
-      // A shared luma envelope keeps grain neutral rather than modulating each RGB channel.
+      // Color=0 keeps a shared luma envelope (gray grain). Raised color uses dye-layer chroma.
       // sqrt(4L(1-L)) tapers the standard deviation at black/white, peaks at middle gray.
       // Intensity-dependent scaling: ITU-T H Supplement 21 (2025), film grain synthesis.
       const double light=clamp(.2126*finished[0]+.7152*finished[1]+.0722*finished[2]);
       const double adaptive=std::sqrt(4*light*(1-light)), mix=s.grain_luminance*.01;
       for(int c=0;c<3;++c) {
         const double value=finished[c],legacy=.35+.65*(1-std::abs(value-.5)*2);
-        out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value+noise*(legacy+(adaptive-legacy)*mix))*255));
+        out.rgba[i*4+c]=std::uint8_t(std::round(clamp(value+noise[c]*amount*(legacy+(adaptive-legacy)*mix))*255));
       }
     }
   }

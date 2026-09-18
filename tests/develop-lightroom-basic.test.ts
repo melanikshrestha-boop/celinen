@@ -58,6 +58,17 @@ describe("Lightroom Classic Basic panel", () => {
     );
   });
 
+  test("colorful grain uses protocol 7 and stays out of saved-neutral recipes", () => {
+    const settings = defaultDevelopSettings();
+    settings.grain = 40;
+    settings.grainColor = 55;
+    expect(developProtocol(settings).startsWith("FOTO_DEVELOP_7\n")).toBe(true);
+    expect(developProtocol(settings, { legacy: true }).includes("FOTO_DEVELOP_7")).toBe(false);
+    const idle = defaultDevelopSettings();
+    idle.grainColor = 80;
+    expect(isNeutralDevelopRecipe(idle)).toBe(true);
+  });
+
   test("eyedropper solves the same gains the engine applies", () => {
     const picked = whiteBalanceFromSample(180, 128, 90);
     expect(picked.temperature).toBeLessThan(0);

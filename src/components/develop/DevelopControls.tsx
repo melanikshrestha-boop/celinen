@@ -960,6 +960,7 @@ export function DevelopControls({
         {scalar("grain", "Grain", 0)}
         {scalar("grainSize", "Grain size", 0.5, 4, 0.1)}
         {scalar("grainLuminance", "Grain luminance", 0)}
+        {scalar("grainColor", "Grain color", 0)}
         {scalar("halation", "Halation", 0)}
         {scalar("bloom", "Bloom", 0)}
         {scalar("fade", "Fade", 0)}

@@ -192,6 +192,8 @@ export const developSettingsSchema = z
     grain: amount,
     grainSize: z.number().finite().min(0.5).max(4),
     grainLuminance: amount.default(0),
+    // 0 keeps the old shared-luma (gray) grain. Raised values add dye-layer chroma.
+    grainColor: amount.default(0),
     fade: amount,
     filmFalloff: amount.default(0),
     vignette: signed,
@@ -289,6 +291,7 @@ export function defaultDevelopSettings(): DevelopSettings {
     grain: 0,
     grainSize: 1,
     grainLuminance: 0,
+    grainColor: 0,
     fade: 0,
     filmFalloff: 0,
     vignette: 0,

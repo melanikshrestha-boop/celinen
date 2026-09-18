@@ -78,7 +78,7 @@ struct DevelopSettings {
   // Legacy stays the native default for old protocol callers and saved recipes.
   bool tonal_grading = false;
   double balance = 0, blending = 50;
-  double grain = 0, grain_size = 1, grain_luminance = 0, fade = 0, vignette = 0, bloom = 0, halation = 0;
+  double grain = 0, grain_size = 1, grain_luminance = 0, grain_color = 0, fade = 0, vignette = 0, bloom = 0, halation = 0;
   double film_falloff = 0;
   double sharpening = 0, noise_reduction = 0, color_noise_reduction = 0;
   double sharpening_radius = 1, sharpening_detail = 100, sharpening_masking = 0;
