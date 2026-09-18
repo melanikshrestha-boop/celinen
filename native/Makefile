@@ -98,6 +98,11 @@ focus-tests: $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests $(BUILD_DIR)/r
 	$(BUILD_DIR)/focus-hit-tests
 	$(BUILD_DIR)/raw-preview-tests
 
+NN = $(BUILD_DIR)/nn.o $(BUILD_DIR)/nn_onnx.o $(BUILD_DIR)/nn_tflite.o
+$(NN): include/lenslabs/nn.hpp src/nn_graph.hpp
+
+$(BUILD_DIR)/nn-tests: tests/nn_tests.cpp $(NN) include/lenslabs/nn.hpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(NN) -o $@
 $(BUILD_DIR)/upright.o $(BUILD_DIR)/develop_main.o: include/lenslabs/upright.hpp include/lenslabs/exif.hpp
 
 $(BUILD_DIR)/upright-tests: tests/upright_tests.cpp $(BUILD_DIR)/upright.o $(BUILD_DIR)/exif.o include/lenslabs/upright.hpp include/lenslabs/exif.hpp
@@ -178,7 +183,7 @@ $(BUILD_DIR)/calendar-tests: tests/calendar_tests.cpp $(BUILD_DIR)/calendar.o in
 $(BUILD_DIR)/lenslabs-object-remove: src/object_remove_main.mm $(BUILD_DIR)/object_remove.o include/lenslabs/object_remove.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fobjc-arc $< $(BUILD_DIR)/object_remove.o $(FRAMEWORKS) -framework Foundation -framework Vision -framework CoreVideo -o $@
 
-test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests $(BUILD_DIR)/cull-tests $(BUILD_DIR)/look-match-tests $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests $(BUILD_DIR)/raw-preview-tests $(BUILD_DIR)/upright-tests $(BUILD_DIR)/cull-intel-tests
+test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-tests $(BUILD_DIR)/worker-tests $(BUILD_DIR)/burst-tests $(BUILD_DIR)/people-tests $(BUILD_DIR)/social-tests $(BUILD_DIR)/develop-tests $(BUILD_DIR)/reference-tests $(BUILD_DIR)/crop-suggest-tests $(BUILD_DIR)/receipt-tests $(BUILD_DIR)/gallery-tests $(BUILD_DIR)/settings-tests $(BUILD_DIR)/calendar-tests $(BUILD_DIR)/develop-auto-tests $(BUILD_DIR)/voice-tests $(BUILD_DIR)/cull-tests $(BUILD_DIR)/look-match-tests $(BUILD_DIR)/exif-tests $(BUILD_DIR)/focus-hit-tests $(BUILD_DIR)/raw-preview-tests $(BUILD_DIR)/nn-tests $(BUILD_DIR)/upright-tests $(BUILD_DIR)/cull-intel-tests
 	$(BUILD_DIR)/core-tests
 	$(BUILD_DIR)/decoder-tests ../tests/fixtures/photos
 	$(BUILD_DIR)/pipeline-tests
@@ -200,6 +205,7 @@ test: $(BUILD_DIR)/core-tests $(BUILD_DIR)/decoder-tests $(BUILD_DIR)/pipeline-t
 	$(BUILD_DIR)/exif-tests
 	$(BUILD_DIR)/focus-hit-tests
 	$(BUILD_DIR)/raw-preview-tests
+	$(BUILD_DIR)/nn-tests ../src/lib/studio/cull/models
 	$(BUILD_DIR)/upright-tests
 	$(BUILD_DIR)/cull-intel-tests
 

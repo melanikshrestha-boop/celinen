@@ -324,14 +324,21 @@ describe("plain-language measurements", () => {
     expect(value(cullReading(), "Motion")).toBe("Frozen");
     expect(value(cullReading({ subjectLuma: 20 }), "Exposure")).toBe("Night");
     expect(value(cullReading({ hasFace: false, subjectLuma: 20 }), "Exposure")).toBe("Too dark");
-    expect(value(cullReading({ hasFace: false, faceBox: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 } }), "Subject")).toBe(
-      "Face sharp",
-    );
+    expect(
+      value(
+        cullReading({ hasFace: false, faceBox: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 } }),
+        "Subject",
+      ),
+    ).toBe("Face sharp");
     expect(value(cullReading({ subjectLuma: 235, subjectClipped: 60 }), "Exposure")).toBe(
       "Bright, highlights clipped on the subject",
     );
     expect(value(cullReading(), "Exposure")).toBe("Good");
     expect(value(cullReading({ eyesClosed: true }), "Subject")).toBe("Eyes closed");
+    expect(value(cullReading({ eyesUncertain: true }), "Subject")).toBe("Eyes uncertain");
+    expect(value(cullReading({ eyesClosedProbability: 0.05 }), "Subject")).toBe("Eyes open");
+    // A face whose eyes were never read is described by its focus, not guessed at.
+    expect(value(cullReading(), "Subject")).toBe("Face sharp");
     // No face is not a flaw, so it is not listed as one.
     expect(value(cullReading({ hasFace: false }), "Subject")).toBeUndefined();
   });

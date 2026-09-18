@@ -103,18 +103,82 @@ describe("C++ cull engine compiled to WebAssembly", () => {
 
   test("carries face evidence through without inventing any of it", () => {
     const pixels = detailed(W, H);
+    const face = { x: 0.35, y: 0.2, width: 0.3, height: 0.35, sharpness: 0.8, score: 0.9 };
     const open = engine.measure(pixels, W, H, [
-      { x: 0.35, y: 0.2, width: 0.3, height: 0.35, sharpness: -1, eyesOpen: true },
+      { ...face, eyesOpen: null, closedProbability: 0.04, confidence: 0.9 },
     ]);
     const blink = engine.measure(pixels, W, H, [
-      { x: 0.35, y: 0.2, width: 0.3, height: 0.35, sharpness: -1, eyesOpen: false },
+      { ...face, eyesOpen: null, closedProbability: 0.95, confidence: 0.9 },
     ]);
     expect(open.hasFace).toBe(true);
+    expect(open.faceCount).toBe(1);
     expect(open.eyesClosed).toBe(false);
+    expect(open.eyesUncertain).toBe(false);
     expect(blink.eyesClosed).toBe(true);
+    expect(blink.eyesClosedProbability).toBeCloseTo(0.95, 5);
+    expect(blink.eyesConfidence).toBeCloseTo(0.9, 5);
     expect(blink.quality).toBeLessThan(open.quality * 0.6);
+
+    // The same probability without the confidence to back it: a look, never a reject.
+    const doubtful = engine.measure(pixels, W, H, [
+      { ...face, eyesOpen: null, closedProbability: 0.95, confidence: 0.4 },
+    ]);
+    expect(doubtful.eyesClosed).toBe(false);
+    expect(doubtful.eyesUncertain).toBe(true);
+    expect(doubtful.quality).toBeCloseTo(open.quality, 5);
+
+    // A browser detector's bare guess is evidence, not proof.
+    const guessed = engine.measure(pixels, W, H, [{ ...face, sharpness: -1, eyesOpen: false }]);
+    expect(guessed.eyesClosed).toBe(false);
+    expect(guessed.eyesUncertain).toBe(true);
+
     // Without a detector there is no claim either way.
-    expect(engine.measure(pixels, W, H).hasFace).toBe(false);
+    const none = engine.measure(pixels, W, H);
+    expect(none.hasFace).toBe(false);
+    expect(none.eyesUncertain).toBe(false);
+    expect(none.eyesClosedProbability).toBe(-1);
+  });
+
+  test("decides the eyes from the subject, not from the crowd", () => {
+    const eyes = (x: number, size: number, p: number, c: number, sharpness = 0.8) => ({
+      x,
+      y: 0.2,
+      width: size,
+      height: size * 1.3,
+      sharpness,
+      eyesOpen: null,
+      score: 0.9,
+      closedProbability: p,
+      confidence: c,
+    });
+    const player = eyes(0.42, 0.16, 0.04, 0.9);
+    const fan = eyes(0.04, 0.04, 0.98, 0.95);
+    expect(engine.judgeEyes([fan, player], W / H)).toEqual({ state: "open", primary: 1 });
+    expect(engine.judgeEyes([fan, eyes(0.42, 0.16, 0.92, 0.9)], W / H)).toEqual({
+      state: "closed",
+      primary: 1,
+    });
+    // A second player of nearly the same standing blinking: worth a look, not a reject.
+    const pair = engine.judgeEyes([eyes(0.4, 0.15, 0.03, 0.9), eyes(0.7, 0.15, 0.95, 0.9)], W / H);
+    expect(pair).toEqual({ state: "uncertain", primary: 0 });
+    // A face too far off the frame's subject to count as one: no effect at all.
+    expect(
+      engine.judgeEyes([eyes(0.4, 0.15, 0.03, 0.9), eyes(0.9, 0.05, 0.95, 0.9)], W / H),
+    ).toEqual({
+      state: "open",
+      primary: 0,
+    });
+    // Eyes that could not be read are unknown, never closed.
+    expect(engine.judgeEyes([eyes(0.42, 0.16, -1, 0)], W / H)).toEqual({
+      state: "unknown",
+      primary: 0,
+    });
+    expect(engine.judgeEyes([], W / H)).toEqual({ state: "unknown", primary: -1 });
+    // The thresholds are the engine's, and the evaluation can move them.
+    expect(engine.judgeEyes([eyes(0.42, 0.16, 0.8, 0.8)], W / H).state).toBe("closed");
+    expect(
+      engine.judgeEyes([eyes(0.42, 0.16, 0.8, 0.8)], W / H, { minConfidence: 0.95 }).state,
+    ).toBe("uncertain");
   });
 
   test("groups a burst, keeps its best frame and rejects the rest", () => {
@@ -150,6 +214,21 @@ describe("C++ cull engine compiled to WebAssembly", () => {
     expect(rows[4]!.reason).toBe("eyes-closed");
     expect(rows[5]!.reason).toBe("exposure");
     expect(rows[0]!.verdict).toBe("keep");
+  });
+
+  test("a frame whose eyes are uncertain is left for the photographer", () => {
+    const rows = engine.shoot([
+      frame(sharp),
+      frame({ ...sharp, eyesUncertain: true, hasFace: true }),
+      frame({ ...soft, eyesUncertain: true, hasFace: true }),
+    ]);
+    expect(rows[0]!.verdict).toBe("keep");
+    // Sharp and otherwise a keeper, but possibly a blink: undecided, and named.
+    expect(rows[1]!.verdict).toBe("undecided");
+    expect(rows[1]!.reason).toBe("eyes-uncertain");
+    // A soft frame is still rejected for what is certainly wrong with it.
+    expect(rows[2]!.verdict).toBe("reject");
+    expect(rows[2]!.reason).toBe("out-of-focus");
   });
 
   test("never overrules the photographer and never judges an unreadable file", () => {

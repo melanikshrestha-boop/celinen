@@ -24,6 +24,9 @@ export type IngestedFrame = {
 export type IngestHandlers = {
   /** Called once per photo, in whatever order the lanes finish. */
   onFrame: (frame: IngestedFrame) => void;
+  /** Called the first time a lane reports that it has no face models, so the
+   * screen can say eyes were not checked instead of implying they were. */
+  onEyesUnavailable?: (() => void) | undefined;
   /** Called after every completion, with counts for the progress strip. */
   onProgress?: ((read: number, failed: number, total: number) => void) | undefined;
   signal?: AbortSignal | undefined;
@@ -60,6 +63,7 @@ export async function ingestFiles(
   let next = 0;
   let read = 0;
   let failed = 0;
+  let saidNoEyes = false;
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -109,6 +113,10 @@ export async function ingestFiles(
           if (file) {
             if (data.kind === "read") {
               read += 1;
+              if (!data.eyesRead && !saidNoEyes) {
+                saidNoEyes = true;
+                handlers.onEyesUnavailable?.();
+              }
               handlers.onFrame({
                 frame: {
                   id: frameId(file, index),
@@ -122,6 +130,7 @@ export async function ingestFiles(
                   captureTimeBasis: data.captureTimeBasis,
                   cameraKey: data.cameraKey,
                   reading: data.reading,
+                  ...(data.faces ? { faces: data.faces } : {}),
                   verdict: "undecided",
                   decided: false,
                   // Kept on the frame, not just on this reply: a truncated file

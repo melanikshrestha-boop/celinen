@@ -201,10 +201,78 @@ int main() {
     }
     {
       lenslabs::CullFace face;
-      face.x = .35; face.y = .2; face.width = .3; face.height = .35; face.eyes_open = 0;
+      face.x = .35; face.y = .2; face.width = .3; face.height = .35;
+      face.closed_probability = .95; face.confidence = .9;
       const auto blink = lenslabs::measure_cull(sharp, {face});
       check(blink.has_face && blink.eyes_closed && blink.quality < sharp_reading.quality * .6,
-            "A reported blink takes the frame down without any guessing by the engine.");
+            "A confident blink on the subject takes the frame down.");
+      check(blink.face_count == 1 && blink.eyes_closed_probability > .9 && blink.eyes_confidence > .8,
+            "The primary face's evidence is kept on the reading.");
+      face.confidence = .5;
+      const auto doubtful = lenslabs::measure_cull(sharp, {face});
+      auto open_face = face;
+      open_face.closed_probability = .05;
+      const auto open = lenslabs::measure_cull(sharp, {open_face});
+      check(!doubtful.eyes_closed && doubtful.eyes_uncertain && std::abs(doubtful.quality - open.quality) < 1e-9,
+            "A blink the engine cannot vouch for is uncertain and costs the frame nothing.");
+      check(blink.quality < open.quality * .6, "Only the confident blink is scored down.");
+      lenslabs::CullFace legacy;
+      legacy.x = .35; legacy.y = .2; legacy.width = .3; legacy.height = .35; legacy.eyes_open = 0;
+      const auto guessed = lenslabs::measure_cull(sharp, {legacy});
+      check(guessed.eyes_uncertain && !guessed.eyes_closed,
+            "A browser detector's closed-eye guess can flag a frame but never reject it.");
+      const auto no_faces = lenslabs::measure_cull(sharp, {});
+      check(!no_faces.has_face && no_faces.eyes_closed_probability < 0 && !no_faces.eyes_uncertain,
+            "Without faces there is no claim about eyes either way.");
+    }
+    {
+      using lenslabs::CullFace;
+      using lenslabs::EyesState;
+      const auto make = [](double x, double y, double size, double p, double c, double sharpness = .8) {
+        CullFace face;
+        face.x = x; face.y = y; face.width = size; face.height = size * 1.3;
+        face.score = .9; face.sharpness = sharpness;
+        face.closed_probability = p; face.confidence = c;
+        return face;
+      };
+      // The player, large and central with open eyes; a spectator small and
+      // off to the side, blinking with full confidence.
+      const auto player = make(.42, .2, .16, .05, .9);
+      const auto fan = make(.05, .05, .04, .98, .95);
+      auto verdict = lenslabs::judge_eyes({fan, player}, 1.5);
+      check(verdict.primary == 1 && verdict.state == EyesState::open,
+            "A blinking background face never decides the frame.");
+      verdict = lenslabs::judge_eyes({fan, make(.42, .2, .16, .92, .9)}, 1.5);
+      check(verdict.state == EyesState::closed && verdict.primary == 1,
+            "The primary subject confidently blinking is closed.");
+      verdict = lenslabs::judge_eyes({make(.42, .2, .16, .92, .4)}, 1.5);
+      check(verdict.state == EyesState::uncertain, "High probability with low confidence is uncertain.");
+      verdict = lenslabs::judge_eyes({make(.42, .2, .16, .45, .95)}, 1.5);
+      check(verdict.state == EyesState::uncertain, "A borderline probability is uncertain, not closed.");
+      verdict = lenslabs::judge_eyes({make(.42, .2, .16, -1, 0)}, 1.5);
+      check(verdict.state == EyesState::unknown && verdict.primary == 0,
+            "A face whose eyes could not be read is unknown, never closed.");
+      // Two players of equal standing, one blinking: worth a look, not a reject.
+      verdict = lenslabs::judge_eyes({make(.25, .2, .15, .05, .9), make(.6, .2, .15, .95, .9)}, 1.5);
+      check(verdict.state == EyesState::uncertain, "A co-subject's blink makes the frame uncertain.");
+      // Sharpness picks the subject when two faces are otherwise alike: the
+      // photographer focused on one of them.
+      verdict = lenslabs::judge_eyes({make(.3, .2, .14, .95, .9, .15), make(.56, .2, .14, .05, .9, .9)}, 1.5);
+      check(verdict.primary == 1, "The in-focus face is the primary subject.");
+      check(lenslabs::judge_eyes({}, 1.5).state == EyesState::unknown, "No faces, no verdict.");
+      // Thresholds are parameters: a stricter bar turns a closed call uncertain.
+      lenslabs::EyeThresholds strict;
+      strict.min_confidence = .95;
+      check(lenslabs::judge_eyes({make(.42, .2, .16, .92, .9)}, 1.5, strict).state == EyesState::uncertain,
+            "The confidence bar is honoured.");
+    }
+    {
+      const auto region = lenslabs::region_acuity(sharp, 40, 40, 200, 160);
+      const auto soft_region = lenslabs::region_acuity(blurred(sharp, 3, 3), 40, 40, 200, 160);
+      check(region > .6 && soft_region < region - .25, "Region acuity follows focus like the frame's own.");
+      check(lenslabs::region_acuity(blank(64, 64), 0, 0, 64, 64) < 0,
+            "A flat region has nothing to judge rather than a low score.");
+      check(lenslabs::region_acuity(sharp, 330, 250, 400, 300) < 0, "A region outside the image is not judged.");
     }
     {
       // Shoot pass: three near-identical burst frames plus one unrelated frame.

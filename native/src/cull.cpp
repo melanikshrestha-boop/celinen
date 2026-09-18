@@ -116,13 +116,167 @@ std::uint64_t perceptual_hash(const std::vector<float>& gray, unsigned w, unsign
   return hash;
 }
 
+// One tile's texture: contrast, gradient energy along four directions at a
+// short and a long stride, and from them its acuity and smear. The subject
+// weight is left for the caller.
+Tile measure_tile(const std::vector<float>& gray, unsigned w, unsigned h, unsigned x0, unsigned x1,
+                  unsigned y0, unsigned y1, double noise_energy) {
+  Tile tile;
+  double total = 0, squares = 0;
+  std::size_t count = 0;
+  std::array<double, 4> near_sum{}, far_sum{};
+  std::array<std::size_t, 4> near_count{}, far_count{};
+  for (unsigned y = y0; y < y1; ++y)
+    for (unsigned x = x0; x < x1; ++x) {
+      const auto i = std::size_t(y) * w + x;
+      const double value = gray[i];
+      total += value;
+      squares += value * value;
+      ++count;
+      for (std::size_t d = 0; d < directions.size(); ++d) {
+        // The long stride may reach past the tile into its neighbours. That
+        // keeps the sample honest instead of shrinking it at tile edges.
+        const auto sample = [&](int stride, double& energy, std::size_t& taken) {
+          const int sx = int(x) + directions[d].first * stride;
+          const int sy = int(y) + directions[d].second * stride;
+          if (sx < 0 || sy < 0 || sx >= int(w) || sy >= int(h)) return;
+          const double delta = gray[std::size_t(sy) * w + std::size_t(sx)] - value;
+          energy += delta * delta;
+          ++taken;
+        };
+        sample(near_stride, near_sum[d], near_count[d]);
+        sample(far_stride, far_sum[d], far_count[d]);
+      }
+    }
+  if (!count) return tile;
+  tile.mean = total / double(count);
+  tile.contrast = std::sqrt(std::max(0.0, squares / double(count) - tile.mean * tile.mean));
+  std::array<double, 4> resolving{};
+  std::array<bool, 4> judged{};
+  double weakest = 2;
+  for (std::size_t d = 0; d < directions.size(); ++d) {
+    if (!near_count[d] || !far_count[d]) continue;
+    // Uncorrelated grain adds the same energy to a difference at any
+    // stride, so it has to come out before the ratio means anything.
+    tile.near[d] = std::max(0.0, near_sum[d] / double(near_count[d]) - noise_energy);
+    tile.far[d] = std::max(0.0, far_sum[d] / double(far_count[d]) - noise_energy);
+    if (tile.far[d] <= std::max(6.0, 3 * noise_energy)) continue;
+    resolving[d] = std::sqrt(tile.near[d] / tile.far[d]);
+    judged[d] = true;
+    weakest = std::min(weakest, resolving[d]);
+  }
+  tile.textured = std::any_of(judged.begin(), judged.end(), [](bool ok) { return ok; }) &&
+                  tile.contrast > 2.5;
+  if (!tile.textured) return tile;
+  // A well-focused JPEG resolves an edge in roughly one and a half pixels
+  // once it has been through a lens, a Bayer filter and a resize.
+  tile.acuity = clamp01(weakest / .66);
+  // Smear is measured between perpendicular pairs — horizontal against
+  // vertical, and the two diagonals. Comparing every direction with every
+  // other would report a smear for any kernel that is not perfectly round,
+  // including the sampling grid itself.
+  for (const auto& [a, b] : {std::pair<std::size_t, std::size_t>{0, 1}, {2, 3}}) {
+    if (!judged[a] || !judged[b]) continue;
+    const double strong = std::max(resolving[a], resolving[b]);
+    if (strong <= 1e-9) continue;
+    const double loss = 1 - std::min(resolving[a], resolving[b]) / strong;
+    if (loss > tile.smear) {
+      tile.smear = clamp01(loss);
+      tile.smear_axis = int(resolving[a] < resolving[b] ? a : b);
+    }
+  }
+  return tile;
+}
+
 double percentile_of(std::vector<double> values, double fraction) {
   if (values.empty()) return 0;
   const auto at = std::size_t(std::clamp(fraction, 0.0, 1.0) * double(values.size() - 1) + .5);
   std::nth_element(values.begin(), values.begin() + std::ptrdiff_t(at), values.end());
   return values[at];
 }
+
+// A face's eye evidence as (closed probability, confidence), mapping a legacy
+// open/closed guess onto the same scale.
+std::pair<double, double> eye_evidence(const CullFace& face) {
+  if (face.closed_probability >= 0) return {clamp01(face.closed_probability), clamp01(face.confidence)};
+  if (face.eyes_open == 0) return {1, legacy_eyes_confidence};
+  if (face.eyes_open == 1) return {0, legacy_eyes_confidence};
+  return {-1, 0};
+}
 } // namespace
+
+double face_prominence(const CullFace& face, double aspect) noexcept {
+  aspect = std::isfinite(aspect) && aspect > 0 ? aspect : 1.5;
+  const double short_over_long = std::min(aspect, 1 / aspect);
+  const double size = std::sqrt(std::max(0.0, face.width * face.height * short_over_long));
+  // Distances in units of the long edge, so a portrait frame is not stretched.
+  const double dx = (face.x + face.width / 2 - .5) * (aspect >= 1 ? 1 : aspect);
+  const double dy = (face.y + face.height / 2 - .45) * (aspect >= 1 ? 1 / aspect : 1);
+  const double centrality = std::exp(-(dx * dx + dy * dy) / (2 * .3 * .3));
+  const double sharpness = face.sharpness >= 0 ? .35 + .65 * clamp01(face.sharpness) : .6;
+  const double certainty = face.score >= 0 ? .5 + .5 * clamp01((face.score - .5) / .4) : .75;
+  return size * (.35 + .65 * centrality) * sharpness * certainty;
+}
+
+EyesVerdict judge_eyes(const std::vector<CullFace>& faces, double frame_aspect,
+                       const EyeThresholds& thresholds) {
+  EyesVerdict verdict;
+  if (faces.empty()) return verdict;
+  std::vector<double> prominence(faces.size());
+  for (std::size_t i = 0; i < faces.size(); ++i) {
+    prominence[i] = face_prominence(faces[i], frame_aspect);
+    if (verdict.primary < 0 || prominence[i] > prominence[std::size_t(verdict.primary)])
+      verdict.primary = int(i);
+  }
+  const auto closed = [&](const std::pair<double, double>& evidence) {
+    return evidence.first >= thresholds.closed_probability && evidence.second >= thresholds.min_confidence;
+  };
+  const auto primary = eye_evidence(faces[std::size_t(verdict.primary)]);
+  verdict.closed_probability = primary.first;
+  verdict.confidence = primary.second;
+  if (primary.first < 0) verdict.state = EyesState::unknown;
+  else if (closed(primary)) verdict.state = EyesState::closed;
+  else if (primary.first >= thresholds.uncertain_probability) verdict.state = EyesState::uncertain;
+  else verdict.state = EyesState::open;
+  if (verdict.state == EyesState::closed) return verdict;
+  // A second subject of similar standing whose eyes are confidently closed
+  // makes the frame worth a look, but it is not the primary subject's blink.
+  for (std::size_t i = 0; i < faces.size(); ++i) {
+    if (int(i) == verdict.primary) continue;
+    if (prominence[i] < thresholds.companion_prominence * prominence[std::size_t(verdict.primary)]) continue;
+    if (closed(eye_evidence(faces[i]))) verdict.state = EyesState::uncertain;
+  }
+  return verdict;
+}
+
+double region_acuity(const Image& image, std::uint32_t x0, std::uint32_t y0, std::uint32_t x1,
+                     std::uint32_t y1) {
+  x1 = std::min(x1, image.width);
+  y1 = std::min(y1, image.height);
+  if (image.rgba.size() != std::size_t(image.width) * image.height * 4 || x0 >= x1 || y0 >= y1)
+    return -1;
+  const unsigned w = x1 - x0, h = y1 - y0;
+  if (w < 16 || h < 16) return -1;
+  std::vector<float> gray(std::size_t(w) * h);
+  for (unsigned y = 0; y < h; ++y)
+    for (unsigned x = 0; x < w; ++x) {
+      const auto* p = image.rgba.data() + (std::size_t(y0 + y) * image.width + x0 + x) * 4;
+      gray[std::size_t(y) * w + x] = float(luma(p[0], p[1], p[2]));
+    }
+  const double noise = estimate_noise(gray, w, h);
+  const unsigned columns = std::max(1u, w / 28u), rows = std::max(1u, h / 28u);
+  std::vector<double> acuity;
+  for (unsigned tr = 0; tr < rows; ++tr)
+    for (unsigned tc = 0; tc < columns; ++tc) {
+      const auto tile = measure_tile(gray, w, h, tc * w / columns, (tc + 1) * w / columns, tr * h / rows,
+                                     (tr + 1) * h / rows, 2 * noise * noise);
+      if (tile.textured) acuity.push_back(tile.acuity);
+    }
+  // The sharper part of the region, as measure_cull judges a subject by its
+  // sharpest quarter: an eye is judged on its lids and lashes, not on the
+  // smooth cheek beside it.
+  return acuity.empty() ? -1 : percentile_of(acuity, .75);
+}
 
 unsigned cull_hash_distance(std::uint64_t a, std::uint64_t b) noexcept {
   std::uint64_t value = a ^ b;
@@ -144,6 +298,7 @@ const char* cull_reason_name(CullReason reason) noexcept {
     case CullReason::duplicate: return "near-identical frame scored better";
     case CullReason::best_of_burst: return "best of burst";
     case CullReason::strong_frame: return "sharp and well exposed";
+    case CullReason::eyes_uncertain: return "eyes uncertain";
     case CullReason::none: return "";
   }
   return "";
@@ -229,77 +384,24 @@ CullReading measure_cull(const Image& image, const std::vector<CullFace>& faces)
   std::vector<Tile> tiles(std::size_t(columns) * rows);
   const double noise_energy = 2 * out.noise * out.noise; // grain, one direction, any stride
   for (unsigned tr = 0; tr < rows; ++tr)
-    for (unsigned tc = 0; tc < columns; ++tc) {
-      auto& tile = tiles[std::size_t(tr) * columns + tc];
-      const unsigned x0 = tc * w / columns, x1 = (tc + 1) * w / columns;
-      const unsigned y0 = tr * h / rows, y1 = (tr + 1) * h / rows;
-      double total = 0, squares = 0;
-      std::size_t count = 0;
-      std::array<double, 4> near_sum{}, far_sum{};
-      std::array<std::size_t, 4> near_count{}, far_count{};
-      for (unsigned y = y0; y < y1; ++y)
-        for (unsigned x = x0; x < x1; ++x) {
-          const auto i = std::size_t(y) * w + x;
-          const double value = gray[i];
-          total += value;
-          squares += value * value;
-          ++count;
-          for (std::size_t d = 0; d < directions.size(); ++d) {
-            // The long stride may reach past the tile into its neighbours. That
-            // keeps the sample honest instead of shrinking it at tile edges.
-            const auto sample = [&](int stride, double& energy, std::size_t& taken) {
-              const int sx = int(x) + directions[d].first * stride;
-              const int sy = int(y) + directions[d].second * stride;
-              if (sx < 0 || sy < 0 || sx >= int(w) || sy >= int(h)) return;
-              const double delta = gray[std::size_t(sy) * w + std::size_t(sx)] - value;
-              energy += delta * delta;
-              ++taken;
-            };
-            sample(near_stride, near_sum[d], near_count[d]);
-            sample(far_stride, far_sum[d], far_count[d]);
-          }
-        }
-      if (!count) continue;
-      tile.mean = total / double(count);
-      tile.contrast = std::sqrt(std::max(0.0, squares / double(count) - tile.mean * tile.mean));
-      std::array<double, 4> resolving{};
-      std::array<bool, 4> judged{};
-      double weakest = 2;
-      for (std::size_t d = 0; d < directions.size(); ++d) {
-        if (!near_count[d] || !far_count[d]) continue;
-        // Uncorrelated grain adds the same energy to a difference at any
-        // stride, so it has to come out before the ratio means anything.
-        tile.near[d] = std::max(0.0, near_sum[d] / double(near_count[d]) - noise_energy);
-        tile.far[d] = std::max(0.0, far_sum[d] / double(far_count[d]) - noise_energy);
-        if (tile.far[d] <= std::max(6.0, 3 * noise_energy)) continue;
-        resolving[d] = std::sqrt(tile.near[d] / tile.far[d]);
-        judged[d] = true;
-        weakest = std::min(weakest, resolving[d]);
-      }
-      tile.textured = std::any_of(judged.begin(), judged.end(), [](bool ok) { return ok; }) &&
-                      tile.contrast > 2.5;
-      if (!tile.textured) continue;
-      // A well-focused JPEG resolves an edge in roughly one and a half pixels
-      // once it has been through a lens, a Bayer filter and a resize.
-      tile.acuity = clamp01(weakest / .66);
-      // Smear is measured between perpendicular pairs — horizontal against
-      // vertical, and the two diagonals. Comparing every direction with every
-      // other would report a smear for any kernel that is not perfectly round,
-      // including the sampling grid itself.
-      for (const auto& [a, b] : {std::pair<std::size_t, std::size_t>{0, 1}, {2, 3}}) {
-        if (!judged[a] || !judged[b]) continue;
-        const double strong = std::max(resolving[a], resolving[b]);
-        if (strong <= 1e-9) continue;
-        const double loss = 1 - std::min(resolving[a], resolving[b]) / strong;
-        if (loss > tile.smear) {
-          tile.smear = clamp01(loss);
-          tile.smear_axis = int(resolving[a] < resolving[b] ? a : b);
-        }
-      }
-    }
+    for (unsigned tc = 0; tc < columns; ++tc)
+      tiles[std::size_t(tr) * columns + tc] =
+          measure_tile(gray, w, h, tc * w / columns, (tc + 1) * w / columns, tr * h / rows,
+                       (tr + 1) * h / rows, noise_energy);
 
   // Subject weight: the middle of the frame, anything that stands out from the
-  // frame's average tone, and any face the caller measured.
+  // frame's average tone, and the subject's faces. Only faces about as
+  // prominent as the primary one count: a stand full of spectators must not
+  // turn the crowd into the subject whose focus is judged.
+  const double aspect = double(w) / double(h);
+  const auto eyes = judge_eyes(faces, aspect);
+  std::vector<const CullFace*> subject_faces;
+  if (eyes.primary >= 0) {
+    const double lead = face_prominence(faces[std::size_t(eyes.primary)], aspect);
+    for (const auto& face : faces)
+      if (face_prominence(face, aspect) >= EyeThresholds{}.companion_prominence * lead)
+        subject_faces.push_back(&face);
+  }
   double tone_mean = 0;
   for (const auto& tile : tiles) tone_mean += tile.mean;
   tone_mean /= double(tiles.size());
@@ -314,8 +416,8 @@ CullReading measure_cull(const Image& image, const std::vector<CullFace>& faces)
       // sharpness too, and the subject would be defined as whatever is in focus
       // — which is the one thing this measurement has to be able to disagree with.
       weight *= .45 + .55 * clamp01(std::abs(tile.mean - tone_mean) / 40);
-      for (const auto& face : faces)
-        if (cx >= face.x && cx <= face.x + face.width && cy >= face.y && cy <= face.y + face.height)
+      for (const auto* face : subject_faces)
+        if (cx >= face->x && cx <= face->x + face->width && cy >= face->y && cy <= face->y + face->height)
           weight = std::max(weight, 1.0) * 3;
       tile.weight = tile.textured ? weight : 0;
       weight_total += tile.weight;
@@ -398,10 +500,12 @@ CullReading measure_cull(const Image& image, const std::vector<CullFace>& faces)
     out.global_smear = out.motion > .3 && agreed > weight * .35 && dominant > agreed * .55;
   }
 
-  for (const auto& face : faces) {
-    out.has_face = true;
-    if (face.eyes_open == 0) out.eyes_closed = true;
-  }
+  out.has_face = !faces.empty();
+  out.face_count = int(faces.size());
+  out.eyes_closed = eyes.state == EyesState::closed;
+  out.eyes_uncertain = eyes.state == EyesState::uncertain;
+  out.eyes_closed_probability = eyes.closed_probability;
+  out.eyes_confidence = eyes.confidence;
   out.face_soft = out.has_face && out.acuity_subject < .5;
 
   // Absolute quality: focus dominates, exposure can only take a frame down, and
@@ -462,7 +566,7 @@ std::vector<CullRow> cull_shoot(const std::vector<CullFrameInput>& frames,
   }
   const double top = percentile_of(acuities, .85), middle = percentile_of(acuities, .5);
   const double sharp_bar = std::max(.42, std::min(top * .78, middle + .04));
-  const double soft_bar = std::max(.26, top * .55);
+  const double soft_bar = std::max(absolute_soft_floor, top * .55);
   const double quality_top = percentile_of(qualities, .9);
 
   for (auto i : judgeable) {
@@ -568,6 +672,12 @@ std::vector<CullRow> cull_shoot(const std::vector<CullFrameInput>& frames,
         continue;
       }
       row.duplicate = false;
+    }
+    if (reading.eyes_uncertain) {
+      // Possibly a blink, not surely one: never rejected, and never waved
+      // through as a keeper either. The photographer looks.
+      row.reason = CullReason::eyes_uncertain;
+      continue;
     }
     const double keep_at = 62 + (options.keep_bias - .5) * -40;
     if (reading.acuity_subject >= sharp_bar && row.score >= keep_at) {

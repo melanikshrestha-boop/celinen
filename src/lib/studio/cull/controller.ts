@@ -375,6 +375,11 @@ export class CullController {
           writer.add(frame, thumbnail);
           this.scheduleRerank();
         },
+        onEyesUnavailable: () => {
+          this.notice =
+            "Eyes are not being checked on this device: the face models could not be loaded. Focus, exposure and duplicates still are.";
+          this.emit();
+        },
         onProgress: (read, failed, total) => {
           this.progress = ingestProgress(total, read, failed, performance.now() - started);
           this.changed();
