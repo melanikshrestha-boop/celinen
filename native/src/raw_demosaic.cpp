@@ -134,11 +134,61 @@ LinearImage demosaic_bilinear(const LinearImage& mosaic, const Phase& phase) {
   return out;
 }
 
-inline float median_of_nine(float* v) noexcept {
-  // A partial sort is all a median needs; std::nth_element on nine floats
-  // carries more overhead than the comparisons it saves.
-  std::nth_element(v, v + 4, v + 9);
+// A 19-comparator sorting network that leaves the median of nine at slot 4.
+// This runs once per pixel per colour difference on a 24-million-pixel frame,
+// where std::nth_element's branching costs more than the comparisons it saves.
+inline float median_of_nine(float v[9]) noexcept {
+  const auto order = [](float& a, float& b) noexcept {
+    const float low = a < b ? a : b, high = a < b ? b : a;
+    a = low;
+    b = high;
+  };
+  order(v[1], v[2]); order(v[4], v[5]); order(v[7], v[8]);
+  order(v[0], v[1]); order(v[3], v[4]); order(v[6], v[7]);
+  order(v[1], v[2]); order(v[4], v[5]); order(v[7], v[8]);
+  order(v[0], v[3]); order(v[5], v[8]); order(v[4], v[7]);
+  order(v[3], v[6]); order(v[1], v[4]); order(v[2], v[5]);
+  order(v[4], v[7]); order(v[4], v[2]); order(v[6], v[4]);
+  order(v[4], v[2]);
   return v[4];
+}
+
+// A 3x3 median over one plane, mirrored at the border. The interior runs on
+// three row pointers with no bounds arithmetic at all.
+void median_plane(const float* src, float* dst, std::uint32_t width, std::uint32_t height) {
+  const auto sample = [&](int x, int y) noexcept {
+    return src[std::size_t(mirror(y, height)) * width + mirror(x, width)];
+  };
+  for (std::uint32_t y = 0; y < height; ++y) {
+    float* out = dst + std::size_t(y) * width;
+    const bool inner_row = y >= 1 && y + 1 < height;
+    if (!inner_row || width < 3) {
+      for (std::uint32_t x = 0; x < width; ++x) {
+        float window[9];
+        int n = 0;
+        for (int dy = -1; dy <= 1; ++dy)
+          for (int dx = -1; dx <= 1; ++dx) window[n++] = sample(int(x) + dx, int(y) + dy);
+        out[x] = median_of_nine(window);
+      }
+      continue;
+    }
+    const float* above = src + std::size_t(y - 1) * width;
+    const float* here = src + std::size_t(y) * width;
+    const float* below = src + std::size_t(y + 1) * width;
+    for (std::uint32_t x = 0; x < width; ++x) {
+      float window[9];
+      if (x >= 1 && x + 1 < width) {
+        window[0] = above[x - 1]; window[1] = above[x]; window[2] = above[x + 1];
+        window[3] = here[x - 1];  window[4] = here[x];  window[5] = here[x + 1];
+        window[6] = below[x - 1]; window[7] = below[x]; window[8] = below[x + 1];
+      } else {
+        int n = 0;
+        for (int dy = -1; dy <= 1; ++dy)
+          for (int dx = -1; dx <= 1; ++dx) window[n++] = sample(int(x) + dx, int(y) + dy);
+      }
+      out[x] = median_of_nine(window);
+    }
+  }
 }
 
 LinearImage demosaic_gradient(const LinearImage& mosaic, const Phase& phase) {
@@ -253,34 +303,18 @@ LinearImage demosaic_gradient(const LinearImage& mosaic, const Phase& phase) {
   // Pass 3: a 3x3 median over each colour difference. The directional steps
   // above are right almost everywhere and wrong in a few pixels along a hard
   // edge, and a wrong one shows as a coloured speck; a median removes exactly
-  // that kind of isolated error without touching a real edge's colour.
-  std::vector<float> smoothed(std::size_t(width) * height * 2, 0.f);
-  for (std::uint32_t y = 0; y < height; ++y) {
-    const float* centre = out.row(y);
-    float* dst = smoothed.data() + std::size_t(y) * width * 2;
-    for (std::uint32_t x = 0; x < width; ++x) {
-      for (int channel = 0; channel < 2; ++channel) {
-        float window[9];
-        int n = 0;
-        for (int dy = -1; dy <= 1; ++dy)
-          for (int dx = -1; dx <= 1; ++dx) {
-            const std::size_t at =
-                (std::size_t(mirror(int(y) + dy, height)) * width + mirror(int(x) + dx, width)) * 3;
-            window[n++] = out.data[at + (channel == 0 ? 0 : 2)] - out.data[at + 1];
-          }
-        dst[std::size_t(x) * 2 + std::size_t(channel)] = median_of_nine(window);
-      }
-      (void)centre;
-    }
-  }
-  for (std::uint32_t y = 0; y < height; ++y) {
-    float* dst = out.row(y);
-    const float* diff = smoothed.data() + std::size_t(y) * width * 2;
-    for (std::uint32_t x = 0; x < width; ++x) {
-      const float g = dst[std::size_t(x) * 3 + 1];
-      dst[std::size_t(x) * 3 + 0] = g + diff[std::size_t(x) * 2];
-      dst[std::size_t(x) * 3 + 2] = g + diff[std::size_t(x) * 2 + 1];
-    }
+  // that kind of isolated error without touching a real edge's colour. The two
+  // differences go into their own planes first: a planar median walks three
+  // contiguous rows, where an interleaved one would stride over every pixel.
+  const std::size_t pixels = std::size_t(width) * height;
+  std::vector<float> differences(pixels), smoothed(pixels);
+  for (int channel = 0; channel < 2; ++channel) {
+    const std::size_t offset = channel == 0 ? 0 : 2;
+    for (std::size_t i = 0; i < pixels; ++i)
+      differences[i] = out.data[i * 3 + offset] - out.data[i * 3 + 1];
+    median_plane(differences.data(), smoothed.data(), width, height);
+    for (std::size_t i = 0; i < pixels; ++i)
+      out.data[i * 3 + offset] = out.data[i * 3 + 1] + smoothed[i];
   }
   (void)green_plane;
   return out;

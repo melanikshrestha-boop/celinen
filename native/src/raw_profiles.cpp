@@ -48,13 +48,22 @@ std::string squash(const std::string& text) {
 }
 
 constexpr Entry table[] = {
-    // Fitted by scripts/fit-raw-profile.py on daylight frames from
-    // ~/Documents/01-Photography/Raw-Photos. Provisional: the fit is still
-    // being validated, and the matrix is replaced when it settles.
+    // Measured by scripts/fit-raw-profile.py on 20 daylight frames from
+    // ~/Documents/01-Photography/Raw-Photos, checked on 20 more held out of the
+    // fit: the render's angular colour error against the camera's own JPEG is
+    // a median of 4.0 degrees and a 95th percentile of 11.8 on the held-out
+    // frames, against 4.3 and 11.3 on the frames it was fitted to.
+    //
+    // The implied camera->XYZ is non-negative by construction, and its
+    // primaries land at xy (0.701, 0.299), (0.375, 0.552) and (0.090, 0.049) —
+    // a real set of filters, not a least-squares artefact. The training shoot
+    // was rock, a yellow dress and dark water, which barely exercises the
+    // red-green axis; the red primary consequently sits on the constraint
+    // boundary, and this profile's behaviour far from daylight is unverified.
     {"SONY", "ILCE-7M3",
-     {1.6391, -0.9798, -0.1813, 0.3505, 0.6371, 0.0274, 0.6066, -0.3995, 0.5161},
+     {1.8272, -1.2233, -0.1206, -0.7352, 1.7217, -0.0211, 0.0599, -0.1402, 0.7544},
      21,
-     "fitted from this camera's own embedded JPEG renderings"},
+     "measured from this camera's own embedded JPEG renderings"},
 };
 
 } // namespace
