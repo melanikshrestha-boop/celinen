@@ -67,6 +67,9 @@ function world() {
   const db = new FakeDatabase();
   const graph = new FakeSocialGraph();
   let clock = Date.parse("2026-09-18T12:00:00Z");
+  // Rows age on the test's clock, not the wall clock, or the sweep's "older
+  // than a day" depends on what time of day the suite runs.
+  db.now = () => clock;
   let instagram: InstagramSession | Error = instagramSession();
   let facebook: FacebookPageSession | Error = pageSession();
   const deps: StoryBroadcastDeps = {
