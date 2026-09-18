@@ -18,6 +18,7 @@ import {
   matchesFilter,
   type CullFrame,
 } from "../src/lib/studio/cull/session";
+import { detailRows } from "../src/components/cull/cull-review";
 import { openCullStore } from "../src/lib/studio/cull/store";
 import { cullFrame, cullReading, cullRow, smallGame } from "./cull-review.fixture";
 
@@ -80,6 +81,19 @@ describe("photographer marks", () => {
       ]);
     expect(counts.unreadable).toBe(1);
     expect(counts.measured).toBe(frames.length - 1);
+  });
+
+  test("a damaged file says so instead of reading as out of focus", () => {
+    const torn = cullFrame(
+      "t",
+      { verdict: "reject", reason: "out-of-focus", score: 4 },
+      {
+        damaged: "The preview picture inside this ARW file is damaged (truncated scan).",
+      },
+    );
+    expect(matchesFilter(torn, "invalid")).toBe(true);
+    expect(countFrames([torn]).invalid).toBe(1);
+    expect(detailRows(torn)).toEqual([{ label: "File", value: torn.damaged! }]);
   });
 
   test("rating, label and tag narrow any filter", () => {

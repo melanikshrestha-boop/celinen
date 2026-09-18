@@ -54,6 +54,10 @@ export type CullFrame = {
   decided: boolean;
   /** Why the file could not be read, when it could not. */
   error?: string | undefined;
+  /** The file was read, but something in it is broken — a truncated preview, a
+   * corrupt scan. Said in the ingest's own words. A frame like this has a
+   * measurement of whatever survived, so it is never judged on sharpness. */
+  damaged?: string | undefined;
   /** 1..5 stars; absent is unrated. */
   rating?: number | undefined;
   label?: CullLabel | undefined;
@@ -182,7 +186,10 @@ export function matchesFilter(frame: CullFrame, filter: CullFilter): boolean {
     case "not-in-shoot":
       return frame.membership?.inShoot === false;
     case "invalid":
-      return frame.validity !== undefined && frame.validity.status !== "valid";
+      return (
+        frame.damaged !== undefined ||
+        (frame.validity !== undefined && frame.validity.status !== "valid")
+      );
   }
 }
 
@@ -254,7 +261,8 @@ export function countFrames(frames: readonly CullFrame[]): CullCounts {
     if (suggestion && (suggestion.duplicate || suggestion.bestOfGroup)) counts.duplicates += 1;
     if (missedFocus(frame)) counts["missed-focus"] += 1;
     if (frame.membership?.inShoot === false) counts["not-in-shoot"] += 1;
-    if (frame.validity !== undefined && frame.validity.status !== "valid") counts.invalid += 1;
+    if (frame.damaged !== undefined || (frame.validity && frame.validity.status !== "valid"))
+      counts.invalid += 1;
     if (frame.reading) counts.measured += 1;
     if (frame.error) counts.unreadable += 1;
   }

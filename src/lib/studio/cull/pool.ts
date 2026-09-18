@@ -124,6 +124,9 @@ export async function ingestFiles(
                   reading: data.reading,
                   verdict: "undecided",
                   decided: false,
+                  // Kept on the frame, not just on this reply: a truncated file
+                  // must say so on the screen instead of reading as "out of focus".
+                  ...(data.damaged ? { damaged: data.damaged } : {}),
                   // Only files that name an AF area carry these, so older
                   // engines and AF-less JPEGs store exactly the row they did.
                   ...(data.afPoint

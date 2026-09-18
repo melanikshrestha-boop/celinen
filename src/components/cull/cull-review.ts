@@ -429,6 +429,9 @@ export function sharpnessReadout(frame: CullFrame): string | null {
 /** The loupe's detail list: the engine's reading in plain words, where focus
  * landed against the AF area, and any validity, shoot or burst judgment. */
 export function detailRows(frame: CullFrame): CullMeasurement[] {
+  // A damaged file was measured on whatever survived: saying "out of focus"
+  // about a truncated scan would be a lie about the photograph.
+  if (frame.damaged) return [{ label: "File", value: frame.damaged }];
   const rows = frame.reading ? plainReading(frame.reading) : [];
   const focus = focusSummary(frame);
   if (focus) rows.splice(1, 0, { label: "AF", value: focus });

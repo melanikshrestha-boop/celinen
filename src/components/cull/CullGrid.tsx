@@ -225,8 +225,18 @@ const Card = memo(function Card({
             <CullThumb frame={frame} thumbnail={thumbnail} />
           )}
           <CullMark frame={frame} />
-          {reason !== "none" && (
-            <span className="cull-reason font-mono text-[10px]">{CULL_REASON_LABELS[reason]}</span>
+          {/* A damaged file says so; the engine's reason would be about pixels
+              that never arrived. */}
+          {frame.damaged ? (
+            <span className="cull-reason font-mono text-[10px] text-rust" title={frame.damaged}>
+              Damaged file
+            </span>
+          ) : (
+            reason !== "none" && (
+              <span className="cull-reason font-mono text-[10px]">
+                {CULL_REASON_LABELS[reason]}
+              </span>
+            )
           )}
         </span>
         <span className="cull-card-meta font-mono text-[10px]">
