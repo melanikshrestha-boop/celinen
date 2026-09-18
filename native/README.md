@@ -77,6 +77,26 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
   recipe (curve, mixer, clarity, sharpening, grain, vignette, straighten).
   JPEG/PNG/WebP sources only: sensor RAW, automatic crop, reference match and
   object removal still need the local executables.
+- `native/src/upright.cpp` is Upright (the Develop Geometry panel): line
+  segments from an original two-scale gradient region-growing detector,
+  length-weighted RANSAC vanishing points refined on the Gaussian sphere, and
+  the camera's roll, pitch and yaw. The focal length comes from EXIF (35mm
+  equivalent, else the focal-plane sensor size) or, when two finite orthogonal
+  vanishing points exist, from the photo itself. Off/Auto/Level/Vertical/Full
+  follow Lightroom's modes with their own caps, falling back to Level and
+  reporting a confidence when the evidence is thin; Guided solves the same
+  camera from up to four drawn lines by least squares. The solved camera is
+  stored in the recipe, so the preview, the export and `lenslabs-develop` warp
+  from identical numbers — bicubic, with the largest inscribed crop when
+  Constrain Crop is on. `lenslabs-develop` reads those numbers from one
+  optional `UPRIGHT_1` line after the recipe. Measured on an M3 Pro: the native
+  solve is 8 ms at a 1,024px analysis edge and 27 ms at 2,048px; in the browser
+  the same wasm solve is 19–41 ms, and the warped source is cached so a slider
+  drag does not resample. Synthetic scenes with known camera angles
+  (`native/tests/upright_tests.cpp`) recover roll within 0.05 deg and pitch
+  within 0.2 deg; a 28mm keystoned test frame solved to 2.52/-14.03/8.21
+  against a truth of 2.5/-14/8. No lens distortion profile feeds it yet: the
+  engine takes a k1 and the tests exercise it, but no recipe field supplies one.
 - `native/src/develop_auto.cpp` measures a frame and solves exposure, contrast,
   highlights, shadows, whites, blacks, white balance and vibrance against
   `develop.cpp`'s own tone equations (the Auto button). Deterministic statistics,
