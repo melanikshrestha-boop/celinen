@@ -66,9 +66,9 @@ export type EyeThresholds = {
 };
 
 export const DEFAULT_EYE_THRESHOLDS: Readonly<EyeThresholds> = {
-  closedProbability: 0.75,
-  minConfidence: 0.7,
-  uncertainProbability: 0.45,
+  closedProbability: 0.55,
+  minConfidence: 0.6,
+  uncertainProbability: 0.4,
   companionProminence: 0.6,
 };
 

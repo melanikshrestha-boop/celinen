@@ -162,7 +162,9 @@ describe("C++ cull engine compiled to WebAssembly", () => {
     const pair = engine.judgeEyes([eyes(0.4, 0.15, 0.03, 0.9), eyes(0.7, 0.15, 0.95, 0.9)], W / H);
     expect(pair).toEqual({ state: "uncertain", primary: 0 });
     // A face too far off the frame's subject to count as one: no effect at all.
-    expect(engine.judgeEyes([eyes(0.4, 0.15, 0.03, 0.9), eyes(0.9, 0.05, 0.95, 0.9)], W / H)).toEqual({
+    expect(
+      engine.judgeEyes([eyes(0.4, 0.15, 0.03, 0.9), eyes(0.9, 0.05, 0.95, 0.9)], W / H),
+    ).toEqual({
       state: "open",
       primary: 0,
     });

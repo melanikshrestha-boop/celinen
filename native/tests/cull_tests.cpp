@@ -247,7 +247,7 @@ int main() {
             "The primary subject confidently blinking is closed.");
       verdict = lenslabs::judge_eyes({make(.42, .2, .16, .92, .4)}, 1.5);
       check(verdict.state == EyesState::uncertain, "High probability with low confidence is uncertain.");
-      verdict = lenslabs::judge_eyes({make(.42, .2, .16, .6, .95)}, 1.5);
+      verdict = lenslabs::judge_eyes({make(.42, .2, .16, .45, .95)}, 1.5);
       check(verdict.state == EyesState::uncertain, "A borderline probability is uncertain, not closed.");
       verdict = lenslabs::judge_eyes({make(.42, .2, .16, -1, 0)}, 1.5);
       check(verdict.state == EyesState::unknown && verdict.primary == 0,

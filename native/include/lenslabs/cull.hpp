@@ -30,10 +30,14 @@ enum class EyesState { unknown, open, uncertain, closed };
 // When a closed call is trusted. Rejecting a keeper is the costly mistake, so
 // "closed" needs a high probability *and* a high confidence on the primary
 // subject; anything in between is "uncertain" and is never rejected.
+// The defaults were chosen with scripts/eval-eyes.ts over labelled
+// photographs: on that set every closed call was right (no false rejects) and
+// a third of the blinks were caught. They are the operating point to revisit
+// first when a labelled sports card exists; the script prints the whole grid.
 struct EyeThresholds {
-  double closed_probability = .75;    // at or above, when confident: closed
-  double min_confidence = .7;         // below: at most uncertain
-  double uncertain_probability = .45; // at or above, when not closed: uncertain
+  double closed_probability = .55;    // at or above, when confident: closed
+  double min_confidence = .6;         // below: at most uncertain
+  double uncertain_probability = .4;  // at or above, when not closed: uncertain
   // A face at least this prominent relative to the primary one is a subject
   // too: if its eyes are confidently closed the frame becomes uncertain.
   double companion_prominence = .6;

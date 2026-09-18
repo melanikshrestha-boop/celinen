@@ -93,17 +93,50 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
   picks the best of each group and suggests keep/reject with a reason. Measured
   in Chromium on an M-series Mac: 4 ms per frame at the 640px analysis size,
   16 ms at 1280px, and 5 ms to rank 3,000 frames. It never overrules a decision
-  the photographer already made and never judges an unreadable file. Faces and
-  blinks are evidence it accepts from the browser's face detector, which only
-  some browsers ship; the engine never guesses at them.
+  the photographer already made and never judges an unreadable file. Faces are
+  evidence it is given, never guessed at: `judge_eyes()` takes each face's
+  closed probability and confidence, picks the primary subject (largest,
+  sharpest, most central, most certainly a face) and returns open, closed,
+  uncertain or unknown. Closed needs a high probability _and_ a high confidence;
+  anything between is uncertain, which leaves the frame undecided with its own
+  reason instead of rejecting it; eyes that could not be read are unknown, never
+  closed. A blinking spectator never decides a frame.
 - `native/wasm/ingest_wasm.cpp` → `src/lib/studio/cull/celinen-ingest.wasm`. One
   call per photo for the ingest lanes: EXIF, a libjpeg decode scaled in the DCT,
-  orientation, the cull measurement, the camera's AF area and the filmstrip
-  thumbnail. A photo libjpeg cannot read (WebP, PNG, AVIF, HEIC in Safari) is
+  orientation, faces and eyes, the cull measurement, the camera's AF area and the
+  filmstrip thumbnail. A photo libjpeg cannot read (WebP, PNG, AVIF, HEIC in Safari) is
   decoded by the browser and measured here as upright RGBA
   (`celinen_ingest_run_pixels`), so every format is scored the same way. A
   truncated or corrupt file is decoded as far as it goes and reported as
   `damaged` with the reason, never scored as a soft photo in silence.
+- `native/src/faces.cpp` and `native/src/nn.cpp` → linked into the ingest
+  engine. Two stages, both inside the lane. YuNet (MIT, OpenCV Zoo) finds faces
+  on the 640px working frame the pass already decoded, down to about twelve
+  pixels of face — on a 6,000px original that is a face of roughly a hundred
+  pixels, and smaller faces are reported as unknown rather than guessed at.
+  MediaPipe Face Mesh V2 and Blendshape V2 (Apache-2.0) then read the subject's
+  eyes from a crop taken at the original's own resolution, levelled on the eye
+  line as MediaPipe's own graph does, with a second landmark pass whenever the
+  first says the eyes might be closed. The blink scores become a closed
+  probability; face size in real pixels, crop acuity, detector score, landmark
+  presence, head pose and eye-region contrast become a confidence, and the
+  weakest of them decides. `nn.cpp` is the runtime that executes both models:
+  the upstream ONNX and TFLite files byte for byte, with the operator set they
+  use, so no second inference runtime ships to the browser. Model sources,
+  hashes and licences: `src/lib/studio/cull/models/THIRD-PARTY.md`. Measured in
+  Chrome on an M-series Mac at the 640px working frame: about 25 ms to find
+  faces and about 45 ms to read one subject's eyes, on top of a 24MP frame's
+  80 ms decode and measurement. Eyes are only read on frames that could still be
+  keepers and on the faces that could decide one.
+- `native/src/jpeg_coefficients.cpp` → linked into the ingest engine. Reading
+  eyes at the original's resolution used to mean decoding the file twice, and
+  entropy decoding is nearly all of a decode (66 ms of a 24MP frame's 67 ms).
+  This decodes the file once, keeps the coefficients, and renders both the
+  working frame and the face crops from them. The working frame comes out byte
+  for byte identical to libjpeg's own scaled decode, which
+  tests/cull-ingest.test.ts checks on 4:2:0, 4:2:2 and a rotated portrait; a
+  file the renderer will not take (CMYK, or past its memory bound) falls back to
+  the streaming decoder and gives up full-resolution crops.
 - `native/src/raw_preview.cpp` → linked into the ingest engine and into
   `src/lib/studio/cull/celinen-raw.wasm` for the loupe and the preview worker.
   What is inside a RAW and which way up: the embedded JPEGs of TIFF-based RAWs
@@ -126,6 +159,12 @@ bun test tests/develop-wasm.test.ts tests/cull-engine.test.ts tests/voice-wasm.t
 ```
 
 The `.wasm` files are committed so deploys and CI never need the toolchain.
+`scripts/eval-eyes.ts` measures the eye reading against labelled photographs
+(`<folder>/open`, `/closed`, `/unknown`): precision and recall for closed at the
+shipped thresholds and across a grid, the confusion, accuracy by how many pixels
+of face the original carried, and the cost per frame. Precision leads: a false
+closed is a frame the photographer paid for and never sees again.
+
 Rebuild and commit them whenever `develop*.cpp`, `cull.cpp`, `exif.cpp`,
 `focus_hit.cpp`, `raw_preview.cpp` or `voice.cpp` change;
 the test files above execute the committed binaries. The site's CSP allows
@@ -249,10 +288,10 @@ The first implementation also exposed a macOS worker-thread stack overflow in Li
 
 Fetch these separately into a test directory, verify checksums, name them as below, and set `LENSLABS_RAW_FIXTURES` when running `make -C native test` or `make -C native sanitize`. No test silently downloads a corpus. Without the variable the suite explicitly prints a RAW-fixture skip. Both are listed as CC0 in the [raw.pixls.us catalog](https://raw.pixls.us/json/getrepository.php), checked 2026-09-07; they are technical fixtures, not endorsements or photographer-quality ground truth.
 
-| Local name | Original test asset | SHA-256 |
-| --- | --- | --- |
-| `sony-a6000.ARW` | [Sony A6000 compressed, catalog 1971](https://raw.pixls.us/getfile.php/1971/nice/Sony%20-%20ILCE-6000%20-%2012bit%2012bit%20compressed%20(3:2).ARW), 25,624,576 bytes | `ce8b4957281a817d52a07a691e2468567b6c78223bd0b514ffc1c65b002b8d89` |
-| `sony-a7iv-small.ARW` | [Sony A7 IV lossless-small, catalog 6931](https://raw.pixls.us/getfile.php/6931/nice/Sony%20-%20ILCE-7M4%20-%204:3.ARW), 22,933,504 bytes | `cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223` |
+| Local name            | Original test asset                                                                                                                                                     | SHA-256                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `sony-a6000.ARW`      | [Sony A6000 compressed, catalog 1971](<https://raw.pixls.us/getfile.php/1971/nice/Sony%20-%20ILCE-6000%20-%2012bit%2012bit%20compressed%20(3:2).ARW>), 25,624,576 bytes | `ce8b4957281a817d52a07a691e2468567b6c78223bd0b514ffc1c65b002b8d89` |
+| `sony-a7iv-small.ARW` | [Sony A7 IV lossless-small, catalog 6931](https://raw.pixls.us/getfile.php/6931/nice/Sony%20-%20ILCE-7M4%20-%204:3.ARW), 22,933,504 bytes                               | `cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223` |
 
 Tests cover useful bounded previews, extensionless uploads, byte preservation, JPEG encode/reopen, malformed/truncated inputs, and 90/180/270-degree orientation on disposable copies (both geometry and actual corner pixels). Decoded capture dimensions are 6024×4024 and 3516×2344; the 1280px previews are 1280×855 and 1280×853. Capture dimensions come from LibRaw; the existing Studio label continues to show working-preview dimensions.
 

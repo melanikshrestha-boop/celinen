@@ -213,7 +213,10 @@ export async function instantiateIngestWasm(
   const wasm = (await WebAssembly.instantiate(module, imports)).exports as unknown as Exports;
   wasm._initialize?.();
   const fields = wasm.celinen_ingest_reading_fields?.() ?? READING_FIELDS;
-  if (fields !== READING_FIELDS || (wasm.celinen_ingest_face_fields?.() ?? FACE_FIELDS) !== FACE_FIELDS)
+  if (
+    fields !== READING_FIELDS ||
+    (wasm.celinen_ingest_face_fields?.() ?? FACE_FIELDS) !== FACE_FIELDS
+  )
     throw new Error("The ingest engine's layout does not match this build.");
 
   const text = (pointer: number) => {
@@ -252,7 +255,11 @@ export async function instantiateIngestWasm(
     if (!wasm.celinen_ingest_faces || !wasm.celinen_ingest_face_count) return null;
     const count = wasm.celinen_ingest_face_count();
     if (!count) return (wasm.celinen_ingest_faces_ready?.() ?? 0) & 1 ? [] : null;
-    const v = new Float64Array(wasm.memory.buffer, wasm.celinen_ingest_faces(), count * FACE_FIELDS);
+    const v = new Float64Array(
+      wasm.memory.buffer,
+      wasm.celinen_ingest_faces(),
+      count * FACE_FIELDS,
+    );
     return Array.from({ length: count }, (_, index) => {
       const at = index * FACE_FIELDS;
       const flags = v[at + 15]!;
@@ -382,7 +389,9 @@ export async function instantiateIngestWasm(
         if (!pointer) throw new Error(text(wasm.celinen_ingest_error()) || "Face model too large.");
         new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
         if (!parse(index, bytes.length))
-          throw new Error(text(wasm.celinen_ingest_error()) || `The ${kind} model could not be read.`);
+          throw new Error(
+            text(wasm.celinen_ingest_error()) || `The ${kind} model could not be read.`,
+          );
       });
     },
     facesReady() {

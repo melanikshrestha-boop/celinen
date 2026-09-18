@@ -14,11 +14,7 @@ import { cullEngine } from "./client";
 import { instantiateIngestWasm, type IngestEngine } from "./ingest-engine";
 import type { IngestReply, IngestRequest } from "./ingest-messages";
 import { browserPixels, readPhoto } from "./ingest-read";
-import {
-  cullFaceFromBox,
-  findPortraitFaceOriented,
-  uprightPixels,
-} from "./portrait-face";
+import { cullFaceFromBox, findPortraitFaceOriented, uprightPixels } from "./portrait-face";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -47,7 +43,11 @@ function load() {
         download(MODEL_URLS.landmarks),
         download(MODEL_URLS.blendshapes),
       ]);
-      ready.loadFaceModels({ detector: detector!, landmarks: landmarks!, blendshapes: blendshapes! });
+      ready.loadFaceModels({
+        detector: detector!,
+        landmarks: landmarks!,
+        blendshapes: blendshapes!,
+      });
       return { engine: ready, eyes: ready.facesReady().eyes };
     } catch {
       // Reading photos matters more than reading eyes: the card still imports.
