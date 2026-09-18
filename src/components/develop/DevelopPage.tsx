@@ -363,6 +363,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   // The C++ engine running in this page as WebAssembly: the full recipe, but no
   // loopback tools such as automatic crop.
   const [wasmEngine, setWasmEngine] = useState(false);
+  // Sensor demosaic needs LibRaw, which only the local executable has. Without
+  // it the editor must work on the preview instead of failing every render.
+  const [rawEngine, setRawEngine] = useState(false);
+  // Held R (or the toolbar toggle): the camera's own rendering, no adjustments.
+  const [cameraRendering, setCameraRendering] = useState(false);
+  const cameraHoldStarted = useRef<number | null>(null);
   const [removalPreviewPending, setRemovalPreviewPending] = useState(false);
   const [importFailures, setImportFailures] = useState<DevelopImportReport["failures"]>([]),
     [dragging, setDragging] = useState(false);
@@ -475,7 +481,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   const availablePhotos = library.photos.filter((p) => p.sourceBlob?.size || p.previewBlob?.size);
   const { source: previewSource, sourceMode: processingMode } = developProcessingSource(
     photo,
-    exportSourceMode,
+    rawEngine ? exportSourceMode : "preview",
   );
   const renderKey = `${processingMode}:${exportEdge}:${exportQuality}`;
   const exportDressing: ExportDressing = {
@@ -539,9 +545,33 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
   // temporary: it is never used as an export proof or a source-space editing surface.
   const quickPreviewBlob = !url && !beforeUrl ? photoViewBlob : null;
   const quickPreviewUrl = useBlobUrl(quickPreviewBlob);
-  const viewerUrl = url ?? beforeUrl ?? quickPreviewUrl;
-  const viewerBlob = url ? renderBlob : beforeUrl ? neutralBlob : quickPreviewBlob;
-  const displayedUrl = before && beforeUrl ? beforeUrl : viewerUrl;
+  // Minted for every photo, not only while R is down, so the swap costs no decode.
+  const cameraUrl = useBlobUrl(photoViewBlob);
+  const showingCamera = cameraRendering && Boolean(cameraUrl);
+  const viewerUrl = showingCamera ? cameraUrl : (url ?? beforeUrl ?? quickPreviewUrl);
+  const viewerBlob = showingCamera
+    ? photoViewBlob
+    : url
+      ? renderBlob
+      : beforeUrl
+        ? neutralBlob
+        : quickPreviewBlob;
+  const displayedUrl = showingCamera ? cameraUrl : before && beforeUrl ? beforeUrl : viewerUrl;
+  // Which decode the editor is actually working on. Said the same way in the
+  // viewer, the histogram and the export panel, so the three cannot disagree.
+  const decodeLabel = !photo
+    ? ""
+    : processingMode === "raw"
+      ? "Sensor RAW"
+      : photo.isRaw
+        ? photo.previewOrigin === "raw-demosaic"
+          ? "Sensor-derived preview"
+          : photo.previewOrigin === "embedded"
+            ? "Embedded camera JPEG"
+            : "Saved preview"
+        : photo.sourceAvailable
+          ? ""
+          : "Saved preview";
   const pixelSampleChannel = useMemo(createDevelopPixelSampleChannel, []);
   const onPixelSample = useCallback(
     (sample: DevelopPixelSample | null) => {
@@ -604,6 +634,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           setEngine(Boolean(s?.ready));
           setBrowserOnly(!s?.ready || s.engine === BROWSER_DEVELOP_ENGINE);
           setWasmEngine(s?.engine === WASM_DEVELOP_ENGINE);
+          setRawEngine(Boolean(s?.ready && s.token && s.rawSupported));
         }
       });
     };
@@ -2061,7 +2092,12 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
       }
       if (key === "g") setMode("library");
       if (key === "d") setMode("develop");
-      if (key === "r") changeTool(tool === "crop" ? "edit" : "crop");
+      // Lightroom's R is Crop, and a tap here still is (acted on release).
+      // Holding it shows the camera's own rendering, which Lightroom has no key for.
+      if (key === "r") {
+        if (!e.repeat) cameraHoldStarted.current = e.timeStamp;
+        if (photoViewBlob) setCameraRendering(true);
+      }
       if (key === "w") changeTool(tool === "wb" ? "edit" : "wb");
       if (key === "y" && source) {
         setCompare((v) => !v);
@@ -2101,8 +2137,28 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           },
         ]);
     };
+    const release = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "r") return;
+      const started = cameraHoldStarted.current;
+      cameraHoldStarted.current = null;
+      setCameraRendering(false);
+      // A short press means Crop; only a real hold was a peek at the original.
+      if (started !== null && e.timeStamp - started < 220)
+        changeTool(tool === "crop" ? "edit" : "crop");
+    };
+    // A window that loses focus mid-hold never sends its keyup.
+    const drop = () => {
+      cameraHoldStarted.current = null;
+      setCameraRendering(false);
+    };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keyup", release);
+    window.addEventListener("blur", drop);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener("keyup", release);
+      window.removeEventListener("blur", drop);
+    };
   });
 
   if (loadError)
@@ -2866,6 +2922,14 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     Before
                   </button>
                   <button
+                    aria-label="Camera rendering"
+                    aria-pressed={showingCamera}
+                    disabled={!cameraUrl}
+                    onClick={() => setCameraRendering((v) => !v)}
+                  >
+                    R
+                  </button>
+                  <button
                     aria-label="Compare before and after"
                     aria-pressed={compare}
                     disabled={!beforeUrl || !url || !!renderError}
@@ -2879,26 +2943,22 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                   </button>
                 </div>
                 <span>
-                  {renderError
-                    ? "Adjustments unavailable · Showing source preview"
-                    : quickPreviewUrl
-                      ? importing
-                        ? "Import preview"
-                        : "Import preview · Preparing full-quality image…"
-                      : rendering
-                        ? "Rendering…"
-                        : dimensions.width
-                          ? `${dimensions.width} × ${dimensions.height}`
-                          : ""}
-                  {!renderError && !rendering && url && source && photo?.isRaw
-                    ? processingMode === "raw"
-                      ? " · Sensor RAW · export-matched"
-                      : photo.previewOrigin === "raw-demosaic"
-                        ? " · Sensor-derived preview"
-                        : " · RAW preview"
-                    : source && !photo?.sourceAvailable
-                      ? " · Preview source"
-                      : ""}
+                  {showingCamera
+                    ? "Camera rendering · no adjustments"
+                    : renderError
+                      ? "Adjustments unavailable · Showing source preview"
+                      : quickPreviewUrl
+                        ? importing
+                          ? "Import preview"
+                          : "Import preview · Preparing full-quality image…"
+                        : rendering
+                          ? "Rendering…"
+                          : dimensions.width
+                            ? `${dimensions.width} × ${dimensions.height}`
+                            : ""}
+                  {!showingCamera && !renderError && !rendering && url && source && decodeLabel
+                    ? ` · ${decodeLabel}${processingMode === "raw" ? " · export-matched" : ""}`
+                    : ""}
                 </span>
                 <button
                   disabled={!source}
@@ -2980,12 +3040,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     ? "No image source"
                     : quickPreviewUrl
                       ? "Import preview · sRGB"
-                      : photo?.isRaw
-                        ? processingMode === "raw"
-                          ? "Sensor RAW · sRGB"
-                          : photo.previewOrigin === "raw-demosaic"
-                            ? "Sensor preview · sRGB"
-                            : "RAW preview · sRGB"
+                      : decodeLabel
+                        ? `${decodeLabel} · sRGB`
                         : "sRGB"}
                 </span>
                 <span>
@@ -3425,10 +3481,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     <label>
                       Processing source · editor and export
                       <select
-                        value={exportSourceMode}
+                        value={rawEngine ? exportSourceMode : "preview"}
+                        disabled={!rawEngine}
                         onChange={(e) => setExportSourceMode(e.target.value as "raw" | "preview")}
                       >
-                        <option value="raw">Full RAW demosaic</option>
+                        <option value="raw" disabled={!rawEngine}>
+                          Full RAW demosaic
+                        </option>
                         <option value="preview">
                           {photo.previewOrigin === "raw-demosaic"
                             ? "Saved sensor-derived preview"
@@ -3439,13 +3498,15 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                       </select>
                     </label>
                     <p className="develop-export-disclosure">
-                      {exportSourceMode === "raw"
-                        ? "The editor and export use the same sensor RAW render, size, quality and sRGB color. The displayed edited JPEG is reused for download when all settings match."
-                        : photo.previewOrigin === "raw-demosaic"
-                          ? "The editor and export both use the saved sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
-                          : photo.previewOrigin === "embedded"
-                            ? "The editor and export both use the camera’s embedded preview, not sensor RAW data."
-                            : "The editor and export both use the saved preview, not a new render from sensor RAW data."}
+                      {!rawEngine
+                        ? "Sensor RAW demosaic needs the local Celinen app. The editor and export both use the picture inside the RAW file."
+                        : exportSourceMode === "raw"
+                          ? "The editor and export use the same sensor RAW render, size, quality and sRGB color. The displayed edited JPEG is reused for download when all settings match."
+                          : photo.previewOrigin === "raw-demosaic"
+                            ? "The editor and export both use the saved sensor-derived preview. Choose Full RAW demosaic for a new render from the original."
+                            : photo.previewOrigin === "embedded"
+                              ? "The editor and export both use the camera’s embedded preview, not sensor RAW data."
+                              : "The editor and export both use the saved preview, not a new render from sensor RAW data."}
                     </p>
                   </>
                 )}
