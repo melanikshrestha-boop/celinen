@@ -1,11 +1,15 @@
 name: Fix export night kit DevelopPage
 on:
+  push:
+    branches: [feat/export-night-kit]
   workflow_dispatch:
 jobs:
   fix:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Skip when the fix commit itself is pushed (GITHUB_TOKEN pushes usually skip anyway)
+    if: ${{ !contains(github.event.head_commit.message || '', 'Wire export night kit into Develop') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,16 +21,15 @@ jobs:
           set -euo pipefail
           git config user.name "celinen-bot"
           git config user.email "melanikshrestha@gmail.com"
-          git checkout 7dd774e94455ed12743233e01beaf64b279bfc0b -- src/components/develop/DevelopPage.tsx
-          if ! grep -q ExportNightKitControls src/components/develop/DevelopPage.tsx; then
-            git apply patches/export-night-kit-develop-page.patch
+          # If already wired, nothing to do
+          if grep -q ExportNightKitControls src/components/develop/DevelopPage.tsx 2>/dev/null; then
+            echo "Already wired"
+            exit 0
           fi
+          git checkout 7dd774e94455ed12743233e01beaf64b279bfc0b -- src/components/develop/DevelopPage.tsx
+          git apply patches/export-night-kit-develop-page.patch
           grep -q ExportNightKitControls src/components/develop/DevelopPage.tsx
           test "$(wc -c < src/components/develop/DevelopPage.tsx)" -gt 100000
           git add src/components/develop/DevelopPage.tsx
-          if git diff --cached --quiet; then
-            echo "No changes needed"
-            exit 0
-          fi
           git commit -m "Wire export night kit into Develop export dialog and serial queue"
           git push origin HEAD:feat/export-night-kit
