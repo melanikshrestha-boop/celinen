@@ -329,6 +329,34 @@ export async function facebookCredential(owner: string, pageId: string) {
     );
   return page.access_token;
 }
+/** Page feed or photo. `url` must be fetchable by Facebook for a few minutes. */
+export async function publishFacebookPage(
+  owner: string,
+  input: { caption: string; imageUrl?: string },
+): Promise<{ ok: true; url?: string } | { ok: false; error: string }> {
+  try {
+    const session = await facebookPageSession(owner);
+    const caption = input.caption.trim();
+    if (input.imageUrl) {
+      const posted = await facebookCall(`${session.pageId}/photos`, session.token, {
+        body: new URLSearchParams({ url: input.imageUrl, caption, published: "true" }),
+      });
+      const id = typeof posted.id === "string" || typeof posted.id === "number" ? String(posted.id) : "";
+      return { ok: true, ...(id ? { url: `https://www.facebook.com/${id}` } : {}) };
+    }
+    const posted = await facebookCall(`${session.pageId}/feed`, session.token, {
+      body: new URLSearchParams({ message: caption }),
+    });
+    const id = typeof posted.id === "string" ? posted.id : "";
+    return { ok: true, ...(id ? { url: `https://www.facebook.com/${id}` } : {}) };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Facebook rejected this post.",
+    };
+  }
+}
+
 export async function disconnectFacebook(owner: string) {
   const result = await businessDatabase()
     .from("facebook_social_connections")

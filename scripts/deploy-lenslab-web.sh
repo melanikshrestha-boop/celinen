@@ -20,8 +20,9 @@ d["routes"] = [
 vars = d.get("vars") if isinstance(d.get("vars"), dict) else {}
 vars["LENSLAB_CULTURE_API"] = "https://lenslab.dev/api/culture"
 d["vars"] = vars
+d["triggers"] = {"crons": ["* * * * *"]}
 p.write_text(json.dumps(d, indent=2) + "\n")
-print("patched", d["name"], "keep_vars", d["keep_vars"], "routes", d["routes"], "culture", vars["LENSLAB_CULTURE_API"])
+print("patched", d["name"], "keep_vars", d["keep_vars"], "routes", d["routes"], "cron", d["triggers"], "culture", vars["LENSLAB_CULTURE_API"])
 PY
 bunx wrangler@4.131.1 deploy --config .output/server/wrangler.json --name lenslab-web --keep-vars
 echo "Live: https://lenslab.dev"

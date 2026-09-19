@@ -1,13 +1,14 @@
 /** Encrypted paste credentials for networks that allow it. Never Meta/TikTok OAuth. */
 import type { SocialId } from "./social-accounts";
 
-export const PASTE_SOCIAL_IDS = ["bluesky", "mastodon", "discord"] as const;
+export const PASTE_SOCIAL_IDS = ["bluesky", "mastodon", "discord", "x", "linkedin"] as const;
 export type PasteSocialId = (typeof PASTE_SOCIAL_IDS)[number];
 
 export type BlueskySecret = { id: "bluesky"; handle: string; appPassword: string };
 export type MastodonSecret = { id: "mastodon"; instance: string; token: string };
 export type DiscordSecret = { id: "discord"; webhook: string };
-export type PasteSecret = BlueskySecret | MastodonSecret | DiscordSecret;
+export type TokenSecret = { id: "x" | "linkedin"; token: string };
+export type PasteSecret = BlueskySecret | MastodonSecret | DiscordSecret | TokenSecret;
 
 const STORE = "celinen.social.secrets.v1";
 const MAX_CAPTION = 2_000;
@@ -71,6 +72,13 @@ export function parseMastodonToken(value: string) {
   return token;
 }
 
+export function parseAccessToken(value: string, label: string) {
+  const token = value.trim();
+  if (token.length < 20 || token.length > 512 || !/^[A-Za-z0-9._~+/=-]+$/.test(token))
+    throw new Error(`Enter a ${label} access token.`);
+  return token;
+}
+
 export function parseDiscordWebhook(value: string) {
   let url: URL;
   try {
@@ -100,11 +108,13 @@ export function parsePasteSecret(id: PasteSocialId, fields: Record<string, strin
       instance: parseMastodonInstance(fields.instance ?? ""),
       token: parseMastodonToken(fields.token ?? ""),
     };
+  if (id === "x") return { id, token: parseAccessToken(fields.token ?? "", "X") };
+  if (id === "linkedin") return { id, token: parseAccessToken(fields.token ?? "", "LinkedIn") };
   return { id, webhook: parseDiscordWebhook(fields.webhook ?? "") };
 }
 
 export function clipPasteCaption(text: string, id: PasteSocialId) {
-  const limit = id === "bluesky" ? 300 : id === "mastodon" ? 500 : MAX_CAPTION;
+  const limit = id === "x" ? 280 : id === "bluesky" ? 300 : id === "mastodon" ? 500 : MAX_CAPTION;
   const value = text.trim();
   if (value.length <= limit) return value;
   return `${value.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;
@@ -133,7 +143,9 @@ export async function readPasteSecrets(scope: string): Promise<Partial<Record<Pa
           ? { handle: row.handle, appPassword: row.appPassword }
           : row.id === "mastodon"
             ? { instance: row.instance, token: row.token }
-            : { webhook: row.webhook },
+            : row.id === "x" || row.id === "linkedin"
+              ? { token: row.token }
+              : { webhook: row.webhook },
       );
     }
     return out;

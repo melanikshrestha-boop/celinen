@@ -30,12 +30,20 @@ import {
 } from "@/lib/social-accounts";
 import {
   hasPasteSecret,
+  isPasteSocial,
   readPasteSecrets,
   type PasteSecret,
   type PasteSocialId,
 } from "@/lib/social-paste";
 import { publishPastePost } from "@/lib/social-paste-client";
 import { buildSocialPost, fireCompose, readSocialDraft, type SocialPost } from "@/lib/social-post";
+import {
+  cancelScheduledPost,
+  createScheduledPost,
+  listScheduledPosts,
+} from "@/lib/business/schedule.functions";
+import { publishingStatus } from "@/lib/business/publishing.functions";
+import { canScheduleNetwork, type ScheduleRecord } from "@/lib/social/schedule";
 import { InstagramAccount } from "@/components/social/InstagramAccount";
 import { FacebookAccount } from "@/components/social/FacebookAccount";
 import "./social-accounts.css";
@@ -48,6 +56,24 @@ const SUGGEST = [
   { label: "Sideline set", icon: Target },
   { label: "Wedding recap", icon: Heart },
 ] as const;
+
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function localStamp(ms: number) {
+  const date = new Date(ms);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+async function photoPayload(file: File) {
+  if (file.type !== "image/jpeg" && file.type !== "image/png") throw new Error("Use a JPEG or PNG.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length > 1_500_000) throw new Error("That photo is too large.");
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return { mime: file.type, data: btoa(binary) };
+}
 
 export function SocialAccounts() {
   const navigate = useNavigate();
@@ -64,6 +90,13 @@ export function SocialAccounts() {
   const [status, setStatus] = useState("");
   const [links, setLinks] = useState<SocialLink[]>([]);
   const [secrets, setSecrets] = useState<Partial<Record<PasteSocialId, PasteSecret>>>({});
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [when, setWhen] = useState(() => localStamp(Date.now() + 60 * 60 * 1000));
+  const [queue, setQueue] = useState<ScheduleRecord[]>([]);
+  const [meta, setMeta] = useState<{ instagram: boolean; facebook: boolean }>({
+    instagram: false,
+    facebook: false,
+  });
 
   useEffect(() => {
     const incoming = readSocialDraft();
@@ -89,6 +122,20 @@ export function SocialAccounts() {
       });
     };
     load();
+    void listScheduledPosts()
+      .then((rows) => {
+        if (alive) setQueue(rows.filter((row) => row.status === "scheduled"));
+      })
+      .catch(() => {});
+    void publishingStatus()
+      .then((status) => {
+        if (alive)
+          setMeta({
+            instagram: Boolean(status.connection?.active),
+            facebook: Boolean(status.facebook?.active),
+          });
+      })
+      .catch(() => {});
     window.addEventListener("celinen:socials", load);
     return () => {
       alive = false;
@@ -122,18 +169,65 @@ export function SocialAccounts() {
     }
   }
 
+  function liveReady(id: SocialId) {
+    if (id === "instagram") return meta.instagram;
+    if (id === "facebook") return meta.facebook;
+    return isPasteSocial(id) && hasPasteSecret(secrets, id);
+  }
+
+  async function sendLive(ids: SocialId[], runAt: string) {
+    const networks = ids.filter((id) => canScheduleNetwork(id) && liveReady(id));
+    if (!networks.length) throw new Error("Connect an account that can actually post.");
+    const row = await createScheduledPost({
+      data: {
+        caption: post!.caption,
+        networks,
+        runAt,
+        secrets: networks
+          .filter((id): id is PasteSocialId => isPasteSocial(id))
+          .map((id) => secrets[id]!),
+        ...(photo ? { image: await photoPayload(photo) } : {}),
+      },
+    });
+    if (row.status === "scheduled")
+      setQueue((current) =>
+        [...current.filter((item) => item.createdAt !== row.createdAt), row].sort(
+          (a, b) => Date.parse(a.runAt) - Date.parse(b.runAt),
+        ),
+      );
+    return row;
+  }
+
   async function postTo(ids: SocialId[]) {
     if (!post || !ids.length) return;
-    const live = ids.filter((id) => hasPasteSecret(secrets, id));
-    const rest = ids.filter((id) => !hasPasteSecret(secrets, id));
+    const live = ids.filter((id) => canScheduleNetwork(id) && liveReady(id));
+    const rest = ids.filter((id) => !live.includes(id));
     const notes: string[] = [];
-    for (const id of live) {
-      const result = await publishPastePost(account?.scope ?? "", id, post.caption);
-      notes.push(
-        result.ok
-          ? `Posted to ${SOCIAL_NETWORKS.find((item) => item.id === id)?.title}.`
-          : result.error,
-      );
+    if (live.length) {
+      try {
+        const row = await sendLive(live, new Date().toISOString());
+        const posted = row.results.filter((item) => item.ok).map((item) => item.id);
+        const failed = row.results.filter((item) => !item.ok);
+        if (posted.length)
+          notes.push(
+            `Posted to ${posted
+              .map((id) => SOCIAL_NETWORKS.find((item) => item.id === id)?.title ?? id)
+              .join(", ")}.`,
+          );
+        for (const item of failed) notes.push(item.error ?? "That account rejected this post.");
+        if (!row.results.length && row.status === "posted") notes.push("Posted.");
+      } catch (error) {
+        for (const id of live.filter((item) => isPasteSocial(item))) {
+          const result = await publishPastePost(account?.scope ?? "", id, post.caption);
+          notes.push(
+            result.ok
+              ? `Posted to ${SOCIAL_NETWORKS.find((item) => item.id === id)?.title}.`
+              : result.error,
+          );
+        }
+        if (!live.some((id) => isPasteSocial(id)))
+          notes.push(error instanceof Error ? error.message : "This post could not be sent.");
+      }
     }
     if (rest.length) {
       const actions = await fireCompose(rest, post.caption);
@@ -316,8 +410,10 @@ export function SocialAccounts() {
             accept="image/*"
             multiple
             hidden
-            onChange={() => {
-              void navigate({ to: "/studio" });
+            onChange={(event) => {
+              const next = event.target.files?.[0] ?? null;
+              setPhoto(next);
+              if (next) setStatus(next.name);
             }}
           />
         </form>
@@ -371,6 +467,60 @@ export function SocialAccounts() {
               </button>
             ) : null}
             {status ? <p className="social-post__hint">{status}</p> : null}
+            <form
+              id="schedule"
+              className="social-schedule"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!post) return;
+                const live = targets.map((row) => row.id).filter((id) => liveReady(id));
+                void sendLive(live.length ? live : targets.map((row) => row.id), new Date(when).toISOString())
+                  .then((row) =>
+                    setStatus(
+                      row.status === "scheduled"
+                        ? `Scheduled ${new Date(row.runAt).toLocaleString()}.`
+                        : "Posted.",
+                    ),
+                  )
+                  .catch((error) =>
+                    setStatus(error instanceof Error ? error.message : "Could not schedule."),
+                  );
+              }}
+            >
+              <input
+                type="datetime-local"
+                aria-label="Schedule"
+                value={when}
+                onChange={(event) => setWhen(event.target.value)}
+              />
+              <button type="submit">Schedule</button>
+              {queue.map((row) => (
+                <div key={row.id ?? row.createdAt + row.runAt} className="social-schedule__row">
+                  <span>
+                    {row.networks
+                      .map((id) => SOCIAL_NETWORKS.find((item) => item.id === id)?.title ?? id)
+                      .join(", ")}{" "}
+                    <time dateTime={row.runAt}>{new Date(row.runAt).toLocaleString()}</time>
+                  </span>
+                  {row.id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void cancelScheduledPost({ data: { id: row.id! } })
+                          .then(() =>
+                            setQueue((current) => current.filter((item) => item.id !== row.id)),
+                          )
+                          .catch((error) =>
+                            setStatus(error instanceof Error ? error.message : "Could not cancel."),
+                          );
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </form>
           </div>
         ) : null}
         <InstagramAccount />
@@ -399,6 +549,7 @@ export function SocialAccounts() {
               const idea = draft.trim() || "Gallery tonight, then the sideline set.";
               setDraft(idea);
               makePost(idea);
+              document.getElementById("schedule")?.scrollIntoView({ block: "center" });
             }}
           >
             <span className="social-post__card-mark is-campaign" aria-hidden="true">
