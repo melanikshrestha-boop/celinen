@@ -22,6 +22,10 @@ export const instagramAccount = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const ig = await import("./instagram.server");
     const configured = ig.instagramConfigured();
+    // Names only, so the card can say which Worker secret is absent.
+    const { missing } = (await import("./social-connections.server")).connectorConfigured(
+      "instagram",
+    );
     const row = await ig.instagramConnection(context.userId);
     const posts = await (
       await import("./instagram-post.server")
@@ -30,6 +34,7 @@ export const instagramAccount = createServerFn({ method: "GET" })
       .catch(() => []);
     return {
       configured,
+      missing,
       connection: row
         ? {
             username: row.username,

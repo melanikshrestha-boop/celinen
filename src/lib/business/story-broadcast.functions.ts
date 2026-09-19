@@ -47,8 +47,13 @@ export const facebookAccount = createServerFn({ method: "GET" })
   .middleware(auth)
   .handler(async ({ context }) => {
     const status = await (await import("./facebook.server")).facebookStatus(context.userId);
+    // Names only, so the card can say which Worker secret is absent.
+    const { missing } = (await import("./social-connections.server")).connectorConfigured(
+      "facebook_page",
+    );
     return {
       configured: status.configured,
+      missing,
       active: status.active,
       pages: status.pages,
       selected: status.selected,

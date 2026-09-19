@@ -71,9 +71,8 @@ export function InstagramAccount() {
     const query = new URLSearchParams(window.location.search);
     const code = query.get("code"),
       state = query.get("state");
-    // Facebook shares this callback path; its own handler owns ?connector=facebook.
-    const ours =
-      !callback.current && query.get("connector") !== "facebook" && (code || query.has("error"));
+    // Every other network shares this callback path and names itself with ?connector=.
+    const ours = !callback.current && !query.has("connector") && (code || query.has("error"));
     const start = async () => {
       if (ours) {
         callback.current = true;
@@ -148,7 +147,7 @@ export function InstagramAccount() {
         )}
       </div>
       {account && !account.configured && (
-        <p className="ig-account__note">Instagram is not set up for Celinen yet.</p>
+        <p className="ig-account__note">Missing {account.missing.join(", ")}</p>
       )}
       {connection && !connection.active && (
         <p className="ig-account__note">Access expired. Reconnect.</p>

@@ -56,7 +56,11 @@ export const SHARED_SECRETS = ["SOCIAL_TOKEN_KEY", "PUBLISH_ORIGIN"] as const;
 
 /** The exact callback each developer portal must list. */
 export const connectorRedirect = (origin: string, provider: SocialProvider) =>
-  provider === "instagram" ? `${origin}/publish` : `${origin}/publish?connector=${provider}`;
+  provider === "instagram"
+    ? `${origin}/publish`
+    : provider === "facebook_page"
+      ? `${origin}/publish?connector=facebook` // what facebook.server.ts has always registered
+      : `${origin}/publish?connector=${provider}`;
 
 export type UnitKind = "post" | "story" | "reel" | "video";
 export type MediaKind = "image" | "video";
