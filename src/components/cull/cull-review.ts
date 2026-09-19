@@ -463,10 +463,19 @@ export function verdictLine(frame: CullFrame): { text: string; tone: "normal" | 
   return reason === "none" ? null : { text: CULL_REASON_LABELS[reason], tone: "normal" };
 }
 
-/** A frame the gate turned away carries no score, because none was measured. */
+/**
+ * The frame's score, where there is one to show.
+ *
+ * An invalid frame has none: the gate stopped before the scorer ran. A
+ * suspect frame does have one — it was measured like any other — and it is
+ * still withheld, because a number that means "how good a photograph this is"
+ * is not a thing to put next to a frame the engine is not sure is a
+ * photograph. The doubt belongs on the screen, not a figure that reads as
+ * confidence.
+ */
 export function scoreOf(frame: CullFrame): number | null {
   if (frame.error || !frame.reading) return null;
-  if (frame.validity && frame.validity.status === "invalid") return null;
+  if (frame.validity && frame.validity.status !== "valid") return null;
   return frame.suggestion?.score ?? null;
 }
 

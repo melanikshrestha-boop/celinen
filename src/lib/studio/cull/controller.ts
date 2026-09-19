@@ -1166,20 +1166,33 @@ export class CullController {
       if (!pick) return null;
       return { against: pick, others: burst.filter((other) => other.id !== pick.id) };
     }
-    // The engine's own keep line, read as the comparison it is. `order` is the
-    // ranking, so the boundary is the last suggested keep and the first
-    // suggested reject after it.
+    // The engine's own keep line, read as the comparison it is: it said these
+    // two frames belong on opposite sides, and she moved one across.
     let weakestKeep: CullFrame | null = null;
     let strongestReject: CullFrame | null = null;
+    let at = -1;
+    const ranked: CullFrame[] = [];
     for (const id of this.order) {
       const index = this.byId.get(id);
       if (index === undefined) continue;
       const other = this.frames[index]!;
-      if (other.id === frame.id || !this.heads.has(other.id)) continue;
+      if (other.id === frame.id) {
+        at = ranked.length;
+        continue;
+      }
+      if (!this.heads.has(other.id)) continue;
+      ranked.push(other);
       if (other.suggestion?.verdict === "keep") weakestKeep = other;
       else if (other.suggestion?.verdict === "reject" && !strongestReject) strongestReject = other;
     }
-    const against = kind === "restored-reject" ? weakestKeep : strongestReject;
+    // A shoot the engine wants to keep whole has no line to have moved a frame
+    // across, and a shoot with no bursts has no pick to have passed over. Her
+    // decision is still a comparison: the ranking is a chain of them, and
+    // throwing away a frame says the one ranked just below it should have had
+    // its place. That is the smallest true statement available, and without it
+    // an afternoon on a clean shoot would teach the culler nothing at all.
+    const neighbour = at < 0 ? null : (ranked[kind === "restored-reject" ? at - 1 : at] ?? null);
+    const against = (kind === "restored-reject" ? weakestKeep : strongestReject) ?? neighbour;
     return against ? { against, others: [] } : null;
   }
 

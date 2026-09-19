@@ -535,6 +535,26 @@ Finding decide(const CullValidityEvidence& e) {
     // backdrop just as well, so it only counts next to fills or ink.
     const double palette = clamp01((e.palette_top - .3) / .5) * clamp01(std::max(fills, ink) * 2);
     double logit = -4.6 + 2.6 * std::min(fills, 1.2) + 2.6 * ink + 1.2 * palette;
+    // No chroma anywhere. A Bayer sensor's noise is chromatic — demosaicing
+    // alone leaves colour behind in it — so a frame with literally no
+    // saturation was not made noisy by a sensor, whatever its grain says.
+    // Cross-hatching and screentone read as grain, and crediting that as a
+    // camera is what let a manga panel through as a photograph.
+    const bool monochrome = e.saturation < .02 && e.grayscale > .95;
+
+    // Ink on paper: a large share of the frame at exactly paper white or ink
+    // black. A black and white photograph keeps its gradation; it does not
+    // put a third of itself at absolute 0 and absolute 255. On a monochrome
+    // frame this is the only fill evidence there can be — a mid-tone flat,
+    // the usual signal, cannot exist where every tone is a grey — so it
+    // carries the weight that flat fills and ink lines carry together
+    // elsewhere.
+    // Only where there are lines to be ink: an all-black or all-white frame
+    // is every bit as extreme and is not a drawing, and the findings below
+    // name it for what it is.
+    if (monochrome && e.edge_density > .002)
+      logit += 4.0 * clamp01((e.exact_flat_extreme - .10) / .25);
+
     // Sensor grain where the frame is smooth argues for a camera.
     if (e.smooth_share > .05) {
       if (e.grain < .12) {
@@ -552,7 +572,10 @@ Finding decide(const CullValidityEvidence& e) {
         // frame, and the flat finding below says so in its own words.
         if (e.edge_density > .002) logit += 2.0 * clamp01((e.exact_flat_smooth - .35) / .35);
       } else if (e.grain < .3) logit += .4;
-      else if (e.grain > .7) logit -= 1.4;
+      // Grain only speaks for a camera where the frame has colour in it. The
+      // absence of grain still argues against one either way, which is why
+      // only this credit is withheld and not the branch above.
+      else if (e.grain > .7 && !monochrome) logit -= 1.4;
     } else if (e.exact_flat_extreme > .15) {
       logit += .6; // nothing smooth except paper: a page, not a scene
     }
