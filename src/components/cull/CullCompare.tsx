@@ -2,8 +2,7 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { CullOriginals } from "@/lib/studio/cull/controller";
 import type { CullFrame } from "@/lib/studio/cull/session";
-import { CULL_REASON_LABELS } from "@/lib/studio/cull/session";
-import { focusSummary, sharpnessReadout } from "./cull-review";
+import { focusSummary, scoreOf, sharpnessReadout, verdictLine } from "./cull-review";
 import { CullAfBox } from "./CullAfBox";
 import { CullMark, CullMarks, CullName, CullThumb, type CullThumbnailSource } from "./CullGrid";
 import { CullLoupePicture, type CullLoupeSource } from "./CullLoupePicture";
@@ -61,7 +60,8 @@ export function CullCompare({
       </div>
       <div className="cull-compare-panes" data-count={frames.length}>
         {frames.map((frame, index) => {
-          const reason = frame.suggestion?.reason ?? "none";
+          const line = verdictLine(frame);
+          const score = scoreOf(frame);
           const sharp = sharpnessReadout(frame);
           const focusText = focusSummary(frame);
           return (
@@ -98,10 +98,12 @@ export function CullCompare({
                 <CullMark frame={frame} size={10} />
                 <CullName name={frame.name} />
                 <CullMarks frame={frame} />
-                {frame.suggestion && <span className="text-ink">{frame.suggestion.score}</span>}
+                {score !== null && <span className="text-ink">{score}</span>}
                 {sharp && <span>{sharp}</span>}
                 {focusText && <span>{focusText}</span>}
-                {reason !== "none" && <span>{CULL_REASON_LABELS[reason]}</span>}
+                {line && (
+                  <span className={line.tone === "warn" ? "text-rust" : undefined}>{line.text}</span>
+                )}
               </div>
             </section>
           );

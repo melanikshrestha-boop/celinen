@@ -5,7 +5,8 @@
  */
 import type { CullReason, CullRow, CullVerdict } from "./engine";
 import type { CullReading } from "./engine";
-import type { FaceReading, FocusHit, NormalizedRect } from "./ingest-engine";
+import type { CullCameraFacts, FaceReading, FocusHit, NormalizedRect } from "./ingest-engine";
+import type { CullSubjectFocus } from "./intel";
 
 /** Lightroom's color labels. 6-9 set the first four, in Lightroom's order. */
 export type CullLabel = "red" | "yellow" | "green" | "blue" | "purple";
@@ -77,6 +78,13 @@ export type CullFrame = {
   validity?: CullValidity | undefined;
   membership?: CullMembership | undefined;
   burstRole?: CullBurstRole | undefined;
+  /** Which rung of the evidence ladder focus was judged on ("Focus judged on
+   * the eyes"), and how sharp it was there. */
+  subject?: CullSubjectFocus | undefined;
+  /** What the file says about the body, the lens and the last program to write
+   * it. Absent when the file carried no EXIF, which is what the shoot
+   * membership pass leans on hardest. */
+  facts?: CullCameraFacts | undefined;
 };
 
 /** What the photographer sets on frames. Absent fields are left alone; a null

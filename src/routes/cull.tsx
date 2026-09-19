@@ -45,6 +45,7 @@ const EMPTY: CullSnapshot = {
   keepTarget: null,
   ranked: 0,
   codes: NO_CODES,
+  taste: { decisions: 0, trust: 0 },
 };
 
 /** Review previews need a private file system, a worker that can draw, and a
@@ -163,6 +164,7 @@ function CullSessionHost({ scope }: { scope: string }) {
     (target: number | null) => controller?.setKeepTarget(target),
     [controller],
   );
+  const onForgetTaste = useCallback(() => void controller?.forgetTaste(), [controller]);
   // The code panel reports its own problems next to the file it could not read.
   const onAddCodes = useCallback(
     (input: Parameters<CullController["addCodes"]>[0]) =>
@@ -284,6 +286,7 @@ function CullSessionHost({ scope }: { scope: string }) {
         onMark={onMark}
         onUndo={onUndo}
         onKeepTarget={onKeepTarget}
+        onForgetTaste={onForgetTaste}
         onAddCodes={onAddCodes}
         onRemoveCodes={onRemoveCodes}
         thumbnail={thumbnail}

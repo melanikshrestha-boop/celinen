@@ -48,6 +48,7 @@ function renderWorkspace(frames: readonly CullFrame[], overrides: Overrides = {}
         progress: null,
         notice: null,
         canUndo: false,
+        taste: { decisions: 0, trust: 0 },
         ...snapshot,
       }}
       onImport={noop}

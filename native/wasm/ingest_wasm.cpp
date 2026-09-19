@@ -17,7 +17,12 @@
 // the original's own resolution, which the 640px working frame cannot give.
 // For a JPEG that means entropy-decoding the file once and keeping the
 // coefficients (lenslabs::JpegCoefficients), so the crop costs no second decode.
+#include "cull_intel_layout.hpp"
 #include "lenslabs/cull.hpp"
+#include "lenslabs/cull_heads.hpp"
+#include "lenslabs/cull_sequence.hpp"
+#include "lenslabs/cull_subject.hpp"
+#include "lenslabs/cull_validity.hpp"
 #include "lenslabs/exif.hpp"
 #include "lenslabs/faces.hpp"
 #include "lenslabs/focus_hit.hpp"
@@ -53,6 +58,22 @@ lenslabs::FaceReader face_reader;
 // AF area. Layout documented at celinen_ingest_focus().
 std::vector<double> focus;
 std::string camera_key, error;
+// The validity gate, the subject focus hierarchy and the burst signature for
+// the last run. Layouts shared with cull_intel_wasm.cpp through
+// native/wasm/cull_intel_layout.hpp.
+std::vector<double> validity_out, subject_out;
+std::vector<std::uint8_t> signature_out;
+std::string validity_reason, subject_evidence;
+// "make\x1fmodel\x1fserial\x1flens\x1fsoftware" as the file spelled them,
+// for the shoot-membership pass. Empty fields stay empty.
+std::string camera_facts;
+// What libjpeg saw while decoding, handed to the gate: a file that stopped
+// early looks soft, and a soft photograph is not a broken one.
+int decoder_warnings = 0;
+bool decoder_truncated = false;
+// False when the gate rejected the frame outright, so the scorer never ran and
+// `reading` holds nothing a verdict may be built on.
+bool measured_ok = false;
 // Why the last photo decoded but is not whole (a truncated file, corrupt
 // entropy data), in plain words. Empty when it decoded cleanly.
 std::string damaged;
@@ -62,6 +83,8 @@ bool capture_time_utc = false;
 std::uint32_t source_width = 0, source_height = 0;
 
 constexpr std::size_t reading_fields = 27;
+constexpr std::size_t signature_bytes =
+    lenslabs::cull_signature_width * lenslabs::cull_signature_height;
 constexpr std::size_t color_bytes = 48;
 constexpr std::size_t focus_fields = 13;
 // x, y, width, height (normalized to the working frame), detector score, face
@@ -242,6 +265,8 @@ bool decode_jpeg(const std::uint8_t* bytes, std::size_t size, unsigned target_ed
   jpeg_destroy_decompress(&info);
   // libjpeg fills what it could not read with gray and carries on. Scoring that
   // gray as a soft photo would be a silent lie, so it is named instead.
+  decoder_warnings += failure.corrupt;
+  decoder_truncated = decoder_truncated || failure.ended_early;
   if (failure.ended_early)
     damaged = "This file is cut short: the end of the photo is missing and shows as gray, "
               "so its focus and exposure readings cannot be trusted.";
@@ -425,6 +450,65 @@ void write_faces(const std::vector<lenslabs::FaceResult>& results, int primary) 
   }
 }
 
+// The shoot-membership pass reads the file's own words for the body, the lens
+// and the last program to write it. Packed with unit separators because a
+// shoot is ten thousand frames and a JSON object each would cost more than the
+// pass itself. Empty when the file carried no EXIF, which is the strongest
+// single piece of evidence that pass has.
+void set_facts(const lenslabs::ExifFacts& facts) {
+  if (!facts.has_exif) {
+    camera_facts.clear();
+    return;
+  }
+  const char unit = '\x1f';
+  camera_facts = facts.make;
+  camera_facts += unit;
+  camera_facts += facts.model;
+  camera_facts += unit;
+  camera_facts += facts.serial;
+  camera_facts += unit;
+  camera_facts += facts.lens;
+  camera_facts += unit;
+  camera_facts += facts.software;
+}
+
+// The detector's faces as subject evidence for the focus hierarchy. YuNet
+// reports the eye centres itself, in the pixels of the image it ran on; the
+// region read for eye acuity is a box around each centre a quarter of the
+// face's width across, which is the eye and its socket and no more. Position
+// is measured, extent is that one convention.
+lenslabs::CullDetections detections_from(const std::vector<lenslabs::FaceResult>& faces) {
+  lenslabs::CullDetections out;
+  for (const auto& result : faces) {
+    lenslabs::CullFaceDetection detection;
+    detection.face = {result.face.x, result.face.y, result.face.width, result.face.height,
+                      result.face.score < 0 ? 0 : result.face.score};
+    // A closed probability that was never judged is unknown, never "open".
+    detection.eyes_open = result.face.closed_probability >= 0 && result.face.confidence > 0
+                              ? 1 - result.face.closed_probability
+                              : -1;
+    const double original_w = result.original.width > 0 && result.face.width > 0
+                                  ? result.original.width / result.face.width
+                                  : 0;
+    const double original_h = result.original.height > 0 && result.face.height > 0
+                                  ? result.original.height / result.face.height
+                                  : 0;
+    // Landmarks come in the original's own pixels; the boxes above are
+    // normalized to the frame, so both are put on the same scale here.
+    if (original_w > 0 && original_h > 0)
+      for (int eye = 0; eye < 2; ++eye) {
+        const double x = result.original.landmarks[std::size_t(eye) * 2] / original_w;
+        const double y = result.original.landmarks[std::size_t(eye) * 2 + 1] / original_h;
+        if (!(x > 0) || !(y > 0) || x >= 1 || y >= 1) continue;
+        const double w = result.face.width * .25, h = result.face.height * .18;
+        detection.eyes.push_back({std::max(0.0, x - w / 2), std::max(0.0, y - h / 2), w, h,
+                                  result.face.score < 0 ? 0 : result.face.score});
+      }
+    out.faces.push_back(std::move(detection));
+  }
+  return out;
+}
+
 // Everything after the pixels exist: the working frame, the measurement, the
 // AF judgment and the thumbnail. `upright_image` is already turned the right way.
 bool complete(lenslabs::Image upright_image, const lenslabs::AfArea& af, int af_orientation,
@@ -437,22 +521,61 @@ bool complete(lenslabs::Image upright_image, const lenslabs::AfArea& af, int af_
   // compared with each other at all.
   frame = resample(upright_image, measure_edge);
   upright_image = {};
-  // Eyes only matter on a frame that could still be a keeper: below the
-  // engine's absolute focus floor the frame is rejected for focus in any
-  // shoot, so nothing is spent looking for its faces.
-  auto measured = lenslabs::measure_cull(frame, {});
+
+  // The gate, before anything scores the frame. A sharpness number on a manga
+  // page is not a judgment about a photograph: it is noise that reads like a
+  // verdict. An invalid frame is therefore never measured at all, so no score
+  // exists downstream to be shown by accident.
+  const lenslabs::CullDecodeHints hints{decoder_warnings, decoder_truncated};
+  const auto validity = lenslabs::assess_cull_validity(frame, hints);
+  validity_out.assign(lenslabs::wire::validity_doubles, 0);
+  lenslabs::wire::write_validity(validity, validity_out.data());
+  validity_reason = validity.reason;
+  // Suspect frames are measured like any other: a maybe is put in front of the
+  // photographer, never decided for them. A file that stopped mid-decode is
+  // also still a photograph of the game — `damaged` already says its readings
+  // are taken over partly gray pixels, and the photographer wants that frame's
+  // numbers anyway. Only a frame that is not a photograph at all loses its
+  // score, because there is no photograph for the score to be about.
+  const bool photograph = validity.state != lenslabs::CullValidityState::invalid ||
+                          validity.kind == lenslabs::CullValidityKind::corrupted;
+  measured_ok = photograph;
+
+  lenslabs::CullReading measured;
   std::vector<lenslabs::FaceResult> faces;
-  if ((flags & read_faces) && face_reader.can_detect() && crops &&
-      measured.acuity_subject >= lenslabs::absolute_soft_floor)
-    faces = face_reader.read(frame, upright_width, upright_height, crops);
   std::vector<lenslabs::CullFace> cull_faces;
-  for (const auto& result : faces) cull_faces.push_back(result.face);
-  // Measured again with the faces: they weight the subject the focus
-  // measurement reads, and they carry the eye evidence.
-  if (!cull_faces.empty()) measured = lenslabs::measure_cull(frame, cull_faces);
+  if (photograph) {
+    measured = lenslabs::measure_cull(frame, {});
+    // Eyes only matter on a frame that could still be a keeper: below the
+    // engine's absolute focus floor the frame is rejected for focus in any
+    // shoot, so nothing is spent looking for its faces.
+    if ((flags & read_faces) && face_reader.can_detect() && crops &&
+        measured.acuity_subject >= lenslabs::absolute_soft_floor)
+      faces = face_reader.read(frame, upright_width, upright_height, crops);
+    for (const auto& result : faces) cull_faces.push_back(result.face);
+    // Measured again with the faces: they weight the subject the focus
+    // measurement reads, and they carry the eye evidence.
+    if (!cull_faces.empty()) measured = lenslabs::measure_cull(frame, cull_faces);
+  }
   write_reading(measured);
   write_faces(faces, lenslabs::judge_eyes(cull_faces, double(frame.width) / frame.height).primary);
-  if (af.present) {
+
+  // Which rung of the evidence ladder focus was judged on. The detector's own
+  // faces and eye landmarks outrank the model-free saliency automatically, so
+  // this says "Focus judged on the eyes" when the eyes were really found, and
+  // never reports a missing detector as a flaw in the photograph.
+  lenslabs::CullSubjectFocus subject;
+  if (photograph) subject = lenslabs::measure_subject_focus(frame, detections_from(faces));
+  subject_out.assign(lenslabs::wire::subject_doubles, 0);
+  lenslabs::wire::write_subject(subject, subject_out.data());
+  subject_evidence = subject.evidence;
+
+  // 768 bytes a frame, kept for every frame of the card: enough to see a player
+  // move between two frames of a burst, small enough for ten thousand of them.
+  const auto signature = lenslabs::cull_sequence_signature(frame);
+  signature_out.assign(signature.luma.begin(), signature.luma.end());
+
+  if (photograph && af.present) {
     // AF coordinates are sensor-up. Rotate them by the orientation the pixels
     // were actually given, so the area lands on the frame that was measured.
     const auto upright_af = lenslabs::upright_af_area(af, af_orientation);
@@ -491,6 +614,15 @@ std::vector<std::uint8_t> begin_run() {
   faces_out.clear();
   focus.clear();
   frame = {};
+  validity_out.clear();
+  subject_out.clear();
+  signature_out.clear();
+  validity_reason.clear();
+  subject_evidence.clear();
+  camera_facts.clear();
+  decoder_warnings = 0;
+  decoder_truncated = false;
+  measured_ok = false;
   std::vector<std::uint8_t> head;
   head.swap(metadata);
   camera_key.clear();
@@ -595,6 +727,7 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
     capture_time_ms = facts.capture_time_ms;
     capture_time_utc = facts.capture_time_utc;
     camera_key = facts.camera_key;
+    set_facts(facts);
 
     // One entropy decode. The working frame renders from the coefficients at
     // the same eighth-scale libjpeg would pick, bit for bit, and any face crop
@@ -615,6 +748,8 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
       }
       // Reading coefficients hits the same truncation and corruption the
       // streaming decoder reports, and it has to be named for the same reason.
+      decoder_warnings += coefficients.corrupt() ? 1 : 0;
+      decoder_truncated = decoder_truncated || coefficients.ended_early();
       if (coefficients.ended_early())
         damaged = "This file is cut short: the end of the photo is missing and shows as gray, "
                   "so its focus and exposure readings cannot be trusted.";
@@ -652,6 +787,9 @@ int celinen_ingest_run(std::uint32_t size, std::uint32_t measure_edge, std::uint
         capture_time_utc = container.capture_time_utc;
       }
       if (!container.camera_key.empty()) camera_key = container.camera_key;
+      // A RAW's embedded preview rarely carries EXIF of its own; the container
+      // holds the body, the lens and the software the membership pass needs.
+      if (container.has_exif) set_facts(container);
     }
     const double stored_w = source_width, stored_h = source_height;
     const double upright_w = orientation >= 5 ? stored_h : stored_w;
@@ -718,6 +856,7 @@ int celinen_ingest_run_pixels(std::uint32_t width, std::uint32_t height, std::ui
       capture_time_ms = facts.capture_time_ms;
       capture_time_utc = facts.capture_time_utc;
       camera_key = facts.camera_key;
+      set_facts(facts);
       af = facts.af;
       // The browser turned the pixels by the file's own orientation.
       af_orientation = facts.orientation;
@@ -761,6 +900,35 @@ const char* celinen_ingest_damaged() { return damaged.c_str(); }
 const double* celinen_ingest_reading() { return reading.empty() ? nullptr : reading.data(); }
 std::uint32_t celinen_ingest_reading_fields() { return reading_fields; }
 
+/** The validity gate's verdict for the last photo: whether it is a photograph
+ * at all, and everything the gate measured. The layout is the one
+ * cull_intel_wasm.cpp writes (native/wasm/cull_intel_layout.hpp). */
+const double* celinen_ingest_validity() { return validity_out.empty() ? nullptr : validity_out.data(); }
+std::uint32_t celinen_ingest_validity_size() { return lenslabs::wire::validity_doubles; }
+/** "Illustration, not a photograph". Empty for a frame that passed. */
+const char* celinen_ingest_validity_reason() { return validity_reason.c_str(); }
+
+/** Where focus was judged and how sharp it was there. */
+const double* celinen_ingest_subject() { return subject_out.empty() ? nullptr : subject_out.data(); }
+std::uint32_t celinen_ingest_subject_size() { return lenslabs::wire::subject_doubles; }
+/** "Focus judged on the eyes". */
+const char* celinen_ingest_subject_evidence() { return subject_evidence.c_str(); }
+
+/** The 32x24 luma signature, for burst motion and roles. */
+const std::uint8_t* celinen_ingest_signature() {
+  return signature_out.empty() ? nullptr : signature_out.data();
+}
+std::uint32_t celinen_ingest_signature_size() { return signature_bytes; }
+
+/** 0 when the gate rejected the frame outright: the scorer never ran, and the
+ * reading above carries nothing a verdict may be built on. */
+int celinen_ingest_measured() { return measured_ok ? 1 : 0; }
+
+/** "make\x1fmodel\x1fserial\x1flens\x1fsoftware" as the file spelled them, for
+ * the shoot-membership pass. Empty when the file carried no EXIF at all, which
+ * is itself the strongest evidence that pass has. */
+const char* celinen_ingest_facts() { return camera_facts.c_str(); }
+
 /** The faces of the last run, most prominent first, face_fields doubles each.
  * Empty when no models are loaded or the frame was too soft to be worth reading. */
 const double* celinen_ingest_faces() { return faces_out.data(); }
@@ -803,5 +971,12 @@ void celinen_ingest_release() {
   frame = {};
   camera_key.clear();
   damaged.clear();
+  validity_out.clear(); validity_out.shrink_to_fit();
+  subject_out.clear(); subject_out.shrink_to_fit();
+  signature_out.clear(); signature_out.shrink_to_fit();
+  validity_reason.clear();
+  subject_evidence.clear();
+  camera_facts.clear();
+  measured_ok = false;
 }
 }

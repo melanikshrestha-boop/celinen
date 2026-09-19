@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ImageOff, Layers, Tag, X } from "lucide-react";
 import type { CullFrame } from "@/lib/studio/cull/session";
-import { CULL_REASON_LABELS, effectiveVerdict } from "@/lib/studio/cull/session";
+import { effectiveVerdict } from "@/lib/studio/cull/session";
 import {
   libraryGridMountedIndices,
   libraryGridScrollToIndex,
   libraryGridWindow,
   type LibraryGridMetrics,
 } from "@/lib/develop/library-window";
-import { decisionSource, type CullCell } from "./cull-review";
+import { decisionSource, scoreOf, verdictLine, type CullCell } from "./cull-review";
 
 // Layout effects measure before paint in the browser; the server has no layout.
 const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -208,7 +208,8 @@ const Card = memo(function Card({
   onToggleStack,
 }: CardProps) {
   const onDoubleTap = useDoubleTapOpen(onOpen, frame.id);
-  const reason = frame.suggestion?.reason ?? "none";
+  const line = verdictLine(frame);
+  const score = scoreOf(frame);
   const classes = ["cull-card"];
   if (selected) classes.push("is-selected");
   if (picked) classes.push("is-picked");
@@ -246,18 +247,13 @@ const Card = memo(function Card({
             <CullThumb frame={frame} thumbnail={thumbnail} />
           )}
           <CullMark frame={frame} />
-          {/* A damaged file says so; the engine's reason would be about pixels
-              that never arrived. */}
-          {frame.damaged ? (
-            <span className="cull-reason font-mono text-[10px] text-rust" title={frame.damaged}>
-              Damaged file
+          {line && (
+            <span
+              className={`cull-reason font-mono text-[10px]${line.tone === "warn" ? " text-rust" : ""}`}
+              title={frame.damaged}
+            >
+              {line.text}
             </span>
-          ) : (
-            reason !== "none" && (
-              <span className="cull-reason font-mono text-[10px]">
-                {CULL_REASON_LABELS[reason]}
-              </span>
-            )
           )}
         </span>
         <span className="cull-card-meta font-mono text-[10px]">
@@ -265,8 +261,8 @@ const Card = memo(function Card({
           <CullMarks frame={frame} />
           {frame.error ? (
             <span className="text-rust">Unreadable</span>
-          ) : frame.suggestion ? (
-            <span className="text-ink">{frame.suggestion.score}</span>
+          ) : score !== null ? (
+            <span className="text-ink">{score}</span>
           ) : null}
         </span>
       </button>
