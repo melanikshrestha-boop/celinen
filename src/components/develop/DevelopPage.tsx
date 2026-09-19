@@ -476,6 +476,11 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     loadExportNightKitStore(),
   );
   const [applyWatermarkKit, setApplyWatermarkKit] = useState(false);
+  // One full-resolution sensor render, kept between an export preview and the
+  // download that follows it. Cleared when a different photo is opened.
+  const exportSensor = useRef<{ id: string; blob: Blob; width: number; height: number } | null>(
+    null,
+  );
   const [exportProof, setExportProof] = useState<DevelopExportProof | null>(null),
     [proofZoom, setProofZoom] = useState(false);
   const [syncCrop, setSyncCrop] = useState(false),
@@ -563,6 +568,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     setSensor(null);
     setSensorProgress(0);
     setSensorRefusal("");
+    if (exportSensor.current && exportSensor.current.id !== photo?.id) exportSensor.current = null;
     const original = photo?.isRaw && photo.sourceBlob?.size ? photo.sourceBlob : null;
     if (!photo || !original) return;
     const id = photo.id;
@@ -587,6 +593,8 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           blob,
           width: render.width,
           height: render.height,
+          fullWidth: render.description.width,
+          fullHeight: render.description.height,
           kelvin: render.kelvin,
           tint: render.tint,
           whiteBalanceFromFile: render.whiteBalanceFromFile,
@@ -1891,6 +1899,45 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
     }
     return dressExportJpeg(rendered, dressing, { quality: quality / 100, signal });
   }
+  /** The full-resolution sensor render, decoded only when an export asks for
+   * one. A 24-million-pixel PNG is too big to hold speculatively and too slow
+   * to make the editor wait for, so the editor gets the fast render and this
+   * arrives when it is actually needed. One is cached, because an export
+   * preview and the download that follows it want the same pixels. */
+  async function exportSourceBlob(
+    target: DevelopPhoto,
+    fallback: Blob,
+    signal: AbortSignal,
+    note: (text: string) => void,
+  ): Promise<{ blob: Blob; sensor: boolean }> {
+    if (!target.isRaw || !target.sourceBlob?.size) return { blob: fallback, sensor: false };
+    // The editing render is already the whole picture below the worker's
+    // bound, and re-decoding it at "export" quality would produce the same
+    // pixels several hundred milliseconds later.
+    const editing = sensor && sensor.id === target.id ? sensor : null;
+    if (editing && editing.width >= editing.fullWidth)
+      return { blob: editing.blob, sensor: true };
+    const cached = exportSensor.current;
+    if (cached?.id === target.id) return { blob: cached.blob, sensor: true };
+    try {
+      const bytes = await target.sourceBlob.arrayBuffer();
+      signal.throwIfAborted();
+      const render = await decodeRawSensor(bytes, {
+        quality: "export",
+        signal,
+        onProgress: (value) => note(`Reading ${target.name} at full resolution… ${Math.round(value * 100)}%`),
+      });
+      const blob = await rawSensorBlob(render);
+      exportSensor.current = { id: target.id, blob, width: render.width, height: render.height };
+      return { blob, sensor: true };
+    } catch (error) {
+      if (signal.aborted) throw error;
+      // A file the converter cannot read still exports, from whatever the
+      // editor was already working on.
+      if (error instanceof RawSensorUnsupported) return { blob: fallback, sensor: false };
+      throw error;
+    }
+  }
   async function previewExport() {
     if (dialog !== "export" || editsLocked() || !exportRequest) return;
     const owner = hydration.current;
@@ -1909,14 +1956,32 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
         throw new Error("These edits could not be saved. Save a recovery file before continuing.");
       if (!current()) return;
       controller.signal.throwIfAborted();
+      const resolved = photo
+        ? await exportSourceBlob(photo, request.source, controller.signal, (text) => {
+            if (current()) setBusy(text);
+          })
+        : { blob: request.source, sensor: false };
+      controller.signal.throwIfAborted();
+      if (current()) setBusy("Rendering export preview…");
+      // The proof keeps the request's own source as its identity — the editing
+      // render — even though the pixels come from the full-resolution decode.
+      // That decode is derived from the same photo and cannot drift out of
+      // step with it, and keying the proof on it instead would mean the proof
+      // never matched the request and every download re-rendered.
+      // The editor's own render is only reusable when the export is rendering
+      // from the very same pixels. Once the source has been upgraded to the
+      // full-resolution sensor decode it is not: reusing it here is what made
+      // a 24-million-pixel export come out at the editing render's size.
+      const upgraded = resolved.blob !== request.source;
       const undressedProof =
+        !upgraded &&
         currentDevelopExportProof(editorProof.current, { ...request, dressingKey: "" }) &&
         editorProof.current
           ? editorProof.current
           : null;
       const undressed =
         undressedProof?.blob ??
-        (await renderDevelop(request.source, recipe, {
+        (await renderDevelop(resolved.blob, recipe, {
           edge: request.edge,
           quality: request.quality / 100,
           sourceMode: request.sourceMode,
@@ -1934,6 +1999,7 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
           blob: finished.blob,
           width: finished.width,
           height: finished.height,
+          sensor: resolved.sensor,
         });
     } catch (e) {
       if (current())
@@ -2045,6 +2111,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               sourceModePreference,
             );
             if (!targetSource) throw new Error(`${target.name} has no exportable source.`);
+            const resolved = await exportSourceBlob(target, targetSource, signal, (text) => {
+              if (current()) setBusy(text);
+            });
             const request: DevelopExportRequest = {
               id: target.id,
               source: targetSource,
@@ -2055,15 +2124,18 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
               dressingKey,
             };
             setBusy(`Exporting ${targets.indexOf(target) + 1} of ${targets.length}…`);
+            const upgraded = resolved.blob !== targetSource;
             const undressed =
               targets.length === 1 && currentDevelopExportProof(exportProof, request) && exportProof
                 ? null
-                : currentDevelopExportProof(editorProof.current, {
+                : !upgraded &&
+                    currentDevelopExportProof(editorProof.current, {
                       ...request,
                       dressingKey: "",
-                    }) && editorProof.current
+                    }) &&
+                    editorProof.current
                   ? editorProof.current.blob
-                  : await renderDevelop(targetSource, targetRecipe, {
+                  : await renderDevelop(resolved.blob, targetRecipe, {
                       edge,
                       quality: quality / 100,
                       signal,
@@ -3673,11 +3745,13 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                           Full RAW demosaic
                         </option>
                         <option value="preview">
-                          {photo.previewOrigin === "raw-demosaic"
-                            ? "Saved sensor-derived preview"
-                            : photo.previewOrigin === "embedded"
-                              ? "Embedded camera preview"
-                              : "Saved preview"}
+                          {sensorRender
+                            ? "This page's sensor render"
+                            : photo.previewOrigin === "raw-demosaic"
+                              ? "Saved sensor-derived preview"
+                              : photo.previewOrigin === "embedded"
+                                ? "Embedded camera preview"
+                                : "Saved preview"}
                         </option>
                       </select>
                     </label>
@@ -3797,7 +3871,9 @@ function DevelopEditor({ scope, projectId, shootId, deliveryFocus }: DevelopPage
                     <figcaption>
                       {exportProof.width.toLocaleString()} × {exportProof.height.toLocaleString()} ·
                       JPEG
-                      {exportProof.sourceMode === "raw" ? " · Sensor RAW" : ""}
+                      {exportProof.sourceMode === "raw" || exportProof.sensor
+                        ? " · Sensor RAW"
+                        : ""}
                       <span>Export downloads this exact file. This is not a print soft proof.</span>
                     </figcaption>
                   </figure>

@@ -35,6 +35,10 @@ export type DevelopSensorRender = {
   blob: Blob;
   width: number;
   height: number;
+  /** The sensor's full picture size. Equal to width/height when the editing
+   * render is already the whole picture, larger when it was halved. */
+  fullWidth: number;
+  fullHeight: number;
   /** The white balance the render used, in real Kelvin. */
   kelvin: number;
   tint: number;
@@ -82,6 +86,9 @@ export type DevelopExportProof = DevelopExportRequest & {
   blob: Blob;
   width: number;
   height: number;
+  /** True when this came from the sensor rather than a camera JPEG. Not part
+   * of the identity below: it is a description of the proof, not an input. */
+  sensor?: boolean;
 };
 export function currentDevelopExportProof(
   proof: DevelopExportProof | null,
