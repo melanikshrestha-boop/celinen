@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { publicEntry } from "@/lib/public-entry";
 import { Link } from "@tanstack/react-router";
@@ -12,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { ArrowRight, Menu } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { FeaturesMenu } from "@/components/marketing/FeaturesMenu";
 import { IntegrationsMenu } from "@/components/marketing/IntegrationsMenu";
 import { UseCasesMenu } from "@/components/marketing/UseCasesMenu";
@@ -33,18 +32,6 @@ const LINKS: { to: string; label: string; exact?: boolean }[] = [
 export function Nav({ landing = false }: { landing?: boolean }) {
   const account = useAccount();
   const entry = publicEntry(account?.status);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => {
-    const close = () => setMobileOpen(false);
-    const query = window.matchMedia("(max-width: 900px)");
-    query.addEventListener("change", close);
-    window.addEventListener("orientationchange", close);
-    return () => {
-      query.removeEventListener("change", close);
-      window.removeEventListener("orientationchange", close);
-    };
-  }, []);
-
   if (landing) {
     return (
       <div className="marketing-nav-shell">
@@ -80,29 +67,6 @@ export function Nav({ landing = false }: { landing?: boolean }) {
                 </>
               }
             />
-            <DropdownMenu modal={false} open={mobileOpen} onOpenChange={setMobileOpen}>
-              <DropdownMenuTrigger aria-label="Open menu" className="marketing-nav__more">
-                <Menu size={20} aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={10} className="w-56 marketing-nav-menu">
-                {[
-                  { to: "/product", label: "Product" },
-                  { to: "/use-cases", label: "Use Cases" },
-                  { to: "/integrations", label: "Integrations" },
-                  { to: "/compare", label: "Compare" },
-                  { to: "/affiliates", label: "Affiliates" },
-                  { to: "/pricing", label: "Pricing" },
-                  { to: "/docs", label: "Docs" },
-                  { to: "/blog", label: "Blog" },
-                  { to: "/changelog", label: "Changelog" },
-                  { to: "/security", label: "Security" },
-                ].map((link) => (
-                  <DropdownMenuItem key={link.to} asChild>
-                    <Link to={link.to}>{link.label}</Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </header>
       </div>

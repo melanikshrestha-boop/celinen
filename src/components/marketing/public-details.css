@@ -26,11 +26,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
   gap: 0;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  min-width: 0;
   height: 40px;
 }
 .marketing-page header .marketing-nav__links a,
@@ -130,7 +128,7 @@
 }
 @media (max-width: 900px) {
   .marketing-page .marketing-nav__more {
-    display: inline-flex;
+    display: none;
   }
 }
 .marketing-page .marketing-footer.marketing-footer--directory {
@@ -413,7 +411,7 @@
 }
 @media (max-width: 900px) {
   .marketing-page .marketing-nav__links {
-    display: none;
+    display: flex;
   }
   .marketing-page .marketing-footer.marketing-footer--directory nav.marketing-footer__directory {
     grid-template-columns: repeat(5, minmax(0, 1fr));
