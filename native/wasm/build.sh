@@ -47,8 +47,10 @@ em++ $COMMON -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
 # hierarchy also run inside the ingest lane, where the pixels already are —
 # this module is what the review screen calls once the card is read.
 INTEL_SOURCES="native/src/cull_validity.cpp native/src/cull_gate.cpp native/src/cull_subject.cpp native/src/cull_heads.cpp native/src/cull_sequence.cpp"
+# SIMD, for the same reason and on the same sources the ingest lane uses it:
+# the two modules compile this C++ the same way or their numbers can differ.
 # shellcheck disable=SC2086
-em++ $COMMON -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
+em++ $COMMON -msimd128 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
   $INTEL_SOURCES native/src/cull.cpp native/src/cull_shoot_membership.cpp \
   native/wasm/cull_intel_wasm.cpp \
   -sEXPORTED_FUNCTIONS=_celinen_intel_error,_celinen_intel_validity_size,_celinen_intel_subject_size,_celinen_intel_head_count,_celinen_intel_signature_size,_celinen_intel_membership_in_size,_celinen_intel_membership_out_size,_celinen_intel_sequence_in_size,_celinen_intel_sequence_out_size,_celinen_intel_text,_celinen_intel_source,_celinen_intel_frame,_celinen_intel_frame_signature,_celinen_intel_membership_numbers,_celinen_intel_text_in,_celinen_intel_membership,_celinen_intel_sequence_numbers,_celinen_intel_signatures,_celinen_intel_sequence,_celinen_intel_release \

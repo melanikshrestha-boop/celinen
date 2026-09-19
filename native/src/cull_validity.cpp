@@ -537,8 +537,21 @@ Finding decide(const CullValidityEvidence& e) {
     double logit = -4.6 + 2.6 * std::min(fills, 1.2) + 2.6 * ink + 1.2 * palette;
     // Sensor grain where the frame is smooth argues for a camera.
     if (e.smooth_share > .05) {
-      if (e.grain < .12) logit += 1.2;
-      else if (e.grain < .3) logit += .4;
+      if (e.grain < .12) {
+        logit += 1.2;
+        // And where a frame is smooth, a sensor still leaves noise in it; a
+        // fill does not. Blocks that are both smooth and one exact colour are
+        // the plainest evidence of a drawing there is. Measured on 333 frames
+        // from her own card: every one of them has none, against two thirds of
+        // the blocks on a manga page. It counts only where there is no
+        // measurable grain at all, because a hard JPEG quantiser flattens a
+        // real photograph's smooth areas too — a compressed snapshot in the
+        // same folder sits at a quarter of its smooth blocks with grain of .12,
+        // and must not be called a drawing for it. A frame with no edges at
+        // all is not a drawing either, however flat it is: it is a blank
+        // frame, and the flat finding below says so in its own words.
+        if (e.edge_density > .002) logit += 2.0 * clamp01((e.exact_flat_smooth - .35) / .35);
+      } else if (e.grain < .3) logit += .4;
       else if (e.grain > .7) logit -= 1.4;
     } else if (e.exact_flat_extreme > .15) {
       logit += .6; // nothing smooth except paper: a page, not a scene
