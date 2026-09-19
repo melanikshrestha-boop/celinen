@@ -93,6 +93,11 @@ void Decoder::prepare() {
   // A channel saturates where its own gain took the sensor's white level.
   clip_ = {gains_.gain[0], gains_.gain[1], gains_.gain[2]};
 
+  // The camera's own baseline rendering, unless the caller asked for the
+  // scene-referred picture (which is what a colour measurement wants).
+  if (request_.baseline_tone) request_.rendering.baseline = meta_.profile.tone_curve;
+  else request_.rendering.baseline = {};
+
   output_.assign(std::size_t(width_) * height_ * 4, 0);
   if (!row_addressable(meta_)) {
     mosaic_ = unpack_mosaic(bytes_, size_, meta_);

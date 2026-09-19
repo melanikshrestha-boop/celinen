@@ -368,6 +368,37 @@ Matrix3 camera_to_working(const ColorProfile& profile, const Vector3& neutral) {
   return working;
 }
 
+double ToneCurve::apply(double value) const noexcept {
+  if (!present || !std::isfinite(value)) return value;
+  if (value <= x[0]) {
+    // Below the first knot the curve is its own opening slope, so deep shadow
+    // keeps a straight line into black instead of developing a step.
+    const double run = x[1] - x[0];
+    const double slope = run > 1e-12 ? (y[1] - y[0]) / run : 1.0;
+    return y[0] + (value - x[0]) * slope;
+  }
+  const double last = x[knots - 1];
+  if (value >= last) {
+    // Past the top knot — where highlight reconstruction puts a rebuilt
+    // channel — approach white asymptotically on the curve's end slope rather
+    // than clipping, so a recovered highlight lands somewhere believable.
+    const double run = last - x[knots - 2];
+    const double slope = run > 1e-12 ? (y[knots - 1] - y[knots - 2]) / run : 0.0;
+    const double head = 1.0 - y[knots - 1];
+    if (head <= 1e-9 || slope <= 0) return y[knots - 1];
+    const double over = (value - last) * slope / head;
+    return y[knots - 1] + head * (over / (1.0 + over));
+  }
+  std::size_t low = 0, high = knots - 1;
+  while (high - low > 1) {
+    const std::size_t middle = (low + high) / 2;
+    (value < x[middle] ? high : low) = middle;
+  }
+  const double run = x[high] - x[low];
+  if (!(run > 1e-12)) return y[low];
+  return y[low] + (y[high] - y[low]) * (value - x[low]) / run;
+}
+
 double srgb_encode(double linear) noexcept {
   if (!(linear > 0)) return 0;
   if (linear >= 1) return 1;

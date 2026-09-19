@@ -178,10 +178,16 @@ def gather(decoder: str, raw_path: str, work: str, grid: int):
     cam_small = area_resize(cam, grid, height)
     jpeg_linear = area_resize(srgb_decode(jpeg), grid, height)
     encoded = area_resize(jpeg.astype(np.float64), grid, height)
-    # Drop anything clipped at either end, in either raster.
-    keep = ((encoded.min(axis=2) > 16) & (encoded.max(axis=2) < 240) &
-            (cam_small.min(axis=2) > 0.002) & (cam_small.max(axis=2) < 0.9))
-    return cam_small[keep], jpeg_linear[keep], neutral
+    # The matrix is solved on well-exposed cells: a near-black cell is mostly
+    # noise and its chromaticity would only add error.
+    colour = ((encoded.min(axis=2) > 16) & (encoded.max(axis=2) < 240) &
+              (cam_small.min(axis=2) > 0.002) & (cam_small.max(axis=2) < 0.9))
+    # The tone curve is not. It has to say what happens to a shadow, and these
+    # frames are mostly shadow — dark water behind a lit subject. Fitting the
+    # curve on mid-tones alone leaves the bottom of it to a straight line, and
+    # the render comes out darker than the camera's across most of the frame.
+    tone = (encoded.max(axis=2) < 250) & (cam_small.min(axis=2) > 0)
+    return cam_small[colour], jpeg_linear[colour], neutral, cam_small[tone], jpeg_linear[tone]
 
 
 def fit(samples, passes: int = 8):
@@ -201,13 +207,86 @@ def fit(samples, passes: int = 8):
         weights = np.clip(predicted.mean(axis=1), 1e-4, 0.6)
         camera_to_xyz = solve_constrained(cam, corrected, weights, white)
         matrix = XYZ_TO_SRGB @ camera_to_xyz
-    return matrix, camera_to_xyz
+    # The curve is measured last, from the wide sample, against the matrix that
+    # will actually be shipped with it.
+    wide_cam = np.concatenate([s[3] for s in samples])
+    wide_target = np.concatenate([s[4] for s in samples])
+    wide_predicted = wide_cam @ matrix.T
+    forward, _inverse = monotone_curve(wide_predicted, wide_target, bins=96)
+    return matrix, camera_to_xyz, forward, wide_predicted
+
+
+KNOTS = 33
+
+
+def tone_curve_knots(forward, observed):
+    """The camera's baseline rendering, on the grid the decoder interpolates.
+
+    The fit only knows the range of scene values these frames happened to
+    contain. Below it the curve runs straight into black; above it, it is
+    carried on the slope the measurement ended with, because inventing a
+    shoulder the camera never showed is worse than extending the one it did.
+    """
+    # The very ends of the measured range are the thinnest evidence there is,
+    # and a tone curve built on them wobbles. Trust the solid middle — but the
+    # wide sample reaches into the shadows, so "the middle" now covers the
+    # tones a photograph is actually made of.
+    low = float(np.percentile(observed, 0.5))
+    high = float(np.percentile(observed, 99.5))
+    if not (high > low > 0):
+        return None
+    # Denser at the bottom, where a tone curve bends hardest and where linear
+    # interpolation between knots would otherwise show as banding.
+    xs = (np.arange(KNOTS) / (KNOTS - 1)) ** 2
+    ys = np.asarray(forward(np.clip(xs, low, high)), dtype=float)
+    toe = float(forward(np.array([low]))[0]) / low
+    ys = np.where(xs < low, xs * toe, ys)
+    # Above the measured range the curve has to reach white by the sensor's own
+    # ceiling, and it has to get there the way a camera does: leaving the
+    # measurement at the slope the measurement ended with, then shouldering off.
+    # A straight line would arrive early and clip the top third of the range.
+    window = max(low, high * 0.6)
+    top = float(forward(np.array([high]))[0])
+    slope = (top - float(forward(np.array([window]))[0])) / max(high - window, 1e-9)
+    run = max(1.0 - high, 1e-9)
+    head = max(1.0 - top, 1e-9)
+    # Fritsch-Carlson: any steeper than this and a cubic through these two
+    # points stops being monotone and the shoulder grows a bump.
+    slope = min(slope, 3.0 * head / run)
+    end_slope = min(0.3 * slope, 3.0 * head / run)
+    u = np.clip((xs - high) / run, 0.0, 1.0)
+    hermite = ((2 * u ** 3 - 3 * u ** 2 + 1) * top +
+               (u ** 3 - 2 * u ** 2 + u) * run * slope +
+               (-2 * u ** 3 + 3 * u ** 2) * 1.0 +
+               (u ** 3 - u ** 2) * run * end_slope)
+    ys = np.where(xs > high, hermite, ys)
+    ys[0] = 0.0
+    # A flat run in a tone curve is a band of scene values that all render to
+    # one number, which shows as posterisation. Smooth the measurement, then
+    # force a minimum slope between knots so no run can be flat at all.
+    # One pass, not three: smoothing a curve that is convex almost everywhere
+    # drags it downwards, and three passes cost about a lightness unit of the
+    # very brightness this curve exists to recover.
+    inner = ys.copy()
+    inner[1:-1] = (inner[:-2] + 2 * inner[1:-1] + inner[2:]) / 4
+    ys = inner
+    for i in range(1, KNOTS):
+        floor = ys[i - 1] + 0.05 * (xs[i] - xs[i - 1])
+        if ys[i] < floor:
+            ys[i] = floor
+    # Sensor white renders as working-space white. When the extension reaches
+    # white before the sensor's own ceiling, clamp there rather than rescaling
+    # the whole curve: scaling would darken every tone below to fix the top.
+    ys = np.clip(ys, 0, 1)
+    ys[-1] = 1.0
+    xs[-1] = 1.0
+    return xs, ys, low, high
 
 
 def evaluate(matrix, samples):
     """Angular error between the render and the camera's own JPEG, in degrees."""
     rendered_errors = []
-    for cam, target, _ in samples:
+    for cam, target, *_rest in samples:
         predicted = cam @ matrix.T
         forward, _inverse = monotone_curve(predicted, target)
         if forward is None:
@@ -248,7 +327,7 @@ def main() -> int:
                 except subprocess.CalledProcessError:
                     print(f"  skipped (decoder refused) {os.path.basename(path)}", file=sys.stderr)
                     continue
-                if len(sample[0]) < 200:
+                if len(sample[0]) < 200 or len(sample[3]) < 200:
                     print(f"  skipped (too few usable cells) {os.path.basename(path)}", file=sys.stderr)
                     continue
                 out.append(sample)
@@ -259,7 +338,7 @@ def main() -> int:
 
     if not train:
         raise SystemExit("no usable training frames")
-    matrix, camera_to_xyz = fit(train)
+    matrix, camera_to_xyz, forward, observed = fit(train)
     neutral = np.mean([s[2] for s in train], axis=0)
 
     print("\ncamera -> XYZ (D65); every entry is a non-negative response:")
@@ -279,6 +358,18 @@ def main() -> int:
     colour_matrix = np.diag(neutral) @ np.linalg.inv(matrix) @ XYZ_TO_SRGB
     print("\nColorMatrix1 (XYZ D50 -> camera), CalibrationIlluminant1 = 21 (D65):")
     print("    {", ", ".join(f"{v:.4f}" for v in colour_matrix.flatten()), "},")
+
+    curve = tone_curve_knots(forward, observed) if forward is not None else None
+    if curve is not None:
+        xs, ys, low, high = curve
+        print(f"\nbaseline tone curve, measured over scene values "
+              f"{low:.4f} to {high:.4f}; {KNOTS} knots, linear in and out:")
+        print("     {true,")
+        print("      {" + ", ".join(f"{v:.6f}" for v in xs) + "},")
+        print("      {" + ", ".join(f"{v:.6f}" for v in ys) + "}},")
+        mid = float(np.interp(0.18, xs, ys))
+        print(f"    (0.18 scene renders at {mid:.4f} linear, "
+              f"{100 * (1.055 * mid ** (1 / 2.4) - 0.055):.1f}% encoded)")
 
     for label, which in (("training", train), ("held out", test)):
         stats = evaluate(matrix, which)

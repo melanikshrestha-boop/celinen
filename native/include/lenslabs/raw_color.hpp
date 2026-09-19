@@ -58,9 +58,32 @@ enum class ProfileSource : std::uint8_t {
 };
 const char* profile_source_name(ProfileSource source) noexcept;
 
+// A camera's baseline rendering, as a monotone curve on linear working-space
+// values: linear in, linear out, applied per channel after the colour matrix
+// and before the transfer function. This is the DNG specification's
+// ProfileToneCurve slot (DNG 1.7.1, chapter 6) — a profile carries the curve
+// its maker renders with, and a reader that has none renders scene-referred.
+//
+// Scene-referred is correct and looks wrong: a photograph rendered without one
+// is flat and dark next to the JPEG the same camera wrote, and a photographer
+// watching the sensor render replace the embedded preview sees the picture get
+// worse. The curve is what closes that gap.
+struct ToneCurve {
+  static constexpr std::size_t knots = 33;
+  bool present = false;
+  // Increasing in both axes, anchored at (0,0) and (1,1).
+  std::array<double, knots> x{}, y{};
+  // Linear interpolation between knots. Above 1 the curve rolls off towards
+  // white on its own end slope rather than stepping flat, which is what makes
+  // a reconstructed highlight land somewhere believable.
+  double apply(double value) const noexcept;
+};
+
 struct ColorProfile {
   bool known = false;
   ProfileSource source = ProfileSource::none;
+  // The camera's own baseline rendering. Absent leaves the render scene-referred.
+  ToneCurve tone_curve;
   // XYZ (D50 PCS) -> camera reference space, at each calibration illuminant.
   Matrix3 color_matrix_1 = identity3, color_matrix_2 = identity3;
   // EXIF LightSource codes, e.g. 17 Standard A, 21 D65, 23 D50.

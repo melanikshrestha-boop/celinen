@@ -7,8 +7,8 @@
 //   lenslabs-raw-decode decode  <file.ARW> <out.ppm> [options]
 //   lenslabs-raw-decode bench   <file.ARW> [options]
 //
-// Options: --half --bilinear --no-recover --exposure <stops> --temp <K>
-//          --tint <t> --band <rows> --shoulder <s>
+// Options: --half --bilinear --no-recover --scene-referred --exposure <stops>
+//          --temp <K> --tint <t> --band <rows> --shoulder <s>
 //
 // `camera` exists so the profile fitter can see the sensor's own colour before
 // any camera profile is applied; it is the one mode that runs on a body this
@@ -53,6 +53,7 @@ Options parse(int argc, char** argv, int from) {
     if (flag == "--half") o.half = true;
     else if (flag == "--bilinear") o.request.quality = Demosaic::bilinear;
     else if (flag == "--no-recover") o.request.highlight_recovery = false;
+    else if (flag == "--scene-referred") o.request.baseline_tone = false;
     else if (flag == "--exposure") o.request.rendering.exposure = next();
     else if (flag == "--shoulder") o.request.rendering.shoulder = next();
     else if (flag == "--temp") o.request.temperature = next();
@@ -90,6 +91,9 @@ void print_metadata(const RawMetadata& meta) {
               meta.as_shot_neutral[0], meta.as_shot_neutral[1], meta.as_shot_neutral[2]);
   std::printf("profile          %s (%s)\n", profile_source_name(meta.profile.source),
               meta.profile.description.empty() ? "none" : meta.profile.description.c_str());
+  std::printf("baseline curve   %s\n", meta.profile.tone_curve.present
+                                            ? "yes, from the camera profile"
+                                            : "no — this render is scene-referred");
   std::printf("embedded jpeg    %llu bytes at %llu\n", (unsigned long long)meta.preview_length,
               (unsigned long long)meta.preview_offset);
   if (meta.valid && meta.profile.known && meta.as_shot_neutral_known) {
