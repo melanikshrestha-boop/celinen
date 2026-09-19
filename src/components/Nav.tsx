@@ -14,7 +14,6 @@ import {
 import { ArrowRight } from "lucide-react";
 import { FeaturesMenu } from "@/components/marketing/FeaturesMenu";
 import { IntegrationsMenu } from "@/components/marketing/IntegrationsMenu";
-import { UseCasesMenu } from "@/components/marketing/UseCasesMenu";
 import { NavMenuProvider } from "@/components/marketing/nav-menu";
 
 import { Footer as SiteFooter } from "@/components/lensos/Footer";
@@ -43,7 +42,6 @@ export function Nav({ landing = false }: { landing?: boolean }) {
           <NavMenuProvider>
             <nav className="marketing-nav__links" aria-label="Main navigation">
               <FeaturesMenu />
-              <UseCasesMenu />
               <IntegrationsMenu />
               <Link to="/pricing">Pricing</Link>
               <Link to="/docs">Docs</Link>

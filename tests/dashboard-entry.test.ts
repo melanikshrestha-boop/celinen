@@ -95,7 +95,7 @@ test("dashboard shell is the photographer rail, not a chat sidebar", () => {
   expect(source).not.toContain("social-post__mark");
   expect(source).not.toContain("Browse templates");
   expect(source).not.toContain("Planning a shoot week");
-  expect(source).toContain('placeholder="drop your game here"');
+  expect(source).toContain('placeholder="drop your photos here"');
   const dashCss = readFileSync(
     new URL("../src/components/dashboard/dashboard.css", import.meta.url),
     "utf8",

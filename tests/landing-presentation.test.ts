@@ -297,7 +297,7 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes('aria-label="Open menu"'));
     assert.ok(!html.includes("marketing-nav__more"));
     assert.ok(html.includes("Features"));
-    assert.ok(html.includes("Use Cases"));
+    assert.ok(!html.includes("Use Cases"));
     assert.ok(html.includes("Integrations"));
     assert.ok(!html.includes("How celinen compares"));
     assert.ok(!html.includes("Read the comparison"));
