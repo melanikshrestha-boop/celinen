@@ -92,6 +92,7 @@ export default viteDefineConfig(async (env) => {
     internalPlugins.push(
       nitro({
         defaultPreset: "cloudflare-module",
+        plugins: ["./src/server/social-schedule-nitro.ts"],
         cloudflare: {
           wrangler: {
             name: "lenslab-web", keep_vars: true, workers_dev: true,
