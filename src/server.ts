@@ -106,7 +106,8 @@ export default {
         path.startsWith("/p/") ||
         path.startsWith("/photographer/") ||
         path === "/publish" ||
-        path.startsWith("/api/schedule/")
+        path.startsWith("/api/schedule/") ||
+        path.startsWith("/api/social-media/")
       ) {
         return withSecurityHeaders(normalized, {
           "Cache-Control": "private, no-store",

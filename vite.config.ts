@@ -98,6 +98,10 @@ export default viteDefineConfig(async (env) => {
             name: "lenslab-web", keep_vars: true, workers_dev: true,
             ai: { binding: "AI" },
             services: [{ binding: "CANONICAL_V2", service: "lenslab-canonical-v2-private" }],
+            // Cloudflare Cron Trigger: every minute the Worker's `scheduled` handler
+            // (Nitro hook in src/server/social-schedule-nitro.ts) fires due social posts.
+            // Nitro copies this into .output/server/wrangler.json, which Workers Builds deploys.
+            triggers: { crons: ["* * * * *"] },
           },
         },
         ...userNitroOpts,

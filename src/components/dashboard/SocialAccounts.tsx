@@ -43,7 +43,7 @@ import {
   listScheduledPosts,
 } from "@/lib/business/schedule.functions";
 import { publishingStatus } from "@/lib/business/publishing.functions";
-import { canScheduleNetwork, type ScheduleRecord } from "@/lib/social/schedule";
+import { canScheduleNetwork, type ScheduleView } from "@/lib/social/schedule";
 import { InstagramAccount } from "@/components/social/InstagramAccount";
 import { FacebookAccount } from "@/components/social/FacebookAccount";
 import "./social-accounts.css";
@@ -92,7 +92,7 @@ export function SocialAccounts() {
   const [secrets, setSecrets] = useState<Partial<Record<PasteSocialId, PasteSecret>>>({});
   const [photo, setPhoto] = useState<File | null>(null);
   const [when, setWhen] = useState(() => localStamp(Date.now() + 60 * 60 * 1000));
-  const [queue, setQueue] = useState<ScheduleRecord[]>([]);
+  const [queue, setQueue] = useState<ScheduleView[]>([]);
   const [meta, setMeta] = useState<{ instagram: boolean; facebook: boolean }>({
     instagram: false,
     facebook: false,

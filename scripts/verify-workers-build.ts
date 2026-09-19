@@ -15,6 +15,8 @@ if (config.name !== "lenslab-web" || config.keep_vars !== true)
 if (!config.services?.some((item: { binding: string; service: string }) =>
   item.binding === "CANONICAL_V2" && item.service === "lenslab-canonical-v2-private"))
   throw new Error("Private V2 service binding is missing. This binding does not enable V2.");
+if (!config.triggers?.crons?.includes("* * * * *"))
+  throw new Error("The social publishing cron trigger is missing from the generated wrangler config.");
 if (config.routes?.length || config.route)
   throw new Error("Temporary deployment must not contain custom-domain routes.");
 if (Object.keys(config.vars ?? {}).length)
