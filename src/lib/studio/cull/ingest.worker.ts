@@ -130,6 +130,10 @@ scope.onmessage = async ({ data }: MessageEvent<IngestRequest>) => {
       ...(result.afPoint
         ? { afPoint: result.afPoint, afConfirmed: result.afConfirmed, focusHit: result.focusHit }
         : {}),
+      ...(result.validity ? { validity: result.validity, measured: result.measured } : {}),
+      ...(result.subject ? { subject: result.subject } : {}),
+      ...(result.signature ? { signature: result.signature } : {}),
+      ...(result.facts ? { facts: result.facts } : {}),
     };
     scope.postMessage(reply);
   } catch (error) {

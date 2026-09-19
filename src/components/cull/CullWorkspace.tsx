@@ -82,6 +82,8 @@ export type CullWorkspaceProps = {
   onUndo: () => void;
   /** Moves the "Keep ~N" line; null returns to the engine's verdicts. */
   onKeepTarget?: ((target: number | null) => void) | undefined;
+  /** Erases what the culler learned from this photographer's overrides. */
+  onForgetTaste?: (() => void) | undefined;
   onAddCodes?: ((input: CullCodesInput) => Promise<unknown>) | undefined;
   onRemoveCodes?: ((id: string) => void) | undefined;
   /** Must keep its identity across renders; cards read thumbnails as they scroll into view. */
@@ -153,6 +155,7 @@ export function CullWorkspace({
   onMark,
   onUndo,
   onKeepTarget,
+  onForgetTaste,
   onAddCodes,
   onRemoveCodes,
   thumbnail,
@@ -891,6 +894,23 @@ export function CullWorkspace({
             </button>
           </span>
           <span className="ml-auto flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+            {/* The culler says when it is following her rather than only its
+                own measurements, and how much of her it has seen. */}
+            {snapshot.taste.decisions > 0 && (
+              <span className="flex items-center gap-1 text-moss">
+                {`Learned from ${number(snapshot.taste.decisions)} of your decisions`}
+                {onForgetTaste && (
+                  <button
+                    type="button"
+                    className="grid size-6 place-items-center rounded-md hover:bg-ink/5"
+                    aria-label="Forget what the cull learned"
+                    onClick={onForgetTaste}
+                  >
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                )}
+              </span>
+            )}
             {onKeepTarget && ranked > 0 && (
               <span className="cull-target" data-set={snapshot.keepTarget !== null || undefined}>
                 <label htmlFor="cull-keep-target">{`Keep ~${number(keepLine)}`}</label>

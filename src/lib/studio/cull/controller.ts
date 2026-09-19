@@ -7,7 +7,26 @@ import { mergeCodeTables, parseCodeReplacements, rosterCodes, type CodeTable } f
 import { cullEngine } from "./client";
 import type { CullRow, CullVerdict } from "./engine";
 import { decodeScaled } from "./decode";
-import { applyTaste, keepBiasFromEye, loadEye, rememberDecision, saveEye } from "./eye";
+import { artfulPrior, photographerQuality } from "./eye";
+import { cullIntelEngine } from "./intel-client";
+import type {
+  CullGenre,
+  CullHeadSet,
+  CullMembershipInput,
+  CullSequenceInput,
+} from "./intel";
+import {
+  blendQuality,
+  COLD_TASTE,
+  learnedPercentiles,
+  loadCullTaste,
+  preferenceFromDecision,
+  recordCullPreferences,
+  forgetCullPreferences,
+  type CullPreferenceDraft,
+  type CullPreferenceKind,
+  type CullTaste,
+} from "./preferences";
 import { startBackupIngest, type BackupReport } from "./handoff/backup-ingest";
 import { exportKeepers } from "./handoff/export-keepers";
 import type { HandoffTarget } from "./handoff/target";
@@ -141,6 +160,9 @@ export type CullSnapshot = {
   /** Frames the keep line runs across: measured and readable. */
   ranked: number;
   codes: CullCodes;
+  /** How many of her own decisions are shaping the suggestions, and how far
+   * they are being trusted. Zero decisions means the engine's own eye. */
+  taste: { decisions: number; trust: number };
 };
 
 type Listener = (snapshot: CullSnapshot) => void;
@@ -193,6 +215,21 @@ export class CullController {
   private backup: CullBackupState | null = null;
   private backupJob: ReturnType<typeof startBackupIngest> | null = null;
   private sessionName = "";
+  // The 32x24 luma signature of every frame this tab read, for burst motion.
+  // Memory only: 768 bytes a frame is nothing to hold and seven megabytes to
+  // store, and a reopened session still gets its roles from the scoring heads.
+  private signatures = new Map<string, Uint8Array>();
+  // The heads the last sequence pass measured, per frame. The learned ranker
+  // reads them, and they are what a recorded override is a comparison between.
+  private heads = new Map<string, CullHeadSet>();
+  // What this account has taught the culler, trained from its own log. Loaded
+  // once per session and refreshed whenever an override is written down.
+  private taste: CullTaste = COLD_TASTE;
+  private tasteLoaded: Promise<void> | null = null;
+  // Set once heads exist, so the first rerank of a reopened session — which
+  // has none yet, and so cannot be shaped by her taste — is followed by one
+  // that can.
+  private blendPending = false;
 
   constructor(
     private readonly store: CullStore,
@@ -218,6 +255,7 @@ export class CullController {
       keepTarget: this.keepTarget,
       ranked: this.order.length,
       codes: this.codes,
+      taste: { decisions: this.taste.events, trust: this.taste.trust },
     };
   }
 
@@ -373,10 +411,11 @@ export class CullController {
     try {
       await ingestFiles(photos, {
         signal: controller.signal,
-        onFrame: ({ frame, thumbnail, file }) => {
+        onFrame: ({ frame, thumbnail, file, signature }) => {
           this.byId.set(frame.id, this.frames.length);
           this.frames.push(frame);
           if (!frame.error) this.originals.set(frame.id, file);
+          if (signature) this.signatures.set(frame.id, signature);
           writer.add(frame, thumbnail);
           this.scheduleRerank();
         },
@@ -692,16 +731,35 @@ export class CullController {
         "This browser cannot run the cull engine; frames can still be kept and rejected by hand.";
       return this.emit();
     }
+    await this.loadTaste();
+    // The photographer's own eye, mixed into the engine's score as a position
+    // in the shoot rather than as a number: the engine's quality is calibrated
+    // against this shoot's range and the learned score is calibrated against
+    // nothing, so only their orderings are comparable. At zero trust — before
+    // she has taught it anything — this returns the engine's quality untouched.
+    const learned = measured.map((frame) => this.taste.score(this.heads.get(frame.id) ?? {}));
+    const positions = learnedPercentiles(learned);
     let rows: CullRow[];
     try {
-      const eye = this.options.scope ? loadEye(this.options.scope) : { samples: [] };
       rows = engine.shoot(
-        measured.map((frame) => ({
-          reading: applyTaste(frame.reading!, eye),
-          captureTimeMs: frame.captureTimeMs,
-          verdict: frame.decided ? frame.verdict : "undecided",
-        })),
-        { keepBias: keepBiasFromEye(eye) },
+        measured.map((frame, index) => {
+          const reading = frame.reading!;
+          // The unlearned prior: a face in tungsten light is not "too dark",
+          // and maximum sharpness is not the art. Hand-written, identical for
+          // every photographer, and never in competition with the log below.
+          const quality = photographerQuality(reading, artfulPrior(reading));
+          return {
+            reading: {
+              ...reading,
+              quality: this.heads.has(frame.id)
+                ? blendQuality(quality, positions[index]!, this.taste.trust)
+                : quality,
+            },
+            captureTimeMs: frame.captureTimeMs,
+            verdict: frame.decided ? frame.verdict : "undecided",
+          };
+        }),
+        { keepBias: this.taste.keepBias },
       );
     } catch (error) {
       this.notice = error instanceof Error ? error.message : "The shoot could not be ranked.";
@@ -720,6 +778,124 @@ export class CullController {
     // stored measurements, and saving them here would rewrite thousands of rows
     // a second while a card reads. Only the photographer's decisions persist.
     this.replace(applySuggestions(this.frames, suggestions));
+    await this.judgeShoot(measured);
+    if (this.blendPending) {
+      // The first rerank of a reopened session had no heads to rank by. Now it
+      // does, so run once more with her taste applied. `blendPending` is only
+      // ever set when heads were missing, so this cannot loop.
+      this.blendPending = false;
+      await this.rerank();
+    }
+  }
+
+  /** What the shoot-level intelligence says about frames the scorer cannot
+   * judge alone: which ones are not part of this shoot, and what each frame of
+   * a burst is for. A browser that cannot run the module simply gets neither,
+   * and culling carries on. */
+  private async judgeShoot(measured: readonly CullFrame[]) {
+    const sessionId = this.sessionId;
+    const intel = await cullIntelEngine();
+    if (!intel || this.sessionId !== sessionId) return;
+    const importing = this.progress !== null && !this.progress.done;
+    let next: CullFrame[] | null = null;
+    const patch = (id: string, change: Partial<CullFrame>) => {
+      const index = this.byId.get(id);
+      if (index === undefined) return;
+      const current = (next ?? this.frames)[index]!;
+      next ??= this.frames.slice();
+      next[index] = { ...current, ...change };
+    };
+
+    // Burst roles. Every frame gets its heads back, including the ones that
+    // stand alone, which is what the learned ranker is trained and scored on.
+    try {
+      const input: CullSequenceInput[] = measured.map((frame) => ({
+        group: frame.suggestion?.group ?? null,
+        captureTimeMs: frame.captureTimeMs,
+        ...(this.signatures.get(frame.id)
+          ? { signature: this.signatures.get(frame.id)! }
+          : {}),
+        ...(frame.subject ? { subject: frame.subject } : {}),
+        validity: frame.validity?.status ?? "valid",
+        verdict: frame.decided ? (frame.verdict === "keep" ? 1 : frame.verdict === "reject" ? 2 : 0) : 0,
+      }));
+      const hadHeads = this.heads.size > 0;
+      const rows = intel.sequence(input, { genre: this.genre() });
+      if (this.sessionId !== sessionId) return;
+      rows.forEach((row, index) => {
+        const frame = measured[index]!;
+        this.heads.set(frame.id, row.heads);
+        const role =
+          row.role === "none" || !row.reason
+            ? undefined
+            : { role: row.role, reason: row.reason };
+        const current = frame.burstRole;
+        if (role?.role === current?.role && role?.reason === current?.reason) return;
+        patch(frame.id, role ? { burstRole: role } : { burstRole: undefined });
+      });
+      if (!hadHeads && this.heads.size > 0 && this.taste.trust > 0) this.blendPending = true;
+    } catch (error) {
+      // Roles are an explanation, not a verdict: losing them loses nothing.
+      if (error instanceof Error && !this.notice) this.notice = error.message;
+    }
+
+    // Shoot membership. A shoot's fingerprint is set by the majority of its
+    // own frames, so it is only worth asking once the card has finished
+    // reading: half a card of one body would make the second body an outsider.
+    if (!importing) {
+      try {
+        const judged = this.frames.filter((frame) => !frame.error);
+        const input: CullMembershipInput[] = judged.map((frame) => ({
+          hasExif: Boolean(frame.facts),
+          make: frame.facts?.make,
+          model: frame.facts?.model,
+          serial: frame.facts?.serial,
+          lens: frame.facts?.lens,
+          software: frame.facts?.software,
+          fileName: frame.name,
+          captureTimeMs: frame.captureTimeMs,
+          width: frame.width,
+          height: frame.height,
+          ...(frame.reading ? { hash: frame.reading.hash, color: frame.reading.color } : {}),
+          invalid: frame.validity?.status === "invalid",
+        }));
+        const rows = intel.membership(input);
+        if (this.sessionId !== sessionId) return;
+        rows.forEach((row, index) => {
+          const frame = judged[index]!;
+          // Only an outsider is flagged. "Suspect" is one family of evidence
+          // short of a claim, and a second body or a phone shot lands there:
+          // saying "not from this shoot" about her own frame is the one
+          // mistake this pass must never make.
+          const membership =
+            row.state === "outsider" ? { inShoot: false, reason: row.reason } : undefined;
+          if (Boolean(membership) === Boolean(frame.membership)) {
+            if (!membership || membership.reason === frame.membership?.reason) return;
+          }
+          patch(frame.id, membership ? { membership } : { membership: undefined });
+        });
+      } catch (error) {
+        if (error instanceof Error && !this.notice) this.notice = error.message;
+      }
+    }
+
+    if (next) this.swap(next);
+  }
+
+  /** The profile the ranking uses. One genre until the screen offers a choice;
+   * sports is what this product is for. */
+  private genre(): CullGenre {
+    return "sports";
+  }
+
+  /** Trains this account's ranker from its own log, once per session. */
+  private loadTaste(): Promise<void> {
+    this.tasteLoaded ??= (this.options.scope ? loadCullTaste(this.options.scope) : Promise.resolve(COLD_TASTE)).then(
+      (taste) => {
+        this.taste = taste;
+      },
+    );
+    return this.tasteLoaded;
   }
 
   /** A face the loupe found on a frame ingest missed (Safari has no FaceDetector). */
@@ -805,6 +981,11 @@ export class CullController {
   private resetRanking() {
     this.rows = new Map();
     this.order = [];
+    // Both are about the frames of one shoot, and one shoot's heads must never
+    // rank another's. What was learned from them lives in the log, not here.
+    this.heads.clear();
+    this.signatures.clear();
+    this.blendPending = false;
   }
 
   /** A frame's suggestion at its place in the ranking, under the current keep line. */
@@ -888,16 +1069,121 @@ export class CullController {
     this.undoStack.push({ frames: before });
     if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
     this.swap(next);
-    if (this.options.scope && marks.verdict) {
-      let eye = loadEye(this.options.scope);
-      for (const frame of changed) {
-        if (!frame.reading) continue;
-        eye = rememberDecision(eye, frame.reading, marks.verdict);
-      }
-      saveEye(this.options.scope, eye);
-    }
+    if (this.options.scope && marks.verdict) void this.learn(before, marks.verdict);
     await this.persist(changed);
     this.scheduleRerank();
+  }
+
+  /**
+   * Writes down what a decision taught, as the comparison it implies.
+   *
+   * A keep or a reject on its own says almost nothing: whether a frame is good
+   * depends on what it was up against, and a photographer who keeps eighty
+   * frames of a good game and eight of a bad one has not changed her taste.
+   * An override is different — it names two frames the engine already
+   * measured and says the engine put them in the wrong order. Three kinds:
+   *
+   *   inside a burst   she keeps a frame the engine did not pick, over the one
+   *                    it did;
+   *   restored reject  she keeps a frame the engine rejected, over the weakest
+   *                    frame the engine wanted to keep;
+   *   rejected keep    she throws away a frame the engine kept, and the
+   *                    strongest frame it rejected should have had its place.
+   *
+   * The last two are the keep line read as a comparison: the engine drew a
+   * boundary and she moved a frame across it, which says those two frames were
+   * on the wrong sides of it. Both frames' head values are stored with the
+   * event, because heads change as the engine improves and a label has to stay
+   * attached to the evidence it was given.
+   */
+  private async learn(before: readonly CullFrame[], verdict: CullVerdict) {
+    const scope = this.options.scope;
+    if (!scope || verdict === "undecided") return;
+    const genre = this.genre();
+    const drafts: CullPreferenceDraft[] = [];
+    for (const frame of before) {
+      const suggested = frame.suggestion;
+      if (!suggested || !this.heads.has(frame.id)) continue;
+      // Agreeing with the engine teaches the ranker nothing it does not
+      // already believe, and would drown the overrides that do.
+      if (suggested.verdict === verdict) continue;
+      const kind: CullPreferenceKind =
+        suggested.group !== null && suggested.group !== undefined && verdict === "keep"
+          ? "burst-pick"
+          : verdict === "keep"
+            ? "restored-reject"
+            : "rejected-keep";
+      const against = this.comparedWith(frame, kind);
+      if (!against) continue;
+      // For a keep, her frame is the chosen one. For a reject, the frame the
+      // engine passed over is the one she implicitly preferred.
+      const chosen = verdict === "keep" ? frame : against;
+      const passedOver = verdict === "keep" ? against : frame;
+      const draft = preferenceFromDecision({
+        kind,
+        sessionId: this.sessionId ?? "",
+        burstId: suggested.group ?? null,
+        genre,
+        chosen: { frameId: chosen.id, heads: this.heads.get(chosen.id) ?? {} },
+        passedOver: { frameId: passedOver.id, heads: this.heads.get(passedOver.id) ?? {} },
+        aiPickId: passedOver.id,
+      });
+      if (draft) drafts.push(draft);
+    }
+    if (!drafts.length) return;
+    await recordCullPreferences(scope, drafts);
+    // Retrained from the whole log, not nudged: the log is the truth, and a
+    // model that has drifted from it is the bug this avoids.
+    this.tasteLoaded = null;
+    await this.loadTaste();
+    this.emit();
+  }
+
+  /** The frame an override implicitly compared against. */
+  private comparedWith(frame: CullFrame, kind: CullPreferenceKind): CullFrame | null {
+    if (kind === "burst-pick") {
+      const group = frame.suggestion?.group;
+      if (group === null || group === undefined) return null;
+      const pick = this.frames.find(
+        (other) =>
+          other.id !== frame.id &&
+          other.suggestion?.group === group &&
+          other.suggestion.bestOfGroup &&
+          this.heads.has(other.id),
+      );
+      return pick ?? null;
+    }
+    // The engine's own keep line, read as the comparison it is. `order` is the
+    // ranking, so the boundary is the last suggested keep and the first
+    // suggested reject after it.
+    let weakestKeep: CullFrame | null = null;
+    let strongestReject: CullFrame | null = null;
+    for (const id of this.order) {
+      const index = this.byId.get(id);
+      if (index === undefined) continue;
+      const other = this.frames[index]!;
+      if (other.id === frame.id || !this.heads.has(other.id)) continue;
+      if (other.suggestion?.verdict === "keep") weakestKeep = other;
+      else if (other.suggestion?.verdict === "reject" && !strongestReject) strongestReject = other;
+    }
+    return kind === "restored-reject" ? weakestKeep : strongestReject;
+  }
+
+  /** What the culler has learned from this photographer, and the way to make
+   * it forget. Forgetting erases the log; nothing else in the session moves. */
+  async forgetTaste(): Promise<void> {
+    const scope = this.options.scope;
+    if (!scope) return;
+    try {
+      await forgetCullPreferences(scope);
+    } catch (error) {
+      this.notice =
+        error instanceof Error ? error.message : "What the cull learned could not be cleared.";
+      return this.emit();
+    }
+    this.taste = COLD_TASTE;
+    this.tasteLoaded = Promise.resolve();
+    await this.rerank();
   }
 
   async undo(): Promise<void> {

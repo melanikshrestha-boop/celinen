@@ -19,6 +19,7 @@ import type {
   CullRefine,
 } from "@/lib/studio/cull/session";
 import {
+  CULL_REASON_LABELS,
   effectiveVerdict,
   filterFrames,
   groupFrames,
@@ -432,13 +433,54 @@ export function sharpnessReadout(frame: CullFrame): string | null {
   return `Sharp ${Math.round(Math.max(0, Math.min(1, acuity)) * 100)}`;
 }
 
+/**
+ * The one line under a frame, and whether a score belongs beside it.
+ *
+ * A frame that is not a photograph has no sharpness verdict to give, because
+ * the scorer never ran on it: the gate stopped first. Saying "Sharp and well
+ * exposed 98" about a manga page is not a small cosmetic wrong — it is the
+ * engine claiming to have judged a photograph that is not there. So the gate's
+ * own words replace the verdict, and the score goes away with it.
+ *
+ * Every surface that shows a verdict asks this, so the three of them cannot
+ * drift.
+ */
+export function verdictLine(frame: CullFrame): { text: string; tone: "normal" | "warn" } | null {
+  // A damaged file was measured on whatever survived; the engine's reason
+  // would be about pixels that never arrived.
+  if (frame.damaged) return { text: "Damaged file", tone: "warn" };
+  const validity = frame.validity;
+  if (validity && validity.status !== "valid")
+    return {
+      // "Illustration, not a photograph" — the gate's own reason. A suspect
+      // frame is a maybe, so it says so rather than passing sentence.
+      text: validity.status === "suspect" ? `Maybe: ${validity.reason}` : validity.reason,
+      tone: "warn",
+    };
+  if (frame.membership?.inShoot === false)
+    return { text: frame.membership.reason || "Not from this shoot", tone: "warn" };
+  const reason = frame.suggestion?.reason ?? "none";
+  return reason === "none" ? null : { text: CULL_REASON_LABELS[reason], tone: "normal" };
+}
+
+/** A frame the gate turned away carries no score, because none was measured. */
+export function scoreOf(frame: CullFrame): number | null {
+  if (frame.error || !frame.reading) return null;
+  if (frame.validity && frame.validity.status === "invalid") return null;
+  return frame.suggestion?.score ?? null;
+}
+
 /** The loupe's detail list: the engine's reading in plain words, where focus
  * landed against the AF area, and any validity, shoot or burst judgment. */
 export function detailRows(frame: CullFrame): CullMeasurement[] {
   // A damaged file was measured on whatever survived: saying "out of focus"
   // about a truncated scan would be a lie about the photograph.
   if (frame.damaged) return [{ label: "File", value: frame.damaged }];
+  // A frame the gate turned away has no reading at all: the rows below are
+  // everything there is to say about it, and they are the point.
   const rows = frame.reading ? plainReading(frame.reading) : [];
+  if (frame.subject?.evidence && frame.reading)
+    rows.push({ label: "Subject", value: frame.subject.evidence });
   const focus = focusSummary(frame);
   if (focus) rows.splice(1, 0, { label: "AF", value: focus });
   if (frame.validity && frame.validity.status !== "valid")

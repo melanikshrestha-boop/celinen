@@ -59,6 +59,7 @@ function workspace(frames: readonly CullFrame[], snapshot: Partial<CullSnapshot>
         keepTarget: null,
         ranked: frames.length,
         codes: NO_CODES,
+        taste: { decisions: 0, trust: 0 },
         ...snapshot,
       }}
       onImport={noop}

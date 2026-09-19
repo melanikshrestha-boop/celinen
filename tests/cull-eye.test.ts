@@ -1,14 +1,8 @@
+/** The unlearned prior. What this photographer has actually taught the culler
+ * is tested in cull-preferences.test.ts: eye.ts no longer learns anything, so
+ * that there is one learned path instead of two writing to the same number. */
 import { expect, test } from "bun:test";
-import {
-  applyTaste,
-  artfulPrior,
-  featuresFromReading,
-  photographerQuality,
-  rememberDecision,
-  sceneContext,
-  tasteKeep,
-  type EyeMemory,
-} from "../src/lib/studio/cull/eye";
+import { artfulPrior, photographerQuality, warmthOf } from "../src/lib/studio/cull/eye";
 import { cullReading } from "./cull-review.fixture";
 
 test("a night portrait with a face is not punished as too dark", () => {
@@ -26,69 +20,6 @@ test("a night portrait with a face is not punished as too dark", () => {
   });
   expect(artfulPrior(night)).toBeGreaterThan(artfulPrior(empty));
   expect(artfulPrior(night)).toBeGreaterThan(0.55);
-});
-
-test("keep/reject history pulls later scores toward what this photographer kept", () => {
-  let memory: EyeMemory = { samples: [] };
-  const kept = cullReading({
-    hasFace: true,
-    subjectLuma: 62,
-    acuitySubject: 0.4,
-    quality: 55,
-  });
-  const dumped = cullReading({
-    hasFace: false,
-    subjectLuma: 200,
-    acuitySubject: 0.85,
-    quality: 90,
-  });
-  for (let i = 0; i < 6; i++) {
-    memory = rememberDecision(memory, kept, "keep");
-    memory = rememberDecision(memory, dumped, "reject");
-  }
-  expect(tasteKeep(kept, memory)).toBeGreaterThan(tasteKeep(dumped, memory));
-  expect(applyTaste(kept, memory).quality).toBeGreaterThan(applyTaste(dumped, memory).quality);
-});
-
-test("features never include pixels", () => {
-  const keys = Object.keys(featuresFromReading(cullReading()));
-  expect(keys.some((key) => /blob|pixel|rgba|file/i.test(key))).toBe(false);
-});
-
-test("two keeps and two rejects are enough for taste to move", () => {
-  let memory: EyeMemory = { samples: [] };
-  const kept = cullReading({ hasFace: true, subjectLuma: 55, acuitySubject: 0.4, quality: 48 });
-  const dumped = cullReading({ hasFace: false, subjectLuma: 210, acuitySubject: 0.88, quality: 92 });
-  for (let i = 0; i < 2; i++) {
-    memory = rememberDecision(memory, kept, "keep");
-    memory = rememberDecision(memory, dumped, "reject");
-  }
-  expect(tasteKeep(kept, memory)).toBeGreaterThan(tasteKeep(dumped, memory));
-});
-
-test("night-portrait taste transfers to another night face, not a bright empty frame", () => {
-  let memory: EyeMemory = { samples: [] };
-  const nightKeep = cullReading({
-    hasFace: true,
-    subjectLuma: 50,
-    acuitySubject: 0.38,
-    quality: 44,
-  });
-  const wall = cullReading({ hasFace: false, subjectLuma: 200, acuitySubject: 0.9, quality: 94 });
-  for (let i = 0; i < 5; i++) {
-    memory = rememberDecision(memory, nightKeep, "keep");
-    memory = rememberDecision(memory, wall, "reject");
-  }
-  const otherNight = cullReading({
-    hasFace: true,
-    subjectLuma: 62,
-    acuitySubject: 0.41,
-    quality: 50,
-    subjectX: 0.38,
-  });
-  expect(sceneContext(featuresFromReading(otherNight))).toBe("night-portrait");
-  expect(tasteKeep(otherNight, memory)).toBeGreaterThan(tasteKeep(wall, memory));
-  expect(applyTaste(otherNight, memory).quality).toBeGreaterThan(applyTaste(wall, memory).quality);
 });
 
 test("a night face outranks a sharp empty frame before any history", () => {
@@ -109,4 +40,29 @@ test("a night face outranks a sharp empty frame before any history", () => {
   expect(photographerQuality(night, artfulPrior(night))).toBeGreaterThan(
     photographerQuality(empty, artfulPrior(empty)),
   );
+});
+
+test("closed eyes and a missed subject pull the prior down", () => {
+  const open = cullReading({ hasFace: true, subjectLuma: 90, acuitySubject: 0.5, acuityBest: 0.52 });
+  expect(artfulPrior(cullReading({ ...open, eyesClosed: true }))).toBeLessThan(artfulPrior(open));
+  // Focus landed well in front of or behind the subject.
+  expect(artfulPrior(cullReading({ ...open, acuityBest: 0.9 }))).toBeLessThan(artfulPrior(open));
+});
+
+test("the prior is a multiplier on quality, never a replacement for it", () => {
+  const frame = cullReading({ hasFace: true, subjectLuma: 90, acuitySubject: 0.6 });
+  // Same frame, two priors: the ordering follows the prior and the range stays 1..99.
+  const low = photographerQuality(frame, 0.1);
+  const high = photographerQuality(frame, 0.9);
+  expect(high).toBeGreaterThan(low);
+  expect(low).toBeGreaterThanOrEqual(1);
+  expect(high).toBeLessThanOrEqual(99);
+});
+
+test("warmth reads the colour signature, not the pixels", () => {
+  const warm = cullReading({ color: new Uint8Array([220, 120, 60, 210, 118, 58]) });
+  const cool = cullReading({ color: new Uint8Array([60, 120, 220, 58, 118, 210]) });
+  expect(warmthOf(warm)).toBeGreaterThan(0);
+  expect(warmthOf(cool)).toBeLessThan(0);
+  expect(warmthOf(cullReading({ color: new Uint8Array() }))).toBe(0);
 });
