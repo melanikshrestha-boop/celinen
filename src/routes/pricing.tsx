@@ -346,9 +346,9 @@ function PricingPage() {
                     "Define workflow support",
                   ]}
                 />
-                <a href="mailto:hello@lenslab.dev" className={`${ctaBase} bg-ink text-paper2`}>
+                <Link to="/contact-sales" className={`${ctaBase} bg-ink text-paper2`}>
                   Contact sales
-                </a>
+                </Link>
               </div>
 
               <div className="flex flex-col rounded-2xl border border-border bg-card p-7">
@@ -639,12 +639,12 @@ function PricingPage() {
             >
               Get started
             </Link>
-            <a
-              href="mailto:hello@lenslab.dev"
+            <Link
+              to="/contact-sales"
               className="rounded-xl border border-input px-4 py-2 text-sm font-medium hover:opacity-85"
             >
               Contact sales
-            </a>
+            </Link>
           </div>
         </div>
       </main>

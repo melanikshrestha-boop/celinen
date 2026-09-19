@@ -210,6 +210,13 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("12,480"), "Never a fabricated user count");
     assert.ok(!html.includes("marketing-vista__dissolve"));
     assert.ok(html.includes('aria-labelledby="home-heading"'));
+    assert.ok(html.includes('class="marketing-demo"'));
+    assert.ok(html.includes("Saturday wedding"));
+    assert.ok(html.includes("send the sneak peek"));
+    assert.ok(html.includes('aria-label="Celinen example"'));
+    assert.ok(html.includes('id="contact-sales"'));
+    assert.ok(html.includes('href="/contact-sales"'));
+    assert.ok(html.includes("Contact sales"));
     const hero = html.match(/<img\b[^>]*class="marketing-hero__image"[^>]*>/)![0];
     for (const expected of [
       'src="/images/celinen-open-sky.webp"',
@@ -223,6 +230,8 @@ if (!process.argv.includes(fixtureFlag)) {
       assert.ok(image[0].includes('alt=""'), "Illustrative scenery must remain decorative");
       assert.ok(image[0].includes('src="/images/celinen-open-sky.webp"'));
     }
+    assert.ok(!html.includes("Chief of Staff"));
+    assert.ok(!html.includes("Sales Outbound"));
     const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     const startsWith = (label: string) =>
       links.filter((match) => text(match[2]!).startsWith(label));
@@ -230,7 +239,8 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(!html.includes("<h2>Video</h2>"));
     assert.ok(!html.includes("Latch"));
     assert.ok(!html.includes("latch-efc.pages.dev"));
-    assert.ok(html.includes("Photography and video"));
+    assert.ok(html.includes("Photography"));
+    assert.ok(!html.includes("Photography and video"));
     if (current === "in") {
       assert.equal(startsWith("Dashboard").length, 3);
       assert.equal(startsWith("Sign In").length, 0);

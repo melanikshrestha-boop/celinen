@@ -7,6 +7,8 @@ import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { IntegrationsSection } from "@/components/marketing/IntegrationsSection";
 import { PublishEverywhere } from "@/components/marketing/PublishEverywhere";
 import { HomePricing } from "@/components/marketing/HomePricing";
+import { LandingDemo } from "@/components/marketing/LandingDemo";
+import { SalesContact } from "@/components/marketing/SalesContact";
 import { SectionGuard } from "@/components/marketing/SectionGuard";
 import { useMarketingMotion } from "@/components/marketing/useMarketingMotion";
 import { PublicEntryCta } from "@/components/PublicEntryCta";
@@ -22,13 +24,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Celinen for photography and video. One workspace, one sign-in.",
+          "Celinen, the AI photo agent for photographers.",
       },
       { property: "og:title", content: PRODUCT_HEADLINE },
       { name: "twitter:title", content: PRODUCT_HEADLINE },
       {
         property: "og:description",
-        content: "Celinen for photography and video.",
+        content: "Celinen, the AI photo agent for photographers.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -65,7 +67,7 @@ function Index() {
             <div className="marketing-products" aria-label="Product">
               <article>
                 <h2>Celinen</h2>
-                <p>Photography and video</p>
+                <p>Photography</p>
                 <PublicEntryCta
                   className="marketing-action marketing-action--primary"
                   next="/dashboard"
@@ -85,6 +87,7 @@ function Index() {
               </article>
             </div>
           </div>
+          <LandingDemo />
         </section>
         <div className="marketing-promises" aria-label="Your work stays yours">
           <span>
@@ -178,6 +181,9 @@ function Index() {
             />
           </div>
         </section>
+        </SectionGuard>
+        <SectionGuard>
+          <SalesContact heading="h2" />
         </SectionGuard>
       </main>
       <MarketingFooter />

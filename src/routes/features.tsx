@@ -1,10 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 
-/** Primary nav says Features; the page lives at /product. */
+/** Primary nav says Features; Celinen features live on the Celinen product page. */
 export const Route = createFileRoute("/features")({
   beforeLoad: () => {
-    throw redirect({ to: "/product" });
+    throw redirect({ to: "/product/celinen" });
   },
   component: () => null,
 });

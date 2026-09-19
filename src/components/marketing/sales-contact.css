@@ -1,0 +1,112 @@
+.marketing-page--sales {
+  background: #0b0b0c;
+}
+.marketing-sales {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 72px clamp(28px, 4.5vw, 72px) 64px;
+  background: #0b0b0c;
+  color: #f4f4f5;
+  color-scheme: dark;
+}
+.marketing-sales__intro {
+  max-width: 40rem;
+  margin: 0 0 36px;
+}
+.marketing-sales__intro .marketing-value__eyebrow {
+  color: #a1a1aa;
+}
+.marketing-sales h1,
+.marketing-sales h2 {
+  scroll-margin-top: 88px;
+  margin: 10px 0 12px;
+  color: #f4f4f5;
+  font-family: var(--font-sans);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+.marketing-sales__intro p {
+  margin: 0;
+  color: #a1a1aa;
+  font-size: 1rem;
+}
+.marketing-sales__intro a {
+  color: #f4f4f5;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.marketing-sales__form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+  max-width: 44rem;
+}
+.marketing-sales__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #d4d4d8;
+  font-size: 13px;
+}
+.marketing-sales__wide {
+  grid-column: 1 / -1;
+}
+.marketing-sales__form input,
+.marketing-sales__form select,
+.marketing-sales__form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  background: #141516;
+  color: #f4f4f5;
+  font: inherit;
+  font-size: 15px;
+}
+.marketing-sales__form textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+.marketing-sales__form button[type="submit"] {
+  grid-column: 1 / -1;
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #0b0b0c;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.marketing-sales__form button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.marketing-sales__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #f5c2c2;
+}
+.marketing-sales__hp {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+@media (max-width: 640px) {
+  .marketing-sales {
+    padding: 48px 20px 40px;
+  }
+  .marketing-sales__form {
+    grid-template-columns: 1fr;
+  }
+}

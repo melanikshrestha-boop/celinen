@@ -173,6 +173,7 @@ test("home and social dictation use VoiceMic plus Grok STT", () => {
   expect(home).toContain("inputRef={box}");
   expect(home).not.toContain("webkitSpeechRecognition");
   expect(social).toContain("VoiceMic");
+  expect(social).toContain("social-board");
   expect(social).not.toContain("webkitSpeechRecognition");
   expect(cull).toContain("VoiceMic");
   expect(cull).toContain("inputRef={inputRef}");

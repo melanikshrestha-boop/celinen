@@ -138,6 +138,8 @@ if (!process.argv.includes(flag)) {
   }));
   mock.module("@/components/account/AccountProvider", () => ({ useAccount: () => undefined }));
   const product = await import("../src/routes/product");
+  const celinenProduct = await import("../src/routes/product_.celinen");
+  const heavenlyProduct = await import("../src/routes/product_.heavenly");
   const galleries = await import("../src/routes/galleries");
   const blog = await import("../src/routes/blog.index");
   const article = await import("../src/routes/blog.$slug");
@@ -150,6 +152,8 @@ if (!process.argv.includes(flag)) {
       .trim();
   for (const [route, path] of [
     [product.Route, "/product"],
+    [celinenProduct.Route, "/product/celinen"],
+    [heavenlyProduct.Route, "/product/heavenly"],
     [galleries.Route, "/galleries"],
     [blog.Route, "/blog"],
     [changelog.Route, "/changelog"],
@@ -176,10 +180,24 @@ if (!process.argv.includes(flag)) {
     assert.ok(!html.includes("Toggle color mode"));
   }
   const productHtml = render(product.ProductPage);
-  assert.ok(productHtml.includes('id="why-celinen"'));
-  assert.ok(productHtml.includes('id="your-work"'));
-  assert.ok(plain(productHtml).includes("Native image processing requires the local engine."));
-  assert.ok(plain(productHtml).includes("publishing") || plain(productHtml).includes("Publishing"));
+  assert.ok(plain(productHtml).includes("Celinen"));
+  assert.ok(plain(productHtml).includes("Heavenly"));
+  assert.ok(plain(productHtml).includes("Photo agent"));
+  assert.ok(plain(productHtml).includes("Video agent"));
+  assert.ok(!productHtml.includes("Latch"));
+  assert.ok(!productHtml.includes("latch-efc.pages.dev"));
+  assert.ok(!productHtml.includes('id="why-celinen"'));
+  const celinenHtml = render(celinenProduct.CelinenProductPage);
+  assert.ok(celinenHtml.includes('id="why-celinen"'));
+  assert.ok(celinenHtml.includes('id="your-work"'));
+  assert.ok(plain(celinenHtml).includes("Native image processing requires the local engine."));
+  assert.ok(plain(celinenHtml).includes("publishing") || plain(celinenHtml).includes("Publishing"));
+  const heavenlyHtml = render(heavenlyProduct.HeavenlyProductPage);
+  assert.ok(heavenlyHtml.includes('id="heavenly-heading"'));
+  assert.ok(plain(heavenlyHtml).includes("Video agent"));
+  assert.ok(!heavenlyHtml.includes("Latch"));
+  assert.ok(!heavenlyHtml.includes("celinen-open-sky.webp"));
+  assert.equal((heavenlyHtml.match(/<h1\b/g) ?? []).length, 1);
   const index = render(blog.BlogPage);
   const load = article.Route.options.loader;
   assert.equal(typeof load, "function");

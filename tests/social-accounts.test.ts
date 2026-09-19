@@ -46,20 +46,16 @@ test("social catalog includes the popular networks from the picker", () => {
     new URL("../src/components/dashboard/SocialAccounts.tsx", import.meta.url),
     "utf8",
   );
-  expect(page).toContain("What should we post?");
-  expect(page).toContain("Turn a simple idea into a polished, on-brand social post");
-  expect(page).toContain("Hashtags");
-  expect(page).toContain("Professional");
-  expect(page).toContain("Medium");
-  expect(page).toContain("Generate inside");
-  expect(page).toContain('BrandMark id="grok"');
-  expect(page).toContain("Create a campaign");
-  expect(page).toContain("Browse templates");
+  expect(page).toContain("social-board__places");
+  expect(page).toContain("SOCIAL_NETWORKS.map");
+  expect(page).toContain("Caption");
   expect(page).toContain("onHapticPress");
-  expect(page).toContain("makePost");
-  expect(page).toContain("Copy caption");
   expect(page).toContain("Post to all");
   expect(page).toContain("Connect all socials");
+  expect(page).toContain("publishPastePost");
+  expect(page).not.toContain("What should we post?");
+  expect(page).not.toContain("Generate inside");
+  expect(page).not.toContain("Create a campaign");
   expect(page).not.toContain("Good work deserves to be seen");
   expect(page).not.toContain("Ocoya");
   expect(page).not.toContain("Planner");

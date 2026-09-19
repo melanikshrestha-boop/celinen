@@ -55,6 +55,7 @@ export function Nav({ landing = false }: { landing?: boolean }) {
           </Link>
           <NavMenuProvider>
             <nav className="marketing-nav__links" aria-label="Main navigation">
+              <Link to="/product">Product</Link>
               <FeaturesMenu />
               <UseCasesMenu />
               <IntegrationsMenu />

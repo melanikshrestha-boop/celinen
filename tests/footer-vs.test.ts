@@ -7,7 +7,7 @@ test("landing footer lists Celinen vs. every compared product", () => {
     new URL("../src/components/marketing/MarketingFooter.tsx", import.meta.url),
     "utf8",
   );
-  expect(footer).toContain("Why {PRODUCT_TITLE}");
+  expect(footer).toContain('title="Compare"');
   expect(footer).toContain("COMPARE_ENTRIES");
   expect(footer).toContain('to="/vs/$slug"');
   expect(COMPARE_ENTRIES.map((entry) => entry.name)).toContain("ShootProof");

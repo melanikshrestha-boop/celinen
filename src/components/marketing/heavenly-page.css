@@ -1,0 +1,55 @@
+/* Heavenly product landing. Night edit — never Celinen sky, paper, or Palatino. */
+.heavenly-page {
+  min-height: 100dvh;
+  background: #0b0b0c;
+  color: #f4f4f5;
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.heavenly-page .marketing-nav-shell {
+  background: #0b0b0c;
+}
+.heavenly-page .marketing-nav__brand,
+.heavenly-page .marketing-nav__brand span,
+.heavenly-page .marketing-nav__links a,
+.heavenly-page .marketing-nav__link {
+  color: #f4f4f5;
+}
+.heavenly-page .marketing-nav-cta {
+  background: #f4f4f5;
+  color: #0b0b0c;
+}
+.heavenly-page .heavenly-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100dvh - 72px);
+  padding: 48px 24px 80px;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+.heavenly-page .heavenly-hero h1 {
+  margin: 0;
+  font-size: clamp(3.25rem, 8vw, 6.5rem);
+  font-weight: 600;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+}
+.heavenly-page .heavenly-hero p {
+  margin: 12px 0 0;
+  color: #a1a1aa;
+  font-size: 1.125rem;
+}
+.heavenly-page .heavenly-hero .marketing-action {
+  margin-top: 28px;
+  background: #f4f4f5;
+  color: #0b0b0c;
+}
+.heavenly-page .heavenly-hero .marketing-action:hover {
+  background: #fff;
+  color: #0b0b0c;
+}
+.heavenly-page .marketing-footer.marketing-footer--directory {
+  background: #0b0b0c;
+  color: #c8c8c8;
+}

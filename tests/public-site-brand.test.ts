@@ -27,10 +27,10 @@ test("money CTAs never reopen a dead checkout; without Stripe they go to Google-
   expect(read("src/lib/product.ts")).toContain('PRODUCT_EMAIL = "hello@lenslab.dev"');
 });
 
-test("/features redirects to the existing product page", () => {
+test("/features redirects to the Celinen product page", () => {
   const source = read("src/routes/features.tsx");
   expect(source).toContain('createFileRoute("/features")');
-  expect(source).toContain('redirect({ to: "/product" })');
+  expect(source).toContain('redirect({ to: "/product/celinen" })');
 });
 
 test("public brand is Celinen, not FOTO/LensLabs/IRIS leftovers", () => {

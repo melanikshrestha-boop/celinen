@@ -19,14 +19,14 @@ import { hoverMenuTrigger, useNavMenuHover } from "@/components/marketing/nav-me
 
 const FEATURES = [
   {
-    to: "/product",
+    to: "/product/celinen",
     hash: "smart-cull",
     icon: Scissors,
     title: "Smart Cull",
     copy: "Suggested rejects. You keep the last word.",
   },
   {
-    to: "/product",
+    to: "/product/celinen",
     hash: "develop",
     icon: SlidersHorizontal,
     title: "Develop",
@@ -98,7 +98,7 @@ export function FeaturesMenu() {
           );
         })}
         <DropdownMenuItem asChild>
-          <Link to="/product" className="marketing-nav-features__all">
+          <Link to="/product/celinen" className="marketing-nav-features__all">
             View all features
             <ArrowRight size={16} aria-hidden="true" />
           </Link>

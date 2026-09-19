@@ -1,11 +1,14 @@
+import { useId } from "react";
+
 /** Official Simple Icons paths (inline). No CDN images on the landing. */
 export function BrandMark({ id }: { id: string }) {
+  const uid = useId().replace(/:/g, "");
   switch (id) {
     case "instagram":
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <defs>
-            <radialGradient id="brand-ig-fill" cx="30%" cy="107%" r="150%">
+            <radialGradient id={`brand-ig-${uid}`} cx="30%" cy="107%" r="150%">
               <stop offset="0%" stopColor="#fdf497" />
               <stop offset="5%" stopColor="#fdf497" />
               <stop offset="45%" stopColor="#fd5949" />
@@ -13,7 +16,7 @@ export function BrandMark({ id }: { id: string }) {
               <stop offset="90%" stopColor="#285AEB" />
             </radialGradient>
           </defs>
-          <rect width="24" height="24" rx="6" fill="url(#brand-ig-fill)" />
+          <rect width="24" height="24" rx="6" fill={`url(#brand-ig-${uid})`} />
           <rect
             x="6.15"
             y="6.15"

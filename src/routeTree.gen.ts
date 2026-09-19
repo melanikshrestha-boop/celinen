@@ -23,6 +23,7 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as ContactSalesRouteImport } from './routes/contact-sales'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
 import { Route as CullRouteImport } from './routes/cull'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -92,6 +93,8 @@ import { Route as IntegrationsSlugRouteImport } from './routes/integrations.$slu
 import { Route as LegalCookiesRouteImport } from './routes/legal_.cookies'
 import { Route as PPostIdRouteImport } from './routes/p.$postId'
 import { Route as PhotographerOwnerIdRouteImport } from './routes/photographer.$ownerId'
+import { Route as ProductCelinenRouteImport } from './routes/product_.celinen'
+import { Route as ProductHeavenlyRouteImport } from './routes/product_.heavenly'
 import { Route as ReviewIdRouteImport } from './routes/review.$id'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as SettingsSectionRouteImport } from './routes/settings_.$section'
@@ -100,6 +103,7 @@ import { Route as ShootsIdRouteImport } from './routes/shoots.$id'
 import { Route as VsSlugRouteImport } from './routes/vs.$slug'
 import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
+import { Route as ApiPublicSalesRouteImport } from './routes/api/public/sales'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
 import { Route as ApiVoicePolishRouteImport } from './routes/api/voice/polish'
 import { Route as ApiVoiceSttRouteImport } from './routes/api/voice/stt'
@@ -181,6 +185,11 @@ const CommunityRoute = CommunityRouteImport.update({
 const CompareRoute = CompareRouteImport.update({
   id: '/compare',
   path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactSalesRoute = ContactSalesRouteImport.update({
+  id: '/contact-sales',
+  path: '/contact-sales',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiePolicyRoute = CookiePolicyRouteImport.update({
@@ -528,6 +537,16 @@ const PhotographerOwnerIdRoute = PhotographerOwnerIdRouteImport.update({
   path: '/photographer/$ownerId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductCelinenRoute = ProductCelinenRouteImport.update({
+  id: '/product_/celinen',
+  path: '/product/celinen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductHeavenlyRoute = ProductHeavenlyRouteImport.update({
+  id: '/product_/heavenly',
+  path: '/product/heavenly',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReviewIdRoute = ReviewIdRouteImport.update({
   id: '/review/$id',
   path: '/review/$id',
@@ -566,6 +585,11 @@ const ApiNativeV2Route = ApiNativeV2RouteImport.update({
 const ApiPublicLightroomRoute = ApiPublicLightroomRouteImport.update({
   id: '/api/public/lightroom',
   path: '/api/public/lightroom',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicSalesRoute = ApiPublicSalesRouteImport.update({
+  id: '/api/public/sales',
+  path: '/api/public/sales',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicTrafficRoute = ApiPublicTrafficRouteImport.update({
@@ -647,6 +671,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/compare': typeof CompareRouteWithChildren
+  '/contact-sales': typeof ContactSalesRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/cull': typeof CullRoute
   '/dashboard': typeof DashboardRoute
@@ -713,6 +738,8 @@ export interface FileRoutesByFullPath {
   '/legal/cookies': typeof LegalCookiesRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
+  '/product/celinen': typeof ProductCelinenRoute
+  '/product/heavenly': typeof ProductHeavenlyRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
@@ -724,6 +751,7 @@ export interface FileRoutesByFullPath {
   '/shoots/': typeof ShootsIndexRoute
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/sales': typeof ApiPublicSalesRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
@@ -751,6 +779,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof CheckoutRoute
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
+  '/contact-sales': typeof ContactSalesRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/cull': typeof CullRoute
   '/dashboard': typeof DashboardRoute
@@ -815,6 +844,8 @@ export interface FileRoutesByTo {
   '/legal/cookies': typeof LegalCookiesRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
+  '/product/celinen': typeof ProductCelinenRoute
+  '/product/heavenly': typeof ProductHeavenlyRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings/$section': typeof SettingsSectionRoute
@@ -825,6 +856,7 @@ export interface FileRoutesByTo {
   '/shoots': typeof ShootsIndexRoute
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/sales': typeof ApiPublicSalesRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
@@ -854,6 +886,7 @@ export interface FileRoutesById {
   '/clients': typeof ClientsRoute
   '/community': typeof CommunityRoute
   '/compare': typeof CompareRouteWithChildren
+  '/contact-sales': typeof ContactSalesRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/cull': typeof CullRoute
   '/dashboard': typeof DashboardRoute
@@ -920,6 +953,8 @@ export interface FileRoutesById {
   '/legal_/cookies': typeof LegalCookiesRoute
   '/p/$postId': typeof PPostIdRoute
   '/photographer/$ownerId': typeof PhotographerOwnerIdRoute
+  '/product_/celinen': typeof ProductCelinenRoute
+  '/product_/heavenly': typeof ProductHeavenlyRoute
   '/review/$id': typeof ReviewIdRoute
   '/s/$token': typeof STokenRoute
   '/settings_/$section': typeof SettingsSectionRoute
@@ -931,6 +966,7 @@ export interface FileRoutesById {
   '/shoots/': typeof ShootsIndexRoute
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
+  '/api/public/sales': typeof ApiPublicSalesRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
@@ -961,6 +997,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/community'
     | '/compare'
+    | '/contact-sales'
     | '/cookie-policy'
     | '/cull'
     | '/dashboard'
@@ -1027,6 +1064,8 @@ export interface FileRouteTypes {
     | '/legal/cookies'
     | '/p/$postId'
     | '/photographer/$ownerId'
+    | '/product/celinen'
+    | '/product/heavenly'
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
@@ -1038,6 +1077,7 @@ export interface FileRouteTypes {
     | '/shoots/'
     | '/api/native/v2'
     | '/api/public/lightroom'
+    | '/api/public/sales'
     | '/api/public/traffic'
     | '/api/voice/polish'
     | '/api/voice/stt'
@@ -1065,6 +1105,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/clients'
     | '/community'
+    | '/contact-sales'
     | '/cookie-policy'
     | '/cull'
     | '/dashboard'
@@ -1129,6 +1170,8 @@ export interface FileRouteTypes {
     | '/legal/cookies'
     | '/p/$postId'
     | '/photographer/$ownerId'
+    | '/product/celinen'
+    | '/product/heavenly'
     | '/review/$id'
     | '/s/$token'
     | '/settings/$section'
@@ -1139,6 +1182,7 @@ export interface FileRouteTypes {
     | '/shoots'
     | '/api/native/v2'
     | '/api/public/lightroom'
+    | '/api/public/sales'
     | '/api/public/traffic'
     | '/api/voice/polish'
     | '/api/voice/stt'
@@ -1167,6 +1211,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/community'
     | '/compare'
+    | '/contact-sales'
     | '/cookie-policy'
     | '/cull'
     | '/dashboard'
@@ -1233,6 +1278,8 @@ export interface FileRouteTypes {
     | '/legal_/cookies'
     | '/p/$postId'
     | '/photographer/$ownerId'
+    | '/product_/celinen'
+    | '/product_/heavenly'
     | '/review/$id'
     | '/s/$token'
     | '/settings_/$section'
@@ -1244,6 +1291,7 @@ export interface FileRouteTypes {
     | '/shoots/'
     | '/api/native/v2'
     | '/api/public/lightroom'
+    | '/api/public/sales'
     | '/api/public/traffic'
     | '/api/voice/polish'
     | '/api/voice/stt'
@@ -1273,6 +1321,7 @@ export interface RootRouteChildren {
   ClientsRoute: typeof ClientsRoute
   CommunityRoute: typeof CommunityRoute
   CompareRoute: typeof CompareRouteWithChildren
+  ContactSalesRoute: typeof ContactSalesRoute
   CookiePolicyRoute: typeof CookiePolicyRoute
   CullRoute: typeof CullRoute
   DashboardRoute: typeof DashboardRoute
@@ -1337,6 +1386,8 @@ export interface RootRouteChildren {
   LegalCookiesRoute: typeof LegalCookiesRoute
   PPostIdRoute: typeof PPostIdRoute
   PhotographerOwnerIdRoute: typeof PhotographerOwnerIdRoute
+  ProductCelinenRoute: typeof ProductCelinenRoute
+  ProductHeavenlyRoute: typeof ProductHeavenlyRoute
   ReviewIdRoute: typeof ReviewIdRoute
   STokenRoute: typeof STokenRoute
   SettingsSectionRoute: typeof SettingsSectionRoute
@@ -1344,6 +1395,7 @@ export interface RootRouteChildren {
   BlogIndexRoute: typeof BlogIndexRoute
   ApiNativeV2Route: typeof ApiNativeV2Route
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
+  ApiPublicSalesRoute: typeof ApiPublicSalesRoute
   ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
   ApiVoicePolishRoute: typeof ApiVoicePolishRoute
   ApiVoiceSttRoute: typeof ApiVoiceSttRoute
@@ -1450,6 +1502,13 @@ declare module '@tanstack/react-router' {
       path: '/compare'
       fullPath: '/compare'
       preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact-sales': {
+      id: '/contact-sales'
+      path: '/contact-sales'
+      fullPath: '/contact-sales'
+      preLoaderRoute: typeof ContactSalesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cookie-policy': {
@@ -1935,6 +1994,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PhotographerOwnerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/product_/celinen': {
+      id: '/product_/celinen'
+      path: '/product/celinen'
+      fullPath: '/product/celinen'
+      preLoaderRoute: typeof ProductCelinenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product_/heavenly': {
+      id: '/product_/heavenly'
+      path: '/product/heavenly'
+      fullPath: '/product/heavenly'
+      preLoaderRoute: typeof ProductHeavenlyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/review/$id': {
       id: '/review/$id'
       path: '/review/$id'
@@ -1989,6 +2062,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/lightroom'
       fullPath: '/api/public/lightroom'
       preLoaderRoute: typeof ApiPublicLightroomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sales': {
+      id: '/api/public/sales'
+      path: '/api/public/sales'
+      fullPath: '/api/public/sales'
+      preLoaderRoute: typeof ApiPublicSalesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/traffic': {
@@ -2155,6 +2235,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientsRoute: ClientsRoute,
   CommunityRoute: CommunityRoute,
   CompareRoute: CompareRouteWithChildren,
+  ContactSalesRoute: ContactSalesRoute,
   CookiePolicyRoute: CookiePolicyRoute,
   CullRoute: CullRoute,
   DashboardRoute: DashboardRoute,
@@ -2219,6 +2300,8 @@ const rootRouteChildren: RootRouteChildren = {
   LegalCookiesRoute: LegalCookiesRoute,
   PPostIdRoute: PPostIdRoute,
   PhotographerOwnerIdRoute: PhotographerOwnerIdRoute,
+  ProductCelinenRoute: ProductCelinenRoute,
+  ProductHeavenlyRoute: ProductHeavenlyRoute,
   ReviewIdRoute: ReviewIdRoute,
   STokenRoute: STokenRoute,
   SettingsSectionRoute: SettingsSectionRoute,
@@ -2226,6 +2309,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogIndexRoute: BlogIndexRoute,
   ApiNativeV2Route: ApiNativeV2Route,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
+  ApiPublicSalesRoute: ApiPublicSalesRoute,
   ApiPublicTrafficRoute: ApiPublicTrafficRoute,
   ApiVoicePolishRoute: ApiVoicePolishRoute,
   ApiVoiceSttRoute: ApiVoiceSttRoute,

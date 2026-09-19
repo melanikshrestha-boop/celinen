@@ -1150,15 +1150,15 @@
   font-size: 13px;
 }
 .marketing-page .marketing-footer.marketing-footer--directory {
-  padding: 72px clamp(28px, 4.5vw, 72px) 0;
-  background: #fff;
-  color: #516570;
+  padding: 64px clamp(28px, 4.5vw, 72px) 56px;
+  background: #0b0b0c;
+  color: #c8c8c8;
 }
 .marketing-footer a:hover {
-  color: #006eaa;
+  color: #fff;
 }
 .marketing-footer nav a:visited {
-  color: #516570;
+  color: #c8c8c8;
 }
 @media (max-width: 760px) {
   .marketing-page {

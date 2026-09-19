@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
-import { PRODUCT_TITLE, PRODUCT_TAGLINE } from "@/lib/product";
+import { LogoMark } from "@/components/lensos/Logo";
+import { COMPANY_NAME } from "@/lib/lenslab-products";
 import { COMPARE_ENTRIES } from "@/lib/public-compare";
-import { PUBLIC_SOCIALS } from "@/lib/public-socials";
 import "./public-details.css";
 
 function openCookiePrefs() {
@@ -10,120 +11,137 @@ function openCookiePrefs() {
   window.dispatchEvent(new Event("foto-cookie-prefs"));
 }
 
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="marketing-footer__group">
+      <h2>{title}</h2>
+      <ul>{children}</ul>
+    </div>
+  );
+}
+
 export function MarketingFooter() {
   const year = new Date().getFullYear();
   return (
     <footer className="marketing-footer marketing-footer--directory">
-      <nav className="marketing-footer__directory" aria-label="Footer">
-        <div className="marketing-footer__column">
-          <h2>Why {PRODUCT_TITLE}</h2>
-          <ul>
-            {COMPARE_ENTRIES.map((entry) => (
-              <li key={entry.id}>
-                <Link to="/vs/$slug" params={{ slug: entry.id }}>
-                  {PRODUCT_TITLE} vs. {entry.name}
+      <div className="marketing-footer__shell">
+        <div className="marketing-footer__brand">
+          <Link to="/" className="marketing-footer__logo" aria-label={`${COMPANY_NAME} home`}>
+            <LogoMark size={22} />
+            <span>{COMPANY_NAME}</span>
+          </Link>
+          <p>© {year} {COMPANY_NAME}</p>
+        </div>
+        <nav className="marketing-footer__directory" aria-label="Footer">
+          <div className="marketing-footer__column">
+            <Group title="Products">
+              <li>
+                <Link to="/product/celinen">Celinen</Link>
+              </li>
+              <li>
+                <Link to="/product/heavenly">Heavenly</Link>
+              </li>
+              <li>
+                <Link to="/product/celinen" hash="smart-cull">
+                  Features
                 </Link>
               </li>
-            ))}
-          </ul>
-        </div>
-        <div className="marketing-footer__column">
-          <h2>Product</h2>
-          <ul>
-            <li>
-              <Link to="/" hash="workflow">
-                Features
-              </Link>
-            </li>
-            <li>
-              <Link to="/use-cases">Use Cases</Link>
-            </li>
-            <li>
-              <Link to="/integrations">Integrations</Link>
-            </li>
-            <li>
-              <Link to="/compare">Compare</Link>
-            </li>
-            <li>
-              <Link to="/affiliates">Affiliates</Link>
-            </li>
-            <li>
-              <Link to="/pricing">Pricing</Link>
-            </li>
-            <li>
-              <Link to="/docs">Docs</Link>
-            </li>
-            <li>
-              <Link to="/changelog">Changelog</Link>
-            </li>
-            <li>
-              <Link to="/blog">Blog</Link>
-            </li>
-          </ul>
-        </div>
-        <div className="marketing-footer__column">
-          <h2>Company</h2>
-          <ul>
-            <li>
-              <Link to="/privacy">Privacy</Link>
-            </li>
-            <li>
-              <Link to="/terms">Terms</Link>
-            </li>
-            <li>
-              <Link to="/legal/cookies">Cookie Policy</Link>
-            </li>
-            <li>
-              <button type="button" className="marketing-footer__text-btn" onClick={openCookiePrefs}>
-                Cookie Preferences
-              </button>
-            </li>
-          </ul>
-        </div>
-        <div className="marketing-footer__column">
-          <h2>Where</h2>
-          <ul>
-            <li>
-              <Link to="/community">Community</Link>
-            </li>
-            {PUBLIC_SOCIALS.map((social) => (
-              <li key={social.href}>
-                <a href={social.href} target="_blank" rel="noopener noreferrer">
-                  {social.label}
-                </a>
+              <li>
+                <Link to="/blog">Blog</Link>
               </li>
-            ))}
-          </ul>
-        </div>
-        <div className="marketing-footer__column">
-          <h2>Connect</h2>
-          <ul>
-            <li>
-              <Link to="/docs">Get an API key</Link>
-            </li>
-            <li>
-              <Link to="/mcp">MCP server</Link>
-            </li>
-            <li>
-              <a href="mailto:hello@lenslab.dev">hello@lenslab.dev</a>
-            </li>
-            <li>
-              <Link to="/auth" search={{ mode: "signin" }}>
-                Sign in
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </nav>
-      <div className="marketing-footer__legal">
-        <p>
-          © {year} {PRODUCT_TITLE}. All rights reserved.
-        </p>
-        <p>{PRODUCT_TAGLINE}</p>
+            </Group>
+          </div>
+          <div className="marketing-footer__column">
+            <Group title="Solutions">
+              <li>
+                <Link to="/use-cases">Use Cases</Link>
+              </li>
+              <li>
+                <Link to="/integrations">Integrations</Link>
+              </li>
+              <li>
+                <Link to="/compare">Compare</Link>
+              </li>
+              <li>
+                <Link to="/affiliates">Affiliates</Link>
+              </li>
+              <li>
+                <Link to="/community">Community</Link>
+              </li>
+            </Group>
+            <Group title="Compare">
+              {COMPARE_ENTRIES.map((entry) => (
+                <li key={entry.id}>
+                  <Link to="/vs/$slug" params={{ slug: entry.id }}>
+                    {entry.name}
+                  </Link>
+                </li>
+              ))}
+            </Group>
+          </div>
+          <div className="marketing-footer__column">
+            <Group title="Developers">
+              <li>
+                <Link to="/docs">Docs</Link>
+              </li>
+              <li>
+                <Link to="/mcp">MCP</Link>
+              </li>
+              <li>
+                <Link to="/docs">API</Link>
+              </li>
+              <li>
+                <Link to="/pricing">Pricing</Link>
+              </li>
+              <li>
+                <Link to="/changelog">Changelog</Link>
+              </li>
+            </Group>
+          </div>
+          <div className="marketing-footer__column">
+            <Group title="Company">
+              <li>
+                <Link to="/product">Products</Link>
+              </li>
+              <li>
+                <Link to="/security">Security</Link>
+              </li>
+              <li>
+                <Link to="/blog">Blog</Link>
+              </li>
+              <li>
+                <Link to="/contact-sales">Sales</Link>
+              </li>
+              <li>
+                <a href="mailto:hello@lenslab.dev">Contact</a>
+              </li>
+            </Group>
+          </div>
+          <div className="marketing-footer__column">
+            <Group title="Legal">
+              <li>
+                <Link to="/terms">Terms</Link>
+              </li>
+              <li>
+                <Link to="/privacy">Privacy</Link>
+              </li>
+              <li>
+                <Link to="/legal/cookies">Cookies</Link>
+              </li>
+              <li>
+                <button type="button" className="marketing-footer__text-btn" onClick={openCookiePrefs}>
+                  Privacy choices
+                </button>
+              </li>
+            </Group>
+            <Group title="Social">
+              <li>
+                <a href="mailto:hello@lenslab.dev">hello@lenslab.dev</a>
+              </li>
+            </Group>
+          </div>
+        </nav>
       </div>
-      <p className="marketing-footer__giant" aria-hidden="true">
-        {PRODUCT_TITLE}
-      </p>
       <CookieConsent />
     </footer>
   );
