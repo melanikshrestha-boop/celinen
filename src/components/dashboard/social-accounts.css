@@ -4,12 +4,12 @@
   flex: 1;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   min-height: 100%;
+  overflow: auto;
   padding: 72px 24px 48px;
-  background:
-    radial-gradient(90% 70% at 50% 0%, #d7ecff 0%, #eef8f3 38%, #ffffff 72%);
+  background: radial-gradient(90% 70% at 50% 0%, #d7ecff 0%, #eef8f3 38%, #ffffff 72%);
 }
 .social-post__chrome {
   position: absolute;
@@ -308,6 +308,30 @@
   margin: 10px 0 0;
   color: #8b919a;
   font-size: 13px;
+}
+.social-post__readiness {
+  margin: 10px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.social-post__connections {
+  width: 100%;
+  margin-top: 24px;
+  scroll-margin-top: 24px;
+}
+.social-post__connections > h2 {
+  margin: 0;
+  color: #142a36;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
+  font-size: 16px;
+  font-weight: 650;
+}
+.social-post__connections > p {
+  margin: 4px 0 12px;
+  color: #6b7280;
+  font-size: 13px;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
 }
 .social-post__actions {
   display: flex;
@@ -687,8 +711,13 @@ html.dark .celinen-dash .social-post__hero h1 {
   color: #ededed;
 }
 html.dark .social-post__hero p,
-html.dark .social-post__hint {
+html.dark .social-post__hint,
+html.dark .social-post__readiness,
+html.dark .social-post__connections > p {
   color: #8b919a;
+}
+html.dark .social-post__connections > h2 {
+  color: #ededed;
 }
 html.dark .social-post__composer,
 html.dark .social-post__result,

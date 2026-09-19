@@ -5,7 +5,6 @@ import { useAccount } from "@/components/account/AccountProvider";
 import {
   MAIL_NETWORKS,
   SOCIAL_NETWORKS,
-  connectAllSocials,
   connectMail,
   connectSocial,
   disconnectMail,
@@ -89,6 +88,10 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
 
   async function connect(id: SocialId) {
     if (!scope) return;
+    if (!isPasteSocial(id)) {
+      window.location.assign("/publish#connections");
+      return;
+    }
     if (isPasteSocial(id) && !hasPasteSecret(secrets, id)) {
       setForm(id);
       setFields({});
@@ -121,11 +124,6 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
     setLinks(await disconnectSocial(scope, id));
   }
 
-  async function connectEverySocial() {
-    if (!scope) return;
-    setLinks(await connectAllSocials(scope));
-  }
-
   async function connectInbox(id: MailId) {
     if (!scope || isMailConnected(mail, id)) return;
     markJustOn(id);
@@ -137,7 +135,9 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
     setMail(await disconnectMail(scope, id));
   }
 
-  const shown = shownSocials(links);
+  const shown = shownSocials(
+    links.filter((row) => isPasteSocial(row.id) && hasPasteSecret(secrets, row.id)),
+  );
   const gmailOn = isMailConnected(mail, "gmail");
 
   return (
@@ -182,17 +182,11 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
       </button>
       {open ? (
         <div className="social-picker" role="menu" aria-label="Social accounts">
-          {SOCIAL_NETWORKS.length !== links.length ? (
-            <button
-              type="button"
-              className="social-picker__all"
-              onClick={() => void connectEverySocial()}
-            >
-              Connect all
-            </button>
-          ) : null}
           {SOCIAL_NETWORKS.map((network) => {
-            const on = isSocialConnected(links, network.id);
+            const on =
+              isPasteSocial(network.id) &&
+              hasPasteSecret(secrets, network.id) &&
+              isSocialConnected(links, network.id);
             const live = hasPasteSecret(secrets, network.id);
             return (
               <div key={network.id}>
@@ -209,7 +203,7 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
                   </span>
                   <span>
                     <strong>{network.title}</strong>
-                    <small>{live ? "Live" : network.kind}</small>
+                    <small>{live ? "Ready to publish" : "Open connection setup"}</small>
                   </span>
                   {on ? (
                     <Check size={18} strokeWidth={2.4} className="social-picker__check" />

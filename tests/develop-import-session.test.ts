@@ -194,6 +194,28 @@ describe("route-independent Develop import", () => {
       f.library.photos.map((photo) => photo.id),
     );
   });
+  test("source-first production ingest commits originals without running a preview decoder", async () => {
+    const f = fixture();
+    let previewCalls = 0;
+    const session = createDevelopImportSession(owner, {
+      ...f.dependencies,
+      sourceFirst: true,
+      preparePreview: async (source, input) => {
+        previewCalls++;
+        return f.dependencies.preparePreview(source, input);
+      },
+    });
+
+    await session.startFiles([file("catch.jpg", "card/catch.jpg")]);
+
+    expect(previewCalls).toBe(0);
+    expect(session.getSnapshot().phase).toBe("complete");
+    expect(session.getSnapshot().saved).toBe(1);
+    expect(session.getSnapshot().failed).toBe(0);
+    expect(session.getSnapshot().previewReady).toBe(0);
+    expect(f.library.photos[0]!.sourceBlob).toBeInstanceOf(Blob);
+    expect(f.library.photos[0]!.previewBlob).toBeNull();
+  });
   test("drop captures handles synchronously and late filename collision never steals a sidecar", async () => {
     const f = fixture(),
       discovery = deferred<{

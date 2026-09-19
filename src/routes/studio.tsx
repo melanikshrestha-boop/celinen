@@ -1333,6 +1333,22 @@ export function Studio({
   }, [discardProposal, selectShot]);
 
   /* ---------------- import ---------------- */
+  function reportImportResult(job: Promise<void>) {
+    void job
+      .then(() => {
+        const result = importSession.getSnapshot();
+        if (result.phase !== "complete") return;
+        setSyncNote(
+          result.saved
+            ? `${result.saved.toLocaleString()} photo${result.saved === 1 ? "" : "s"} imported. Review them in Cull, then open Develop when you want to edit.`
+            : result.duplicates
+              ? "Those photos are already in this shoot."
+              : "No supported photos were imported.",
+        );
+      })
+      .catch((error) => setSyncNote(error instanceof Error ? error.message : "Import paused."));
+  }
+
   function importFiles(files: File[]) {
     if (!files.length) return;
     if (sessionStatusRef.current === "failed" || sessionStatusRef.current === "conflicted") {
@@ -1341,13 +1357,7 @@ export function Studio({
     }
     try {
       const job = importSession.startFiles(files);
-      void job.catch((error) =>
-        setSyncNote(error instanceof Error ? error.message : "Import paused."),
-      );
-      void (async () => {
-        await hydrationGateRef.current?.promise;
-        await openDevelop();
-      })();
+      reportImportResult(job);
     } catch (error) {
       setSyncNote(error instanceof Error ? error.message : "Import could not start.");
     }
@@ -2081,13 +2091,7 @@ export function Studio({
     try {
       // Capture handles in the actual drop event. The session, not this route, owns the job.
       const job = importSession.startDrop(e.dataTransfer);
-      void job.catch((error) =>
-        setSyncNote(error instanceof Error ? error.message : "Import paused."),
-      );
-      void (async () => {
-        await hydrationGateRef.current?.promise;
-        await openDevelop();
-      })();
+      reportImportResult(job);
     } catch (error) {
       setSyncNote(error instanceof Error ? error.message : "Import could not start.");
     }
