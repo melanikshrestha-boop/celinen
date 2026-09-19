@@ -211,23 +211,12 @@ export function composeAction(id: SocialId, caption: string): ComposeAction {
   };
 }
 
-export async function fireCompose(ids: SocialId[], caption: string) {
-  const text = caption.trim();
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    /* some browsers block clipboard without a focused document */
-  }
-  const actions = ids.map((id) => composeAction(id, text));
-  for (const action of actions) {
-    if (action.href) window.open(action.href, "_blank", "noopener,noreferrer");
-  }
-  return actions;
-}
-
 export function isPostIntent(text: string) {
   const value = text.toLowerCase();
-  if (/\b(gallery|send|deliver|invoice|earnings|pick|lightroom)\b/.test(value) && !/\bpost\b/.test(value))
+  if (
+    /\b(gallery|send|deliver|invoice|earnings|pick|lightroom)\b/.test(value) &&
+    !/\bpost\b/.test(value)
+  )
     return false;
   return /\b(post|caption|hashtag|instagram|tiktok|threads|linkedin|what should we post)\b/.test(
     value,

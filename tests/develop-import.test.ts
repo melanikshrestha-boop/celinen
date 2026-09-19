@@ -171,6 +171,23 @@ describe("Develop multi-photo import isolation", () => {
     expect(photos[2]!.previewBlob).toBe(preview);
   });
 
+  test("source-first ingest saves originals even when preview decoding is deferred", async () => {
+    const options = fixture();
+    const source = file("game-day.jpg", "camera original");
+    const report = await runDevelopImport([source], {
+      ...options,
+      requirePreview: false,
+      preparePreview: async (_file, input) => input,
+      existingIds: completeDevelopImportIds([], false),
+    });
+
+    expect(report.failures).toEqual([]);
+    expect(report.imported).toHaveLength(1);
+    expect(report.imported[0]!.sourceBlob).toBe(source);
+    expect(report.imported[0]!.previewBlob).toBeNull();
+    expect(completeDevelopImportIds(report.imported, false)).toEqual([report.imported[0]!.id]);
+  });
+
   test("a source-only photo gets a preview and is then skipped on a complete reimport", async () => {
     const original = file("source-only.jpg");
     const existing = await developPhotoFromFile(original);

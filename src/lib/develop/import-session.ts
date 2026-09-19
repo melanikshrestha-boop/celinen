@@ -32,6 +32,8 @@ type SessionStore = Pick<
 >;
 type ImportSessionDependencies = {
   store: SessionStore;
+  /** Commit originals first; Develop owns preview rendering after persistence. */
+  sourceFirst?: boolean;
   preparePreview?: (
     file: File,
     input: DevelopPhotoInput,
@@ -334,19 +336,23 @@ export function createDevelopImportSession(
             changed();
             const rowAt = (progress: DevelopImportProgress) =>
               state.rows[filesByHandle.get(files[progress.index - 1]!) ?? -1];
+            const sourceFirst = dependencies.sourceFirst === true;
             const result = await runDevelopImport(files, {
-              existingIds: completeDevelopImportIds(library.photos),
+              existingIds: completeDevelopImportIds(library.photos, !sourceFirst),
+              requirePreview: !sourceFirst,
               signal: owner.signal,
               preparationConcurrency: 4,
               rawPreparationConcurrency: 1,
               preparePreview: async (file, input, signal) => {
                 let prepared: DevelopPhotoInput;
                 try {
-                  prepared = await (dependencies.preparePreview ?? prepareDevelopImportPreview)(
-                    file,
-                    input,
-                    signal,
-                  );
+                  prepared = sourceFirst
+                    ? input
+                    : await (dependencies.preparePreview ?? prepareDevelopImportPreview)(
+                        file,
+                        input,
+                        signal,
+                      );
                 } catch (error) {
                   if (!signal.aborted) decodeFailures++;
                   throw error;
@@ -370,6 +376,7 @@ export function createDevelopImportSession(
               },
               onPrepared: (_input, progress) => {
                 if (owner.signal.aborted) return;
+                if (!(_input.previewBlob instanceof Blob) || !_input.previewBlob.size) return;
                 const row = rowAt(progress);
                 if (row) row.status = "preview-ready";
                 state.previewReady++;
@@ -530,7 +537,10 @@ export function getDevelopImportSession(options: DevelopStoreOptions): DevelopIm
   const key = JSON.stringify([options.scope, options.libraryId]);
   let session = sessions.get(key);
   if (!session) {
-    session = createDevelopImportSession(options, { store: createDevelopStore(options) });
+    session = createDevelopImportSession(options, {
+      store: createDevelopStore(options),
+      sourceFirst: true,
+    });
     sessions.set(key, session);
   }
   return session;

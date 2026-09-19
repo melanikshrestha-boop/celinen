@@ -21,13 +21,7 @@ import { PRODUCT_NAME } from "@/lib/product";
 import { onHapticPress } from "@/lib/haptic-press";
 import { VoiceMic } from "./VoiceMic";
 import { useAccount } from "@/components/account/AccountProvider";
-import {
-  SOCIAL_NETWORKS,
-  connectAllSocials,
-  readSocialLinks,
-  type SocialId,
-  type SocialLink,
-} from "@/lib/social-accounts";
+import { SOCIAL_NETWORKS, type SocialId } from "@/lib/social-accounts";
 import {
   hasPasteSecret,
   isPasteSocial,
@@ -36,7 +30,7 @@ import {
   type PasteSocialId,
 } from "@/lib/social-paste";
 import { publishPastePost } from "@/lib/social-paste-client";
-import { buildSocialPost, fireCompose, readSocialDraft, type SocialPost } from "@/lib/social-post";
+import { buildSocialPost, readSocialDraft, type SocialPost } from "@/lib/social-post";
 import {
   cancelScheduledPost,
   createScheduledPost,
@@ -91,7 +85,6 @@ export function SocialAccounts() {
   const [post, setPost] = useState<SocialPost | null>(null);
   const [copied, setCopied] = useState("");
   const [status, setStatus] = useState("");
-  const [links, setLinks] = useState<SocialLink[]>([]);
   const [secrets, setSecrets] = useState<Partial<Record<PasteSocialId, PasteSecret>>>({});
   const [photo, setPhoto] = useState<File | null>(null);
   const [when, setWhen] = useState(() => localStamp(Date.now() + 60 * 60 * 1000));
@@ -119,9 +112,6 @@ export function SocialAccounts() {
     if (!scope) return;
     let alive = true;
     const load = () => {
-      void readSocialLinks(scope).then((rows) => {
-        if (alive) setLinks(rows);
-      });
       void readPasteSecrets(scope).then((rows) => {
         if (alive) setSecrets(rows);
       });
@@ -210,54 +200,40 @@ export function SocialAccounts() {
   async function postTo(ids: SocialId[]) {
     if (!post || !ids.length) return;
     const live = ids.filter((id) => canScheduleNetwork(id) && liveReady(id));
-    const rest = ids.filter((id) => !live.includes(id));
-    const notes: string[] = [];
-    if (live.length) {
-      try {
-        const row = await sendLive(live, new Date().toISOString());
-        const posted = row.results.filter((item) => item.ok).map((item) => item.id);
-        const failed = row.results.filter((item) => !item.ok);
-        if (posted.length)
-          notes.push(
-            `Posted to ${posted
-              .map((id) => SOCIAL_NETWORKS.find((item) => item.id === id)?.title ?? id)
-              .join(", ")}.`,
-          );
-        for (const item of failed) notes.push(item.error ?? "That account rejected this post.");
-        if (!row.results.length && row.status === "posted") notes.push("Posted.");
-      } catch (error) {
-        for (const id of live.filter((item) => isPasteSocial(item))) {
-          const result = await publishPastePost(account?.scope ?? "", id, post.caption);
-          notes.push(
-            result.ok
-              ? `Posted to ${SOCIAL_NETWORKS.find((item) => item.id === id)?.title}.`
-              : result.error,
-          );
-        }
-        if (!live.some((id) => isPasteSocial(id)))
-          notes.push(error instanceof Error ? error.message : "This post could not be sent.");
-      }
+    if (!live.length) {
+      setStatus("Connect an account below before publishing. You can still copy the caption.");
+      return;
     }
-    if (rest.length) {
-      const actions = await fireCompose(rest, post.caption);
-      notes.push(
-        rest.length > 1
-          ? `Opened ${actions.map((item) => item.title).join(", ")}. Caption copied.`
-          : actions[0]!.hint,
-      );
+    const notes: string[] = [];
+    try {
+      const row = await sendLive(live, new Date().toISOString());
+      const posted = row.results.filter((item) => item.ok).map((item) => item.id);
+      const failed = row.results.filter((item) => !item.ok);
+      if (posted.length)
+        notes.push(
+          `Posted to ${posted
+            .map((id) => SOCIAL_NETWORKS.find((item) => item.id === id)?.title ?? id)
+            .join(", ")}.`,
+        );
+      for (const item of failed) notes.push(item.error ?? "That account rejected this post.");
+      if (!row.results.length && row.status === "posted") notes.push("Posted.");
+    } catch (error) {
+      for (const id of live.filter((item) => isPasteSocial(item))) {
+        const result = await publishPastePost(account?.scope ?? "", id, post.caption);
+        notes.push(
+          result.ok
+            ? `Posted to ${SOCIAL_NETWORKS.find((item) => item.id === id)?.title}.`
+            : result.error,
+        );
+      }
+      if (!live.some((id) => isPasteSocial(id)))
+        notes.push(error instanceof Error ? error.message : "This post could not be sent.");
     }
     setCopied(ids.length > 1 ? "all" : ids[0]!);
     setStatus(notes.join(" "));
   }
 
-  async function connectEvery() {
-    const scope = account?.scope;
-    if (!scope) return;
-    setLinks(await connectAllSocials(scope));
-    setStatus("All socials associated. Draft, then Post to all.");
-  }
-
-  const targets = links;
+  const liveTargets = SOCIAL_NETWORKS.filter((network) => liveReady(network.id));
 
   return (
     <div className="social-post" onPointerDown={onHapticPress}>
@@ -437,44 +413,35 @@ export function SocialAccounts() {
               />
             </label>
             <div className="social-post__publish">
-              {targets.length > 1 ? (
+              {liveTargets.length > 1 ? (
                 <button
                   type="button"
                   className="social-post__all"
-                  onClick={() => void postTo(targets.map((row) => row.id))}
+                  onClick={() => void postTo(liveTargets.map((row) => row.id))}
                 >
-                  {copied === "all" ? "Opened all" : "Post to all"}
+                  {copied === "all" ? "Published" : "Publish to all connected"}
                 </button>
               ) : null}
               <button type="button" onClick={() => void copyCaption(post.caption)}>
                 {copied === "caption" ? "Copied" : "Copy caption"}
               </button>
-              {targets.length ? (
-                targets.map((row) => (
-                  <button key={row.id} type="button" onClick={() => void postTo([row.id])}>
-                    <BrandMark id={row.id} />
-                    {SOCIAL_NETWORKS.find((item) => item.id === row.id)?.title}
+              {liveTargets.length ? (
+                liveTargets.map((network) => (
+                  <button key={network.id} type="button" onClick={() => void postTo([network.id])}>
+                    <BrandMark id={network.id} />
+                    Publish to {network.title}
                   </button>
                 ))
               ) : (
-                <button
-                  type="button"
-                  className="social-post__connect"
-                  onClick={() => void connectEvery()}
-                >
-                  Connect all socials
-                </button>
+                <a className="social-post__connect" href="#connections">
+                  Connect an account
+                </a>
               )}
             </div>
-            {targets.length && targets.length < SOCIAL_NETWORKS.length ? (
-              <button
-                type="button"
-                className="social-post__more"
-                onClick={() => void connectEvery()}
-              >
-                Connect all socials
-              </button>
-            ) : null}
+            <p className="social-post__readiness">
+              {liveTargets.length} of {SOCIAL_NETWORKS.length} accounts ready for direct publishing.
+              Unconnected networks are never reported as posted.
+            </p>
             {status ? <p className="social-post__hint">{status}</p> : null}
             <form
               id="schedule"
@@ -482,9 +449,8 @@ export function SocialAccounts() {
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!post) return;
-                const live = targets.map((row) => row.id).filter((id) => liveReady(id));
                 void sendLive(
-                  live.length ? live : targets.map((row) => row.id),
+                  liveTargets.map((row) => row.id),
                   new Date(when).toISOString(),
                 )
                   .then((row) =>
@@ -505,7 +471,9 @@ export function SocialAccounts() {
                 value={when}
                 onChange={(event) => setWhen(event.target.value)}
               />
-              <button type="submit">Schedule</button>
+              <button type="submit" disabled={!liveTargets.length}>
+                {liveTargets.length ? "Schedule" : "Connect to schedule"}
+              </button>
               {queue.map((row) => (
                 <div key={row.id ?? row.createdAt + row.runAt} className="social-schedule__row">
                   <span>
@@ -535,17 +503,27 @@ export function SocialAccounts() {
             </form>
           </div>
         ) : null}
-        <InstagramAccount />
-        <FacebookAccount />
-        <SocialConnectors
-          onChange={(rows) =>
-            setConnected(
-              new Set(
-                rows.filter((row) => row.connection?.state === "active").map((row) => row.provider),
-              ),
-            )
-          }
-        />
+        <section
+          id="connections"
+          className="social-post__connections"
+          aria-label="Publishing accounts"
+        >
+          <h2>Publishing accounts</h2>
+          <p>Only accounts marked connected can receive a direct or scheduled post.</p>
+          <InstagramAccount />
+          <FacebookAccount />
+          <SocialConnectors
+            onChange={(rows) =>
+              setConnected(
+                new Set(
+                  rows
+                    .filter((row) => row.connection?.state === "active")
+                    .map((row) => row.provider),
+                ),
+              )
+            }
+          />
+        </section>
         <div className="social-post__suggest">
           <span>Suggestions</span>
           {SUGGEST.map((item) => {

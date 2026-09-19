@@ -30,6 +30,12 @@ export type DevelopImportOptions = {
   preparationConcurrency?: number;
   /** RAW preview preparation has its own limit (one by default, never more than two). */
   rawPreparationConcurrency?: number;
+  /**
+   * Source-first ingest commits an immutable original without making a decoded
+   * preview a durability gate. Develop can render/repair its preview after the
+   * source transaction succeeds. Defaults to true for legacy callers.
+   */
+  requirePreview?: boolean;
   /** Metadata registration only: no source read, decoded preview, or durable save is implied. */
   onRegistered?: (progress: DevelopImportRegistration) => void;
   onProgress?: (progress: DevelopImportProgress) => void;
@@ -128,14 +134,14 @@ function copyPrepared(input: DevelopPhotoInput): DevelopPhotoInput {
  */
 export function completeDevelopImportIds(
   photos: readonly Pick<DevelopPhoto, "id" | "sourceBlob" | "previewBlob">[],
+  requirePreview = true,
 ): string[] {
   return photos
     .filter(
       (photo) =>
         photo.sourceBlob instanceof Blob &&
         photo.sourceBlob.size > 0 &&
-        photo.previewBlob instanceof Blob &&
-        photo.previewBlob.size > 0,
+        (!requirePreview || (photo.previewBlob instanceof Blob && photo.previewBlob.size > 0)),
     )
     .map((photo) => photo.id);
 }
@@ -259,7 +265,10 @@ export async function runDevelopImport(
         throw new Error(
           "Preview preparation changed the original photo identity. This file was not saved.",
         );
-      if (!(prepared.previewBlob instanceof Blob) || !prepared.previewBlob.size)
+      if (
+        options.requirePreview !== false &&
+        (!(prepared.previewBlob instanceof Blob) || !prepared.previewBlob.size)
+      )
         throw new Error("This photo did not produce a usable preview.");
       // Concurrent callbacks may retain/reuse their returned objects. Freeze the
       // preparation's metadata snapshot while it waits for its ordered save.

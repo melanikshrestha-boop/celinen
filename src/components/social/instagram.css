@@ -7,6 +7,7 @@
   border-radius: 22px;
   background: #fff;
   color: #142a36;
+  font-family: var(--celinen-sans, "OpenAI Sans", ui-sans-serif, sans-serif);
   font-size: 14px;
 }
 .ig-account button {
@@ -213,4 +214,28 @@
   .ig-account__post-caption {
     max-width: 100%;
   }
+}
+html.dark .ig-account {
+  border-color: #2a2a2a;
+  background: #111;
+  color: #ededed;
+}
+html.dark .ig-account button,
+html.dark .ig-account__posts li,
+html.dark .ig-account__metrics div,
+html.dark .ig-account__reply input {
+  border-color: #2a2a2a;
+  background: #1a1a1a;
+  color: #ededed;
+}
+html.dark .ig-account button:hover:not(:disabled) {
+  background: #242424;
+}
+html.dark .ig-account__note,
+html.dark .ig-account__post-note,
+html.dark .ig-account__metrics dt {
+  color: #a1a1aa;
+}
+html.dark .ig-account__error {
+  color: #f87171;
 }
