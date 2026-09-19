@@ -57,6 +57,19 @@ export type CullPreferenceEvent = {
   chosen: CullPreferenceFrame;
   /** The frame the engine had put ahead of it, when there was one. */
   passedOver?: CullPreferenceFrame | undefined;
+  /**
+   * The other frames she passed over in the same breath — the rest of the
+   * burst she did not take.
+   *
+   * These are not decoration. If every recorded comparison is "her frame
+   * against the engine's pick", then whatever the engine picks on is on the
+   * losing side of every single pair, and a ranker will happily learn "the
+   * peak of the action is bad" instead of "she likes this placement". It is
+   * the shortcut, and it is the one the data invites. Beating frames the
+   * engine did not pick either breaks that correlation, and it is true
+   * anyway: she looked at the whole burst and took this one.
+   */
+  alsoBeat?: readonly CullPreferenceFrame[] | undefined;
   /** Ids, kept for joining back to a session that still exists. */
   aiPickId?: string | null | undefined;
   photographerPickId?: string | null | undefined;
@@ -196,6 +209,7 @@ export function preferenceFromDecision(decision: {
   genre: CullGenre;
   chosen: CullPreferenceFrame;
   passedOver?: CullPreferenceFrame | undefined;
+  alsoBeat?: readonly CullPreferenceFrame[] | undefined;
   aiPickId?: string | null;
 }): CullPreferenceDraft | null {
   if (!decision.passedOver || decision.passedOver.frameId === decision.chosen.frameId) return null;
@@ -206,6 +220,17 @@ export function preferenceFromDecision(decision: {
     genre: decision.genre,
     chosen: decision.chosen,
     passedOver: decision.passedOver,
+    // A frame cannot beat itself, and the engine pick is already the primary
+    // comparison; neither belongs in the list of the rest.
+    ...(decision.alsoBeat?.length
+      ? {
+          alsoBeat: decision.alsoBeat.filter(
+            (other) =>
+              other.frameId !== decision.chosen.frameId &&
+              other.frameId !== decision.passedOver!.frameId,
+          ),
+        }
+      : {}),
     aiPickId: decision.aiPickId ?? decision.passedOver.frameId,
     photographerPickId: decision.chosen.frameId,
   };
@@ -259,6 +284,11 @@ const KIND_WEIGHT: Record<CullPreferenceKind, number> = {
   "confirmed-pick": 0.25,
 };
 
+/** Beating a frame the engine did not pick either says less than beating the
+ * one it did, but it is what keeps the ranker from learning "the engine is
+ * wrong" in place of "she likes this". */
+const ALSO_BEAT_WEIGHT = 0.5;
+
 export function createPairwiseRanker(options: CullRankerOptions = {}): CullPairwiseRanker {
   const learningRate = options.learningRate ?? 0.15;
   const regularization = options.regularization ?? 0.002;
@@ -301,8 +331,13 @@ export function createPairwiseRanker(options: CullRankerOptions = {}): CullPairw
       let seen = 0;
       for (let pass = 0; pass < passes; pass++)
         for (const event of pairs(events)) {
-          loss += learn(event.chosen.heads, event.passedOver!.heads, KIND_WEIGHT[event.kind]);
+          const weight = KIND_WEIGHT[event.kind];
+          loss += learn(event.chosen.heads, event.passedOver!.heads, weight);
           seen++;
+          // The rest of the burst she did not take. Softer than beating the
+          // engine's own pick, which is the sharper statement of the two.
+          for (const other of event.alsoBeat ?? [])
+            learn(event.chosen.heads, other.heads, weight * ALSO_BEAT_WEIGHT);
         }
       return seen ? loss / seen : 0;
     },

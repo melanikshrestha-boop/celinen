@@ -1113,12 +1113,12 @@ export class CullController {
           : verdict === "keep"
             ? "restored-reject"
             : "rejected-keep";
-      const against = this.comparedWith(frame, kind);
-      if (!against) continue;
+      const compared = this.comparedWith(frame, kind);
+      if (!compared) continue;
       // For a keep, her frame is the chosen one. For a reject, the frame the
       // engine passed over is the one she implicitly preferred.
-      const chosen = verdict === "keep" ? frame : against;
-      const passedOver = verdict === "keep" ? against : frame;
+      const chosen = verdict === "keep" ? frame : compared.against;
+      const passedOver = verdict === "keep" ? compared.against : frame;
       const draft = preferenceFromDecision({
         kind,
         sessionId: this.sessionId ?? "",
@@ -1126,6 +1126,15 @@ export class CullController {
         genre,
         chosen: { frameId: chosen.id, heads: this.heads.get(chosen.id) ?? {} },
         passedOver: { frameId: passedOver.id, heads: this.heads.get(passedOver.id) ?? {} },
+        // Only when she kept a frame: she looked at the whole burst and took
+        // this one. On a reject she said nothing about the others.
+        alsoBeat:
+          verdict === "keep"
+            ? compared.others.map((other) => ({
+                frameId: other.id,
+                heads: this.heads.get(other.id) ?? {},
+              }))
+            : [],
         aiPickId: passedOver.id,
       });
       if (draft) drafts.push(draft);
@@ -1139,19 +1148,23 @@ export class CullController {
     this.emit();
   }
 
-  /** The frame an override implicitly compared against. */
-  private comparedWith(frame: CullFrame, kind: CullPreferenceKind): CullFrame | null {
+  /** The frames an override implicitly compared against: the one the engine
+   * put ahead, and — inside a burst — the rest of the burst she also looked at
+   * and did not take. */
+  private comparedWith(
+    frame: CullFrame,
+    kind: CullPreferenceKind,
+  ): { against: CullFrame; others: CullFrame[] } | null {
     if (kind === "burst-pick") {
       const group = frame.suggestion?.group;
       if (group === null || group === undefined) return null;
-      const pick = this.frames.find(
+      const burst = this.frames.filter(
         (other) =>
-          other.id !== frame.id &&
-          other.suggestion?.group === group &&
-          other.suggestion.bestOfGroup &&
-          this.heads.has(other.id),
+          other.id !== frame.id && other.suggestion?.group === group && this.heads.has(other.id),
       );
-      return pick ?? null;
+      const pick = burst.find((other) => other.suggestion?.bestOfGroup);
+      if (!pick) return null;
+      return { against: pick, others: burst.filter((other) => other.id !== pick.id) };
     }
     // The engine's own keep line, read as the comparison it is. `order` is the
     // ranking, so the boundary is the last suggested keep and the first
@@ -1166,7 +1179,8 @@ export class CullController {
       if (other.suggestion?.verdict === "keep") weakestKeep = other;
       else if (other.suggestion?.verdict === "reject" && !strongestReject) strongestReject = other;
     }
-    return kind === "restored-reject" ? weakestKeep : strongestReject;
+    const against = kind === "restored-reject" ? weakestKeep : strongestReject;
+    return against ? { against, others: [] } : null;
   }
 
   /** What the culler has learned from this photographer, and the way to make
