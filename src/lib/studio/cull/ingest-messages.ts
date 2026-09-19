@@ -1,5 +1,12 @@
 import type { CullReading } from "./engine";
-import type { FaceReading, FocusHit, IngestOptions, NormalizedRect } from "./ingest-engine";
+import type {
+  CullCameraFacts,
+  FaceReading,
+  FocusHit,
+  IngestOptions,
+  NormalizedRect,
+} from "./ingest-engine";
+import type { CullSubjectFocus, CullValidity } from "./intel";
 
 export type IngestRequest = {
   id: string;
@@ -33,5 +40,16 @@ export type IngestReply =
       faces?: FaceReading[] | undefined;
       /** False when this lane could not load the face models at all. */
       eyesRead: boolean;
+      /** Whether the frame is a photograph at all, judged before any score.
+       * Absent only for replies from an older worker build. */
+      validity?: CullValidity | undefined;
+      /** False when the gate rejected the frame and no score was measured. */
+      measured?: boolean | undefined;
+      /** Which rung of the evidence ladder focus was judged on. */
+      subject?: CullSubjectFocus | undefined;
+      /** 32x24 luma, for burst motion and roles. */
+      signature?: Uint8Array | undefined;
+      /** The camera's own words, for the shoot membership pass. */
+      facts?: CullCameraFacts | undefined;
     }
   | { id: string; kind: "failed"; error: string };

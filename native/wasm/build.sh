@@ -4,7 +4,7 @@
 # Needs Emscripten's em++ on PATH, or EMSDK pointing at an activated emsdk.
 # The .wasm outputs are committed so deploys and CI never need the toolchain;
 # rebuild and commit them whenever native/src/develop*.cpp, look_match.cpp,
-# upright.cpp, exif.cpp or voice.cpp change.
+# upright.cpp, exif.cpp, cull*.cpp or voice.cpp change.
 # tests/develop-wasm.test.ts and tests/voice-wasm.test.ts run the committed binaries.
 set -eu
 cd "$(dirname "$0")/../.."
@@ -41,10 +41,28 @@ em++ $COMMON -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
   -sEXPORTED_FUNCTIONS=_celinen_cull_error,_celinen_cull_reading_size,_celinen_cull_frame_size,_celinen_cull_row_size,_celinen_cull_source,_celinen_cull_faces,_celinen_cull_measure,_celinen_cull_judge_eyes,_celinen_cull_frames,_celinen_cull_shoot,_celinen_cull_release \
   -o src/lib/studio/cull/celinen-cull.wasm
 
+# The cull intelligence: the validity gate, the subject focus hierarchy, shoot
+# membership and burst roles. Its own module, because the shoot-level passes
+# and the per-frame scorer change independently, and because the gate and the
+# hierarchy also run inside the ingest lane, where the pixels already are —
+# this module is what the review screen calls once the card is read.
+INTEL_SOURCES="native/src/cull_validity.cpp native/src/cull_gate.cpp native/src/cull_subject.cpp native/src/cull_heads.cpp native/src/cull_sequence.cpp"
+# SIMD, for the same reason and on the same sources the ingest lane uses it:
+# the two modules compile this C++ the same way or their numbers can differ.
+# shellcheck disable=SC2086
+em++ $COMMON -msimd128 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=536870912 \
+  $INTEL_SOURCES native/src/cull.cpp native/src/cull_shoot_membership.cpp \
+  native/wasm/cull_intel_wasm.cpp \
+  -sEXPORTED_FUNCTIONS=_celinen_intel_error,_celinen_intel_validity_size,_celinen_intel_subject_size,_celinen_intel_head_count,_celinen_intel_signature_size,_celinen_intel_membership_in_size,_celinen_intel_membership_out_size,_celinen_intel_sequence_in_size,_celinen_intel_sequence_out_size,_celinen_intel_text,_celinen_intel_source,_celinen_intel_frame,_celinen_intel_frame_signature,_celinen_intel_membership_numbers,_celinen_intel_text_in,_celinen_intel_membership,_celinen_intel_sequence_numbers,_celinen_intel_signatures,_celinen_intel_sequence,_celinen_intel_release \
+  -o src/lib/studio/cull/celinen-cull-intel.wasm
+
 # The RAW container API (which embedded JPEG is best, which way up it goes)
 # is linked into ingest and into its own small module for the loupe and the
 # preview worker, so every surface asks the same C++.
 RAW_EXPORTS="_celinen_raw_input,_celinen_raw_inspect,_celinen_raw_kind,_celinen_raw_container_orientation,_celinen_raw_truncated,_celinen_raw_candidate,_celinen_raw_probe,_celinen_raw_describe,_celinen_raw_rank,_celinen_raw_order,_celinen_raw_orientation,_celinen_raw_retag,_celinen_raw_output,_celinen_raw_output_size,_celinen_raw_release"
+# The gate and the focus hierarchy run inside the ingest lane, on the pixels it
+# already decoded, so no frame crosses a worker boundary twice.
+INTEL_EXPORTS="_celinen_ingest_validity,_celinen_ingest_validity_size,_celinen_ingest_validity_reason,_celinen_ingest_subject,_celinen_ingest_subject_size,_celinen_ingest_subject_evidence,_celinen_ingest_signature,_celinen_ingest_signature_size,_celinen_ingest_measured,_celinen_ingest_facts"
 FACE_EXPORTS="_celinen_ingest_model_input,_celinen_ingest_load_model,_celinen_ingest_faces_ready,_celinen_ingest_faces,_celinen_ingest_face_count,_celinen_ingest_face_fields,_celinen_ingest_reading_fields"
 
 # Ingest: one call per photo — EXIF, one entropy decode kept as coefficients,
@@ -57,11 +75,12 @@ FACE_EXPORTS="_celinen_ingest_model_input,_celinen_ingest_load_model,_celinen_in
 # every browser that runs the Studio has shipped WebAssembly SIMD since 2023.
 # shellcheck disable=SC2086
 em++ $COMMON -msimd128 --use-port=libjpeg -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=1073741824 \
-  native/src/cull.cpp native/src/exif.cpp native/src/focus_hit.cpp native/src/raw_preview.cpp \
+  native/src/cull.cpp $INTEL_SOURCES \
+  native/src/exif.cpp native/src/focus_hit.cpp native/src/raw_preview.cpp \
   native/src/jpeg_coefficients.cpp native/src/faces.cpp \
   native/src/nn.cpp native/src/nn_onnx.cpp native/src/nn_tflite.cpp \
   native/wasm/ingest_wasm.cpp native/wasm/raw_wasm.cpp \
-  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_metadata,_celinen_ingest_focus,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_run_pixels,_celinen_ingest_damaged,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release,$RAW_EXPORTS,$FACE_EXPORTS \
+  -sEXPORTED_FUNCTIONS=_celinen_ingest_error,_celinen_ingest_metadata,_celinen_ingest_focus,_celinen_ingest_input,_celinen_ingest_run,_celinen_ingest_run_pixels,_celinen_ingest_damaged,_celinen_ingest_reading,_celinen_ingest_capture_time,_celinen_ingest_capture_utc,_celinen_ingest_camera,_celinen_ingest_source_width,_celinen_ingest_source_height,_celinen_ingest_frame_width,_celinen_ingest_frame_height,_celinen_ingest_thumbnail,_celinen_ingest_thumbnail_size,_celinen_ingest_pixels,_celinen_ingest_release,$INTEL_EXPORTS,$RAW_EXPORTS,$FACE_EXPORTS \
   -o src/lib/studio/cull/celinen-ingest.wasm
 
 # RAW inspection alone, for the loupe (main thread) and the preview worker.
@@ -100,4 +119,4 @@ if [ -f native/wasm/voice_wasm.cpp ]; then
     -sEXPORTED_FUNCTIONS=_celinen_voice_open,_celinen_voice_input,_celinen_voice_push,_celinen_voice_level,_celinen_voice_speaking,_celinen_voice_segment_samples,_celinen_voice_segment,_celinen_voice_segment_release,_celinen_voice_flush \
     -o src/lib/voice/wasm/celinen-voice.wasm
 fi
-ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/develop/wasm/celinen-raw-decode.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/social/wasm/celinen-social.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null
+ls -l src/lib/develop/wasm/celinen-develop.wasm src/lib/develop/wasm/celinen-raw-decode.wasm src/lib/studio/cull/celinen-cull.wasm src/lib/studio/cull/celinen-cull-intel.wasm src/lib/studio/cull/celinen-ingest.wasm src/lib/studio/cull/celinen-raw.wasm src/lib/social/wasm/celinen-social.wasm src/lib/voice/wasm/celinen-voice.wasm 2>/dev/null

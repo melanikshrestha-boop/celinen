@@ -19,6 +19,12 @@ export type IngestedFrame = {
   /** Set when the photo decoded but is not whole (a cut-off or corrupt file):
    * why, in plain words. Its readings are partly over gray. */
   damaged?: string | undefined;
+  /** The frame's 32x24 luma signature, for burst motion and roles. It rides
+   * beside the frame rather than on it: 768 bytes for every frame of a
+   * ten-thousand frame card is nothing in memory and a needless seven
+   * megabytes in storage, and a reopened session still gets its roles from
+   * the scoring heads, only without motion. */
+  signature?: Uint8Array | undefined;
 };
 
 export type IngestHandlers = {
@@ -129,7 +135,12 @@ export async function ingestFiles(
                   captureTimeMs: data.captureTimeMs,
                   captureTimeBasis: data.captureTimeBasis,
                   cameraKey: data.cameraKey,
-                  reading: data.reading,
+                  // A frame the gate rejected has no reading at all, not a
+                  // reading of zero: the scorer never ran on it. Everything
+                  // downstream keys off the reading's presence, so this is
+                  // what keeps a manga page out of the shoot's calibration and
+                  // out of the ranking, with no score to show by accident.
+                  ...(data.measured === false ? {} : { reading: data.reading }),
                   ...(data.faces ? { faces: data.faces } : {}),
                   verdict: "undecided",
                   decided: false,
@@ -147,10 +158,24 @@ export async function ingestFiles(
                         ...(data.focusHit ? { focusHit: data.focusHit } : {}),
                       }
                     : {}),
+                  // The gate's verdict, in the words the screen shows. A frame
+                  // that is not a photograph never carries a sharpness verdict:
+                  // the engine did not measure one.
+                  ...(data.validity && data.validity.state !== "valid"
+                    ? {
+                        validity: {
+                          status: data.validity.state,
+                          reason: data.validity.reason,
+                        },
+                      }
+                    : {}),
+                  ...(data.subject ? { subject: data.subject } : {}),
+                  ...(data.facts ? { facts: data.facts } : {}),
                 },
                 thumbnail: data.thumbnail,
                 file,
                 ...(data.damaged ? { damaged: data.damaged } : {}),
+                ...(data.signature ? { signature: data.signature } : {}),
               });
             } else {
               failed += 1;

@@ -101,6 +101,7 @@ import { Route as VsSlugRouteImport } from './routes/vs.$slug'
 import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
+import { Route as ApiScheduleTickRouteImport } from './routes/api/schedule.tick'
 import { Route as ApiVoicePolishRouteImport } from './routes/api/voice/polish'
 import { Route as ApiVoiceSttRouteImport } from './routes/api/voice/stt'
 import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
@@ -573,6 +574,11 @@ const ApiPublicTrafficRoute = ApiPublicTrafficRouteImport.update({
   path: '/api/public/traffic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiScheduleTickRoute = ApiScheduleTickRouteImport.update({
+  id: '/api/schedule/tick',
+  path: '/api/schedule/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVoicePolishRoute = ApiVoicePolishRouteImport.update({
   id: '/api/voice/polish',
   path: '/api/voice/polish',
@@ -725,6 +731,7 @@ export interface FileRoutesByFullPath {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/schedule/tick': typeof ApiScheduleTickRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -826,6 +833,7 @@ export interface FileRoutesByTo {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/schedule/tick': typeof ApiScheduleTickRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -932,6 +940,7 @@ export interface FileRoutesById {
   '/api/native/v2': typeof ApiNativeV2Route
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
+  '/api/schedule/tick': typeof ApiScheduleTickRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -1039,6 +1048,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/schedule/tick'
     | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
@@ -1140,6 +1150,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/schedule/tick'
     | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
@@ -1245,6 +1256,7 @@ export interface FileRouteTypes {
     | '/api/native/v2'
     | '/api/public/lightroom'
     | '/api/public/traffic'
+    | '/api/schedule/tick'
     | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
@@ -1345,6 +1357,7 @@ export interface RootRouteChildren {
   ApiNativeV2Route: typeof ApiNativeV2Route
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
+  ApiScheduleTickRoute: typeof ApiScheduleTickRoute
   ApiVoicePolishRoute: typeof ApiVoicePolishRoute
   ApiVoiceSttRoute: typeof ApiVoiceSttRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
@@ -1998,6 +2011,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTrafficRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/schedule/tick': {
+      id: '/api/schedule/tick'
+      path: '/api/schedule/tick'
+      fullPath: '/api/schedule/tick'
+      preLoaderRoute: typeof ApiScheduleTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/voice/polish': {
       id: '/api/voice/polish'
       path: '/api/voice/polish'
@@ -2227,6 +2247,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeV2Route: ApiNativeV2Route,
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicTrafficRoute: ApiPublicTrafficRoute,
+  ApiScheduleTickRoute: ApiScheduleTickRoute,
   ApiVoicePolishRoute: ApiVoicePolishRoute,
   ApiVoiceSttRoute: ApiVoiceSttRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,

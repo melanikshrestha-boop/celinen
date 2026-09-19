@@ -4,9 +4,8 @@ import type { CullOriginals } from "@/lib/studio/cull/controller";
 import type { CullVerdict } from "@/lib/studio/cull/engine";
 import type { LoupeSourceKind } from "@/lib/studio/cull/loupe-source";
 import type { CullFrame } from "@/lib/studio/cull/session";
-import { CULL_REASON_LABELS } from "@/lib/studio/cull/session";
 import type { CullCodes } from "@/lib/studio/cull/controller";
-import { detailRows } from "./cull-review";
+import { detailRows, scoreOf, verdictLine } from "./cull-review";
 import { CullAfBox } from "./CullAfBox";
 import { CullCaption, CullCodeSources, type CullCodesInput } from "./CullCaption";
 import { CullMark, CullMarks, CullName, CullThumb, type CullThumbnailSource } from "./CullGrid";
@@ -78,8 +77,11 @@ export function CullLoupe({
   const dialog = useRef<HTMLDivElement>(null);
   // Focus follows the loupe in, so Tab stays inside it and not on the grid behind.
   useEffect(() => dialog.current?.focus({ preventScroll: true }), []);
-  const suggestion = frame.suggestion;
-  const reason = suggestion?.reason ?? "none";
+  const line = verdictLine(frame);
+  const score = scoreOf(frame);
+  // Everything the engine can say about this frame. A frame the gate turned
+  // away has no reading, and these rows are then the only thing there is.
+  const rows = detailRows(frame);
   const [shownKind, setShownKind] = useState<LoupeSourceKind | null>(null);
   // Stored handles need only a click. Picking a folder is offered only while the
   // loupe has nothing better than the thumbnail to show.
@@ -184,7 +186,9 @@ export function CullLoupe({
                 ) : (
                   <CullName name={member.name} />
                 )}
-                {member.suggestion && <span className="text-ink">{member.suggestion.score}</span>}
+                {scoreOf(member) !== null && (
+                  <span className="text-ink">{scoreOf(member)}</span>
+                )}
               </span>
             </button>
           ))}
@@ -194,23 +198,25 @@ export function CullLoupe({
       <aside className="cull-loupe-side">
         <div className="flex items-center gap-2">
           <CullMark frame={frame} />
-          {suggestion && (
+          {score !== null && (
             <span className="font-display text-[28px] font-semibold leading-none tracking-[-0.03em]">
-              {suggestion.score}
+              {score}
             </span>
           )}
-          {reason !== "none" && (
-            <span className="rounded-full border border-input px-2 py-0.5 font-mono text-[10px]">
-              {CULL_REASON_LABELS[reason]}
+          {line && (
+            <span
+              className={`rounded-full border border-input px-2 py-0.5 font-mono text-[10px]${line.tone === "warn" ? " text-rust" : ""}`}
+            >
+              {line.text}
             </span>
           )}
         </div>
 
         <CullMarks frame={frame} />
 
-        {frame.reading ? (
+        {rows.length ? (
           <dl className="mt-6 grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
-            {detailRows(frame).map((row) => (
+            {rows.map((row) => (
               <div key={row.label} className="contents">
                 <dt className="font-mono text-[10px] uppercase leading-[19.5px] tracking-wider text-moss">
                   {row.label}

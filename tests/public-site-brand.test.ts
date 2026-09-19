@@ -55,7 +55,9 @@ test("public brand is Celinen, not FOTO/LensLabs/IRIS leftovers", () => {
   expect(read("src/components/marketing/BlogIndex.tsx")).not.toMatch(/>foto</);
   expect(read("src/components/marketing/ComparePage.tsx")).not.toContain("foto-compare");
   expect(read("src/components/marketing/compare-page.css")).not.toContain("foto-compare");
-  expect(read("src/lib/public-socials.ts")).toContain("PUBLIC_SOCIALS: readonly { label: string; href: string }[] = []");
+  expect(read("src/lib/public-socials.ts")).toContain(
+    "PUBLIC_SOCIALS: readonly { label: string; href: string }[] = []",
+  );
 });
 
 test("Sign In does not auto-start Google, and OAuth return does not re-open the chooser", () => {
@@ -66,10 +68,15 @@ test("Sign In does not auto-start Google, and OAuth return does not re-open the 
   expect(auth).not.toContain("Pablo Picasso");
 });
 
-test("mobile marketing nav hides the desktop links and dismisses overlays on breakpoint change", () => {
+test("mobile marketing nav keeps the links written out and dismisses overlays on breakpoint change", () => {
   const css = read("src/components/marketing/public-details.css");
   expect(css).toContain("@media (max-width: 900px)");
-  expect(css).toMatch(/\.marketing-page \.marketing-nav__links \{\s*display: none;/);
-  expect(read("src/components/marketing/nav-menu.tsx")).toContain('matchMedia("(max-width: 900px)")');
+  // The hamburger is gone: narrow screens keep the links visible and hide the "more" button.
+  const narrow = css.slice(css.indexOf("@media (max-width: 900px)"));
+  expect(narrow).toMatch(/\.marketing-page \.marketing-nav__links \{\s*display: flex;/);
+  expect(css).toMatch(/\.marketing-page \.marketing-nav__more \{\s*display: none;/);
+  expect(read("src/components/marketing/nav-menu.tsx")).toContain(
+    'matchMedia("(max-width: 900px)")',
+  );
   expect(read("src/components/marketing/FeaturesMenu.tsx")).toContain("modal={false}");
 });

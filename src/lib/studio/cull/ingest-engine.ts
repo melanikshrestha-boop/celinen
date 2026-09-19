@@ -4,6 +4,16 @@
  * is what makes a ten-thousand frame card finish in minutes instead of an hour.
  */
 import { COLOR_BYTES, READING_FIELDS, readingFromLayout, type CullReading } from "./engine";
+import {
+  CULL_SIGNATURE_SIZE,
+  CULL_SUBJECT_SIZE,
+  CULL_VALIDITY_SIZE,
+  readSubject,
+  readValidity,
+  UNIT,
+  type CullSubjectFocus,
+  type CullValidity,
+} from "./intel";
 import { hasRawExports, rawApiFromExports, type RawApi } from "./raw-container";
 
 type Exports = {
@@ -52,7 +62,30 @@ type Exports = {
   celinen_ingest_thumbnail: () => number;
   celinen_ingest_thumbnail_size: () => number;
   celinen_ingest_pixels: () => number;
+  // Absent in binaries built before the validity gate ran in this lane.
+  celinen_ingest_validity?: () => number;
+  celinen_ingest_validity_size?: () => number;
+  celinen_ingest_validity_reason?: () => number;
+  celinen_ingest_subject?: () => number;
+  celinen_ingest_subject_size?: () => number;
+  celinen_ingest_subject_evidence?: () => number;
+  celinen_ingest_signature?: () => number;
+  celinen_ingest_signature_size?: () => number;
+  celinen_ingest_measured?: () => number;
+  celinen_ingest_facts?: () => number;
   celinen_ingest_release: () => void;
+};
+
+/** What the file says about the body, the lens and the last program to write
+ * it, in the file's own spelling. Absent when the file carried no EXIF at all,
+ * which is itself the strongest single piece of evidence the shoot membership
+ * pass has. */
+export type CullCameraFacts = {
+  make: string;
+  model: string;
+  serial: string;
+  lens: string;
+  software: string;
 };
 
 /** A rectangle normalized to 0..1 of the upright frame. */
@@ -141,6 +174,19 @@ export type IngestResult = {
   /** Set when the photo decoded but is not whole (a cut-off file, corrupt
    * data): why, in plain words. Its readings are over partly gray pixels. */
   damaged?: string | undefined;
+  /** Whether this is a photograph at all, judged before any score. Absent only
+   * for a binary built before the gate ran in this lane. */
+  validity?: CullValidity | undefined;
+  /** False when the gate rejected the frame outright: the scorer never ran, so
+   * `reading` carries nothing a verdict may be built on. */
+  measured?: boolean | undefined;
+  /** Which rung of the evidence ladder focus was judged on, and how sharp it
+   * was there. */
+  subject?: CullSubjectFocus | undefined;
+  /** 32x24 luma, for burst motion and roles. */
+  signature?: Uint8Array | undefined;
+  /** What the file says about the camera, for the shoot membership pass. */
+  facts?: CullCameraFacts | undefined;
 };
 
 /** A photo the browser decoded: upright RGBA plus the original's own size. */
@@ -286,6 +332,48 @@ export async function instantiateIngestWasm(
     });
   };
 
+  /** The gate, the focus hierarchy, the burst signature and the camera's own
+   * words, all measured in the same pass as the reading. Empty for a binary
+   * built before any of that existed, which is not the same as a frame that
+   * failed the gate. */
+  const intel = () => {
+    const validityPointer = wasm.celinen_ingest_validity?.() ?? 0;
+    if (!validityPointer) return {};
+    const validity = readValidity(
+      new Float64Array(wasm.memory.buffer, validityPointer, CULL_VALIDITY_SIZE),
+    );
+    validity.reason = text(wasm.celinen_ingest_validity_reason?.() ?? 0);
+    const subjectPointer = wasm.celinen_ingest_subject?.() ?? 0;
+    let subject: CullSubjectFocus | undefined;
+    if (subjectPointer) {
+      subject = readSubject(new Float64Array(wasm.memory.buffer, subjectPointer, CULL_SUBJECT_SIZE));
+      subject.evidence = text(wasm.celinen_ingest_subject_evidence?.() ?? 0);
+    }
+    const signaturePointer = wasm.celinen_ingest_signature?.() ?? 0;
+    // Copied out: the next photo reuses this memory, and growth detaches it.
+    const signature = signaturePointer
+      ? new Uint8Array(new Uint8Array(wasm.memory.buffer, signaturePointer, CULL_SIGNATURE_SIZE))
+      : undefined;
+    const packed = text(wasm.celinen_ingest_facts?.() ?? 0);
+    const parts = packed ? packed.split(UNIT) : [];
+    const facts: CullCameraFacts | undefined = packed
+      ? {
+          make: parts[0] ?? "",
+          model: parts[1] ?? "",
+          serial: parts[2] ?? "",
+          lens: parts[3] ?? "",
+          software: parts[4] ?? "",
+        }
+      : undefined;
+    return {
+      validity,
+      measured: (wasm.celinen_ingest_measured?.() ?? 1) === 1,
+      ...(subject ? { subject } : {}),
+      ...(signature ? { signature } : {}),
+      ...(facts ? { facts } : {}),
+    };
+  };
+
   /** Everything the engine produced for the photo it just ran. */
   const collect = (): IngestResult => {
     const readingPointer = wasm.celinen_ingest_reading();
@@ -326,6 +414,7 @@ export async function instantiateIngestWasm(
     }
     return {
       reading,
+      ...intel(),
       width: wasm.celinen_ingest_source_width(),
       height: wasm.celinen_ingest_source_height(),
       captureTimeMs: captureTimeMs >= 0 ? captureTimeMs : null,
