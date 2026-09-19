@@ -50,7 +50,8 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy":
     "accelerometer=(), camera=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()",
-  // Allowlist for Celinen: self assets, Supabase auth/API, Google OAuth, PostHog.
+  // Allowlist for Celinen: self assets, Supabase auth/API, Google OAuth, PostHog,
+  // Stripe, and Cloudflare Web Analytics (edge-injected beacon).
   "Content-Security-Policy": [
     "default-src 'self'",
     "base-uri 'self'",
@@ -62,8 +63,8 @@ const SECURITY_HEADERS: Record<string, string> = {
     "style-src 'self' 'unsafe-inline'",
     // 'wasm-unsafe-eval' admits WebAssembly compilation only (the C++ Develop and
     // voice engines, same-origin .wasm); it does not enable eval() for scripts.
-    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://www.googletagmanager.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://us.i.posthog.com https://eu.i.posthog.com https://accounts.google.com https://api.stripe.com",
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://www.googletagmanager.com https://static.cloudflareinsights.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://us.i.posthog.com https://eu.i.posthog.com https://accounts.google.com https://api.stripe.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
     "frame-src 'self' https://accounts.google.com https://js.stripe.com https://hooks.stripe.com https://*.supabase.co",
     "worker-src 'self' blob:",
     "media-src 'self' blob:",
