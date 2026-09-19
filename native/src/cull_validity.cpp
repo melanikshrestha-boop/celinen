@@ -497,7 +497,10 @@ Finding decide(const CullValidityEvidence& e) {
     double logit = -4.5;
     if (e.truncated) logit += 3.4;
     else if (e.decoder_warnings > 0) logit += .8;
-    logit += 7.5 * clamp01((e.frozen_rows - .015) / .06);
+    // A drawing or a screen capture can end in a band of one flat colour, and
+    // that is its design, not a decode that stopped early.
+    const bool drawn = e.palette_count < 24 && any_exact > .2;
+    logit += (drawn ? 1.5 : 7.5) * clamp01((e.frozen_rows - .015) / .06);
     // Scanline breaks that are not a periodic pattern and not a drawing.
     if (e.spectral_peak < 2.0 && e.palette_count > 24) logit += 6.0 * clamp01((e.band_rows - 1.2) / 3);
     corrupt.kind = CullValidityKind::corrupted;
@@ -539,6 +542,17 @@ Finding decide(const CullValidityEvidence& e) {
       else if (e.grain > .7) logit -= 1.4;
     } else if (e.exact_flat_extreme > .15) {
       logit += .6; // nothing smooth except paper: a page, not a scene
+    }
+    // Two measurements that separate cleanly on real files: 121 photographs
+    // from three cameras never needed fewer than about two thousand colours to
+    // make nine tenths of the frame, and never held more than a fifth of their
+    // blocks as exact paper white or ink black; drawings, logos and interfaces
+    // sit at a few dozen colours and half their blocks. Grain has to be absent
+    // too, so a low-key or high-key photograph with a big clipped area cannot
+    // be caught by either on its own.
+    if (e.grain < .3) {
+      logit += 1.6 * clamp01((600 - e.palette_count) / 500);
+      logit += 1.8 * clamp01((e.exact_flat_extreme - .22) / .35);
     }
     // Bilevel pages: paper and ink, with a sliver of gray between.
     if (e.grayscale > .95 && e.clipped_high + e.clipped_low > .35 && e.palette_count < 24) logit += 1.4;
