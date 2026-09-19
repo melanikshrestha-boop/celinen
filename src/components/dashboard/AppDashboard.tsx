@@ -781,7 +781,7 @@ export function AppDashboard({ children }: { children?: ReactNode }) {
                     ref={box}
                     rows={1}
                     value={draft}
-                    placeholder="drop your game here"
+                    placeholder="drop your photos here"
                     onChange={(event) => {
                       setDraft(event.target.value);
                       const el = event.currentTarget;
