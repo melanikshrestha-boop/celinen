@@ -176,24 +176,31 @@ WebAssembly and run in the browser. There is no second renderer: `develop()`,
   tags is decoded from its own numbers; Sony's private tags fill in what an ARW
   leaves out. Black and white levels, white balance from the camera's neutral,
   a gradient-corrected demosaic, the DNG colour model with Bradford adaptation,
-  highlight reconstruction and one sRGB encode at the very end — every step in
-  between is linear float, because white balance, demosaic, colour and
-  highlight reconstruction are all wrong in a gamma-encoded space. Temperature
-  and tint are real Kelvin by Robertson's isotherm method, not a slider
-  pretending. `Decoder` runs the chain in row bands, so the browser gets
+  highlight reconstruction, the camera's baseline tone curve and one sRGB
+  encode at the very end — every step in between is linear float, because
+  white balance, demosaic, colour and highlight reconstruction are all wrong in
+  a gamma-encoded space. Temperature and tint are real Kelvin by Robertson's
+  isotherm method, not a slider pretending. The baseline curve is the DNG
+  specification's ProfileToneCurve slot: without it a render is scene-referred,
+  which is colorimetrically right and flat and dark beside the JPEG the same
+  camera wrote. Measured against the camera's own JPEG over 24 frames with no
+  exposure matching, it takes the mean lightness error from 12.25 to 2.01 L*
+  and the bias from -11.68 to +0.30. `Decoder` runs the chain in row bands, so the browser gets
   bounded memory, a progress number and a cancellation point between slices.
   Measured in Chrome on an M-series Mac, in a Worker: a 24MP frame is 135 ms at
-  half size and 1,114 ms at full, holding 79 MB and 153 MB; a 10.3MP APS-C
-  frame is 473 ms at full, holding 68 MB. Below twelve million pixels the
-  editor gets the full-resolution render; above it, half, and export is always
-  full. Nothing GPL, LGPL or otherwise unusable was consulted: LibRaw is LGPL,
+  half size and about 1.1-1.5 s at full, holding 79 MB and 153 MB; a 10.3MP
+  APS-C frame is 473 ms at full, holding 68 MB. Below twelve million pixels the
+  editor gets the full-resolution render; above it, half. An export always
+  decodes the sensor at full resolution first, and one such render is cached so
+  an export preview and the download after it do not pay for it twice. Nothing GPL, LGPL or otherwise unusable was consulted: LibRaw is LGPL,
   dcraw carries its own redistribution terms and RawTherapee's AMaZE is GPL, so
   the demosaic is Hamilton-Adams and Freeman's median implemented from their
   published descriptions and the colour model is the DNG specification's. The
   Sony ILCE-7M3 profile was measured from that camera's own embedded JPEGs by
   `scripts/fit-raw-profile.py`, not taken from anyone's table;
-  `scripts/check-raw-against-preview.py` checks a decode against the picture
-  the camera put inside the same file.
+  `scripts/check-raw-against-preview.py` checks a decode's colour and geometry
+  against the picture the camera put inside the same file, and
+  `scripts/check-raw-tone.py` checks its lightness.
 - `native/wasm/voice_wasm.cpp` → `src/lib/voice/wasm/celinen-voice.wasm`. The
   dictation front end (`native/src/voice.cpp`): DC removal, band-limited
   resampling to 16 kHz PCM16, adaptive-noise-floor voice activity detection and

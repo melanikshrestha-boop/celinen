@@ -731,3 +731,39 @@ html.dark .social-dock__plus {
   border-color: rgba(255, 255, 255, 0.1);
   color: #ededed;
 }
+
+.social-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+}
+.social-schedule input[type="datetime-local"] {
+  width: 100%;
+  border: 1px solid #e6edf3;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #142a36;
+  font: inherit;
+}
+.social-schedule__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  color: #142a36;
+  font-size: 14px;
+}
+.social-schedule__row button {
+  border: 0;
+  background: transparent;
+  color: #5b6570;
+  cursor: pointer;
+}
+.social-schedule time {
+  color: #5b6570;
+  font-variant-numeric: tabular-nums;
+}

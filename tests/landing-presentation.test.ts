@@ -108,7 +108,9 @@ if (!process.argv.includes(fixtureFlag)) {
     expect(css).toMatch(
       /\.marketing-hero\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--marketing-gutter\)\)\)/,
     );
-    expect(css).toMatch(/\.marketing-promises\s*\{[^}]*width:\s*fit-content/);
+    expect(css).toMatch(
+      /\.marketing-promises\s*\{[^}]*width:\s*calc\(100% - \(2 \* var\(--marketing-gutter\)\)\)/,
+    );
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(css).not.toMatch(/\.workbench|\.develop-|\.auth-|--foto-font-ui|auth-lens/);
     const source = readFileSync(new URL("../src/routes/index.tsx", import.meta.url), "utf8");
@@ -292,7 +294,8 @@ if (!process.argv.includes(fixtureFlag)) {
     assert.ok(html.includes("REST API"));
     assert.ok(html.includes(">MCP<"));
     assert.ok(!html.includes(">More<"));
-    assert.ok(html.includes('aria-label="Open menu"'));
+    assert.ok(!html.includes('aria-label="Open menu"'));
+    assert.ok(!html.includes("marketing-nav__more"));
     assert.ok(html.includes("Features"));
     assert.ok(html.includes("Use Cases"));
     assert.ok(html.includes("Integrations"));

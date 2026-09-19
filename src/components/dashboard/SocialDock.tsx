@@ -284,6 +284,17 @@ export function SocialDock({ mini = false }: { mini?: boolean }) {
                         }
                       />
                     ) : null}
+                    {network.id === "x" || network.id === "linkedin" ? (
+                      <input
+                        aria-label="Access token"
+                        type="password"
+                        placeholder="Access token"
+                        value={fields.token ?? ""}
+                        onChange={(event) =>
+                          setFields((current) => ({ ...current, token: event.target.value }))
+                        }
+                      />
+                    ) : null}
                     <div className="social-picker__form-actions">
                       <button type="submit">Connect</button>
                       <button type="button" onClick={() => setForm(null)}>

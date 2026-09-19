@@ -86,6 +86,13 @@ function withSecurityHeaders(response: Response, extra?: Record<string, string>)
 }
 
 export default {
+  async scheduled(_controller: unknown, _env: unknown, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+    ctx.waitUntil(
+      import("./lib/business/schedule.server").then((mod) => mod.tickDuePosts()).catch((error) => {
+        console.error(error);
+      }),
+    );
+  },
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
@@ -98,7 +105,8 @@ export default {
         path.startsWith("/_serverFn/") ||
         path.startsWith("/p/") ||
         path.startsWith("/photographer/") ||
-        path === "/publish"
+        path === "/publish" ||
+        path.startsWith("/api/schedule/")
       ) {
         return withSecurityHeaders(normalized, {
           "Cache-Control": "private, no-store",

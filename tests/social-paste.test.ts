@@ -102,5 +102,6 @@ test("dock asks for paste fields and publish uses the local bridge", () => {
     "utf8",
   );
   expect(accounts).toContain("publishPastePost");
+  expect(accounts).toContain("createScheduledPost");
   expect(accounts).toContain("Posted to");
 });
