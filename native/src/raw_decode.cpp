@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
+#include <vector>
 
 namespace lenslabs::raw {
 namespace {
@@ -581,7 +582,22 @@ inline float shoulder(float v, float strength) noexcept {
 void encode_srgb(const LinearImage& rgb, const Rendering& rendering, std::uint8_t* out) {
   if (rgb.channels != 3) throw std::runtime_error("The encoder expects linear RGB.");
   const float gain = float(std::exp2(rendering.exposure));
-  const float strength = float(rendering.shoulder);
+  // The curve already rolls its own highlights off, so the plain shoulder is
+  // only the fallback for a scene-referred render.
+  const bool baseline = rendering.baseline.present;
+  const float strength = baseline ? 0.f : float(rendering.shoulder);
+  // The curve is a binary search per sample, which a 24-million-pixel frame
+  // would pay seventy million times. Resolve it into the same kind of table
+  // the transfer function uses, over the range the encoder can still see.
+  static constexpr int curve_size = 2048;
+  static constexpr float curve_top = 4.0f; // four stops above white, then flat
+  std::vector<float> curve;
+  if (baseline) {
+    curve.resize(curve_size);
+    for (int i = 0; i < curve_size; ++i)
+      curve[std::size_t(i)] =
+          float(rendering.baseline.apply(double(i) * curve_top / (curve_size - 1)));
+  }
   // One table for the transfer function: a 24-million-pixel frame would
   // otherwise call pow() seventy million times.
   static constexpr int table_size = 4096;
@@ -598,7 +614,20 @@ void encode_srgb(const LinearImage& rgb, const Rendering& rendering, std::uint8_
     for (std::uint32_t x = 0; x < rgb.width; ++x) {
       const float* p = row + std::size_t(x) * 3;
       for (int c = 0; c < 3; ++c) {
-        float v = shoulder(p[c] * gain, strength);
+        float v = p[c] * gain;
+        if (baseline) {
+          const float at = v * (curve_size - 1) / curve_top;
+          v = at <= 0 ? curve[0]
+              : at >= curve_size - 1
+                  ? curve[curve_size - 1]
+                  // Interpolate between table entries: the curve is steep in
+                  // the shadows, where a table step would be visible banding.
+                  : curve[std::size_t(at)] +
+                        (curve[std::size_t(at) + 1] - curve[std::size_t(at)]) *
+                            (at - float(std::size_t(at)));
+        } else {
+          v = shoulder(v, strength);
+        }
         v = v <= 0 ? 0 : v >= 1 ? 1 : v;
         const float encoded = table[int(v * (table_size - 1) + 0.5f)];
         dst[std::size_t(x) * 4 + std::size_t(c)] = std::uint8_t(encoded * 255.f + 0.5f);

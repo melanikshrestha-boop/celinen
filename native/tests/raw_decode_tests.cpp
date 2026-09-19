@@ -939,6 +939,63 @@ void end_to_end_colour_tests() {
   }
 }
 
+void tone_curve_tests() {
+  // Every profile this repository ships has to carry a curve that is a curve:
+  // strictly increasing, anchored at both ends, and never above white.
+  const auto profile = profile_for_model("SONY", "ILCE-7M3");
+  check(profile.known, "the compiled-in Sony profile is found");
+  const auto& curve = profile.tone_curve;
+  check(curve.present, "and it carries a baseline tone curve");
+  close_to(curve.x[0], 0, 1e-12, "the curve starts at zero");
+  close_to(curve.y[0], 0, 1e-12, "… mapping to black");
+  close_to(curve.x[ToneCurve::knots - 1], 1, 1e-12, "the curve ends at the sensor's white");
+  close_to(curve.y[ToneCurve::knots - 1], 1, 1e-12, "… mapping to white");
+  for (std::size_t i = 1; i < ToneCurve::knots; ++i) {
+    check(curve.x[i] > curve.x[i - 1], "the curve's inputs increase");
+    // Strictly, not merely weakly: a flat run is a band of scene values that
+    // all render to one number, which is visible as posterisation.
+    check(curve.y[i] > curve.y[i - 1], "the curve's outputs strictly increase");
+    check(curve.y[i] <= 1.0 + 1e-9, "the curve never exceeds white");
+  }
+
+  // Applying it is monotone everywhere, including between and beyond the knots.
+  double previous = -1;
+  for (double v = 0; v <= 6.0; v += 0.002) {
+    const double y = curve.apply(v);
+    check(y >= previous - 1e-12, "the curve is monotone between its knots");
+    check(y <= 1.0 + 1e-9, "and never renders past white");
+    previous = y;
+  }
+  // Highlight reconstruction hands it values above the sensor's white; those
+  // must roll off towards white rather than step flat at it.
+  check(curve.apply(1.5) > curve.apply(1.0) - 1e-9, "a recovered highlight is not pulled back");
+  check(curve.apply(8.0) <= 1.0 + 1e-9, "and is never brighter than white");
+
+  // A camera's baseline rendering lifts the picture. That is the entire point:
+  // a scene-referred render is correct and looks flat and dark beside the
+  // JPEG the same camera wrote.
+  check(curve.apply(0.18) > 0.18 * 1.5, "the curve lifts a mid-tone well clear of linear");
+
+  // And the decoder honours the switch in both directions.
+  const auto fixture = build_colour_fixture({{0.25, 0.25, 0.25}}, 32, 1);
+  const auto meta = read_raw_metadata(fixture.file.data(), fixture.file.size());
+  check(meta.valid, "tone fixture parses");
+  // The fixture's profile comes from its own DNG tags, which carry no curve,
+  // so both renders must be identical — a file without a curve is unaffected
+  // by the switch rather than silently getting somebody else's rendering.
+  const auto render = [&](bool baseline) {
+    DecodeRequest request;
+    request.quality = Demosaic::half;
+    request.baseline_tone = baseline;
+    Decoder decoder(fixture.file.data(), fixture.file.size(), meta, request);
+    while (decoder.step()) {
+    }
+    return Blob(decoder.pixels(), decoder.pixels() + decoder.pixel_bytes());
+  };
+  check(render(true) == render(false),
+        "a file whose profile has no curve renders the same either way");
+}
+
 void band_tests() {
   const std::vector<Vector3> colours{{0.2, 0.3, 0.4}, {0.5, 0.2, 0.1}, {0.1, 0.5, 0.3},
                                      {0.4, 0.4, 0.2}, {0.3, 0.1, 0.5}, {0.25, 0.35, 0.15}};
@@ -1051,6 +1108,7 @@ int main() try {
   demosaic_tests();
   highlight_tests();
   end_to_end_colour_tests();
+  tone_curve_tests();
   band_tests();
   white_balance_request_tests();
   std::cout << "raw-decode-tests: " << checks << " checks passed\n";

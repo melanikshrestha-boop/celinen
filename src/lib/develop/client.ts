@@ -53,7 +53,16 @@ function hostedDevelopEngineStatus(engine: string): DevelopEngineStatus {
     ready: true,
     token: "browser",
     engine,
-    maxEdge: DEVELOP_ENGINE_LIMITS.defaultExportEdge,
+    // The WebAssembly engine is the same C++ as the executable and is built
+    // for the same 8,192 px / 36 MP bound — native/wasm/build.sh sizes its
+    // memory for exactly that. Reporting the smaller default would refuse an
+    // export the engine can perfectly well render, which is what used to cap
+    // a 24-million-pixel sensor render at 4,096 px. The script renderer is a
+    // different matter: it really is only good for a preview-sized frame.
+    maxEdge:
+      engine === WASM_DEVELOP_ENGINE
+        ? DEVELOP_ENGINE_LIMITS.maxEdge
+        : DEVELOP_ENGINE_LIMITS.defaultExportEdge,
     maxFileBytes: DEVELOP_ENGINE_LIMITS.maxFileBytes,
     workingSpace: "sRGB preview",
     rawSupported: false,
@@ -217,7 +226,11 @@ export async function renderDevelop(
               : "Rebuild the local C++ engine to enable sensor RAW development.",
           );
         if ((edge ?? DEVELOP_ENGINE_LIMITS.previewEdge) > status.maxEdge)
-          throw new Error("Rebuild the local C++ engine to enable this larger export size.");
+          throw new Error(
+            isHostedDevelopEngine(status.engine)
+              ? `This page's Develop engine exports up to ${status.maxEdge.toLocaleString()} px.`
+              : "Rebuild the local C++ engine to enable this larger export size.",
+          );
         if (status.engine === WASM_DEVELOP_ENGINE)
           return renderDevelopWasm(source, recipe, {
             edge: edge ?? DEVELOP_ENGINE_LIMITS.previewEdge,

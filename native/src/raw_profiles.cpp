@@ -10,12 +10,11 @@
 //
 // So the profiles below were measured here, from the camera's own work. A Sony
 // body writes a finished JPEG inside every ARW; that JPEG is Sony's own colour
-// rendering of the very same photons. Fitting a 3x3 that takes white-balanced
-// camera RGB onto the chromaticities of that JPEG recovers the sensor's colour
-// response up to the tone curve and saturation Sony applies on top, which the
-// fit removes first. `scripts/fit-raw-profile.py` is the fitter; the comment on
-// each entry records the frames it was fitted on and the error it reached on
-// frames held out of the fit.
+// rendering of the very same photons. A camera renders in two steps — a 3x3
+// onto its output primaries, then one tone curve per channel — and
+// `scripts/fit-raw-profile.py` recovers both by alternating between them. Each
+// entry therefore carries a matrix and the baseline curve that goes with it;
+// the comment on each records what it was fitted on.
 //
 // The consequence, said plainly: a profile here is a match to the camera
 // manufacturer's own rendering, not to Adobe's colorimetric measurement of that
@@ -24,6 +23,7 @@
 // else's numbers.
 #include "lenslabs/raw_color.hpp"
 #include <algorithm>
+#include <array>
 #include <cctype>
 
 namespace lenslabs::raw {
@@ -35,6 +35,11 @@ struct Entry {
   // XYZ (D50) -> camera, the DNG ColorMatrix1 convention, at the illuminant below.
   Matrix3 color_matrix;
   int illuminant;
+  // The camera's baseline rendering: linear working-space values in, linear
+  // out, the DNG ProfileToneCurve slot. Without it a render is scene-referred,
+  // which is correct and looks flat and dark beside the camera's own JPEG.
+  std::array<double, ToneCurve::knots> curve_x;
+  std::array<double, ToneCurve::knots> curve_y;
   const char* provenance;
 };
 
@@ -61,8 +66,24 @@ constexpr Entry table[] = {
     // red-green axis; the red primary consequently sits on the constraint
     // boundary, and this profile's behaviour far from daylight is unverified.
     {"SONY", "ILCE-7M3",
-     {1.8272, -1.2233, -0.1206, -0.7352, 1.7217, -0.0211, 0.0599, -0.1402, 0.7544},
+     {1.7353, -1.1232, -0.1289, -0.8340, 1.8522, -0.0546, 0.0414, -0.0919, 0.7224},
      21,
+     // The scene values the fit saw run from 0.001 to 0.454 of the sensor's
+     // white level. Above that the curve is carried on the slope the
+     // measurement ended with, because extending the shoulder the camera
+     // showed beats inventing one it did not.
+     {
+      0.000000, 0.000977, 0.003906, 0.008789, 0.015625, 0.024414, 0.035156, 0.047852, 0.062500,
+      0.079102, 0.097656, 0.118164, 0.140625, 0.165039, 0.191406, 0.219727, 0.250000, 0.282227,
+      0.316406, 0.352539, 0.390625, 0.430664, 0.472656, 0.516602, 0.562500, 0.610352, 0.660156,
+      0.711914, 0.765625, 0.821289, 0.878906, 0.938477, 1.000000
+     },
+     {
+      0.000000, 0.000815, 0.002928, 0.007942, 0.017919, 0.034997, 0.061185, 0.097516, 0.143624,
+      0.197782, 0.258694, 0.325384, 0.395873, 0.464565, 0.524847, 0.578144, 0.627450, 0.673801,
+      0.718533, 0.757072, 0.787291, 0.815214, 0.845223, 0.876041, 0.903442, 0.925243, 0.941924,
+      0.954254, 0.963323, 0.970580, 0.977863, 0.987436, 1.000000
+     },
      "measured from this camera's own embedded JPEG renderings"},
 };
 
@@ -78,6 +99,9 @@ ColorProfile profile_for_model(const std::string& make, const std::string& model
     profile.color_matrix_1 = entry.color_matrix;
     profile.illuminant_1 = entry.illuminant;
     profile.dual = false;
+    profile.tone_curve.present = true;
+    profile.tone_curve.x = entry.curve_x;
+    profile.tone_curve.y = entry.curve_y;
     profile.description = entry.provenance;
     return profile;
   }

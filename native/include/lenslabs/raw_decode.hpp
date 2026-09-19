@@ -221,12 +221,20 @@ void recover_highlights(LinearImage& rgb, const std::array<double, 3>& clip);
 //    `matrix` is row-major 3x3, built by camera_to_working() in raw_color.hpp.
 void convert_colour(LinearImage& rgb, const std::array<double, 9>& matrix);
 
-// A baseline rendering: exposure in stops, then a smooth highlight shoulder so
-// reconstructed values above 1 roll off instead of clipping flat, then the sRGB
-// transfer function. This is the only place in the file that leaves linear.
+// A baseline rendering: exposure in stops, then the camera's baseline tone
+// curve, then the sRGB transfer function. This is the only place in the file
+// that leaves linear.
+//
+// Without the curve the render is scene-referred, which is correct and looks
+// flat and dark beside the JPEG the same camera wrote. `shoulder` is the
+// fallback for that case — a plain highlight roll-off so reconstructed values
+// above 1 do not clip flat — and it is skipped entirely when a curve is
+// present, because the curve already rolls off and doing both compresses the
+// highlights twice.
 struct Rendering {
   double exposure = 0;   // stops
-  double shoulder = 1.0; // 0 disables the roll-off entirely
+  double shoulder = 1.0; // only used when `baseline` is absent
+  ToneCurve baseline;
 };
 // Writes `width * height * 4` sRGB RGBA8 bytes. Alpha is 255.
 void encode_srgb(const LinearImage& rgb, const Rendering& rendering, std::uint8_t* out);
@@ -242,6 +250,9 @@ struct DecodeRequest {
   double temperature = 0;
   double tint = 0;
   bool highlight_recovery = true;
+  // Apply the camera profile's baseline tone curve. Off renders scene-referred,
+  // which is what a colour measurement wants and not what a photograph wants.
+  bool baseline_tone = true;
   Rendering rendering;
   // Rows of output per step(). Smaller is a finer progress bar and a faster
   // cancellation; larger amortises the halo rows the demosaic re-reads.
