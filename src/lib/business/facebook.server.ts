@@ -43,6 +43,17 @@ function config() {
     version,
   };
 }
+/** The shipped Page permissions, plus any listed in FACEBOOK_EXTRA_SCOPES
+ * (comma-separated; `publish_video` is what Page video posts need). Extra scopes
+ * must also be added to the Meta app, or the login dialog refuses them. */
+export function facebookScopes() {
+  const base = ["pages_show_list", "pages_read_engagement", "pages_manage_posts"];
+  const extra = (process.env["FACEBOOK_EXTRA_SCOPES"] ?? "")
+    .split(",")
+    .map((scope) => scope.trim())
+    .filter((scope) => /^[a-z_]{1,60}$/.test(scope) && !base.includes(scope));
+  return [...base, ...extra];
+}
 export function facebookConfigured() {
   try {
     config();
@@ -108,7 +119,13 @@ function classifyFacebook(status: number, body: unknown): FacebookApiError {
 export async function facebookCall(
   path: string,
   token: string,
-  options: { body?: URLSearchParams; fetch?: typeof fetch; timeoutMs?: number } = {},
+  options: {
+    body?: URLSearchParams;
+    fetch?: typeof fetch;
+    timeoutMs?: number;
+    /** Video uploads go to graph-video.facebook.com; everything else to graph.facebook.com. */
+    host?: "graph.facebook.com" | "graph-video.facebook.com";
+  } = {},
 ): Promise<Record<string, unknown>> {
   if (!/^[a-zA-Z0-9_/?=&,%.-]+$/.test(path) || path.includes(".."))
     throw new Error("Invalid Facebook request.");
@@ -116,7 +133,7 @@ export async function facebookCall(
   if (!/^v\d+\.0$/.test(version)) throw new Error("Invalid Facebook API version.");
   let response: Response;
   try {
-    response = await (options.fetch ?? fetch)(`https://graph.facebook.com/${version}/${path}`, {
+    response = await (options.fetch ?? fetch)(`https://${options.host ?? "graph.facebook.com"}/${version}/${path}`, {
       method: options.body ? "POST" : "GET",
       headers: { Authorization: `Bearer ${token}` },
       ...(options.body ? { body: options.body } : {}),
@@ -192,7 +209,7 @@ export async function startFacebook(owner: string) {
     expires_at: new Date(Date.now() + 600000).toISOString(),
   });
   if (saved.error) throw new Error("Facebook connection storage is unavailable.");
-  return `https://www.facebook.com/${c.version}/dialog/oauth?${new URLSearchParams({ client_id: c.id, redirect_uri: c.redirect, response_type: "code", scope: "pages_show_list,pages_read_engagement,pages_manage_posts", state })}`;
+  return `https://www.facebook.com/${c.version}/dialog/oauth?${new URLSearchParams({ client_id: c.id, redirect_uri: c.redirect, response_type: "code", scope: facebookScopes().join(","), state })}`;
 }
 export async function finishFacebook(owner: string, code: string, state: string) {
   const c = config(),
