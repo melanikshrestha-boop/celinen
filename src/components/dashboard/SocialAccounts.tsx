@@ -43,9 +43,11 @@ import {
   listScheduledPosts,
 } from "@/lib/business/schedule.functions";
 import { publishingStatus } from "@/lib/business/publishing.functions";
-import { canScheduleNetwork, type ScheduleRecord } from "@/lib/social/schedule";
+import { canScheduleNetwork, type ScheduleView } from "@/lib/social/schedule";
 import { InstagramAccount } from "@/components/social/InstagramAccount";
 import { FacebookAccount } from "@/components/social/FacebookAccount";
+import { SocialConnectors } from "@/components/social/SocialConnectors";
+import { PROVIDER_FOR_NETWORK } from "@/lib/social/connectors";
 import "./social-accounts.css";
 
 const TONES = ["Professional", "Casual", "Warm"] as const;
@@ -67,7 +69,8 @@ function localStamp(ms: number) {
 }
 
 async function photoPayload(file: File) {
-  if (file.type !== "image/jpeg" && file.type !== "image/png") throw new Error("Use a JPEG or PNG.");
+  if (file.type !== "image/jpeg" && file.type !== "image/png")
+    throw new Error("Use a JPEG or PNG.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (bytes.length > 1_500_000) throw new Error("That photo is too large.");
   let binary = "";
@@ -92,11 +95,13 @@ export function SocialAccounts() {
   const [secrets, setSecrets] = useState<Partial<Record<PasteSocialId, PasteSecret>>>({});
   const [photo, setPhoto] = useState<File | null>(null);
   const [when, setWhen] = useState(() => localStamp(Date.now() + 60 * 60 * 1000));
-  const [queue, setQueue] = useState<ScheduleRecord[]>([]);
+  const [queue, setQueue] = useState<ScheduleView[]>([]);
   const [meta, setMeta] = useState<{ instagram: boolean; facebook: boolean }>({
     instagram: false,
     facebook: false,
   });
+  /** Providers with a live server-side connection (Threads, LinkedIn, X, TikTok, YouTube). */
+  const [connected, setConnected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const incoming = readSocialDraft();
@@ -172,6 +177,8 @@ export function SocialAccounts() {
   function liveReady(id: SocialId) {
     if (id === "instagram") return meta.instagram;
     if (id === "facebook") return meta.facebook;
+    const provider = PROVIDER_FOR_NETWORK[id];
+    if (provider && connected.has(provider)) return true;
     return isPasteSocial(id) && hasPasteSecret(secrets, id);
   }
 
@@ -180,11 +187,13 @@ export function SocialAccounts() {
     if (!networks.length) throw new Error("Connect an account that can actually post.");
     const row = await createScheduledPost({
       data: {
+        // Chosen here once, so a double click or a retried request cannot schedule twice.
+        id: crypto.randomUUID(),
         caption: post!.caption,
         networks,
         runAt,
         secrets: networks
-          .filter((id): id is PasteSocialId => isPasteSocial(id))
+          .filter((id): id is PasteSocialId => isPasteSocial(id) && !!secrets[id])
           .map((id) => secrets[id]!),
         ...(photo ? { image: await photoPayload(photo) } : {}),
       },
@@ -474,7 +483,10 @@ export function SocialAccounts() {
                 event.preventDefault();
                 if (!post) return;
                 const live = targets.map((row) => row.id).filter((id) => liveReady(id));
-                void sendLive(live.length ? live : targets.map((row) => row.id), new Date(when).toISOString())
+                void sendLive(
+                  live.length ? live : targets.map((row) => row.id),
+                  new Date(when).toISOString(),
+                )
                   .then((row) =>
                     setStatus(
                       row.status === "scheduled"
@@ -525,6 +537,15 @@ export function SocialAccounts() {
         ) : null}
         <InstagramAccount />
         <FacebookAccount />
+        <SocialConnectors
+          onChange={(rows) =>
+            setConnected(
+              new Set(
+                rows.filter((row) => row.connection?.state === "active").map((row) => row.provider),
+              ),
+            )
+          }
+        />
         <div className="social-post__suggest">
           <span>Suggestions</span>
           {SUGGEST.map((item) => {

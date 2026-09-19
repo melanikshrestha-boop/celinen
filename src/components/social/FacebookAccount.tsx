@@ -70,7 +70,17 @@ export function FacebookAccount() {
     }
   }
 
-  if (account && !account.configured) return null;
+  if (account && !account.configured)
+    return (
+      <section className="ig-account" aria-label="Facebook">
+        <div className="ig-account__head">
+          <Facebook size={18} aria-hidden="true" />
+          <h2>Facebook</h2>
+          <span className="ig-account__spacer" />
+          <span className="ig-account__note">Missing {account.missing.join(", ")}</span>
+        </div>
+      </section>
+    );
 
   return (
     <section className="ig-account" aria-label="Facebook">

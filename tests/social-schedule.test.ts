@@ -14,16 +14,18 @@ test("only live networks can be scheduled", () => {
   expect(canScheduleNetwork("bluesky")).toBe(true);
   expect(canScheduleNetwork("x")).toBe(true);
   expect(canScheduleNetwork("linkedin")).toBe(true);
-  expect(canScheduleNetwork("tiktok")).toBe(false);
-  expect(canScheduleNetwork("youtube-shorts")).toBe(false);
+  expect(canScheduleNetwork("tiktok")).toBe(true);
+  expect(canScheduleNetwork("youtube-shorts")).toBe(true);
+  expect(canScheduleNetwork("threads")).toBe(true);
   expect(isLivePostNetwork("pinterest")).toBe(false);
+  expect(isLivePostNetwork("google-business")).toBe(false);
 });
 
 test("schedule input keeps UTC time and refuses empty captions", () => {
   const runAt = "2026-09-18T18:30:00.000Z";
   const parsed = parseScheduleInput({
     caption: "Gallery tonight.",
-    networks: ["bluesky", "tiktok", "bluesky"],
+    networks: ["bluesky", "pinterest", "bluesky"],
     runAt,
   });
   expect(parsed.caption).toBe("Gallery tonight.");
@@ -31,7 +33,7 @@ test("schedule input keeps UTC time and refuses empty captions", () => {
   expect(parsed.runAt).toBe(runAt);
   expect(() => parseScheduleInput({ caption: "  ", networks: ["x"], runAt })).toThrow();
   expect(() =>
-    parseScheduleInput({ caption: "Hi", networks: ["tiktok"], runAt }),
+    parseScheduleInput({ caption: "Hi", networks: ["pinterest"], runAt }),
   ).toThrow();
 });
 

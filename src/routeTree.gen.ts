@@ -102,6 +102,7 @@ import { Route as ApiNativeV2RouteImport } from './routes/api/native/v2'
 import { Route as ApiPublicLightroomRouteImport } from './routes/api/public/lightroom'
 import { Route as ApiPublicTrafficRouteImport } from './routes/api/public/traffic'
 import { Route as ApiScheduleTickRouteImport } from './routes/api/schedule.tick'
+import { Route as ApiSocialMediaTicketRouteImport } from './routes/api/social-media.$ticket'
 import { Route as ApiVoicePolishRouteImport } from './routes/api/voice/polish'
 import { Route as ApiVoiceSttRouteImport } from './routes/api/voice/stt'
 import { Route as ShootsIdIndexRouteImport } from './routes/shoots.$id.index'
@@ -579,6 +580,11 @@ const ApiScheduleTickRoute = ApiScheduleTickRouteImport.update({
   path: '/api/schedule/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSocialMediaTicketRoute = ApiSocialMediaTicketRouteImport.update({
+  id: '/api/social-media/$ticket',
+  path: '/api/social-media/$ticket',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVoicePolishRoute = ApiVoicePolishRouteImport.update({
   id: '/api/voice/polish',
   path: '/api/voice/polish',
@@ -732,6 +738,7 @@ export interface FileRoutesByFullPath {
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/api/schedule/tick': typeof ApiScheduleTickRoute
+  '/api/social-media/$ticket': typeof ApiSocialMediaTicketRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -834,6 +841,7 @@ export interface FileRoutesByTo {
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/api/schedule/tick': typeof ApiScheduleTickRoute
+  '/api/social-media/$ticket': typeof ApiSocialMediaTicketRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -941,6 +949,7 @@ export interface FileRoutesById {
   '/api/public/lightroom': typeof ApiPublicLightroomRoute
   '/api/public/traffic': typeof ApiPublicTrafficRoute
   '/api/schedule/tick': typeof ApiScheduleTickRoute
+  '/api/social-media/$ticket': typeof ApiSocialMediaTicketRoute
   '/api/voice/polish': typeof ApiVoicePolishRoute
   '/api/voice/stt': typeof ApiVoiceSttRoute
   '/shoots/$id/cull': typeof ShootsIdCullRoute
@@ -1049,6 +1058,7 @@ export interface FileRouteTypes {
     | '/api/public/lightroom'
     | '/api/public/traffic'
     | '/api/schedule/tick'
+    | '/api/social-media/$ticket'
     | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
@@ -1151,6 +1161,7 @@ export interface FileRouteTypes {
     | '/api/public/lightroom'
     | '/api/public/traffic'
     | '/api/schedule/tick'
+    | '/api/social-media/$ticket'
     | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
@@ -1257,6 +1268,7 @@ export interface FileRouteTypes {
     | '/api/public/lightroom'
     | '/api/public/traffic'
     | '/api/schedule/tick'
+    | '/api/social-media/$ticket'
     | '/api/voice/polish'
     | '/api/voice/stt'
     | '/shoots/$id/cull'
@@ -1358,6 +1370,7 @@ export interface RootRouteChildren {
   ApiPublicLightroomRoute: typeof ApiPublicLightroomRoute
   ApiPublicTrafficRoute: typeof ApiPublicTrafficRoute
   ApiScheduleTickRoute: typeof ApiScheduleTickRoute
+  ApiSocialMediaTicketRoute: typeof ApiSocialMediaTicketRoute
   ApiVoicePolishRoute: typeof ApiVoicePolishRoute
   ApiVoiceSttRoute: typeof ApiVoiceSttRoute
   ApiPublicStripeConnectCallbackRoute: typeof ApiPublicStripeConnectCallbackRoute
@@ -2018,6 +2031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiScheduleTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/social-media/$ticket': {
+      id: '/api/social-media/$ticket'
+      path: '/api/social-media/$ticket'
+      fullPath: '/api/social-media/$ticket'
+      preLoaderRoute: typeof ApiSocialMediaTicketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/voice/polish': {
       id: '/api/voice/polish'
       path: '/api/voice/polish'
@@ -2248,6 +2268,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicLightroomRoute: ApiPublicLightroomRoute,
   ApiPublicTrafficRoute: ApiPublicTrafficRoute,
   ApiScheduleTickRoute: ApiScheduleTickRoute,
+  ApiSocialMediaTicketRoute: ApiSocialMediaTicketRoute,
   ApiVoicePolishRoute: ApiVoicePolishRoute,
   ApiVoiceSttRoute: ApiVoiceSttRoute,
   ApiPublicStripeConnectCallbackRoute: ApiPublicStripeConnectCallbackRoute,
